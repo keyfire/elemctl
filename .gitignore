@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+.pytest_cache/
+
+# Секреты и локальная конфигурация
+.env
+
+# Артефакты сборки Элемента
+*.xasm
+*.xlib

@@ -1,0 +1,4 @@
+include NOTICE
+include ORIGIN.md
+include .env.example
+recursive-include docs *.md

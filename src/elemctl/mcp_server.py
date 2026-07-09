@@ -1,0 +1,200 @@
+"""MCP-сервер elemctl: операции платформы как инструменты для AI-агентов.
+
+Транспорт – stdio; реквизиты подключения – из переменных окружения
+ELEMENT_* или .env-файла в текущем каталоге. Требует optional extra
+"elemctl[mcp]" (пакет mcp>=1.2, используется FastMCP).
+"""
+
+from __future__ import annotations
+
+from datetime import datetime, timedelta, timezone
+
+try:
+    from mcp.server.fastmcp import FastMCP
+except ImportError as error:  # pragma: no cover - ветка без extra
+    raise ImportError(
+        'для MCP-сервера нужен extra: pip install "elemctl[mcp]"'
+    ) from error
+
+from .build import build_assembly
+from .client import ElementClient, extract_assembly_id
+from .config import Config
+from .deploy import (
+    deploy_from_sources,
+    verify_deploy as _verify_deploy,
+)
+from .errors import ElemctlError
+
+INSTRUCTIONS = (
+    "Инструменты управления платформой 1С:Предприятие.Элемент (Console API v2). "
+    "Важно: при ошибке применения сборки платформа МОЛЧА откатывает приложение "
+    "на предыдущую сборку и запускает его – статус Running не означает успех "
+    "деплоя. Доверяйте только отчёту инструментов deploy/verify_deploy: поле ok, "
+    "список problems и сверка applied-version с загруженной версией."
+)
+
+
+def create_server(config=None):
+    """Создать MCP-сервер elemctl со всеми инструментами.
+
+    config – готовая конфигурация; без неё она собирается из переменных
+    окружения и .env при первом обращении к платформе.
+    """
+    server = FastMCP("elemctl", instructions=INSTRUCTIONS)
+    state = {"client": None, "config": config}
+
+    def client():
+        if state["client"] is None:
+            cfg = state["config"] or Config.from_env()
+            state["client"] = ElementClient(cfg)
+        return state["client"]
+
+    @server.tool()
+    def list_apps(name: str = "") -> list:
+        """Список приложений платформы; name – необязательный фильтр по имени."""
+        return client().list_apps(name=name)
+
+    @server.tool()
+    def get_app(app_id: str) -> dict:
+        """Карточка приложения: статус, uri, фактическая версия проекта (source.project-version)."""
+        return client().get_app(app_id)
+
+    @server.tool()
+    def find_app(name: str) -> dict:
+        """Найти приложение по точному имени без учёта регистра; вернуть id и признак found."""
+        app = client().find_app(name)
+        if app is None:
+            return {"id": None, "found": False}
+        return {"id": app.get("id"), "found": True, "application": app}
+
+    @server.tool()
+    def create_app(
+        name: str,
+        project_id: str = "",
+        version_id: str = "",
+        space_id: str = "",
+        development_mode: bool = True,
+    ) -> dict:
+        """Создать приложение. При задании только project_id источником берётся последняя сборка проекта (создание из проекта целиком может дать пустой каркас)."""
+        source_version_id = version_id
+        if not source_version_id:
+            if not project_id:
+                raise ElemctlError("нужен project_id или version_id")
+            latest = client().latest_assembly(project_id)
+            if latest is None:
+                raise ElemctlError(
+                    f"у проекта {project_id} нет сборок – загрузите сборку или укажите version_id"
+                )
+            source_version_id = extract_assembly_id(latest)
+        return client().create_app(
+            name,
+            project_version_id=source_version_id,
+            development_mode=development_mode,
+            space_id=space_id or None,
+        )
+
+    @server.tool()
+    def start_app(app_id: str) -> dict:
+        """Запустить приложение."""
+        return client().start_app(app_id) or {"ok": True, "app-id": app_id}
+
+    @server.tool()
+    def stop_app(app_id: str) -> dict:
+        """Остановить приложение."""
+        return client().stop_app(app_id) or {"ok": True, "app-id": app_id}
+
+    @server.tool()
+    def delete_app(app_id: str) -> dict:
+        """Удалить приложение. НЕОБРАТИМО: данные теряются, а пересозданное приложение получит другой URL – внешние настройки (OIDC redirect и т.п.) придётся обновлять."""
+        return client().delete_app(app_id) or {"deleted": True, "app-id": app_id}
+
+    @server.tool()
+    def list_spaces() -> list:
+        """Список пространств."""
+        return client().list_spaces()
+
+    @server.tool()
+    def list_projects() -> list:
+        """Список проектов."""
+        return client().list_projects()
+
+    @server.tool()
+    def list_builds(project_id: str) -> list:
+        """Список сборок проекта."""
+        return client().list_assemblies(project_id)
+
+    # Имя функции отличается от имени инструмента, чтобы не затенять
+    # импортированный build_assembly из модуля build.
+    @server.tool(name="build_assembly")
+    def build_assembly_tool(project_dir: str = "", output_dir: str = "", version: str = "") -> dict:
+        """Локально собрать архив .xasm/.xlib из исходников проекта."""
+        result = build_assembly(
+            project_dir or None, output_dir=output_dir or None, version=version
+        )
+        return {"file": str(result.file), "version": result.version, "kind": result.kind}
+
+    @server.tool()
+    def deploy(
+        app_id: str,
+        project_id: str,
+        project_dir: str = "",
+        version: str = "",
+        branch: str = "",
+        commit_message: str = "",
+    ) -> dict:
+        """Полный цикл деплоя из исходников с честной проверкой применения; итог – поле ok, детали – problems и log."""
+        lines: list[str] = []
+        report = deploy_from_sources(
+            client(),
+            app_id,
+            project_id,
+            project_dir=project_dir or None,
+            version=version,
+            branch=branch or None,
+            commit_message=commit_message,
+            log=lines.append,
+        )
+        payload = report.to_dict()
+        payload["log"] = lines
+        return payload
+
+    @server.tool()
+    def apply_build(app_id: str, version_id: str) -> dict:
+        """Применить загруженную сборку (по id) к приложению; после применения проверьте итог инструментом verify_deploy."""
+        response = client().apply_build(app_id, image_id=version_id)
+        return response or {"ok": True, "app-id": app_id, "version-id": version_id}
+
+    @server.tool()
+    def verify_deploy(app_id: str, expected_version: str = "", since_minutes: int = 30) -> dict:
+        """Проверить фактическое применение сборки: задачи с ошибками за последние since_minutes минут, сверка версии, доступность uri."""
+        since = datetime.now(timezone.utc) - timedelta(minutes=since_minutes)
+        report = _verify_deploy(
+            client(), app_id, expected_version=expected_version, since=since
+        )
+        return report.to_dict()
+
+    @server.tool()
+    def list_app_tasks(app_id: str = "") -> list:
+        """Задачи приложений; app_id – необязательный фильтр (выполняется на клиенте)."""
+        return client().list_app_tasks(app_id)
+
+    @server.tool()
+    def list_branches(project_id: str = "", name: str = "") -> list:
+        """Список веток среды разработки; фильтры project_id и name необязательны."""
+        return client().list_branches(project_id=project_id, name=name)
+
+    @server.tool()
+    def merge_branch(branch_id: str) -> dict:
+        """Принять изменения ветки среды разработки (merge)."""
+        return client().merge_branch(branch_id) or {"merged": True, "branch-id": branch_id}
+
+    return server
+
+
+def main():
+    """Запустить MCP-сервер на stdio."""
+    create_server().run()
+
+
+if __name__ == "__main__":
+    main()

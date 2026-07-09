@@ -1,0 +1,19 @@
+elemctl
+Copyright 2026 KeyFire
+
+Licensed under the MIT License (see LICENSE).
+
+This software is a command-line tool, MCP server and Python library for the
+1C:Enterprise.Element (1cmycloud) Console API v2.
+
+"1C", "1C:Enterprise", "1C:Enterprise.Element" and "1cmycloud" are trademarks and/or
+product names of their respective owners (1C Company and its affiliates). They are used
+in this project for descriptive purposes only, to indicate the platform the tool is
+compatible with.
+
+This project is an independent development. It is NOT affiliated with, endorsed by,
+sponsored by or supported by 1C Company.
+
+The library depends only on the Python standard library. The optional MCP server extra
+(elemctl[mcp]) uses the "mcp" package (MIT). Platform credentials are issued by the
+platform to its own users and are not redistributed by this project.
