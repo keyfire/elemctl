@@ -60,22 +60,24 @@ def create_server(config=None):
         return client().get_app(app_id)
 
     @server.tool()
-    def find_app(name: str) -> dict:
-        """Найти приложение по точному имени без учёта регистра; вернуть id и признак found."""
-        app = client().find_app(name)
+    def find_app(name: str, include_deleted: bool = False) -> dict:
+        """Найти приложение по точному имени без учёта регистра; вернуть id и признак found.
+
+        Удалённые приложения (статус Deleted) по умолчанию пропускаются: на их
+        прежнем id get и deploy отвечают 404. include_deleted=True ищет среди
+        всех приложений, включая удалённые.
+        """
+        app = client().find_app(name, include_deleted=include_deleted)
         if app is None:
             return {"id": None, "found": False}
         return {"id": app.get("id"), "found": True, "application": app}
 
-    @server.tool()
-    def create_app(
-        name: str,
-        project_id: str = "",
-        version_id: str = "",
-        space_id: str = "",
-        development_mode: bool = True,
-    ) -> dict:
-        """Создать приложение. При задании только project_id источником берётся последняя сборка проекта (создание из проекта целиком может дать пустой каркас)."""
+    def _create_app(name, project_id, version_id, space_id, development_mode):
+        """Создать приложение (общая логика create_app и ensure_app).
+
+        Источник – version_id (id сборки) либо последняя сборка project_id
+        (создание из проекта целиком может дать пустой каркас).
+        """
         source_version_id = version_id
         if not source_version_id:
             if not project_id:
@@ -92,6 +94,39 @@ def create_server(config=None):
             development_mode=development_mode,
             space_id=space_id or None,
         )
+
+    @server.tool()
+    def create_app(
+        name: str,
+        project_id: str = "",
+        version_id: str = "",
+        space_id: str = "",
+        development_mode: bool = True,
+    ) -> dict:
+        """Создать приложение. При задании только project_id источником берётся последняя сборка проекта (создание из проекта целиком может дать пустой каркас)."""
+        return _create_app(name, project_id, version_id, space_id, development_mode)
+
+    @server.tool()
+    def ensure_app(
+        name: str,
+        project_id: str = "",
+        version_id: str = "",
+        space_id: str = "",
+        development_mode: bool = True,
+    ) -> dict:
+        """Идемпотентно создать приложение по имени, если его ещё нет.
+
+        Существующее приложение НЕ пересоздаётся: при наличии возвращается
+        {"id": ..., "created": false} без изменений (delete + create дали бы
+        новый URL и порвали внешние привязки – OIDC redirect и т.п.). Удалённые
+        приложения (статус Deleted) не в счёт. Параметры создания – как у
+        create_app; они действуют, только когда создание происходит.
+        """
+        existing = client().find_app(name)
+        if existing is not None:
+            return {"id": existing.get("id"), "created": False}
+        card = _create_app(name, project_id, version_id, space_id, development_mode)
+        return {"id": (card or {}).get("id"), "created": True}
 
     @server.tool()
     def start_app(app_id: str) -> dict:

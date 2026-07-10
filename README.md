@@ -84,6 +84,9 @@ elemctl apps list
 # карточка приложения (статус, uri, фактическая версия проекта)
 elemctl apps get <app-id>
 
+# создать приложение, только если его ещё нет: {"id": ..., "created": true|false}
+elemctl apps ensure acme-crm-dev --project-id <project-id> --latest-build --wait
+
 # полный цикл деплоя из исходников с проверкой применения
 elemctl deploy --app-id <app-id> --project-id <project-id> --project-dir acme/crm
 
@@ -156,6 +159,10 @@ Assembly.yaml            # манифест: ProjectKind, Vendor, Name, Version,
   `elemctl apps create <имя> --project-id <id> --latest-build` (MCP-инструмент
   `create_app` подставляет последнюю сборку автоматически), а после создания -
   `elemctl deploy`.
+- Удалённые приложения остаются в списке платформы со статусом `Deleted` и
+  прежним `id`, на котором `apps get` и `deploy` отвечают 404. `apps find` и
+  `apps ensure` их пропускают; вернуть прежний поиск - `apps find
+  --include-deleted`.
 - Приложение с неопубликованными правками в среде разработки платформа
   удалить не даёт (HTTP 400 `FAILED_PRECONDITION`), принудительного удаления
   в Console API нет - только через панель управления; elemctl подскажет это

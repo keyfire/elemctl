@@ -81,7 +81,7 @@ def test_deploy_dry_run_builds_only(project_factory, tmp_path, capsys):
 
 def test_apps_find_found_and_not_found(monkeypatch, capsys):
     class FakeClient:
-        def find_app(self, name):
+        def find_app(self, name, *, include_deleted=False):
             if name == "site-dev":
                 return {"id": "app-42", "display-name": "site-dev"}
             return None
@@ -102,12 +102,95 @@ def test_apps_find_request_failure_is_an_error(monkeypatch, capsys):
     """Сбой запроса отличим от "не найдено": ненулевой код и error в stderr."""
 
     class FailingClient:
-        def find_app(self, name):
+        def find_app(self, name, *, include_deleted=False):
             raise ApiError("нет доступа", status=403)
 
     monkeypatch.setattr(cli, "make_client", lambda config: FailingClient())
 
     rc = cli.main(["apps", "find", "site-dev"])
+    assert rc == 1
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "error" in json.loads(captured.err)
+
+
+def test_apps_find_skips_deleted_unless_flag(monkeypatch, capsys):
+    """По умолчанию удалённое приложение не находится; --include-deleted его возвращает."""
+
+    class FakeClient:
+        def find_app(self, name, *, include_deleted=False):
+            # Приложение есть в списке платформы, но удалено: без флага его нет.
+            if name == "site-old" and include_deleted:
+                return {"id": "app-del", "display-name": "site-old", "status": "Deleted"}
+            return None
+
+    monkeypatch.setattr(cli, "make_client", lambda config: FakeClient())
+
+    rc = cli.main(["apps", "find", "site-old"])
+    assert rc == 0
+    assert json.loads(capsys.readouterr().out) == {"id": None, "found": False}
+
+    rc = cli.main(["apps", "find", "site-old", "--include-deleted"])
+    assert rc == 0
+    assert json.loads(capsys.readouterr().out) == {"id": "app-del", "found": True}
+
+
+def test_apps_ensure_existing_returns_created_false_without_creating(monkeypatch, capsys):
+    """Существующее приложение не пересоздаётся: created=false, create_app не вызывается."""
+
+    class FakeClient:
+        def find_app(self, name, *, include_deleted=False):
+            return {"id": "app-7", "display-name": name}
+
+        def create_app(self, *args, **kwargs):
+            raise AssertionError("создание не должно вызываться для существующего приложения")
+
+    monkeypatch.setattr(cli, "make_client", lambda config: FakeClient())
+
+    rc = cli.main(["apps", "ensure", "site-dev", "--version-id", "asm-1"])
+    assert rc == 0
+    assert json.loads(capsys.readouterr().out) == {"id": "app-7", "created": False}
+
+
+def test_apps_ensure_missing_creates_and_returns_created_true(monkeypatch, capsys):
+    """Отсутствующее приложение создаётся: created=true, источником идёт указанная сборка."""
+
+    class FakeClient:
+        def find_app(self, name, *, include_deleted=False):
+            return None
+
+        def create_app(
+            self,
+            display_name,
+            *,
+            project_version_id=None,
+            image_id=None,
+            development_mode=True,
+            space_id=None,
+            technology_version=None,
+        ):
+            assert display_name == "site-new"
+            assert project_version_id == "asm-9"
+            assert image_id is None
+            return {"id": "app-new", "display-name": display_name}
+
+    monkeypatch.setattr(cli, "make_client", lambda config: FakeClient())
+
+    rc = cli.main(["apps", "ensure", "site-new", "--version-id", "asm-9"])
+    assert rc == 0
+    assert json.loads(capsys.readouterr().out) == {"id": "app-new", "created": True}
+
+
+def test_apps_ensure_request_failure_is_an_error(monkeypatch, capsys):
+    """Сбой запроса в ensure: код возврата 1, пустой stdout, error в stderr."""
+
+    class FailingClient:
+        def find_app(self, name, *, include_deleted=False):
+            raise ApiError("нет доступа", status=403)
+
+    monkeypatch.setattr(cli, "make_client", lambda config: FailingClient())
+
+    rc = cli.main(["apps", "ensure", "site-dev"])
     assert rc == 1
     captured = capsys.readouterr()
     assert captured.out == ""

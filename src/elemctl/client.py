@@ -70,6 +70,21 @@ def _collapse_reference(value):
     return None
 
 
+# Статус удалённого приложения (сравнение без учёта регистра).
+DELETED_STATUS = "Deleted"
+
+
+def _is_deleted(app):
+    """Признак удалённого приложения.
+
+    Платформа не убирает удалённые приложения из списка, а помечает их
+    статусом Deleted, сохраняя прежний id. На таком id последующие get и
+    deploy отвечают 404, поэтому поиск по умолчанию их пропускает.
+    """
+    status = app.get("status")
+    return isinstance(status, str) and status.strip().lower() == DELETED_STATUS.lower()
+
+
 class ElementClient:
     """Программный клиент Console API v2."""
 
@@ -167,17 +182,22 @@ class ElementClient:
         """Карточка приложения (статус, uri, source.project-version и др.)."""
         return self._api("GET", f"/applications/{app_id}")
 
-    def find_app(self, name):
+    def find_app(self, name, *, include_deleted=False):
         """Найти приложение по точному совпадению имени без учёта регистра.
 
         Имя сверяется с полями name, display-name и publication-context.
-        Возвращается карточка из списка либо None.
+        Удалённые приложения (статус Deleted) по умолчанию пропускаются: на их
+        прежнем id последующие get и deploy отвечают 404. include_deleted=True
+        возвращает прежнее поведение – поиск среди всех приложений, включая
+        удалённые. Возвращается карточка из списка либо None.
         """
         target = (name or "").strip().lower()
         if not target:
             return None
         for app in self.list_apps():
             if not isinstance(app, dict):
+                continue
+            if not include_deleted and _is_deleted(app):
                 continue
             for key in ("name", "display-name", "publication-context"):
                 value = app.get(key)

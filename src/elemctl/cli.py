@@ -102,9 +102,12 @@ def cmd_apps_find(args):
     Код возврата 0 в обоих случаях: признак несёт поле found. Ненулевой код возврата
     означает сбой запроса (нет доступа, сеть, конфигурация) и сопровождается JSON'ом
     с полем error в stderr – иначе вызывающий не отличит "стенда нет" от "не смогли спросить".
+
+    Удалённые приложения (статус Deleted) по умолчанию пропускаются, чтобы найденный id
+    был пригоден для работы; флаг --include-deleted возвращает поиск среди всех приложений.
     """
     client = make_client(_config(args))
-    app = client.find_app(args.name)
+    app = client.find_app(args.name, include_deleted=args.include_deleted)
     if app is None:
         _emit({"id": None, "found": False})
         return 0
@@ -112,9 +115,14 @@ def cmd_apps_find(args):
     return 0
 
 
-def cmd_apps_create(args):
-    config = _config(args)
-    client = make_client(config)
+def _create_app_from_args(client, config, args):
+    """Создать приложение по флагам создания; вернуть карточку.
+
+    Общая логика apps create и apps ensure. Источник – указанная сборка
+    (--version-id), последняя сборка проекта (--latest-build) либо проект
+    целиком (--project-id, чревато пустым каркасом). При --wait дожидается
+    готовности приложения.
+    """
     project_id = args.project_id or config.project_id
     version_id = args.version_id
 
@@ -149,7 +157,34 @@ def cmd_apps_create(args):
         app_id = (card or {}).get("id")
         if app_id:
             card = client.wait_app_ready(app_id, log=_progress)
-    _emit(card)
+    return card
+
+
+def cmd_apps_create(args):
+    config = _config(args)
+    client = make_client(config)
+    _emit(_create_app_from_args(client, config, args))
+    return 0
+
+
+def cmd_apps_ensure(args):
+    """Идемпотентно привести приложение с данным именем в существование.
+
+    Ищет приложение по правилам apps find (удалённые в статусе Deleted не в
+    счёт): если оно уже есть – ничего не делает и возвращает created: false;
+    если нет – создаёт по флагам создания и возвращает created: true.
+    Существующее приложение никогда не пересоздаётся: delete + create дают
+    новый URL и рвут внешние привязки к прежнему. Код возврата 0 в обоих
+    случаях; сбой запроса – JSON с полем error в stderr и код возврата 1.
+    """
+    config = _config(args)
+    client = make_client(config)
+    existing = client.find_app(args.name)
+    if existing is not None:
+        _emit({"id": existing.get("id"), "created": False})
+        return 0
+    card = _create_app_from_args(client, config, args)
+    _emit({"id": (card or {}).get("id"), "created": True})
     return 0
 
 
@@ -400,6 +435,18 @@ def cmd_mcp(args):
 # -- парсер --------------------------------------------------------------------
 
 
+def _add_create_flags(p):
+    """Добавить флаги источника и создания приложения (общие для apps create и apps ensure)."""
+    p.add_argument("name", metavar="NAME")
+    p.add_argument("--project-id", help="проект-источник")
+    p.add_argument("--version-id", help="id сборки-источника")
+    p.add_argument("--latest-build", action="store_true", help="источник – последняя сборка проекта")
+    p.add_argument("--space-id", help="пространство")
+    p.add_argument("--tech-version", help="версия технологии")
+    p.add_argument("--no-dev-mode", action="store_true", help="не создавать среду разработки")
+    p.add_argument("--wait", action="store_true", help="дождаться готовности приложения")
+
+
 def build_parser():
     parser = argparse.ArgumentParser(
         prog="elemctl",
@@ -431,18 +478,20 @@ def build_parser():
 
     p = apps_sub.add_parser("find", help="найти приложение по имени (точное совпадение без учёта регистра)")
     p.add_argument("name", metavar="NAME")
+    p.add_argument(
+        "--include-deleted",
+        action="store_true",
+        help="искать и среди удалённых приложений (по умолчанию пропускаются)",
+    )
     p.set_defaults(handler=cmd_apps_find)
 
     p = apps_sub.add_parser("create", help="создать приложение")
-    p.add_argument("name", metavar="NAME")
-    p.add_argument("--project-id", help="проект-источник")
-    p.add_argument("--version-id", help="id сборки-источника")
-    p.add_argument("--latest-build", action="store_true", help="источник – последняя сборка проекта")
-    p.add_argument("--space-id", help="пространство")
-    p.add_argument("--tech-version", help="версия технологии")
-    p.add_argument("--no-dev-mode", action="store_true", help="не создавать среду разработки")
-    p.add_argument("--wait", action="store_true", help="дождаться готовности и вывести карточку")
+    _add_create_flags(p)
     p.set_defaults(handler=cmd_apps_create)
+
+    p = apps_sub.add_parser("ensure", help="создать приложение, если его ещё нет (идемпотентно)")
+    _add_create_flags(p)
+    p.set_defaults(handler=cmd_apps_ensure)
 
     p = apps_sub.add_parser("delete", help="удалить приложение (необратимо, URL меняется при пересоздании)")
     p.add_argument("app_id", metavar="APP_ID")

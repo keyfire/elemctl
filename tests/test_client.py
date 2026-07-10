@@ -63,6 +63,34 @@ def test_find_app_exact_case_insensitive(api):
     assert client.find_app("nope") is None
 
 
+def test_find_app_skips_deleted(api):
+    client, transport = api
+    transport.add(
+        "GET",
+        f"{API}/applications",
+        [
+            {"id": "old", "display-name": "site", "status": "Deleted"},
+            {"id": "live", "display-name": "site", "status": "Running"},
+        ],
+    )
+    # Удалённая карточка пропускается – находится живое приложение с тем же именем.
+    assert client.find_app("site")["id"] == "live"
+
+
+def test_find_app_include_deleted_returns_deleted(api):
+    client, transport = api
+    # Единственный ответ повторяется на оба вызова find_app.
+    transport.add(
+        "GET",
+        f"{API}/applications",
+        [{"id": "old", "display-name": "site-old", "status": "DELETED"}],
+    )
+    # По умолчанию удалённое не находится...
+    assert client.find_app("site-old") is None
+    # ...а с include_deleted=True возвращается прежнее поведение (сравнение статуса без учёта регистра).
+    assert client.find_app("site-old", include_deleted=True)["id"] == "old"
+
+
 def test_delete_failed_precondition_hint(api):
     client, transport = api
     transport.add(

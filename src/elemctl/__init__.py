@@ -11,7 +11,7 @@ from .client import ElementClient
 from .config import Config
 from .errors import ApiError, BuildError, ConfigError, ElemctlError, TransportError
 
-__version__ = "0.2.1"
+__version__ = "0.3.0"
 
 __all__ = [
     "ApiError",
