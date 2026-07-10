@@ -97,11 +97,17 @@ def cmd_apps_get(args):
 
 
 def cmd_apps_find(args):
+    """Поиск приложения по имени. Отсутствие приложения – это ответ, а не ошибка.
+
+    Код возврата 0 в обоих случаях: признак несёт поле found. Ненулевой код возврата
+    означает сбой запроса (нет доступа, сеть, конфигурация) и сопровождается JSON'ом
+    с полем error в stderr – иначе вызывающий не отличит "стенда нет" от "не смогли спросить".
+    """
     client = make_client(_config(args))
     app = client.find_app(args.name)
     if app is None:
         _emit({"id": None, "found": False})
-        return 1
+        return 0
     _emit({"id": app.get("id"), "found": True})
     return 0
 

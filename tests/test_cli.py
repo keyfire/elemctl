@@ -3,11 +3,16 @@
 from __future__ import annotations
 
 import json
+import os
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
 
+import elemctl
 from elemctl import cli
+from elemctl.errors import ApiError
 
 
 @pytest.fixture(autouse=True)
@@ -29,7 +34,17 @@ def test_version_flag(capsys):
     with pytest.raises(SystemExit) as excinfo:
         cli.main(["--version"])
     assert excinfo.value.code == 0
-    assert "elemctl 0.2.0" in capsys.readouterr().out
+    assert f"elemctl {elemctl.__version__}" in capsys.readouterr().out
+
+
+def test_module_entry_point():
+    """python -m elemctl – запасной путь для вызывающих без консольной точки входа в PATH."""
+    import_root = Path(elemctl.__file__).resolve().parent.parent
+    env = {**os.environ, "PYTHONPATH": str(import_root)}
+    result = subprocess.run([sys.executable, "-m", "elemctl", "--version"],
+                            capture_output=True, text=True, env=env)
+    assert result.returncode == 0, result.stderr
+    assert f"elemctl {elemctl.__version__}" in result.stdout
 
 
 def test_build_command(project_factory, tmp_path, capsys):
@@ -77,9 +92,26 @@ def test_apps_find_found_and_not_found(monkeypatch, capsys):
     assert rc == 0
     assert json.loads(capsys.readouterr().out) == {"id": "app-42", "found": True}
 
+    # Отсутствие приложения – штатный ответ: код возврата 0, признак несёт поле found.
     rc = cli.main(["apps", "find", "нет-такого"])
-    assert rc == 1
+    assert rc == 0
     assert json.loads(capsys.readouterr().out) == {"id": None, "found": False}
+
+
+def test_apps_find_request_failure_is_an_error(monkeypatch, capsys):
+    """Сбой запроса отличим от "не найдено": ненулевой код и error в stderr."""
+
+    class FailingClient:
+        def find_app(self, name):
+            raise ApiError("нет доступа", status=403)
+
+    monkeypatch.setattr(cli, "make_client", lambda config: FailingClient())
+
+    rc = cli.main(["apps", "find", "site-dev"])
+    assert rc == 1
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "error" in json.loads(captured.err)
 
 
 def test_error_is_json_on_stderr(capsys):
