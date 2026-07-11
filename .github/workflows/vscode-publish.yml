@@ -1,0 +1,46 @@
+name: VS Code extension
+
+# Публикация спутник-расширения отладки (editors/vscode). Срабатывает на теги вида
+# vscode-vX.Y.Z (отдельно от релизов elemctl). Версию берёт из editors/vscode/package.json –
+# тег должен ей соответствовать. Публикация в маркетплейсы идёт только если заданы
+# секреты-токены (VSCE_PAT, OVSX_PAT); без них остаётся GitHub Release с .vsix.
+
+on:
+  push:
+    tags: ["vscode-v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: editors/vscode
+    env:
+      VSCE_PAT: ${{ secrets.VSCE_PAT }}
+      OVSX_PAT: ${{ secrets.OVSX_PAT }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install
+        run: npm ci
+      - name: Type-check
+        run: npm run check
+      - name: Package .vsix
+        run: npm run package
+      - name: GitHub Release (.vsix)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: editors/vscode/xbsl-debug.vsix
+      - name: Publish to VS Code Marketplace
+        if: env.VSCE_PAT != ''
+        run: npm run publish:vsce
+      - name: Publish to Open VSX
+        if: env.OVSX_PAT != ''
+        run: npm run publish:ovsx

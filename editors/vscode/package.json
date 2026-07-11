@@ -114,13 +114,16 @@
     "compile": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --minify",
     "watch": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --sourcemap --watch",
     "check": "tsc --noEmit",
-    "package": "vsce package --no-dependencies -o xbsl-debug.vsix"
+    "package": "vsce package --no-dependencies -o xbsl-debug.vsix",
+    "publish:vsce": "vsce publish --no-dependencies",
+    "publish:ovsx": "ovsx publish xbsl-debug.vsix"
   },
   "devDependencies": {
     "@types/node": "^20",
     "@types/vscode": "^1.75.0",
     "@vscode/vsce": "^3",
     "esbuild": "^0.23",
+    "ovsx": "^0.9",
     "typescript": "^5"
   }
 }
