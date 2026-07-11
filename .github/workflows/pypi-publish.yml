@@ -1,0 +1,49 @@
+# Публикация пакета на PyPI по тегу вида v0.4.1 через Trusted Publishing (OIDC):
+# PyPI помечает ссылки проекта проверенными и прикладывает аттестации происхождения.
+# Требует одноразовой настройки на стороне PyPI: Manage project -> Publishing ->
+# Add GitHub publisher (owner, repo, workflow pypi-publish.yml, environment pypi).
+# Теги расширения vscode-v* этот workflow не трогает.
+name: pypi-publish
+
+on:
+  push:
+    tags: ["v[0-9]*"]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -e ".[dev,mcp]"
+      - run: python -m pytest -q
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install build
+      - run: python -m build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
