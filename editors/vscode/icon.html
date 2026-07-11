@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<style>
+  /* Debug extension icon 512x512, same "glassy neon" family as the XBSL linter icon.
+     Hero tile = XBSL code ({ }); corner tiles = debug controls the extension drives —
+     breakpoint (red dot), run/continue (play), pause, step. */
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 512px; height: 512px; overflow: hidden; }
+  .bg {
+    width: 512px; height: 512px;
+    background: radial-gradient(circle at 50% 38%, #23234a 0%, #12122400 60%), linear-gradient(160deg, #14142a 0%, #0b0b16 100%);
+    display: flex; align-items: center; justify-content: center;
+    position: relative;
+    font-family: "Segoe UI Symbol", "Consolas", "Segoe UI", monospace;
+  }
+  .tile { position: absolute; border-radius: 26px; display: flex; align-items: center; justify-content: center; font-weight: 800; }
+  .accent { width: 150px; height: 150px; font-size: 68px; color: #fff; opacity: 0.97; }
+  /* Corners hug their OUTER corner so they stay visible past the hero tile. */
+  .bp    { top: 30px;  left: 30px;  background: linear-gradient(145deg, #ff5c8a, #d81e5b); box-shadow: 0 0 34px #f7258577; transform: rotate(-8deg); font-size: 78px; }
+  .run   { top: 34px;  right: 30px; background: linear-gradient(145deg, #4e8ef2, #2f4fd0); box-shadow: 0 0 32px #4e6ef288; transform: rotate(9deg); }
+  .pause { bottom: 30px; left: 34px; background: linear-gradient(145deg, #ff8a3d, #e4531f); box-shadow: 0 0 34px #ff6b3d77; transform: rotate(7deg); }
+  .step  { bottom: 34px; right: 30px; background: linear-gradient(145deg, #46d17f, #17a35b); box-shadow: 0 0 34px #3ce08a88; transform: rotate(-6deg); font-size: 72px; }
+  /* Pause glyph drawn as two crisp bars (font-independent). */
+  .bars { display: flex; gap: 12px; }
+  .bars span { width: 15px; height: 54px; background: #fff; border-radius: 5px; }
+  .hero {
+    width: 256px; height: 256px; border-radius: 44px; padding: 0;
+    background: linear-gradient(150deg, #5ef2c8 0%, #17c39a 55%, #0a9e86 100%);
+    box-shadow: 0 0 58px #2ee6b088, 0 10px 30px #00000066, inset 0 0 0 4px #d9fff2aa;
+    font-size: 140px; font-weight: 800; letter-spacing: -6px; color: #05352b; z-index: 5;
+    font-family: "Consolas", "Cascadia Code", monospace; position: relative;
+  }
+  /* Red breakpoint marker on the code — "debugging this code". */
+  .hero::after {
+    content: ""; position: absolute; top: 30px; left: 30px;
+    width: 34px; height: 34px; border-radius: 50%;
+    background: #ff3b57; box-shadow: 0 0 20px #ff3b5799, inset 0 0 0 3px #ffd0d8;
+  }
+</style>
+</head>
+<body>
+  <div class="bg">
+    <div class="tile accent bp">&#9679;</div>
+    <div class="tile accent run">&#9654;</div>
+    <div class="tile accent pause"><div class="bars"><span></span><span></span></div></div>
+    <div class="tile accent step">&#8631;</div>
+    <div class="tile hero">{&nbsp;}</div>
+  </div>
+</body>
+</html>

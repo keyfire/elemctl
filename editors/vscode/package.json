@@ -2,9 +2,10 @@
   "name": "xbsl-debug",
   "displayName": "XBSL Debug (1C:Element)",
   "description": "Отладка приложений 1С:Предприятие.Элемент (XBSL) в обычном VS Code через штатный debug-адаптер платформы и elemctl.",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "publisher": "keyfire",
   "license": "MIT",
+  "icon": "icon.png",
   "engines": {
     "vscode": "^1.75.0"
   },
