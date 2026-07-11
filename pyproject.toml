@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "elemctl"
-version = "0.4.0"
+version = "0.4.1"
 description = "CLI, MCP-сервер и библиотека для Console API v2 платформы 1С:Предприятие.Элемент (1cmycloud)"
 readme = "README.md"
 requires-python = ">=3.10"
