@@ -1,0 +1,17 @@
+{
+  "ext.description": "Debug 1C:Enterprise.Element (XBSL) applications in regular VS Code via the platform's own debug adapter and elemctl.",
+  "cmd.setup.title": "XBSL: Set up 1C:Element debugging",
+  "debugger.label": "1C:Element (XBSL)",
+  "attach.appId": "Element application id (app-id). Empty: ELEMENT_APP_ID from .env of the sources root is used.",
+  "attach.authMode": "Authentication mode of the debuggee application (default: regular sign-in).",
+  "attach.stopOnEntry": "Stop on the first line of every thread. Noisy on a live web application (every server call pauses); prefer breakpoints.",
+  "attach.workspace": "Sources root: the directory that contains <Vendor>/<Name>/Project.yaml. Empty: detected automatically from the opened folder.",
+  "attach.envFile": "Path to a .env file with Console API credentials (elemctl --env-file). Empty: .env of the sources root.",
+  "config.adapterPath": "Path to the platform debug adapter directory (the folder with the `repo` subdirectory holding `com.e1c.g5rt.debugger.*` jars). Extracted from the 1C:Element distribution: `.../@1c-appengine-plugin/bin/debugger`. NOT bundled into the vsix (proprietary 1C jars).",
+  "config.javaPath": "Path to the Java executable (JDK 17+). Default: java from PATH.",
+  "config.elemctlPath": "Path to elemctl (a version with the `apps debug` command, >= 0.4). elemctl reads Console API credentials from .env of the sources root.",
+  "config.openApplicationOnStart": "Open the debuggee application in the browser when the session starts (with debug session parameters).",
+  "snippet.attach.label": "1C:Element: debug an application (attach)",
+  "snippet.attach.description": "Attach to an Element application via elemctl + the platform adapter",
+  "initial.attach.name": "Debug 1C:Element application"
+}

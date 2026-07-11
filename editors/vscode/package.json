@@ -1,8 +1,8 @@
 {
   "name": "xbsl-debug",
   "displayName": "XBSL Debug (1C:Element)",
-  "description": "Отладка приложений 1С:Предприятие.Элемент (XBSL) в обычном VS Code через штатный debug-адаптер платформы и elemctl.",
-  "version": "0.1.3",
+  "description": "%ext.description%",
+  "version": "0.1.4",
   "publisher": "keyfire",
   "license": "MIT",
   "icon": "icon.png",
@@ -34,10 +34,16 @@
     "onDebugDynamicConfigurations:xbsl"
   ],
   "contributes": {
+    "commands": [
+      {
+        "command": "xbslDebug.setup",
+        "title": "%cmd.setup.title%"
+      }
+    ],
     "debuggers": [
       {
         "type": "xbsl",
-        "label": "1C:Element (XBSL)",
+        "label": "%debugger.label%",
         "languages": [
           "xbsl"
         ],
@@ -46,7 +52,7 @@
             "properties": {
               "appId": {
                 "type": "string",
-                "description": "Идентификатор приложения Элемента (app-id). Пусто – берётся ELEMENT_APP_ID из .env рабочей папки."
+                "description": "%attach.appId%"
               },
               "authMode": {
                 "type": "string",
@@ -54,12 +60,20 @@
                   "anonymous",
                   "another_user"
                 ],
-                "description": "Режим аутентификации отлаживаемого приложения (по умолчанию – обычный вход)."
+                "description": "%attach.authMode%"
               },
               "stopOnEntry": {
                 "type": "boolean",
-                "description": "Останавливаться на первой строке.",
+                "description": "%attach.stopOnEntry%",
                 "default": false
+              },
+              "workspace": {
+                "type": "string",
+                "description": "%attach.workspace%"
+              },
+              "envFile": {
+                "type": "string",
+                "description": "%attach.envFile%"
               }
             }
           }
@@ -68,17 +82,17 @@
           {
             "type": "xbsl",
             "request": "attach",
-            "name": "Отладка приложения 1С:Элемент"
+            "name": "%initial.attach.name%"
           }
         ],
         "configurationSnippets": [
           {
-            "label": "1C:Element: отладка приложения (attach)",
-            "description": "Присоединиться к приложению Элемента через elemctl + штатный адаптер",
+            "label": "%snippet.attach.label%",
+            "description": "%snippet.attach.description%",
             "body": {
               "type": "xbsl",
               "request": "attach",
-              "name": "Отладка приложения 1С:Элемент"
+              "name": "%initial.attach.name%"
             }
           }
         ]
@@ -90,25 +104,25 @@
         "xbslDebug.adapterPath": {
           "type": "string",
           "default": "",
-          "markdownDescription": "Путь к каталогу debug-адаптера платформы (папка с подкаталогом `repo`, где лежат jar-ы `com.e1c.g5rt.debugger.*`). Берётся из дистрибутива 1С:Элемент: `.../@1c-appengine-plugin/bin/debugger`. В vsix НЕ входит (проприетарные jar-ы 1С).",
+          "markdownDescription": "%config.adapterPath%",
           "scope": "machine-overridable"
         },
         "xbslDebug.javaPath": {
           "type": "string",
           "default": "java",
-          "description": "Путь к исполняемому файлу Java (JDK 17+). По умолчанию – java из PATH.",
+          "description": "%config.javaPath%",
           "scope": "machine-overridable"
         },
         "xbslDebug.elemctlPath": {
           "type": "string",
           "default": "elemctl",
-          "description": "Путь к elemctl (нужна версия с командой `apps debug`). Реквизиты Console API elemctl берёт из .env рабочей папки.",
+          "description": "%config.elemctlPath%",
           "scope": "machine-overridable"
         },
         "xbslDebug.openApplicationOnStart": {
           "type": "boolean",
           "default": true,
-          "description": "Открывать отлаживаемое приложение в браузере при старте сессии (с параметрами debug-сессии)."
+          "description": "%config.openApplicationOnStart%"
         }
       }
     }
