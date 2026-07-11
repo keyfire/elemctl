@@ -79,14 +79,65 @@ Debug-сервер идентифицирует модуль путём **отн
 
 ## Как это устроено
 
-- `DebugAdapterDescriptorFactory` запускает
-  `java ... -cp <adapterPath>/repo/* com.e1c.g5rt.debugger.adapter.App` как stdio-DAP-сервер.
-- `DebugConfigurationProvider` зовёт `elemctl apps debug`, генерирует `sessionId`, собирает
-  attach-конфиг (`uri=debug-address`, `debugToken`, `sessionId`, `clientDebugAddress`,
-  `workspace`, `projectLocations`, `application`, `locale`, `authMode`, `retryTimeout`) и
-  открывает приложение по `...?debug-server-host&debug-server-port&debug-session-id=<sessionId>`.
-- Панель вывода "XBSL Debug" пишет вызовы elemctl, найденный корень исходников и URL
-  отлаживаемого приложения.
+По F5 работают три части. VS Code говорит по DAP с Java-адаптером через stdio; адаптер
+говорит с debug-сервером платформы по WebSocket; отлаживаемое приложение (открытое в
+браузере) подключается к тому же debug-серверу и сшивается с вашей сессией общим
+`sessionId`.
+
+```
+   VS Code (это расширение)                          Облако 1С:Элемент
+  ┌───────────────────────────┐
+  │  редактор, точки останова,│      DAP (stdio)   ┌────────────────────────┐
+  │  Variables/Watch          │◄──────────────────►│  Java-адаптер отладки    │
+  │                           │                    │  com.e1c.g5rt.debugger  │
+  │  ┌─────────────────────┐  │  запускает java -cp│  .adapter.App           │
+  │  │ xbslDebug.adapterPath│─┼──► <adapterPath>/  └───────────┬────────────┘
+  │  │ xbslDebug.javaPath   │ │      repo/*.jar                │ WebSocket
+  │  │ xbslDebug.elemctlPath│ │                                │ (debug-address,
+  │  └─────────────────────┘  │                                │  debug-token)
+  └────────────┬──────────────┘                                ▼
+               │ elemctl apps debug / apps get     ┌────────────────────────┐
+               │ (Console API /actions/debug)      │  debug-сервер платформы │
+               ▼                                    └───────────┬────────────┘
+        читает .env в корне исходников                          │ тот же sessionId
+        (реквизиты ELEMENT_*, app id)                           │
+                                                                ▼
+                                            браузер: <app-uri>?debug-server-host=...
+                                                     &debug-session-id=<sessionId>
+                                            (этот URL расширение открывает при старте)
+```
+
+По шагам:
+
+1. `DebugConfigurationProvider` зовёт `elemctl apps debug` (Console API `/actions/debug`)
+   за `debug-address`, `debug-token` и `client-debug-address`, и `elemctl apps get` за
+   карточкой приложения. Реквизиты `ELEMENT_*` и app id elemctl берёт из `.env` в корне
+   исходников.
+2. `DebugAdapterDescriptorFactory` запускает
+   `java ... -cp <adapterPath>/repo/* com.e1c.g5rt.debugger.adapter.App` как stdio-DAP-сервер
+   и передаёт ему attach-конфиг (`uri=debug-address`, `debugToken`, сгенерированный
+   `sessionId`, `clientDebugAddress`, `workspace`, `projectLocations`, `application`,
+   `locale`, `authMode`, `retryTimeout`).
+3. При старте сессии расширение открывает приложение в браузере по адресу
+   `<app-uri>?debug-server-host=...&debug-server-port=...&debug-session-id=<sessionId>`.
+   Debug-сервер сшивает работающее приложение с вашим адаптером по этому `sessionId`.
+4. Панель вывода "XBSL Debug" пишет каждый вызов elemctl, найденный корень исходников и
+   URL отлаживаемого приложения.
+
+## Какой каталог куда указывать
+
+Три настройки говорят расширению, где лежат инструменты. Все необязательны, если инструмент
+на `PATH`; иначе задайте абсолютный путь. Мастер настройки заполняет их за вас.
+
+| Настройка | На что указывать | Пример |
+| --- | --- | --- |
+| `xbslDebug.adapterPath` | **Каталог debug-адаптера**, извлечённый из вашего дистрибутива 1С:Элемент, – папка с подкаталогом `repo`, где лежат jar-ы `com.e1c.g5rt.debugger.*`. В дистрибутиве это `.../@1c-appengine-plugin/bin/debugger`. | `C:/tools/xbsl-debug-adapter` (внутри `repo/...jar`) |
+| `xbslDebug.javaPath` | **Java 17+**. Оставьте `java`, если он на `PATH`. | `C:/Program Files/Java/jdk-21/bin/java.exe` |
+| `xbslDebug.elemctlPath` | **elemctl** (>= 0.4). Оставьте `elemctl`, если он на `PATH`. | `C:/Users/me/.local/bin/elemctl.exe` |
+
+`.env` с реквизитами Console API (`ELEMENT_BASE_URL`, `ELEMENT_CLIENT_ID`,
+`ELEMENT_CLIENT_SECRET`, `ELEMENT_APP_ID`) лежит в **корне исходников**, а не в настройке –
+elemctl берёт его оттуда. Указать другой можно атрибутом `envFile` в `launch.json`.
 
 ## Статус
 
@@ -98,9 +149,10 @@ Debug-сервер идентифицирует модуль путём **отн
 ## Известные ограничения
 
 - **Раскрытие структуры в дереве Variables на клиентском кадре** роняет клиентский рантайм
-  отлаживаемого приложения, когда версия адаптера не совпадает с technology-version
-  приложения (проверено: адаптер 9.2.8 против рантайма 9.2.7 падает, среда разработки той
-  же версии, что приложение, работает). Используйте адаптер из дистрибутива той же версии,
-  что приложение. Серверные кадры раскрываются на любую глубину в любом случае. Обходы на
+  отлаживаемого приложения, когда версия адаптера отличается от technology-version
+  приложения. Протокол отладки версию технологии не несёт, поэтому адаптер должен совпадать
+  с рантаймом: берите адаптер из дистрибутива той же версии, на которой работает приложение
+  (посмотреть – `elemctl tech get`; среда разработки той же версии раскрывает структуры
+  нормально). Серверные кадры раскрываются на любую глубину в любом случае. Обходы на
   клиентских кадрах: колонка значения уже показывает всю сериализованную структуру, а
   `evaluate` работает – добавьте выражение в Watch (например, `Данные.Возможности[0].Заголовок`).

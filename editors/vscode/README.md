@@ -81,16 +81,66 @@ around it), so you can open the repository root or a subfolder. Override with th
 
 ## How it works
 
-- `DebugAdapterDescriptorFactory` starts
-  `java ... -cp <adapterPath>/repo/* com.e1c.g5rt.debugger.adapter.App` as a stdio DAP
-  server.
-- `DebugConfigurationProvider` calls `elemctl apps debug`, generates a `sessionId`,
-  assembles the attach configuration (`uri=debug-address`, `debugToken`, `sessionId`,
-  `clientDebugAddress`, `workspace`, `projectLocations`, `application`, `locale`,
-  `authMode`, `retryTimeout`) and opens the application at
-  `...?debug-server-host&debug-server-port&debug-session-id=<sessionId>`.
-- The "XBSL Debug" output channel logs elemctl calls, the detected sources root and the
-  debuggee URL.
+When you press F5, three pieces cooperate. VS Code talks DAP to a Java adapter over
+stdio; the adapter talks to the platform's debug server over a WebSocket; the debuggee
+(your application, opened in a browser) connects to the same debug server and is stitched
+to your session by a shared `sessionId`.
+
+```
+   VS Code (this extension)                          1C:Element cloud
+  ┌───────────────────────────┐
+  │  editor, breakpoints,     │      DAP (stdio)   ┌────────────────────────┐
+  │  Variables/Watch          │◄──────────────────►│  Java debug adapter     │
+  │                           │                    │  com.e1c.g5rt.debugger  │
+  │  ┌─────────────────────┐  │   spawns java -cp  │  .adapter.App           │
+  │  │ xbslDebug.adapterPath│─┼──► <adapterPath>/  └───────────┬────────────┘
+  │  │ xbslDebug.javaPath   │ │      repo/*.jar                │ WebSocket
+  │  │ xbslDebug.elemctlPath│ │                                │ (debug-address,
+  │  └─────────────────────┘  │                                │  debug-token)
+  └────────────┬──────────────┘                                ▼
+               │ elemctl apps debug / apps get     ┌────────────────────────┐
+               │ (Console API /actions/debug)      │  platform debug server  │
+               ▼                                    └───────────┬────────────┘
+        reads .env in the sources root                          │ same sessionId
+        (ELEMENT_* credentials, app id)                         │
+                                                                ▼
+                                            browser: <app-uri>?debug-server-host=...
+                                                     &debug-session-id=<sessionId>
+                                            (the extension opens this URL on start)
+```
+
+Step by step:
+
+1. `DebugConfigurationProvider` runs `elemctl apps debug` (Console API `/actions/debug`)
+   to get `debug-address`, `debug-token` and `client-debug-address`, and `elemctl apps
+   get` for the application card. elemctl reads the `ELEMENT_*` credentials and the app id
+   from the `.env` in the sources root.
+2. `DebugAdapterDescriptorFactory` starts
+   `java ... -cp <adapterPath>/repo/* com.e1c.g5rt.debugger.adapter.App` as a stdio DAP
+   server and hands it the attach config (`uri=debug-address`, `debugToken`, a generated
+   `sessionId`, `clientDebugAddress`, `workspace`, `projectLocations`, `application`,
+   `locale`, `authMode`, `retryTimeout`).
+3. On session start the extension opens the application in the browser at
+   `<app-uri>?debug-server-host=...&debug-server-port=...&debug-session-id=<sessionId>`. The
+   debug server matches the running application to your adapter by that `sessionId`.
+4. The "XBSL Debug" output channel logs every elemctl call, the detected sources root and
+   the debuggee URL.
+
+## Which paths go where
+
+Three settings tell the extension where the tools live. All are optional if the tools are
+on `PATH`; set them to absolute paths otherwise. The setup wizard fills them for you.
+
+| Setting | What to point it at | Example |
+| --- | --- | --- |
+| `xbslDebug.adapterPath` | The **debug adapter directory** extracted from your 1C:Element distribution – a folder that contains a `repo` subfolder with `com.e1c.g5rt.debugger.*` jars. In the distribution it is `.../@1c-appengine-plugin/bin/debugger`. | `C:/tools/xbsl-debug-adapter` (must contain `repo/...jar`) |
+| `xbslDebug.javaPath` | The **Java 17+ launcher**. Leave as `java` if it is on `PATH`. | `C:/Program Files/Java/jdk-21/bin/java.exe` |
+| `xbslDebug.elemctlPath` | The **elemctl executable** (>= 0.4). Leave as `elemctl` if it is on `PATH`. | `C:/Users/me/.local/bin/elemctl.exe` |
+
+The `.env` with Console API credentials (`ELEMENT_BASE_URL`, `ELEMENT_CLIENT_ID`,
+`ELEMENT_CLIENT_SECRET`, `ELEMENT_APP_ID`) lives in the **sources root**, not in a setting
+– elemctl picks it up from there. Point at a different one with the `envFile` attribute in
+`launch.json`.
 
 ## Status
 
@@ -102,10 +152,11 @@ variables, continue. Note: `stopOnEntry` pauses every thread of a live web appli
 ## Known limitations
 
 - **Expanding a structure in the Variables tree on a client frame** crashes the debuggee's
-  client runtime when the adapter version does not match the application's
-  technology-version (verified: a 9.2.8 adapter against a 9.2.7 runtime fails, while the
-  same-version web IDE works). Use the adapter from the distribution matching the
-  application version. Server frames expand fine to any depth either way. Workarounds on
-  client frames: the value column already shows the whole serialized structure, and
-  `evaluate` works - add a Watch expression for the field you need
+  client runtime when the adapter version differs from the application's
+  technology-version. The debug protocol carries no technology version, so the adapter must
+  match the runtime: use the adapter from the distribution of the same version the
+  application runs (check it with `elemctl tech get`; the same-version web IDE expands
+  structures fine). Server frames expand to any depth regardless. Workarounds on client
+  frames: the value column already shows the whole serialized structure, and `evaluate`
+  works - add a Watch expression for the field you need
   (e.g. `Данные.Возможности[0].Заголовок`).
