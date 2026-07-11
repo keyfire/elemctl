@@ -2,7 +2,7 @@
   "name": "xbsl-debug",
   "displayName": "XBSL Debug (1C:Element)",
   "description": "%ext.description%",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "publisher": "keyfire",
   "license": "MIT",
   "icon": "icon.png",
@@ -148,5 +148,6 @@
     "esbuild": "^0.23",
     "ovsx": "^0.9",
     "typescript": "^5"
-  }
+  },
+  "l10n": "./l10n"
 }

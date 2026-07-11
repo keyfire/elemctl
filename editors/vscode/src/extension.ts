@@ -48,7 +48,7 @@ function runElemctl(args: string[], cwd: string | undefined): Promise<any> {
       if (err) {
         const enoent = (err as NodeJS.ErrnoException).code === "ENOENT";
         const hint = enoent
-          ? vscode.l10n.t("elemctl не найден. Установите его (pipx install elemctl) или укажите путь в настройке xbslDebug.elemctlPath.")
+          ? vscode.l10n.t("elemctl not found. Install it (pipx install elemctl) or set the path in the xbslDebug.elemctlPath setting.")
           : (stderr || err.message);
         reject(new Error(`${bin} ${args.join(" ")}: ${hint}`));
         return;
@@ -57,7 +57,7 @@ function runElemctl(args: string[], cwd: string | undefined): Promise<any> {
       try {
         resolve(text ? JSON.parse(text) : {});
       } catch {
-        reject(new Error(`${bin} ${args.join(" ")}: ${vscode.l10n.t("вывод не JSON")}: ${text.slice(0, 200)}`));
+        reject(new Error(`${bin} ${args.join(" ")}: ${vscode.l10n.t("output is not JSON")}: ${text.slice(0, 200)}`));
       }
     });
   });
@@ -98,7 +98,7 @@ function rootFromProjectYaml(projectYaml: string): string | undefined {
   }
   const projectDir = path.dirname(projectYaml);
   if (path.basename(projectDir) !== name || path.basename(path.dirname(projectDir)) !== vendor) {
-    log(vscode.l10n.t("Проект {0}: каталоги не совпадают со схемой <корень>/{1}/{2} – этот Проект.yaml пропущен.", projectYaml, vendor, name));
+    log(vscode.l10n.t("Project {0}: directories do not match the <root>/{1}/{2} layout – this Проект.yaml is skipped.", projectYaml, vendor, name));
     return undefined;
   }
   return path.dirname(path.dirname(projectDir));
@@ -134,7 +134,7 @@ function standardConfig(): vscode.DebugConfiguration {
   return {
     type: DEBUG_TYPE,
     request: "attach",
-    name: vscode.l10n.t("Отладка приложения 1С:Элемент"),
+    name: vscode.l10n.t("Debug 1C:Element application"),
   };
 }
 
@@ -145,14 +145,14 @@ class XbslDebugAdapterFactory implements vscode.DebugAdapterDescriptorFactory {
   ): vscode.ProviderResult<vscode.DebugAdapterDescriptor> {
     const adapterPath = (cfg().get<string>("adapterPath") || "").trim();
     if (!adapterPath) {
-      void offerSetup(vscode.l10n.t("Не задан путь к debug-адаптеру платформы (xbslDebug.adapterPath)."));
+      void offerSetup(vscode.l10n.t("The platform debug adapter path is not set (xbslDebug.adapterPath)."));
       throw new Error(
-        vscode.l10n.t("Не задан xbslDebug.adapterPath – путь к каталогу debug-адаптера платформы (папка с подкаталогом repo из дистрибутива Элемента). Команда \"XBSL: Настроить отладку\" поможет.")
+        vscode.l10n.t("xbslDebug.adapterPath is not set – the platform debug adapter directory (a folder with the repo subdirectory from the Element distribution). The \"XBSL: Set up 1C:Element debugging\" command can help.")
       );
     }
     if (!isAdapterDir(adapterPath)) {
-      void offerSetup(vscode.l10n.t("В {0} не найдены jar-ы адаптера (подкаталог repo).", adapterPath));
-      throw new Error(vscode.l10n.t("xbslDebug.adapterPath: в {0} нет подкаталога repo с jar-ами com.e1c.g5rt.debugger.*", adapterPath));
+      void offerSetup(vscode.l10n.t("No adapter jars found in {0} (the repo subdirectory).", adapterPath));
+      throw new Error(vscode.l10n.t("xbslDebug.adapterPath: {0} has no repo subdirectory with com.e1c.g5rt.debugger.* jars", adapterPath));
     }
     const java = (cfg().get<string>("javaPath") || "java").trim() || "java";
     const classpath = path.join(adapterPath, "repo", "*");
@@ -188,13 +188,13 @@ class XbslConfigurationProvider implements vscode.DebugConfigurationProvider {
     if (!root && folderPath) {
       root = detectWorkspaceRoot(folderPath);
       if (root && path.resolve(root) !== path.resolve(folderPath)) {
-        log(vscode.l10n.t("Корень исходников определён автоматически: {0}", root));
+        log(vscode.l10n.t("Sources root detected automatically: {0}", root));
       }
     }
     if (!root) {
       root = folderPath;
       void vscode.window.showWarningMessage(
-        vscode.l10n.t("XBSL Debug: не найден <Поставщик>/<Имя>/Проект.yaml – точки останова могут не привязаться. Откройте корень репозитория с исходниками или задайте \"workspace\" в launch.json.")
+        vscode.l10n.t("XBSL Debug: <Vendor>/<Name>/Проект.yaml not found – breakpoints may not bind. Open the repository root with the sources or set \"workspace\" in launch.json.")
       );
     }
 
@@ -207,7 +207,7 @@ class XbslConfigurationProvider implements vscode.DebugConfigurationProvider {
       const debugInfo: DebugInfo = await runElemctl([...globalArgs, "apps", "debug", ...appArgs], root);
       if (!debugInfo["debug-address"] || !debugInfo["debug-token"]) {
         throw new Error(
-          vscode.l10n.t("elemctl apps debug не вернул debug-address/debug-token. Проверьте, что отладка включена на сервере и elemctl поддерживает `apps debug`.")
+          vscode.l10n.t("elemctl apps debug returned no debug-address/debug-token. Check that debugging is enabled on the server and elemctl supports `apps debug`.")
         );
       }
       const app = await runElemctl([...globalArgs, "apps", "get", ...appArgs], root).catch(() => ({}));
@@ -251,7 +251,7 @@ class XbslConfigurationProvider implements vscode.DebugConfigurationProvider {
         const authModeParam = config.authMode ? `&auth-mode=${config.authMode}` : "";
         const sep = appUrl.includes("?") ? "&" : "?";
         const debuggeeUrl = `${appUrl}${sep}debug-server-host=${host}&debug-server-port=${port}&debug-session-id=${sessionId}${authModeParam}`;
-        log(vscode.l10n.t("URL отлаживаемого приложения: {0}", debuggeeUrl));
+        log(vscode.l10n.t("Debuggee application URL: {0}", debuggeeUrl));
         if (cfg().get<boolean>("openApplicationOnStart", true)) {
           pendingApp.set(sessionId, debuggeeUrl);
         }
@@ -260,7 +260,7 @@ class XbslConfigurationProvider implements vscode.DebugConfigurationProvider {
     } catch (e: any) {
       const msg = `XBSL Debug: ${e?.message ?? e}`;
       log(msg);
-      void vscode.window.showErrorMessage(msg, vscode.l10n.t("Мастер настройки")).then((a) => {
+      void vscode.window.showErrorMessage(msg, vscode.l10n.t("Setup wizard")).then((a) => {
         if (a) {
           void vscode.commands.executeCommand("xbslDebug.setup");
         }
@@ -292,14 +292,14 @@ function execOk(bin: string, args: string[], cwd?: string): Promise<{ ok: boolea
 }
 
 async function offerSetup(reason: string): Promise<void> {
-  const run = vscode.l10n.t("Мастер настройки");
+  const run = vscode.l10n.t("Setup wizard");
   const a = await vscode.window.showWarningMessage(`XBSL Debug: ${reason}`, run);
   if (a === run) {
     void vscode.commands.executeCommand("xbslDebug.setup");
   }
 }
 
-// Мастер настройки: java -> адаптер -> elemctl (.env) -> launch.json. Каждый шаг чинится на
+// Setup wizard: java -> адаптер -> elemctl (.env) -> launch.json. Каждый шаг чинится на
 // месте; итог – сводка и подсказка "F5".
 async function setupWizard(): Promise<void> {
   output.show(true);
@@ -311,13 +311,13 @@ async function setupWizard(): Promise<void> {
   let java = (cfg().get<string>("javaPath") || "java").trim() || "java";
   let j = await execOk(java, ["-version"]);
   if (!j.ok) {
-    const pick = vscode.l10n.t("Указать java...");
+    const pick = vscode.l10n.t("Locate java...");
     const a = await vscode.window.showWarningMessage(
-      vscode.l10n.t("Java не найдена ({0}). Для адаптера нужна Java 17+.", java),
+      vscode.l10n.t("Java not found ({0}). The adapter needs Java 17+.", java),
       pick
     );
     if (a === pick) {
-      const f = await vscode.window.showOpenDialog({ canSelectFiles: true, canSelectFolders: false, title: vscode.l10n.t("Исполняемый файл Java (java / java.exe)") });
+      const f = await vscode.window.showOpenDialog({ canSelectFiles: true, canSelectFolders: false, title: vscode.l10n.t("Java executable (java / java.exe)") });
       if (f?.[0]) {
         java = f[0].fsPath;
         await cfg().update("javaPath", java, vscode.ConfigurationTarget.Global);
@@ -325,30 +325,30 @@ async function setupWizard(): Promise<void> {
       }
     }
   }
-  results.push((j.ok ? "$(check) " : "$(error) ") + "Java: " + (j.ok ? j.text.split("\n")[0].trim() : vscode.l10n.t("не найдена")));
+  results.push((j.ok ? "$(check) " : "$(error) ") + "Java: " + (j.ok ? j.text.split("\n")[0].trim() : vscode.l10n.t("not found")));
 
   // 2. Debug-адаптер платформы.
   let adapterPath = (cfg().get<string>("adapterPath") || "").trim();
   if (!adapterPath || !isAdapterDir(adapterPath)) {
-    const pick = vscode.l10n.t("Выбрать папку адаптера...");
+    const pick = vscode.l10n.t("Choose the adapter folder...");
     const a = await vscode.window.showWarningMessage(
-      vscode.l10n.t("Нужен каталог debug-адаптера платформы (папка с подкаталогом repo, jar-ы com.e1c.g5rt.debugger.*). Он извлекается из дистрибутива 1С:Элемент: data/ide/theia/plugins/@1c-appengine-plugin/bin/debugger."),
+      vscode.l10n.t("The platform debug adapter directory is needed (a folder with a repo subdirectory holding com.e1c.g5rt.debugger.* jars). It is extracted from the 1C:Element distribution: data/ide/theia/plugins/@1c-appengine-plugin/bin/debugger."),
       pick
     );
     if (a === pick) {
-      const f = await vscode.window.showOpenDialog({ canSelectFiles: false, canSelectFolders: true, title: vscode.l10n.t("Каталог адаптера (содержит repo/)") });
+      const f = await vscode.window.showOpenDialog({ canSelectFiles: false, canSelectFolders: true, title: vscode.l10n.t("Adapter directory (contains repo/)") });
       if (f?.[0]) {
         adapterPath = f[0].fsPath;
         if (isAdapterDir(adapterPath)) {
           await cfg().update("adapterPath", adapterPath, vscode.ConfigurationTarget.Global);
         } else {
-          void vscode.window.showErrorMessage(vscode.l10n.t("В {0} не найден repo/ с jar-ами адаптера.", adapterPath));
+          void vscode.window.showErrorMessage(vscode.l10n.t("No repo/ with adapter jars found in {0}.", adapterPath));
         }
       }
     }
   }
   const adapterOk = !!adapterPath && isAdapterDir(adapterPath);
-  results.push((adapterOk ? "$(check) " : "$(error) ") + vscode.l10n.t("Адаптер: {0}", adapterOk ? adapterPath : vscode.l10n.t("не настроен")));
+  results.push((adapterOk ? "$(check) " : "$(error) ") + vscode.l10n.t("Adapter: {0}", adapterOk ? adapterPath : vscode.l10n.t("not configured")));
 
   // 3. elemctl и реквизиты Console API (.env в корне исходников).
   const elemctlBin = (cfg().get<string>("elemctlPath") || "elemctl").trim() || "elemctl";
@@ -357,31 +357,31 @@ async function setupWizard(): Promise<void> {
   if (e.ok) {
     try {
       const app = JSON.parse(e.text);
-      appLine = vscode.l10n.t("Приложение: {0} ({1})", app["display-name"] ?? app.name ?? "?", app.uri ?? "");
+      appLine = vscode.l10n.t("Application: {0} ({1})", app["display-name"] ?? app.name ?? "?", app.uri ?? "");
     } catch {
-      appLine = vscode.l10n.t("elemctl отвечает, но вывод не JSON");
+      appLine = vscode.l10n.t("elemctl responds, but the output is not JSON");
     }
   } else {
-    appLine = vscode.l10n.t("elemctl: {0}", e.text.trim().slice(0, 300) || vscode.l10n.t("не найден (pipx install elemctl)"));
+    appLine = vscode.l10n.t("elemctl: {0}", e.text.trim().slice(0, 300) || vscode.l10n.t("not found (pipx install elemctl)"));
   }
   results.push((e.ok ? "$(check) " : "$(error) ") + appLine);
   if (!e.ok) {
-    results.push("    " + vscode.l10n.t("Проверьте: elemctl установлен и версии >= 0.4 (команда apps debug), в корне исходников есть .env с ELEMENT_BASE_URL/CLIENT_ID/CLIENT_SECRET/APP_ID."));
+    results.push("    " + vscode.l10n.t("Check: elemctl is installed and is version >= 0.4 (the apps debug command), and the sources root has a .env with ELEMENT_BASE_URL/CLIENT_ID/CLIENT_SECRET/APP_ID."));
   }
 
   // 4. launch.json.
   if (folderPath) {
     const launch = path.join(folderPath, ".vscode", "launch.json");
     if (!fs.existsSync(launch)) {
-      const make = vscode.l10n.t("Создать launch.json");
+      const make = vscode.l10n.t("Create launch.json");
       const a = await vscode.window.showInformationMessage(
-        vscode.l10n.t("Создать .vscode/launch.json с конфигурацией отладки? (Необязательно: F5 работает и без него.)"),
+        vscode.l10n.t("Create .vscode/launch.json with a debug configuration? (Optional: F5 works without it.)"),
         make
       );
       if (a === make) {
         fs.mkdirSync(path.dirname(launch), { recursive: true });
         fs.writeFileSync(launch, JSON.stringify({ version: "0.2.0", configurations: [standardConfig()] }, null, 2), "utf8");
-        results.push("$(check) " + vscode.l10n.t("Создан {0}", launch));
+        results.push("$(check) " + vscode.l10n.t("Created {0}", launch));
       }
     }
   }
@@ -391,8 +391,8 @@ async function setupWizard(): Promise<void> {
   }
   const allOk = j.ok && adapterOk && e.ok;
   const summary = allOk
-    ? vscode.l10n.t("Всё готово. Откройте файл .xbsl, поставьте точку останова и нажмите F5 – приложение откроется в браузере, выполнение остановится на точке.")
-    : vscode.l10n.t("Настройка не завершена – детали в панели вывода \"XBSL Debug\".");
+    ? vscode.l10n.t("All set. Open an .xbsl file, put a breakpoint and press F5 – the application opens in the browser and execution stops on your breakpoint.")
+    : vscode.l10n.t("Setup is not complete – details are in the \"XBSL Debug\" output panel.");
   void (allOk ? vscode.window.showInformationMessage(summary) : vscode.window.showWarningMessage(summary));
 }
 
