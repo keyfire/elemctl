@@ -20,6 +20,8 @@ python-модуль `elemctl` для собственных скриптов.
 builds and deploy with honest apply verification. Docs are in Russian - the
 platform's audience - but the CLI output is plain JSON.*
 
+Заметки о разработке и новости – в Telegram-канале [1С × ИИ: инженерный цех](https://t.me/ceh_1c_ai).
+
 ## Возможности
 
 - **Приложения**: список, карточка, создание, запуск, остановка, удаление,

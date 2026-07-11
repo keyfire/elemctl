@@ -8,6 +8,8 @@ elemctl covers an application's lifecycle on the platform without the web consol
 
 *elemctl is a CLI tool, MCP server and Python library for the 1C:Enterprise.Element (1cmycloud) Console API: manage applications, upload builds and deploy with honest apply verification. The CLI output is plain JSON.*
 
+Development notes and updates (in Russian): the [1С × ИИ: инженерный цех](https://t.me/ceh_1c_ai) Telegram channel.
+
 ## Features
 
 - **Applications**: list, details, create, start, stop, delete, technology version, debug-session data (`apps debug`).
