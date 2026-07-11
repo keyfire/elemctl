@@ -101,9 +101,11 @@ variables, continue. Note: `stopOnEntry` pauses every thread of a live web appli
 
 ## Known limitations
 
-- **Expanding a structure in the Variables tree on a client frame** may crash the
-  debuggee's client runtime with an internal platform error (observed with a 9.2.8
-  adapter against a 9.2.7 runtime; the adapter itself survives). Server frames expand
-  fine to any depth. Workarounds on client frames: the value column already shows the
-  whole serialized structure, and `evaluate` works - add a Watch expression for the
-  field you need (e.g. `Данные.Возможности[0].Заголовок`).
+- **Expanding a structure in the Variables tree on a client frame** crashes the debuggee's
+  client runtime when the adapter version does not match the application's
+  technology-version (verified: a 9.2.8 adapter against a 9.2.7 runtime fails, while the
+  same-version web IDE works). Use the adapter from the distribution matching the
+  application version. Server frames expand fine to any depth either way. Workarounds on
+  client frames: the value column already shows the whole serialized structure, and
+  `evaluate` works - add a Watch expression for the field you need
+  (e.g. `Данные.Возможности[0].Заголовок`).
