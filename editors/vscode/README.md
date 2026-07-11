@@ -151,12 +151,12 @@ variables, continue. Note: `stopOnEntry` pauses every thread of a live web appli
 
 ## Known limitations
 
-- **Expanding a structure in the Variables tree on a client frame** crashes the debuggee's
-  client runtime when the adapter version differs from the application's
-  technology-version. The debug protocol carries no technology version, so the adapter must
-  match the runtime: use the adapter from the distribution of the same version the
-  application runs (check it with `elemctl tech get`; the same-version web IDE expands
-  structures fine). Server frames expand to any depth regardless. Workarounds on client
-  frames: the value column already shows the whole serialized structure, and `evaluate`
-  works - add a Watch expression for the field you need
-  (e.g. `Данные.Возможности[0].Заголовок`).
+- **Expanding a structure in the Variables tree on a client frame** does not respond and
+  crashes the debuggee's client runtime, while the adapter survives. This is independent
+  of the platform version (verified by matching the adapter and application versions - it
+  still fails). Server frames expand to any depth, and the platform's own web IDE expands
+  client-frame structures fine, so the issue is specific to debugging the application as a
+  standalone browser tab through the external adapter. Workarounds on client frames: the
+  value column already shows the whole serialized structure, and `evaluate` works - add a
+  Watch expression for the field you need (e.g. `Данные.Возможности[0].Заголовок`). Server
+  frames have no such limit.
