@@ -10,6 +10,7 @@ import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from . import i18n
 from .errors import ConfigError
 
 # Соответствие полей конфигурации переменным окружения.
@@ -105,7 +106,7 @@ class Config:
 
         if overrides:
             unknown = ", ".join(sorted(overrides))
-            raise TypeError(f"неизвестные параметры конфигурации: {unknown}")
+            raise TypeError(i18n.t("config.unknown-params", unknown=unknown))
 
         return cls(**values)
 

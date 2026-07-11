@@ -1,309 +1,191 @@
-# Спецификация elemctl
+# elemctl Specification
 
-Документ описывает контракт Console API v2 платформы 1С:Предприятие.Элемент
-(1cmycloud.com), формат файлов сборки и требования к инструменту elemctl.
-Спецификация содержит только факты об интерфейсе платформы и требования к
-продукту - реализация проектируется с нуля.
+**English** · [Русский](SPEC.ru.md)
 
-## 1. Назначение и состав пакета
+This document describes the Console API v2 contract of the 1C:Enterprise.Element platform (1cmycloud.com), the build file format, and the requirements for the elemctl tool. The specification contains only facts about the platform interface and product requirements – the implementation is designed from scratch.
 
-Python-пакет `elemctl` из трёх слоёв поверх общего ядра:
+## 1. Purpose and package composition
 
-1. **Библиотека** - программный клиент Console API v2 и операции высокого
-   уровня (сборка, деплой). Только стандартная библиотека Python.
-2. **CLI** - консольная команда `elemctl` (entry point `elemctl` в
-   `[project.scripts]`).
-3. **MCP-сервер** - те же операции как инструменты для AI-агентов; транспорт
-   stdio; зависимость `mcp>=1.2` подключается как optional extra
-   `elemctl[mcp]` (используется FastMCP из пакета `mcp`).
+The `elemctl` Python package consists of three layers on top of a shared core:
 
-Требования пакета: имя `elemctl`, версия 0.1.0, Python >= 3.10, лицензия MIT,
-автор KeyFire, layout `src/elemctl/`, extra `dev` с pytest. Файлы LICENSE,
-README.md, .env.example и .gitignore предоставлены заказчиком и не меняются.
+1. **Library** – a programmatic client for Console API v2 and high-level operations (build, deploy). Python standard library only.
+2. **CLI** – the `elemctl` console command (entry point `elemctl` in `[project.scripts]`).
+3. **MCP server** – the same operations exposed as tools for AI agents; stdio transport; the `mcp>=1.2` dependency is included as the optional extra `elemctl[mcp]` (uses FastMCP from the `mcp` package).
 
-## 2. Конфигурация подключения
+Package requirements: name `elemctl`, version 0.1.0, Python >= 3.10, MIT license, author KeyFire, `src/elemctl/` layout, `dev` extra with pytest. The LICENSE, README.md, .env.example, and .gitignore files are provided by the customer and are not modified.
 
-Параметры берутся из трёх источников, по убыванию приоритета:
+## 2. Connection configuration
 
-1. явные аргументы (флаги CLI `--base-url`, `--client-id`, `--client-secret`);
-2. переменные окружения;
-3. .env-файл: путь из флага `--env-file`, а без него - файл `.env` в текущем
-   каталоге, если существует.
+Parameters are taken from three sources, in decreasing order of priority:
 
-Переменные окружения:
+1. explicit arguments (CLI flags `--base-url`, `--client-id`, `--client-secret`);
+2. environment variables;
+3. the .env file: path from the `--env-file` flag, or, without it, the `.env` file in the current directory, if it exists.
 
-| Переменная | Смысл | Обязательна |
+Environment variables:
+
+| Variable | Meaning | Required |
 |---|---|---|
-| `ELEMENT_BASE_URL` | базовый URL платформы, например `https://1cmycloud.com` | да |
-| `ELEMENT_CLIENT_ID` | Client-Id для получения токена | да |
-| `ELEMENT_CLIENT_SECRET` | Client-Secret | да |
-| `ELEMENT_APP_ID` | приложение по умолчанию | нет |
-| `ELEMENT_PROJECT_ID` | проект по умолчанию | нет |
-| `ELEMENT_SPACE_ID` | пространство по умолчанию | нет |
+| `ELEMENT_BASE_URL` | platform base URL, e.g. `https://1cmycloud.com` | yes |
+| `ELEMENT_CLIENT_ID` | Client-Id for obtaining the token | yes |
+| `ELEMENT_CLIENT_SECRET` | Client-Secret | yes |
+| `ELEMENT_APP_ID` | default application | no |
+| `ELEMENT_PROJECT_ID` | default project | no |
+| `ELEMENT_SPACE_ID` | default space | no |
 
-Формат .env: строки `KEY=VALUE`; пустые строки и строки с `#` в начале
-пропускаются; допускается префикс `export ` и одинарные/двойные кавычки
-вокруг значения; кодировка UTF-8, возможен BOM (читать как `utf-8-sig`).
-Хвостовой слэш у `ELEMENT_BASE_URL` обрезается.
+.env format: `KEY=VALUE` lines; empty lines and lines starting with `#` are skipped; a leading `export ` prefix and single/double quotes around the value are allowed; UTF-8 encoding, a BOM is possible (read as `utf-8-sig`). A trailing slash in `ELEMENT_BASE_URL` is trimmed.
 
-## 3. Аутентификация
+## 3. Authentication
 
-Получение токена: `POST {base}/console/sys/token`
+Obtaining a token: `POST {base}/console/sys/token`
 
-- заголовок `Authorization: Basic base64(client_id:client_secret)`;
-- тело `grant_type=client_credentials`, Content-Type
-  `application/x-www-form-urlencoded`.
+- header `Authorization: Basic base64(client_id:client_secret)`;
+- body `grant_type=client_credentials`, Content-Type `application/x-www-form-urlencoded`.
 
-Ответ - JSON-объект; токен лежит в первом непустом из полей `id_token`,
-`token`, `value`, `access_token`. Особый случай: значение `access_token`
-может быть строкой `"Not implemented"` - это не токен, поле игнорировать.
+The response is a JSON object; the token is in the first non-empty of the fields `id_token`, `token`, `value`, `access_token`. Special case: the `access_token` value may be the string `"Not implemented"` – this is not a token, ignore the field.
 
-Все прочие запросы - с заголовком `Authorization: Bearer {токен}`.
+All other requests use the header `Authorization: Bearer {token}`.
 
-Токен живёт около часа: кешировать его в файле в системном каталоге временных
-файлов (`tempfile.gettempdir()`, НЕ жёсткий `/tmp` - инструмент работает и на
-Windows) с TTL 1 час; ключ кеша должен различать пары base_url + client_id.
-При ответе 401 обновить токен принудительно и повторить запрос один раз.
+The token lives for about an hour: cache it in a file in the system temporary directory (`tempfile.gettempdir()`, NOT a hardcoded `/tmp` – the tool also runs on Windows) with a TTL of 1 hour; the cache key must distinguish base_url + client_id pairs. On a 401 response, refresh the token forcibly and retry the request once.
 
-## 4. Контракт Console API v2
+## 4. Console API v2 contract
 
-Общий префикс: `{base}/console/api/v2`. Тела запросов и ответов - JSON
-(кроме загрузки сборки). Имена полей - в kebab-case.
+Common prefix: `{base}/console/api/v2`. Request and response bodies are JSON (except for build upload). Field names are in kebab-case.
 
-### 4.1. Приложения
+### 4.1. Applications
 
-- `GET /applications` - список; необязательный query `name` (фильтр).
-- `GET /applications/{id}` - карточка. Значимые поля ответа: `id`, `status`,
-  `uri` (адрес работающего приложения), `error` (текст ошибки, если есть),
-  `technology-version`, `date-updated`, `display-name`,
-  `publication-context`, `source` (объект с информацией об источнике,
-  содержит в т.ч. `project-version` - версию применённой сборки).
-- `POST /applications` - создать. Тело:
-  - `source` - объект `{"type": "repository"}` плюс ровно один из ключей:
-    `project-version-id` (id сборки-источника) либо `image-id` (id проекта);
-  - `display-name`, `publication-context` - имя и путь публикации;
-  - `development-mode` - булево, создавать ли среду разработки;
-  - необязательные `space-id`, `technology-version`.
-- `DELETE /applications/{id}` - удалить.
-- `PUT /applications/{id}/status/start` - запустить.
-- `PUT /applications/{id}/status/stop` - остановить.
-- `POST /applications/{id}/actions/debug` - данные для сессии отладки
-  (`ApplicationDebugInfo`: `{"debug-token": ..., "debug-address": ...}`).
-  Тело запроса пустое; требует включённой отладки на сервере
-  (`config/debug.yml` `enabled: true`).
-- `POST /applications/{id}/project/update` - применить сборку к приложению.
-  Тело: `{"source": {"type": "repository", "image-id": "<id сборки>"}}`
-  либо `{"source": {"type": "repository", "project-id": "<id>",
-  "assembly-version": "<версия>"}}` (assembly-version необязательна).
-- `POST /applications/{id}/dumps` - создать дамп. Тело: `include-users`,
-  `include-binary-data` (булевы), `description` (строка).
-- `GET /applications/{id}/dumps/{dumpId}` - статус дампа.
+- `GET /applications` – list; optional `name` query (filter).
+- `GET /applications/{id}` – card. Significant response fields: `id`, `status`, `uri` (address of the running application), `error` (error text, if any), `technology-version`, `date-updated`, `display-name`, `publication-context`, `source` (an object with source information, containing among other things `project-version` – the version of the applied build).
+- `POST /applications` – create. Body:
+  - `source` – the object `{"type": "repository"}` plus exactly one of the keys: `project-version-id` (id of the source build) or `image-id` (project id);
+  - `display-name`, `publication-context` – publication name and path;
+  - `development-mode` – boolean, whether to create a development environment;
+  - optional `space-id`, `technology-version`.
+- `DELETE /applications/{id}` – delete.
+- `PUT /applications/{id}/status/start` – start.
+- `PUT /applications/{id}/status/stop` – stop.
+- `POST /applications/{id}/actions/debug` – data for a debug session (`ApplicationDebugInfo`: `{"debug-token": ..., "debug-address": ...}`). The request body is empty; requires debugging enabled on the server (`config/debug.yml` `enabled: true`).
+- `POST /applications/{id}/project/update` – apply a build to the application. Body: `{"source": {"type": "repository", "image-id": "<build id>"}}` or `{"source": {"type": "repository", "project-id": "<id>", "assembly-version": "<version>"}}` (assembly-version is optional).
+- `POST /applications/{id}/dumps` – create a dump. Body: `include-users`, `include-binary-data` (booleans), `description` (string).
+- `GET /applications/{id}/dumps/{dumpId}` – dump status.
 
-Статусы приложения: стабильные `Running`, `Stopped`, `Error`; переходные
-`Starting`, `Stopping`, `Initializing`, `Updating`, `Frozen`, `Creating`.
-Во время переходов поле `status` может быть и пустым.
+Application statuses: stable `Running`, `Stopped`, `Error`; transitional `Starting`, `Stopping`, `Initializing`, `Updating`, `Frozen`, `Creating`. During transitions the `status` field may also be empty.
 
-### 4.2. Версия технологии
+### 4.2. Technology version
 
-- Чтение - из поля `technology-version` карточки приложения (отдельный
-  endpoint чтения есть не во всех версиях платформы - не использовать).
-- Обновление: `POST /tasks/group-tasks/update-applications-technology`,
-  тело `{"technology-version": "<версия>", "applications": ["<app-id>"]}`.
-  Возвращает групповую задачу; её статус - `GET /tasks/group-tasks/{taskId}`.
+- Reading – from the `technology-version` field of the application card (a dedicated read endpoint is not present in all platform versions – do not use it).
+- Update: `POST /tasks/group-tasks/update-applications-technology`, body `{"technology-version": "<version>", "applications": ["<app-id>"]}`. Returns a group task; its status – `GET /tasks/group-tasks/{taskId}`.
 
-### 4.3. Пространства и проекты
+### 4.3. Spaces and projects
 
-- `GET /spaces` - список пространств.
-- `GET /projects` - список проектов; `GET /projects/{id}` - карточка;
-  `DELETE /projects/{id}` - удаление.
+- `GET /spaces` – list of spaces.
+- `GET /projects` – list of projects; `GET /projects/{id}` – card; `DELETE /projects/{id}` – delete.
 
-### 4.4. Сборки проекта (assemblies)
+### 4.4. Project builds (assemblies)
 
-- Загрузка файла сборки - бинарный POST (Content-Type
-  `application/octet-stream`, тело - байты файла):
-  - `POST /projects/{id}/assemblies` - добавить сборку в существующий проект;
-  - `POST /projects` - создать новый проект из сборки.
-  Query-параметры (все необязательные): `SpaceId`, `BranchName`, `CommitId`,
-  `CommitMessage`. Внимание: имена этих query-параметров - в PascalCase.
-  Ответ содержит id созданной сборки в одном из полей: `image-id`,
-  `assembly-id` или `id` (проверять в этом порядке).
-- `GET /projects/{id}/assemblies` - список сборок. Элемент содержит
-  `assembly-version` (строка вида `1.0-42`) и id (`id` либо `image-id`).
-  Ответ может быть как массивом, так и объектом со списком в поле `items`
-  или `assemblies`.
-- `GET /projects/{id}/assemblies/{version}` - карточка сборки по версии;
-  `DELETE .../{version}` - удаление.
+- Uploading a build file – a binary POST (Content-Type `application/octet-stream`, body – the file bytes):
+  - `POST /projects/{id}/assemblies` – add a build to an existing project;
+  - `POST /projects` – create a new project from a build.
+  Query parameters (all optional): `SpaceId`, `BranchName`, `CommitId`, `CommitMessage`. Note: the names of these query parameters are in PascalCase. The response contains the id of the created build in one of the fields: `image-id`, `assembly-id`, or `id` (check in this order).
+- `GET /projects/{id}/assemblies` – list of builds. Each element contains `assembly-version` (a string like `1.0-42`) and an id (`id` or `image-id`). The response may be either an array or an object with the list in the `items` or `assemblies` field.
+- `GET /projects/{id}/assemblies/{version}` – build card by version; `DELETE .../{version}` – delete.
 
-Сравнение версий сборок: по числовому суффиксу после последнего дефиса
-(`1.0-10` новее `1.0-9`; лексикографическое сравнение даёт неверный порядок).
+Comparing build versions: by the numeric suffix after the last hyphen (`1.0-10` is newer than `1.0-9`; lexicographic comparison gives the wrong order).
 
-### 4.5. Ветки среды разработки
+### 4.5. Development environment branches
 
-- `GET /branches` - список; необязательные query `project-id`, `name`.
-- `GET /branches/{id}` - карточка. Поля: `name`, `kind`, `project`,
-  `application`, `source-branch`, `deletion-mark`, `version-stamp`.
-- `POST /branches` - создать. Тело: `name`, `kind: "development"`,
-  `project: {"id": "<id>"}`, необязательно `application: {"id": "<id>"}`.
-- `PUT /branches/{id}` - изменить. Платформа использует оптимистическую
-  блокировку: сначала прочитать карточку, затем отправить тело, собранное из
-  текущих значений - `name`, `kind`, `deletion-mark`, `version-stamp`
-  (обязательно вернуть как есть), `source-branch` и `application` - свернуть
-  до `{"id": ...}` (или `{"name": ...}`, если id нет). Для перепривязки к
-  приложению заменить `application` на `{"id": "<новый app-id>"}`.
-- Принятие изменений ветки (merge) - тот же `PUT /branches/{id}` с
-  дополнительным ключом тела `write-parameters: {"merge": true}`.
-- `DELETE /branches/{id}` - удалить ветку.
+- `GET /branches` – list; optional queries `project-id`, `name`.
+- `GET /branches/{id}` – card. Fields: `name`, `kind`, `project`, `application`, `source-branch`, `deletion-mark`, `version-stamp`.
+- `POST /branches` – create. Body: `name`, `kind: "development"`, `project: {"id": "<id>"}`, optionally `application: {"id": "<id>"}`.
+- `PUT /branches/{id}` – modify. The platform uses optimistic locking: first read the card, then send a body assembled from the current values – `name`, `kind`, `deletion-mark`, `version-stamp` (must be returned as is), `source-branch` and `application` – collapsed to `{"id": ...}` (or `{"name": ...}` if there is no id). To rebind to an application, replace `application` with `{"id": "<new app-id>"}`.
+- Accepting branch changes (merge) – the same `PUT /branches/{id}` with an additional body key `write-parameters: {"merge": true}`.
+- `DELETE /branches/{id}` – delete the branch.
 
-Инструмент работает ТОЛЬКО с документированным Console API v2. Внутренние
-(недокументированные) API консоли платформы не используются и не описываются.
+The tool works ONLY with the documented Console API v2. Internal (undocumented) platform console APIs are not used and not described.
 
-### 4.6. Задачи приложений
+### 4.6. Application tasks
 
-`GET /tasks/application-tasks` - список задач всех приложений (серверного
-фильтра нет - фильтровать на клиенте). Поля задачи: `id`, `application-id`,
-`status` (в т.ч. `Error`, `Failed`), `operation-type`, `error-message`,
-`start-date` (ISO 8601, может оканчиваться на `Z`).
+`GET /tasks/application-tasks` – list of tasks for all applications (there is no server-side filter – filter on the client). Task fields: `id`, `application-id`, `status` (including `Error`, `Failed`), `operation-type`, `error-message`, `start-date` (ISO 8601, may end with `Z`).
 
-## 5. Формат файла сборки (.xasm / .xlib)
+## 5. Build file format (.xasm / .xlib)
 
-Файл сборки - ZIP-архив (deflate):
+A build file is a ZIP archive (deflate):
 
-- в корне `Assembly.yaml` - манифест, плоские пары ключ-значение:
+- at the root, `Assembly.yaml` – the manifest, flat key-value pairs:
 
   ```
   ManifestVersion: 1.0
   ProjectKind: Application | Library
-  Vendor: <поставщик>
-  Name: <имя проекта>
-  Version: <версия, например 1.0-42>
-  Created: <UTC, формат YYYY.MM.DD HH:MM:SS>
-  BranchName: <имя git-ветки>
-  CommitId: <хэш коммита>
+  Vendor: <vendor>
+  Name: <project name>
+  Version: <version, e.g. 1.0-42>
+  Created: <UTC, format YYYY.MM.DD HH:MM:SS>
+  BranchName: <git branch name>
+  CommitId: <commit hash>
   ```
 
-  Для библиотеки (`ProjectKind: Library`) в конце добавляется строка
-  `Release:` (пустое значение); расширение файла `.xlib`, для приложения -
-  `.xasm`.
+  For a library (`ProjectKind: Library`), a `Release:` line (empty value) is added at the end; the file extension is `.xlib`, for an application – `.xasm`.
 
-- далее файлы проекта путями `{vendor}/{name}/...` - относительно корня
-  репозитория. Каталог проекта обязан лежать по схеме
-  `{repo}/{vendor}/{name}/Проект.yaml`. Разделители путей в архиве - прямые
-  слэши (и на Windows).
+- then the project files at paths `{vendor}/{name}/...` – relative to the repository root. The project directory must follow the scheme `{repo}/{vendor}/{name}/Проект.yaml`. Path separators in the archive are forward slashes (including on Windows).
 
-Имя файла сборки: `{Имя} {Version}.xasm` (через пробел).
+Build file name: `{Имя} {Version}.xasm` (with a space).
 
-Метаданные проекта - из `Проект.yaml` (YAML, достаточно разбора плоских пар
-`ключ: значение` верхнего уровня, вложенные строки с отступом пропускать):
-`Имя`, `Поставщик`, `Версия` (базовая, например `1.0`), `ВидПроекта`
-(значение `Библиотека` означает библиотеку, иначе приложение).
+Project metadata – from `Проект.yaml` (YAML; parsing flat top-level `key: value` pairs is sufficient, skip nested indented lines): `Имя`, `Поставщик`, `Версия` (base, e.g. `1.0`), `ВидПроекта` (the value `Библиотека` means a library, otherwise an application).
 
-Версия сборки, если не задана явно: `{базовая версия}-{N+1}`, где N - счётчик
-из версии последней сборки проекта; если сборок нет - `{базовая версия}-1`.
+Build version, if not set explicitly: `{base version}-{N+1}`, where N is the counter from the version of the project's latest build; if there are no builds – `{base version}-1`.
 
-Git-метаданные (хэш коммита, имя ветки) - из git-репозитория, содержащего
-каталог проекта; при недоступности git оставить пустыми.
+Git metadata (commit hash, branch name) – from the git repository containing the project directory; if git is unavailable, leave them empty.
 
-Отбор файлов в архив:
+File selection for the archive:
 
-- включаются только расширения: `.yaml .xbsl .xbql .md .txt .json`
-  (исходники), `.png .svg .jpg .jpeg .gif .webp .ico` (изображения),
-  `.css .html .js .woff .woff2 .ttf .eot` (веб-ресурсы);
-- исключаются каталоги `.git`, `.claude`, `.github`, `__pycache__`,
-  `node_modules`, `.venv` и все скрытые (начинающиеся с точки);
-- исключаются файлы `.gitignore`, `.env`, `.DS_Store` и файлы `*.xasm`,
-  `*.xlib`.
+- only these extensions are included: `.yaml .xbsl .xbql .md .txt .json` (sources), `.png .svg .jpg .jpeg .gif .webp .ico` (images), `.css .html .js .woff .woff2 .ttf .eot` (web resources);
+- the directories `.git`, `.claude`, `.github`, `__pycache__`, `node_modules`, `.venv` and all hidden ones (starting with a dot) are excluded;
+- the files `.gitignore`, `.env`, `.DS_Store` and `*.xasm`, `*.xlib` files are excluded.
 
-## 6. Поведенческие особенности платформы (обязательны к учёту)
+## 6. Platform behavioral specifics (must be accounted for)
 
-1. **Тихий откат применения.** Если применение сборки к приложению падает
-   (например, ошибка компиляции), платформа молча откатывает приложение на
-   предыдущую сборку и запускает его - статус `Running` НЕ означает успех.
-   Достоверная проверка результата деплоя:
-   - задачи приложения (п. 4.6) со статусом `Error`/`Failed`, у которых
-     `start-date` не раньше момента начала деплоя (старые ошибки из истории
-     не учитывать!);
-   - сверка фактически применённой версии (`source.project-version` карточки
-     приложения) с версией загруженной сборки;
-   - информационно - контрольный GET по `uri` приложения (коды 401/403
-     нормальны для закрытых приложений и успеху не противоречат).
-2. **Пустой каркас при создании.** Создание приложения с источником "проект"
-   (`image-id` = id проекта) на части конфигураций платформы даёт пустое
-   приложение без данных проекта. Надёжный источник - конкретная сборка
-   (`project-version-id`), например последняя сборка проекта.
-3. **Удаление с черновиками.** Если в среде разработки приложения есть
-   неопубликованные правки, `DELETE /applications/{id}` возвращает 400 с
-   `FAILED_PRECONDITION` в теле. Принудительного удаления в API нет - только
-   панель управления; инструмент обязан дать понятную подсказку.
-4. **Готовность нового приложения.** После создания приложение какое-то время
-   в переходных статусах и без `uri` - предусмотреть ожидание готовности
-   (появился `uri` и стабильный статус). Статус `Error` при ожидании -
-   немедленная ошибка.
-5. **Перезапуск после применения.** `project/update` может сам перезапустить
-   приложение. После вызова дождаться выхода из переходных статусов; если
-   итог не `Running` - остановить (если не `Stopped`), дождаться `Stopped`,
-   запустить, дождаться `Running`. Разумные таймауты: ожидание остановки
-   ~3 мин, запуска/стабилизации ~5 мин, опрос каждые ~10 с.
-6. **Windows.** Временные файлы и кеши - только через `tempfile`; вывод
-   консоли перевести в UTF-8 (`reconfigure` для stdout/stderr), иначе
-   кириллица ломается.
+1. **Silent rollback of build apply.** If applying a build to the application fails (e.g., a compilation error), the platform silently rolls the application back to the previous build and starts it – the `Running` status does NOT mean success. A reliable check of the deploy result:
+   - application tasks (section 4.6) with status `Error`/`Failed` whose `start-date` is not earlier than the moment the deploy started (do not count old errors from history!);
+   - comparison of the actually applied version (`source.project-version` of the application card) with the version of the uploaded build;
+   - for information – a check GET against the application `uri` (codes 401/403 are normal for closed applications and do not contradict success).
+2. **Empty skeleton on creation.** Creating an application with a "project" source (`image-id` = project id) on some platform configurations yields an empty application without project data. A reliable source is a specific build (`project-version-id`), for example the project's latest build.
+3. **Deletion with drafts.** If the application's development environment has unpublished edits, `DELETE /applications/{id}` returns 400 with `FAILED_PRECONDITION` in the body. There is no forced deletion in the API – only the control panel; the tool must provide a clear hint.
+4. **Readiness of a new application.** After creation, the application is in transitional statuses and without a `uri` for some time – provide for waiting until ready (a `uri` has appeared and the status is stable). An `Error` status while waiting is an immediate error.
+5. **Restart after apply.** `project/update` may restart the application itself. After the call, wait until it leaves the transitional statuses; if the result is not `Running` – stop it (if not `Stopped`), wait for `Stopped`, start it, wait for `Running`. Reasonable timeouts: waiting for stop ~3 min, for start/stabilization ~5 min, polling every ~10 s.
+6. **Windows.** Temporary files and caches – only via `tempfile`; switch console output to UTF-8 (`reconfigure` for stdout/stderr), otherwise Cyrillic breaks.
 
-## 7. Требования к CLI
+## 7. CLI requirements
 
-Общие флаги (до подкоманды): `--base-url`, `--client-id`, `--client-secret`,
-`--env-file`, `--timeout` (сек, по умолчанию 60), `--version`.
+Common flags (before the subcommand): `--base-url`, `--client-id`, `--client-secret`, `--env-file`, `--timeout` (seconds, default 60), `--version`.
 
-Вывод: результат - JSON в stdout (`ensure_ascii=False`, отступ 2); прогресс
-длительных операций - строки в stderr; ошибки - JSON с полем `error` в
-stderr и код возврата 1.
+Output: the result is JSON on stdout (`ensure_ascii=False`, indent 2); progress of long operations – lines on stderr; errors – JSON with an `error` field on stderr and return code 1.
 
-Команды (в скобках - существенные флаги):
+Commands (significant flags in parentheses):
 
-- `token` - получить и напечатать токен.
+- `token` – obtain and print the token.
 - `apps list [--name]`, `apps get [APP_ID]`, `apps find NAME [--include-deleted]`,
   `apps create NAME [--project-id --version-id --latest-build --space-id
   --tech-version --no-dev-mode --wait]`,
   `apps ensure NAME [--project-id --version-id --latest-build --space-id
   --tech-version --no-dev-mode --wait]`, `apps delete APP_ID`,
   `apps start [APP_ID]`, `apps stop [APP_ID]`.
-  - `apps find` ищет по точному совпадению (без учёта регистра) имени среди
-    полей `name`, `display-name`, `publication-context`; вывод
-    `{"id": ..., "found": true|false}`, код возврата 0 в обоих случаях –
-    отсутствие приложения это ответ, а не ошибка. Ненулевой код возврата
-    означает сбой запроса и сопровождается JSON'ом с полем `error` в stderr.
-    В скриптах проверять поле `found`, а не код возврата.
-  - Удалённые приложения остаются в списке платформы со статусом `Deleted` и
-    прежним `id`. `apps find` их ПРОПУСКАЕТ: найденный id обязан быть пригоден
-    для работы, иначе вызывающий получает id, на котором `apps get` и `deploy`
-    отвечают 404. Флаг `--include-deleted` возвращает прежнее поведение – поиск
-    среди всех приложений, включая удалённые.
-  - `apps ensure` идемпотентно приводит приложение с данным именем в
-    существование: ищет по правилам `apps find` (удалённые не в счёт) и создаёт
-    только при отсутствии. Вывод `{"id": ..., "created": true|false}`;
-    `created: false` означает, что приложение уже было и НЕ трогалось. Флаги
-    создания те же, что у `apps create`, и действуют, только когда создание
-    происходит. Существующее приложение никогда не пересоздаётся: `delete` +
-    `create` дают новый URL и рвут внешние привязки к прежнему.
-  - `--latest-build` - взять источником последнюю сборку проекта (защита от
-    пустого каркаса, п. 6.2); `--wait` - дождаться готовности (п. 6.4) и
-    вывести финальную карточку.
+  - `apps find` searches by an exact (case-insensitive) name match among the fields `name`, `display-name`, `publication-context`; output `{"id": ..., "found": true|false}`, return code 0 in both cases – the absence of an application is an answer, not an error. A non-zero return code means the request failed and is accompanied by JSON with an `error` field on stderr. In scripts, check the `found` field, not the return code.
+  - Deleted applications remain in the platform list with the `Deleted` status and their former `id`. `apps find` SKIPS them: the found id must be usable, otherwise the caller gets an id on which `apps get` and `deploy` return 404. The `--include-deleted` flag restores the former behavior – searching among all applications, including deleted ones.
+  - `apps ensure` idempotently brings an application with the given name into existence: it searches by the `apps find` rules (deleted ones do not count) and creates only if absent. Output `{"id": ..., "created": true|false}`; `created: false` means the application already existed and was NOT touched. The creation flags are the same as for `apps create` and take effect only when creation happens. An existing application is never recreated: `delete` + `create` produce a new URL and break external bindings to the former one.
+  - `--latest-build` – use the project's latest build as the source (protection against an empty skeleton, section 6.2); `--wait` – wait until ready (section 6.4) and output the final card.
 - `spaces list`.
 - `projects list`, `projects get [PROJECT_ID]`, `projects delete PROJECT_ID`.
 - `builds list [--project-id]`, `builds get VERSION [--project-id]`,
   `builds upload FILE [--project-id --space-id --branch --commit
   --commit-message]`, `builds delete VERSION [--project-id]`.
 - `build [--project-dir --output --build-version --last-build --commit
-  --branch --kind {application,library}]` - локально собрать архив, вывести
-  `{"file": путь}`. Без `--project-dir` каталог проекта ищется автоматически
-  (первый каталог с `Проект.yaml` вглубь от текущего). `--kind` по умолчанию
-  определяется по `ВидПроекта`.
+  --branch --kind {application,library}]` – build the archive locally, output
+  `{"file": path}`. Without `--project-dir`, the project directory is found automatically
+  (the first directory with `Проект.yaml` when descending from the current one). `--kind`
+  defaults based on `ВидПроекта`.
 - `deploy [--app-id --project-id --project-dir --output --build-version
-  --branch --commit --commit-message --dry-run]` -
-  полный цикл: сборка -> загрузка -> применение -> перезапуск -> проверка
-  фактического применения (п. 6.1). Вывод - JSON-отчёт с полями: `app-id`,
-  `uri`, `status`, `version`, `assembly-id`, `applied-version`, `applied`
-  (true/false/null - null когда фактическую версию определить не удалось),
-  `uri-status`, `problems` (список строк), `ok` (булево). Код возврата 0
-  только при `ok`. `--dry-run` - только сборка.
+  --branch --commit --commit-message --dry-run]` –
+  the full cycle: build -> upload -> apply -> restart -> verification of the actual apply (section 6.1). Output – a JSON report with fields: `app-id`, `uri`, `status`, `version`, `assembly-id`, `applied-version`, `applied` (true/false/null – null when the actual version could not be determined), `uri-status`, `problems` (list of strings), `ok` (boolean). Return code 0 only when `ok`. `--dry-run` – build only.
 - `branches list [--project-id --name]`, `branches get ID`,
   `branches create NAME [--project-id --app-id]`,
   `branches update ID [--app-id]`, `branches delete ID`,
@@ -311,44 +193,38 @@ stderr и код возврата 1.
 - `dumps create [APP_ID] [--description]`, `dumps get APP_ID DUMP_ID`.
 - `tasks list [--app-id]`, `tasks get-group TASK_ID`.
 - `tech get [APP_ID]`, `tech set APP_ID VERSION`.
-- `mcp` - запустить MCP-сервер; без установленного extra - понятная ошибка
-  с подсказкой `pip install "elemctl[mcp]"`.
+- `mcp` – start the MCP server; without the extra installed – a clear error with the hint `pip install "elemctl[mcp]"`.
 
-Позиционные APP_ID/PROJECT_ID, помеченные выше как необязательные, при
-отсутствии берутся из конфигурации (`ELEMENT_APP_ID`/`ELEMENT_PROJECT_ID`);
-если и там пусто - ошибка.
+Positional APP_ID/PROJECT_ID marked as optional above are taken from the configuration (`ELEMENT_APP_ID`/`ELEMENT_PROJECT_ID`) when absent; if those are empty too – an error.
 
-## 8. Требования к MCP-серверу
+## 8. MCP server requirements
 
-Имя сервера `elemctl`, транспорт stdio, реквизиты - из тех же переменных
-окружения/.env. В instructions сервера предупредить о тихом откате применения
-(п. 6.1). Инструменты (докстринги - краткие, по-русски):
+Server name `elemctl`, stdio transport, credentials – from the same environment variables/.env. In the server instructions, warn about the silent rollback of build apply (section 6.1). Tools (docstrings – short, in Russian):
 
 `list_apps(name="")`, `get_app(app_id)`, `find_app(name)`,
 `create_app(name, project_id="", version_id="", space_id="",
-development_mode=True)` - при задании только project_id источником
-автоматически берётся последняя сборка проекта (п. 6.2);
-`start_app(app_id)`, `stop_app(app_id)`, `debug_info(app_id)` - данные для
-сессии отладки (требует включённой отладки на сервере), `delete_app(app_id)`
-(в докстринге - предупреждение о необратимости и смене URL), `list_spaces()`,
+development_mode=True)` – when only project_id is given, the project's latest build is
+automatically used as the source (section 6.2);
+`start_app(app_id)`, `stop_app(app_id)`, `debug_info(app_id)` – data for a
+debug session (requires debugging enabled on the server), `delete_app(app_id)`
+(the docstring – a warning about irreversibility and URL change), `list_spaces()`,
 `list_projects()`, `list_builds(project_id)`,
 `build_assembly(project_dir="", output_dir="", version="")`,
 `deploy(app_id, project_id, project_dir="", version="", branch="",
-commit_message="")` - возвращает отчёт деплоя плюс поле `log` со строками
-прогресса; `apply_build(app_id, version_id)`, `verify_deploy(app_id,
-expected_version="", since_minutes=30)` - проверка применения по п. 6.1;
+commit_message="")` – returns the deploy report plus a `log` field with progress
+lines; `apply_build(app_id, version_id)`, `verify_deploy(app_id,
+expected_version="", since_minutes=30)` – verification of the apply per section 6.1;
 `list_app_tasks(app_id="")`, `list_branches(project_id="", name="")`,
 `merge_branch(branch_id)`.
 
-## 9. Требования к качеству
+## 9. Quality requirements
 
-- Тесты pytest без обращений к сети: разбор .env и приоритеты конфигурации,
-  отбор файлов и содержимое архива сборки (включая манифест), автоинкремент
-  и числовое сравнение версий, логика итога деплоя (`ok`/`applied`),
-  подсказка при `FAILED_PRECONDITION`, поиск приложения по имени.
-- Докстринги и комментарии - литературный русский; кавычки в тексте прямые
-  `"`, тире - среднее `–` (не длинное), многоточие - три точки `...`.
-- Библиотека не печатает в stdout/stderr сама - прогресс отдаётся через
-  передаваемый вызывающей стороной callback.
-- Ошибки API - собственное исключение с деталями ответа сервера
-  (сериализуемыми в JSON).
+- pytest tests without network access: .env parsing and configuration priorities,
+  file selection and build archive contents (including the manifest), auto-increment
+  and numeric comparison of versions, deploy outcome logic (`ok`/`applied`),
+  the hint on `FAILED_PRECONDITION`, application search by name.
+- Docstrings and comments – literary Russian; straight quotes `"` in text, dashes –
+  en dash `–` (not em dash), ellipsis – three dots `...`.
+- The library does not print to stdout/stderr itself – progress is delivered via a
+  callback passed by the caller.
+- API errors – a dedicated exception with server response details (JSON-serializable).

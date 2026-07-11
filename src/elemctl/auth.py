@@ -14,6 +14,7 @@ import tempfile
 import time
 from pathlib import Path
 
+from . import i18n
 from .errors import ApiError
 
 TOKEN_TTL = 3600.0
@@ -112,7 +113,7 @@ class TokenManager:
         )
         if not 200 <= response.status < 300:
             raise ApiError(
-                f"не удалось получить токен: HTTP {response.status}",
+                i18n.t("auth.token-http-error", status=response.status),
                 status=response.status,
                 method="POST",
                 url=url,

@@ -13,6 +13,7 @@ import tempfile
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
+from . import i18n
 from .build import build_assembly
 from .client import extract_assembly_id
 
@@ -92,7 +93,7 @@ def deploy_from_sources(
         branch=branch,
         commit=commit,
     )
-    log(f"собран архив {result.file} (версия {result.version})")
+    log(i18n.t("deploy.built", file=result.file, version=result.version))
 
     response = client.upload_assembly(
         result.file.read_bytes(),
@@ -102,17 +103,17 @@ def deploy_from_sources(
         commit_message=commit_message or None,
     )
     assembly_id = extract_assembly_id(response) or ""
-    log(f"сборка загружена (id: {assembly_id or 'не определён'})")
+    log(i18n.t("deploy.uploaded", id=assembly_id or i18n.t("deploy.unknown")))
 
     if assembly_id:
         client.apply_build(app_id, image_id=assembly_id)
     else:
         # Ответ без id сборки: применяем по проекту и версии.
         client.apply_build(app_id, project_id=project_id, assembly_version=result.version)
-    log("применение запущено, ждём стабилизации приложения...")
+    log(i18n.t("deploy.apply-started"))
 
     card = client.ensure_running(app_id, log=log)
-    log("приложение в статусе Running, проверяем фактическое применение...")
+    log(i18n.t("deploy.running-verifying"))
 
     report = _verify(
         client,
@@ -155,7 +156,7 @@ def _verify(client, app_id, *, card, expected_version, since):
         if since is not None and task_started is not None and task_started < since:
             continue
         label = task.get("operation-type") or task.get("id") or "задача"
-        message = task.get("error-message") or "без текста ошибки"
+        message = task.get("error-message") or i18n.t("deploy.no-error-text")
         problems.append(f"задача {label} завершилась со статусом {status}: {message}")
 
     # 2. Сверка фактически применённой версии с загруженной.
@@ -192,11 +193,11 @@ def _verify(client, app_id, *, card, expected_version, since):
 
 def _log_outcome(report, log):
     if report.ok:
-        log("проверка пройдена: сборка применена")
+        log(i18n.t("deploy.verify-passed"))
     else:
         for problem in report.problems:
-            log(f"проблема: {problem}")
-        log("проверка НЕ пройдена")
+            log(i18n.t("deploy.problem", problem=problem))
+        log(i18n.t("deploy.verify-failed"))
 
 
 def _parse_datetime(value):

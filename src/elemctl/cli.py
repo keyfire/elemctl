@@ -12,7 +12,7 @@ import json
 import sys
 from pathlib import Path
 
-from . import __version__
+from . import __version__, i18n
 from .build import build_assembly
 from .client import ElementClient, extract_assembly_id
 from .config import Config
@@ -69,7 +69,7 @@ def _require(explicit, fallback, what):
     """Взять явное значение либо значение из конфигурации; иначе ошибка."""
     value = explicit or fallback
     if not value:
-        raise ConfigError(f"не задан {what}")
+        raise ConfigError(i18n.t("cli.not-set", what=what))
     return value
 
 
@@ -91,7 +91,7 @@ def cmd_apps_list(args):
 def cmd_apps_get(args):
     config = _config(args)
     client = make_client(config)
-    app_id = _require(args.app_id, config.app_id, "app-id (аргумент APP_ID или ELEMENT_APP_ID)")
+    app_id = _require(args.app_id, config.app_id, i18n.t("cli.require.app-id-arg"))
     _emit(client.get_app(app_id))
     return 0
 
@@ -128,7 +128,7 @@ def _create_app_from_args(client, config, args):
 
     if args.latest_build and not version_id:
         if not project_id:
-            raise ConfigError("для --latest-build нужен --project-id (или ELEMENT_PROJECT_ID)")
+            raise ConfigError(i18n.t("cli.latest-build-needs-project"))
         latest = client.latest_assembly(project_id)
         if latest is None:
             raise ElemctlError(
@@ -151,7 +151,7 @@ def _create_app_from_args(client, config, args):
         )
         card = client.create_app(args.name, image_id=project_id, **kwargs)
     else:
-        raise ConfigError("нужен источник приложения: --version-id либо --project-id [--latest-build]")
+        raise ConfigError(i18n.t("cli.app-source-required"))
 
     if args.wait:
         app_id = (card or {}).get("id")
@@ -198,7 +198,7 @@ def cmd_apps_delete(args):
 def cmd_apps_debug(args):
     config = _config(args)
     client = make_client(config)
-    app_id = _require(args.app_id, config.app_id, "app-id (аргумент APP_ID или ELEMENT_APP_ID)")
+    app_id = _require(args.app_id, config.app_id, i18n.t("cli.require.app-id-arg"))
     _emit(client.get_debug_info(app_id) or {})
     return 0
 
@@ -206,7 +206,7 @@ def cmd_apps_debug(args):
 def cmd_apps_start(args):
     config = _config(args)
     client = make_client(config)
-    app_id = _require(args.app_id, config.app_id, "app-id (аргумент APP_ID или ELEMENT_APP_ID)")
+    app_id = _require(args.app_id, config.app_id, i18n.t("cli.require.app-id-arg"))
     response = client.start_app(app_id)
     _emit(response if response is not None else {"ok": True, "app-id": app_id})
     return 0
@@ -215,7 +215,7 @@ def cmd_apps_start(args):
 def cmd_apps_stop(args):
     config = _config(args)
     client = make_client(config)
-    app_id = _require(args.app_id, config.app_id, "app-id (аргумент APP_ID или ELEMENT_APP_ID)")
+    app_id = _require(args.app_id, config.app_id, i18n.t("cli.require.app-id-arg"))
     response = client.stop_app(app_id)
     _emit(response if response is not None else {"ok": True, "app-id": app_id})
     return 0
@@ -237,7 +237,7 @@ def cmd_projects_get(args):
     config = _config(args)
     client = make_client(config)
     project_id = _require(
-        args.project_id, config.project_id, "project-id (аргумент PROJECT_ID или ELEMENT_PROJECT_ID)"
+        args.project_id, config.project_id, i18n.t("cli.require.project-id-arg")
     )
     _emit(client.get_project(project_id))
     return 0
@@ -254,7 +254,7 @@ def cmd_builds_list(args):
     config = _config(args)
     client = make_client(config)
     project_id = _require(
-        args.project_id, config.project_id, "--project-id (или ELEMENT_PROJECT_ID)"
+        args.project_id, config.project_id, i18n.t("cli.require.project-id-flag")
     )
     _emit(client.list_assemblies(project_id))
     return 0
@@ -264,7 +264,7 @@ def cmd_builds_get(args):
     config = _config(args)
     client = make_client(config)
     project_id = _require(
-        args.project_id, config.project_id, "--project-id (или ELEMENT_PROJECT_ID)"
+        args.project_id, config.project_id, i18n.t("cli.require.project-id-flag")
     )
     _emit(client.get_assembly(project_id, args.version))
     return 0
@@ -275,7 +275,7 @@ def cmd_builds_upload(args):
     client = make_client(config)
     file_path = Path(args.file)
     if not file_path.is_file():
-        raise ElemctlError(f"файл сборки не найден: {file_path}")
+        raise ElemctlError(i18n.t("cli.build-file-not-found", path=file_path))
     response = client.upload_assembly(
         file_path.read_bytes(),
         project_id=args.project_id or config.project_id or None,
@@ -292,7 +292,7 @@ def cmd_builds_delete(args):
     config = _config(args)
     client = make_client(config)
     project_id = _require(
-        args.project_id, config.project_id, "--project-id (или ELEMENT_PROJECT_ID)"
+        args.project_id, config.project_id, i18n.t("cli.require.project-id-flag")
     )
     response = client.delete_assembly(project_id, args.version)
     _emit(response if response is not None else {"deleted": True, "version": args.version})
@@ -327,9 +327,9 @@ def cmd_deploy(args):
 
     config = _config(args)
     client = make_client(config)
-    app_id = _require(args.app_id, config.app_id, "--app-id (или ELEMENT_APP_ID)")
+    app_id = _require(args.app_id, config.app_id, i18n.t("cli.require.app-id-flag"))
     project_id = _require(
-        args.project_id, config.project_id, "--project-id (или ELEMENT_PROJECT_ID)"
+        args.project_id, config.project_id, i18n.t("cli.require.project-id-flag")
     )
     report = deploy_from_sources(
         client,
@@ -363,7 +363,7 @@ def cmd_branches_create(args):
     config = _config(args)
     client = make_client(config)
     project_id = _require(
-        args.project_id, config.project_id, "--project-id (или ELEMENT_PROJECT_ID)"
+        args.project_id, config.project_id, i18n.t("cli.require.project-id-flag")
     )
     _emit(client.create_branch(args.name, project_id, app_id=args.app_id or None))
     return 0
@@ -392,7 +392,7 @@ def cmd_branches_merge(args):
 def cmd_dumps_create(args):
     config = _config(args)
     client = make_client(config)
-    app_id = _require(args.app_id, config.app_id, "app-id (аргумент APP_ID или ELEMENT_APP_ID)")
+    app_id = _require(args.app_id, config.app_id, i18n.t("cli.require.app-id-arg"))
     _emit(client.create_dump(app_id, description=args.description or ""))
     return 0
 
@@ -418,7 +418,7 @@ def cmd_tasks_get_group(args):
 def cmd_tech_get(args):
     config = _config(args)
     client = make_client(config)
-    app_id = _require(args.app_id, config.app_id, "app-id (аргумент APP_ID или ELEMENT_APP_ID)")
+    app_id = _require(args.app_id, config.app_id, i18n.t("cli.require.app-id-arg"))
     _emit({"app-id": app_id, "technology-version": client.get_technology_version(app_id)})
     return 0
 
@@ -465,6 +465,11 @@ def build_parser():
     parser.add_argument("--client-secret", help="Client-Secret (ELEMENT_CLIENT_SECRET)")
     parser.add_argument("--env-file", help="путь к .env-файлу (по умолчанию .env в текущем каталоге)")
     parser.add_argument("--timeout", type=float, default=None, help="таймаут запросов в секундах (по умолчанию 60)")
+    parser.add_argument(
+        "--lang",
+        choices=i18n.LANGS,
+        help="язык вывода (по умолчанию: env ELEMCTL_LANG / локаль системы / ru)",
+    )
     parser.add_argument("--version", action="version", version=f"elemctl {__version__}")
 
     sub = parser.add_subparsers(dest="command", metavar="команда")
@@ -675,6 +680,7 @@ def main(argv=None):
     _reconfigure_streams()
     parser = build_parser()
     args = parser.parse_args(argv)
+    i18n.set_lang(args.lang)  # None сохраняет порядок env / локаль / ru
     handler = getattr(args, "handler", None)
     if handler is None:
         parser.print_help(sys.stderr)

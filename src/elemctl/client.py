@@ -10,6 +10,7 @@ import json
 import time
 from urllib.parse import urlencode
 
+from . import i18n
 from .auth import TokenManager
 from .errors import ApiError, ConfigError
 from .transport import UrllibTransport
@@ -149,7 +150,7 @@ class ElementClient:
             body = response.json()
         except ValueError:
             body = response.text()
-        message = f"Console API ответил {response.status} на {method} {url}"
+        message = i18n.t("client.api-error", status=response.status, method=method, url=url)
         if isinstance(body, dict):
             for key in ("message", "error", "detail"):
                 detail = body.get(key)
@@ -256,11 +257,7 @@ class ElementClient:
         except ApiError as error:
             body_text = json.dumps(error.body, ensure_ascii=False) if error.body is not None else ""
             if error.status == 400 and "FAILED_PRECONDITION" in body_text:
-                error.hint = (
-                    "в среде разработки приложения есть неопубликованные правки – "
-                    "платформа не удаляет такие приложения через API; опубликуйте "
-                    "или отмените правки, либо удалите приложение через панель управления"
-                )
+                error.hint = i18n.t("client.delete-failed-precondition")
                 error.message += " – " + error.hint
                 error.args = (error.message,)
             raise
@@ -297,7 +294,7 @@ class ElementClient:
             if assembly_version:
                 source["assembly-version"] = assembly_version
         else:
-            raise ConfigError("нужен источник применения: image_id либо project_id")
+            raise ConfigError(i18n.t("client.apply-source-required"))
         return self._api(
             "POST", f"/applications/{app_id}/project/update", json_body={"source": source}
         )
@@ -503,7 +500,7 @@ class ElementClient:
                     f"за {int(timeout)} с (текущий: {status or 'переходный'})"
                 )
             if log:
-                log(f"статус приложения: {status or '(переходный)'} – ждём...")
+                log(i18n.t("client.waiting-status", status=status or i18n.t("client.transitional")))
             self._sleep(poll)
 
     def wait_app_stable(self, app_id, *, timeout=START_TIMEOUT, poll=POLL_INTERVAL, log=None):
@@ -535,7 +532,7 @@ class ElementClient:
                     f"(статус: {status or 'переходный'}, uri: {card.get('uri') or 'нет'})"
                 )
             if log:
-                log(f"ждём готовности приложения: статус {status or '(переходный)'}...")
+                log(i18n.t("client.waiting-ready", status=status or i18n.t("client.transitional")))
             self._sleep(poll)
 
     def ensure_running(self, app_id, *, log=None):
@@ -551,12 +548,12 @@ class ElementClient:
             return card
         if status != "Stopped":
             if log:
-                log(f"статус {status} – останавливаем приложение...")
+                log(i18n.t("client.stopping", status=status))
             self.stop_app(app_id)
             self.wait_app_status(
                 app_id, {"Stopped"}, timeout=STOP_TIMEOUT, log=log, error_is_fatal=False
             )
         if log:
-            log("запускаем приложение...")
+            log(i18n.t("client.starting"))
         self.start_app(app_id)
         return self.wait_app_status(app_id, {"Running"}, timeout=START_TIMEOUT, log=log)

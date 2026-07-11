@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
+from . import i18n
 from .errors import BuildError
 from .versions import next_version
 
@@ -95,7 +96,7 @@ def find_project_dir(start=None):
         dirs[:] = sorted(d for d in dirs if not _is_excluded_dir(d))
         if PROJECT_FILE in files:
             return Path(root)
-    raise BuildError(f"каталог проекта не найден: нет {PROJECT_FILE} внутри {base}")
+    raise BuildError(i18n.t("build.project-dir-not-found", file=PROJECT_FILE, base=base))
 
 
 def read_project_meta(project_dir):
@@ -106,7 +107,7 @@ def read_project_meta(project_dir):
     project_dir = Path(project_dir).resolve()
     project_file = project_dir / PROJECT_FILE
     if not project_file.is_file():
-        raise BuildError(f"не найден {project_file}")
+        raise BuildError(i18n.t("build.not-found", file=project_file))
     values = parse_flat_yaml(project_file.read_text(encoding="utf-8-sig"))
 
     name = values.get("Имя", "").strip()
@@ -268,7 +269,7 @@ def _normalize_kind(kind):
         return "Library"
     if value in ("application", "приложение"):
         return "Application"
-    raise BuildError(f"неизвестный вид проекта: {kind} (ожидалось application или library)")
+    raise BuildError(i18n.t("build.unknown-kind", kind=kind))
 
 
 def _git_output(directory, *args):

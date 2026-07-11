@@ -10,9 +10,14 @@ from urllib.parse import urlsplit
 
 import pytest
 
+from elemctl import i18n
 from elemctl.client import ElementClient
 from elemctl.config import Config
 from elemctl.transport import HttpResponse
+
+# Язык вывода закреплён за русским: проверки в остальных тестах сверяются с русским текстом
+# сообщений, и без закрепления результат зависел бы от локали системы разработчика.
+i18n.set_lang("ru")
 
 
 class FakeTransport:

@@ -10,6 +10,7 @@ import json
 import urllib.error
 import urllib.request
 
+from . import i18n
 from .errors import TransportError
 
 
@@ -50,4 +51,6 @@ class UrllibTransport:
             # HTTPError сам является ответом – возвращаем его тело и код.
             return HttpResponse(error.code, error.headers, error.read())
         except OSError as error:
-            raise TransportError(f"сетевая ошибка {method} {url}: {error}") from error
+            raise TransportError(
+                i18n.t("transport.network-error", method=method, url=url, error=error)
+            ) from error

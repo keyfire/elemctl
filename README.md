@@ -1,129 +1,104 @@
 # elemctl
 
-Утилита командной строки, MCP-сервер и Python-библиотека для управления
-приложениями облачной платформы **1С:Предприятие.Элемент** (1cmycloud.com)
-через Console API v2.
+**English** · [Русский](https://github.com/keyfire/elemctl/blob/main/README.ru.md)
 
-elemctl закрывает жизненный цикл приложения на платформе без веб-консоли:
-создать приложение, собрать архив сборки `.xasm`/`.xlib` из исходников
-проекта, загрузить сборку, применить её к приложению и убедиться, что
-применение действительно произошло (платформа умеет молча откатывать),
-управлять ветками среды разработки, дампами и версией технологии. Один и
-тот же движок доступен тремя способами: команда `elemctl` для терминала и
-CI, MCP-сервер для AI-агентов (Claude Code и другие MCP-клиенты) и
-python-модуль `elemctl` для собственных скриптов.
+A command-line tool, MCP server and Python library for managing applications on the **1C:Enterprise.Element** cloud platform (1cmycloud.com) through Console API v2.
 
-*elemctl is a CLI tool, MCP server and Python library for the
-1C:Enterprise.Element (1cmycloud) Console API: manage applications, upload
-builds and deploy with honest apply verification. Docs are in Russian - the
-platform's audience - but the CLI output is plain JSON.*
+elemctl covers an application's lifecycle on the platform without the web console: create an application, build a `.xasm`/`.xlib` build archive from project sources, upload the build, apply it to the application and make sure the apply actually happened (the platform can silently roll back), and manage development-environment branches, dumps and the technology version. The same engine is available in three ways: the `elemctl` command for the terminal and CI, an MCP server for AI agents (Claude Code and other MCP clients), and the `elemctl` Python module for your own scripts.
 
-## Возможности
+*elemctl is a CLI tool, MCP server and Python library for the 1C:Enterprise.Element (1cmycloud) Console API: manage applications, upload builds and deploy with honest apply verification. The CLI output is plain JSON.*
 
-- **Приложения**: список, карточка, создание, запуск, остановка, удаление,
-  версия технологии, данные для сессии отладки (`apps debug`).
-- **Проекты и сборки**: загрузка `.xasm`/`.xlib`, список сборок, удаление.
-- **Сборка из исходников**: упаковка каталога проекта (`Проект.yaml` + модули)
-  в архив сборки с манифестом и git-метаданными, автоинкремент версии.
-- **Деплой одной командой**: сборка -> загрузка -> применение -> перезапуск ->
-  **проверка фактического применения**.
-- **Ветки среды разработки**: список, создание, привязка к приложению, merge.
-- **Дампы**: создание и контроль готовности.
-- **MCP-сервер**: те же операции как инструменты для AI-агентов
-  (Claude Code и другие MCP-клиенты).
-- **Расширение VS Code (отладка)**: спутник в [`editors/vscode`](editors/vscode) — отладка
-  приложений 1С:Предприятие.Элемент (XBSL) в обычном VS Code через штатный debug-адаптер
-  платформы; координаты debug-сессии берёт через `elemctl apps debug`.
+## Features
 
-### Честная проверка применения
+- **Applications**: list, details, create, start, stop, delete, technology version, debug-session data (`apps debug`).
+- **Projects and builds**: upload `.xasm`/`.xlib`, list builds, delete.
+- **Build from sources**: package a project directory (`Проект.yaml` + modules) into a build archive with a manifest and git metadata, with automatic version increment.
+- **One-command deploy**: build -> upload -> apply -> restart -> **verification that the apply actually took effect**.
+- **Development-environment branches**: list, create, bind to an application, merge.
+- **Dumps**: create and check readiness.
+- **MCP server**: the same operations exposed as tools for AI agents (Claude Code and other MCP clients).
+- **VS Code extension (debugging)**: a companion in [`editors/vscode`](editors/vscode) — debug 1C:Enterprise.Element (XBSL) applications in plain VS Code through the platform's built-in debug adapter; it obtains the debug-session coordinates via `elemctl apps debug`.
 
-Особенность платформы: если применение проекта падает, платформа **молча
-откатывает** приложение на предыдущую сборку - статус `Running` ничего не
-говорит об успехе деплоя. `elemctl deploy` поэтому не верит статусу, а
-проверяет после деплоя:
+### Honest apply verification
 
-1. задачи приложения со статусом `Error`/`Failed`, начатые после старта
-   деплоя (старые ошибки из истории не учитываются);
-2. фактическую версию проекта приложения (`source.project-version`) - она
-   должна совпасть с только что загруженной сборкой;
-3. доступность uri приложения контрольным HTTP-запросом (информационно,
-   поле `uri-status` в отчёте: 401/403 нормальны для закрытых приложений).
+A platform quirk: if a project apply fails, the platform **silently rolls back** the application to the previous build — the `Running` status says nothing about whether the deploy succeeded. `elemctl deploy` therefore does not trust the status and, after the deploy, checks:
 
-Код возврата `deploy` равен нулю только если сборка действительно применилась.
+1. application tasks with the `Error`/`Failed` status that started after the deploy began (old errors from the history are ignored);
+2. the application's actual project version (`source.project-version`) — it must match the build that was just uploaded;
+3. the application uri's availability via a health-check HTTP request (informational, the `uri-status` field in the report: 401/403 are normal for closed applications).
 
-## Установка
+The `deploy` exit code is zero only if the build was actually applied.
+
+## Installation
 
 ```bash
-pipx install elemctl            # или: pip install elemctl
-pip install "elemctl[mcp]"      # с MCP-сервером
+pipx install elemctl            # or: pip install elemctl
+pip install "elemctl[mcp]"      # with the MCP server
 ```
 
-Требуется Python 3.10+. Ядро и CLI не имеют внешних зависимостей
-(только стандартная библиотека).
+Python 3.10+ is required. The core and CLI have no external dependencies (standard library only).
 
-## Настройка
+## Configuration
 
-Реквизиты подключения берутся из переменных окружения либо из `.env`
-в текущем каталоге (переменные окружения имеют приоритет):
+Connection credentials are taken from environment variables or from a `.env` file in the current directory (environment variables take priority):
 
-| Переменная | Назначение |
+| Variable | Purpose |
 |---|---|
-| `ELEMENT_BASE_URL` | базовый URL платформы, например `https://1cmycloud.com` |
-| `ELEMENT_CLIENT_ID` | Client-Id для получения токена |
+| `ELEMENT_BASE_URL` | the platform base URL, e.g. `https://1cmycloud.com` |
+| `ELEMENT_CLIENT_ID` | Client-Id used to obtain a token |
 | `ELEMENT_CLIENT_SECRET` | Client-Secret |
-| `ELEMENT_APP_ID` | приложение по умолчанию (необязательно) |
-| `ELEMENT_PROJECT_ID` | проект по умолчанию (необязательно) |
-| `ELEMENT_SPACE_ID` | пространство по умолчанию (необязательно) |
+| `ELEMENT_APP_ID` | default application (optional) |
+| `ELEMENT_PROJECT_ID` | default project (optional) |
+| `ELEMENT_SPACE_ID` | default space (optional) |
 
-Client-Id/Client-Secret выпускаются в панели управления 1cmycloud
-(раздел интеграций Console API). Шаблон файла - [.env.example](.env.example).
+Client-Id/Client-Secret are issued in the 1cmycloud control panel (the Console API integrations section). A file template is [.env.example](.env.example).
 
-## Быстрый старт
+## Quick start
 
 ```bash
-# список приложений
+# list applications
 elemctl apps list
 
-# карточка приложения (статус, uri, фактическая версия проекта)
+# application details (status, uri, actual project version)
 elemctl apps get <app-id>
 
-# создать приложение, только если его ещё нет: {"id": ..., "created": true|false}
+# create the application only if it does not exist yet: {"id": ..., "created": true|false}
 elemctl apps ensure acme-crm-dev --project-id <project-id> --latest-build --wait
 
-# полный цикл деплоя из исходников с проверкой применения
+# full deploy cycle from sources with apply verification
 elemctl deploy --app-id <app-id> --project-id <project-id> --project-dir acme/crm
 
-# данные для сессии отладки: {"debug-token": ..., "debug-address": ...}
-# (нужна включённая отладка на сервере: config/debug.yml enabled: true)
+# debug-session data: {"debug-token": ..., "debug-address": ...}
+# (debugging must be enabled on the server: config/debug.yml enabled: true)
 elemctl apps debug <app-id>
 
-# только собрать архив .xasm, никуда не загружая
+# only build the .xasm archive, without uploading it anywhere
 elemctl build --project-dir acme/crm --output ./dist
 
-# принять изменения ветки среды разработки
+# merge changes from a development-environment branch
 elemctl branches merge <branch-id>
 ```
 
-Вывод всех команд - JSON в stdout; прогресс длительных операций - в stderr.
-Ошибки возвращаются JSON-объектом с полем `error` и кодом возврата 1.
+All commands output JSON to stdout; progress of long-running operations goes to stderr. Errors are returned as a JSON object with an `error` field and exit code 1.
 
-Полный список команд: `elemctl --help`, по группам - `elemctl apps --help`,
-`elemctl deploy --help` и т.д.
+For the full list of commands: `elemctl --help`, and by group: `elemctl apps --help`, `elemctl deploy --help`, etc.
 
-## MCP-сервер
+## Language
 
-Сервер отдаёт операции платформы как MCP-инструменты (транспорт stdio):
+Error and progress messages come in Russian and English (the JSON result is language-neutral). The language is picked by `--lang ru|en` > the `ELEMCTL_LANG` env var > the system locale > Russian. The command help text is in Russian.
+
+## MCP server
+
+The server exposes platform operations as MCP tools (stdio transport):
 
 ```bash
 pip install "elemctl[mcp]"
 claude mcp add elemctl -- elemctl mcp
 ```
 
-Реквизиты подключения сервер берёт из тех же переменных `ELEMENT_*` /
-`.env`. Среди инструментов: `list_apps`, `get_app`, `deploy` (с полем `ok`
-в ответе), `verify_deploy`, `list_builds`, `merge_branch` и другие.
+The server reads connection credentials from the same `ELEMENT_*` variables / `.env`. Among the tools: `list_apps`, `get_app`, `deploy` (with an `ok` field in the response), `verify_deploy`, `list_builds`, `merge_branch` and others.
 
-## Использование как библиотеки
+## Use as a library
 
 ```python
 from elemctl import Config, ElementClient
@@ -142,49 +117,30 @@ report = deploy_from_sources(
 assert report.ok, report.problems
 ```
 
-## Формат сборки
+## Build format
 
-`.xasm` (приложение) и `.xlib` (библиотека) - это ZIP-архив:
+`.xasm` (application) and `.xlib` (library) are a ZIP archive:
 
 ```
-Assembly.yaml            # манифест: ProjectKind, Vendor, Name, Version, ...
-{vendor}/{name}/...      # файлы проекта: .yaml, .xbsl, ресурсы
+Assembly.yaml            # manifest: ProjectKind, Vendor, Name, Version, ...
+{vendor}/{name}/...      # project files: .yaml, .xbsl, resources
 ```
 
-Каталог проекта должен лежать по схеме `{repo}/{vendor}/{name}/Проект.yaml` -
-пути в архиве строятся относительно корня репозитория. Вид проекта
-(приложение/библиотека) определяется по полю `ВидПроекта` в `Проект.yaml`.
+The project directory must follow the `{repo}/{vendor}/{name}/Проект.yaml` layout — paths inside the archive are built relative to the repository root. The project kind (application/library) is determined by the `ВидПроекта` field in `Проект.yaml`.
 
-## Ограничения и статус
+## Limitations and status
 
-- Инструмент **неофициальный** и не аффилирован с фирмой "1С"; Console API
-  может меняться без предупреждения.
-- Используется только документированный Console API v2 - внутренние API
-  консоли платформы инструмент не вызывает и не описывает.
-- Создание приложения только по `--project-id` на части конфигураций платформы
-  даёт пустой каркас без данных проекта. Надёжный путь - источник-сборка:
-  `elemctl apps create <имя> --project-id <id> --latest-build` (MCP-инструмент
-  `create_app` подставляет последнюю сборку автоматически), а после создания -
-  `elemctl deploy`.
-- Удалённые приложения остаются в списке платформы со статусом `Deleted` и
-  прежним `id`, на котором `apps get` и `deploy` отвечают 404. `apps find` и
-  `apps ensure` их пропускают; вернуть прежний поиск - `apps find
-  --include-deleted`.
-- Приложение с неопубликованными правками в среде разработки платформа
-  удалить не даёт (HTTP 400 `FAILED_PRECONDITION`), принудительного удаления
-  в Console API нет - только через панель управления; elemctl подскажет это
-  в тексте ошибки.
-- Пересоздание приложения (delete + create) меняет его URL - внешние
-  настройки, завязанные на адрес (OIDC redirect и т.п.), придётся обновлять.
-  "Мягкой" очистки данных приложения в Console API нет, она выполняется в
-  консоли управления.
+- The tool is **unofficial** and not affiliated with 1C Company; the Console API may change without notice.
+- Only the documented Console API v2 is used — the tool does not call or describe the platform console's internal APIs.
+- Creating an application from `--project-id` alone produces, on some platform configurations, an empty skeleton without project data. The reliable path is a build source: `elemctl apps create <name> --project-id <id> --latest-build` (the `create_app` MCP tool substitutes the latest build automatically), followed by `elemctl deploy` after creation.
+- Deleted applications remain in the platform's list with a `Deleted` status and their former `id`, on which `apps get` and `deploy` return 404. `apps find` and `apps ensure` skip them; to restore the previous search behavior, use `apps find --include-deleted`.
+- The platform will not let you delete an application that has unpublished changes in the development environment (HTTP 400 `FAILED_PRECONDITION`), and there is no forced deletion in the Console API — only through the control panel; elemctl points this out in the error message.
+- Recreating an application (delete + create) changes its URL — external settings tied to the address (OIDC redirect, etc.) will need to be updated. There is no "soft" wipe of application data in the Console API; it is done in the management console.
 
-## Происхождение и правовые заметки
+## Origin and legal notes
 
-Код написан с нуля по спецификации внешнего интерфейса платформы - процесс и
-гарантии описаны в [ORIGIN.md](ORIGIN.md). Товарные знаки и отсутствие
-аффилиации с фирмой "1С" - в файле [NOTICE](NOTICE).
+The code is written from scratch against the platform's external interface specification — the process and guarantees are described in [ORIGIN.md](ORIGIN.md). Trademarks and the absence of affiliation with 1C Company are covered in the [NOTICE](NOTICE) file.
 
-## Лицензия
+## License
 
 [MIT](LICENSE)

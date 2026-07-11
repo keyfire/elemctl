@@ -16,6 +16,7 @@ except ImportError as error:  # pragma: no cover - ветка без extra
         'для MCP-сервера нужен extra: pip install "elemctl[mcp]"'
     ) from error
 
+from . import i18n
 from .build import build_assembly
 from .client import ElementClient, extract_assembly_id
 from .config import Config
@@ -81,7 +82,7 @@ def create_server(config=None):
         source_version_id = version_id
         if not source_version_id:
             if not project_id:
-                raise ElemctlError("нужен project_id или version_id")
+                raise ElemctlError(i18n.t("mcp.project-or-version-required"))
             latest = client().latest_assembly(project_id)
             if latest is None:
                 raise ElemctlError(
