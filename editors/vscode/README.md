@@ -98,3 +98,12 @@ Verified end-to-end against a cloud application: attach, breakpoints in client a
 server modules, a mixed client+server call stack with local source paths, scopes and
 variables, continue. Note: `stopOnEntry` pauses every thread of a live web application
 (each server call), which is noisy - prefer breakpoints.
+
+## Known limitations
+
+- **Expanding a structure in the Variables tree on a client frame** may crash the
+  debuggee's client runtime with an internal platform error (observed with a 9.2.8
+  adapter against a 9.2.7 runtime; the adapter itself survives). Server frames expand
+  fine to any depth. Workarounds on client frames: the value column already shows the
+  whole serialized structure, and `evaluate` works - add a Watch expression for the
+  field you need (e.g. `Данные.Возможности[0].Заголовок`).
