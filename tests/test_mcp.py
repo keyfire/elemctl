@@ -18,6 +18,7 @@ EXPECTED_TOOLS = {
     "ensure_app",
     "start_app",
     "stop_app",
+    "debug_info",
     "delete_app",
     "list_spaces",
     "list_projects",

@@ -195,6 +195,14 @@ def cmd_apps_delete(args):
     return 0
 
 
+def cmd_apps_debug(args):
+    config = _config(args)
+    client = make_client(config)
+    app_id = _require(args.app_id, config.app_id, "app-id (аргумент APP_ID или ELEMENT_APP_ID)")
+    _emit(client.get_debug_info(app_id) or {})
+    return 0
+
+
 def cmd_apps_start(args):
     config = _config(args)
     client = make_client(config)
@@ -504,6 +512,10 @@ def build_parser():
     p = apps_sub.add_parser("stop", help="остановить приложение")
     p.add_argument("app_id", nargs="?", metavar="APP_ID")
     p.set_defaults(handler=cmd_apps_stop)
+
+    p = apps_sub.add_parser("debug", help="данные для сессии отладки (debug-token, debug-address)")
+    p.add_argument("app_id", nargs="?", metavar="APP_ID")
+    p.set_defaults(handler=cmd_apps_debug)
 
     # spaces ----------------------------------------------------------------
     spaces = sub.add_parser("spaces", help="пространства")

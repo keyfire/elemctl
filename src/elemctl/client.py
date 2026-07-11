@@ -273,6 +273,17 @@ class ElementClient:
         """Остановить приложение."""
         return self._api("PUT", f"/applications/{app_id}/status/stop")
 
+    def get_debug_info(self, app_id):
+        """Данные для сессии отладки приложения: {debug-token, debug-address}.
+
+        Обёртка над POST /applications/{app_id}/actions/debug (ApplicationDebugInfo).
+        Требует включённой отладки на сервере (config/debug.yml: enabled: true);
+        адрес указывает на debug-сервер платформы (протокол WebSocket), токен –
+        разовый ключ сессии. Управлением приложением не является – только чтение
+        параметров подключения отладчика.
+        """
+        return self._api("POST", f"/applications/{app_id}/actions/debug")
+
     def apply_build(self, app_id, *, image_id=None, project_id=None, assembly_version=None):
         """Применить сборку к приложению (project/update).
 

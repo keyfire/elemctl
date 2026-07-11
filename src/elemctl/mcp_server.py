@@ -139,6 +139,14 @@ def create_server(config=None):
         return client().stop_app(app_id) or {"ok": True, "app-id": app_id}
 
     @server.tool()
+    def debug_info(app_id: str) -> dict:
+        """Данные для сессии отладки приложения: debug-token и debug-address.
+
+        Требует включённой отладки на сервере (config/debug.yml: enabled: true).
+        """
+        return client().get_debug_info(app_id) or {"app-id": app_id}
+
+    @server.tool()
     def delete_app(app_id: str) -> dict:
         """Удалить приложение. НЕОБРАТИМО: данные теряются, а пересозданное приложение получит другой URL – внешние настройки (OIDC redirect и т.п.) придётся обновлять."""
         return client().delete_app(app_id) or {"deleted": True, "app-id": app_id}

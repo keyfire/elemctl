@@ -21,7 +21,7 @@ platform's audience - but the CLI output is plain JSON.*
 ## Возможности
 
 - **Приложения**: список, карточка, создание, запуск, остановка, удаление,
-  версия технологии.
+  версия технологии, данные для сессии отладки (`apps debug`).
 - **Проекты и сборки**: загрузка `.xasm`/`.xlib`, список сборок, удаление.
 - **Сборка из исходников**: упаковка каталога проекта (`Проект.yaml` + модули)
   в архив сборки с манифестом и git-метаданными, автоинкремент версии.
@@ -89,6 +89,10 @@ elemctl apps ensure acme-crm-dev --project-id <project-id> --latest-build --wait
 
 # полный цикл деплоя из исходников с проверкой применения
 elemctl deploy --app-id <app-id> --project-id <project-id> --project-dir acme/crm
+
+# данные для сессии отладки: {"debug-token": ..., "debug-address": ...}
+# (нужна включённая отладка на сервере: config/debug.yml enabled: true)
+elemctl apps debug <app-id>
 
 # только собрать архив .xasm, никуда не загружая
 elemctl build --project-dir acme/crm --output ./dist

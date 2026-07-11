@@ -47,6 +47,23 @@ def test_retry_once_on_401(api):
     assert len(transport.calls_to("GET", f"{API}/applications")) == 2
 
 
+def test_get_debug_info_posts_to_actions_debug(api):
+    client, transport = api
+    transport.add(
+        "POST",
+        f"{API}/applications/app-1/actions/debug",
+        {"debug-token": "T0KEN", "debug-address": "wss://dbg.test:8080"},
+    )
+
+    info = client.get_debug_info("app-1")
+
+    assert info == {"debug-token": "T0KEN", "debug-address": "wss://dbg.test:8080"}
+    calls = transport.calls_to("POST", f"{API}/applications/app-1/actions/debug")
+    assert len(calls) == 1
+    # Экшен без тела запроса.
+    assert calls[0]["data"] in (None, b"")
+
+
 def test_find_app_exact_case_insensitive(api):
     client, transport = api
     transport.add(

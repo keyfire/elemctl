@@ -87,6 +87,10 @@ Windows) с TTL 1 час; ключ кеша должен различать па
 - `DELETE /applications/{id}` - удалить.
 - `PUT /applications/{id}/status/start` - запустить.
 - `PUT /applications/{id}/status/stop` - остановить.
+- `POST /applications/{id}/actions/debug` - данные для сессии отладки
+  (`ApplicationDebugInfo`: `{"debug-token": ..., "debug-address": ...}`).
+  Тело запроса пустое; требует включённой отладки на сервере
+  (`config/debug.yml` `enabled: true`).
 - `POST /applications/{id}/project/update` - применить сборку к приложению.
   Тело: `{"source": {"type": "repository", "image-id": "<id сборки>"}}`
   либо `{"source": {"type": "repository", "project-id": "<id>",
@@ -324,8 +328,9 @@ stderr и код возврата 1.
 `create_app(name, project_id="", version_id="", space_id="",
 development_mode=True)` - при задании только project_id источником
 автоматически берётся последняя сборка проекта (п. 6.2);
-`start_app(app_id)`, `stop_app(app_id)`, `delete_app(app_id)` (в докстринге -
-предупреждение о необратимости и смене URL), `list_spaces()`,
+`start_app(app_id)`, `stop_app(app_id)`, `debug_info(app_id)` - данные для
+сессии отладки (требует включённой отладки на сервере), `delete_app(app_id)`
+(в докстринге - предупреждение о необратимости и смене URL), `list_spaces()`,
 `list_projects()`, `list_builds(project_id)`,
 `build_assembly(project_dir="", output_dir="", version="")`,
 `deploy(app_id, project_id, project_dir="", version="", branch="",
