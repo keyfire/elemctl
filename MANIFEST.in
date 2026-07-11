@@ -2,3 +2,5 @@ include NOTICE
 include ORIGIN.md
 include .env.example
 recursive-include docs *.md
+# Спутник-расширение VS Code (TS/Node) в питон-дистрибутив не входит.
+prune editors

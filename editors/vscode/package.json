@@ -1,0 +1,125 @@
+{
+  "name": "xbsl-debug",
+  "displayName": "XBSL Debug (1C:Element)",
+  "description": "Отладка приложений 1С:Предприятие.Элемент (XBSL) в обычном VS Code через штатный debug-адаптер платформы и elemctl.",
+  "version": "0.1.1",
+  "publisher": "keyfire",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Debuggers"
+  ],
+  "keywords": [
+    "1c",
+    "1c-element",
+    "xbsl",
+    "debug"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/keyfire/elemctl.git",
+    "directory": "editors/vscode"
+  },
+  "homepage": "https://github.com/keyfire/elemctl/tree/main/editors/vscode",
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onDebugResolve:xbsl",
+    "onDebugDynamicConfigurations:xbsl"
+  ],
+  "contributes": {
+    "debuggers": [
+      {
+        "type": "xbsl",
+        "label": "1C:Element (XBSL)",
+        "languages": [
+          "xbsl"
+        ],
+        "configurationAttributes": {
+          "attach": {
+            "properties": {
+              "appId": {
+                "type": "string",
+                "description": "Идентификатор приложения Элемента (app-id). Пусто – берётся ELEMENT_APP_ID из .env рабочей папки."
+              },
+              "authMode": {
+                "type": "string",
+                "enum": [
+                  "anonymous",
+                  "another_user"
+                ],
+                "description": "Режим аутентификации отлаживаемого приложения (по умолчанию – обычный вход)."
+              },
+              "stopOnEntry": {
+                "type": "boolean",
+                "description": "Останавливаться на первой строке.",
+                "default": false
+              }
+            }
+          }
+        },
+        "initialConfigurations": [
+          {
+            "type": "xbsl",
+            "request": "attach",
+            "name": "Отладка приложения 1С:Элемент"
+          }
+        ],
+        "configurationSnippets": [
+          {
+            "label": "1C:Element: отладка приложения (attach)",
+            "description": "Присоединиться к приложению Элемента через elemctl + штатный адаптер",
+            "body": {
+              "type": "xbsl",
+              "request": "attach",
+              "name": "Отладка приложения 1С:Элемент"
+            }
+          }
+        ]
+      }
+    ],
+    "configuration": {
+      "title": "XBSL Debug",
+      "properties": {
+        "xbslDebug.adapterPath": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Путь к каталогу debug-адаптера платформы (папка с подкаталогом `repo`, где лежат jar-ы `com.e1c.g5rt.debugger.*`). Берётся из дистрибутива 1С:Элемент: `.../@1c-appengine-plugin/bin/debugger`. В vsix НЕ входит (проприетарные jar-ы 1С).",
+          "scope": "machine-overridable"
+        },
+        "xbslDebug.javaPath": {
+          "type": "string",
+          "default": "java",
+          "description": "Путь к исполняемому файлу Java (JDK 17+). По умолчанию – java из PATH.",
+          "scope": "machine-overridable"
+        },
+        "xbslDebug.elemctlPath": {
+          "type": "string",
+          "default": "elemctl",
+          "description": "Путь к elemctl (нужна версия с командой `apps debug`). Реквизиты Console API elemctl берёт из .env рабочей папки.",
+          "scope": "machine-overridable"
+        },
+        "xbslDebug.openApplicationOnStart": {
+          "type": "boolean",
+          "default": true,
+          "description": "Открывать отлаживаемое приложение в браузере при старте сессии (с параметрами debug-сессии)."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --minify",
+    "watch": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --sourcemap --watch",
+    "check": "tsc --noEmit",
+    "package": "vsce package --no-dependencies -o xbsl-debug.vsix"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/vscode": "^1.75.0",
+    "@vscode/vsce": "^3",
+    "esbuild": "^0.23",
+    "typescript": "^5"
+  }
+}
