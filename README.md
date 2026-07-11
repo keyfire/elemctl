@@ -19,14 +19,14 @@ Development notes and updates (in Russian): the [1С × ИИ: инженерны
 - **Development-environment branches**: list, create, bind to an application, merge.
 - **Dumps**: create and check readiness.
 - **MCP server**: the same operations exposed as tools for AI agents (Claude Code and other MCP clients).
-- **VS Code extension (debugging)**: a companion in [`editors/vscode`](editors/vscode) — debug 1C:Enterprise.Element (XBSL) applications in plain VS Code through the platform's built-in debug adapter; it obtains the debug-session coordinates via `elemctl apps debug`.
+- **VS Code extension (debugging)**: a companion in [`editors/vscode`](editors/vscode) – debug 1C:Enterprise.Element (XBSL) applications in plain VS Code through the platform's built-in debug adapter; it obtains the debug-session coordinates via `elemctl apps debug`.
 
 ### Honest apply verification
 
-A platform quirk: if a project apply fails, the platform **silently rolls back** the application to the previous build — the `Running` status says nothing about whether the deploy succeeded. `elemctl deploy` therefore does not trust the status and, after the deploy, checks:
+A platform quirk: if a project apply fails, the platform **silently rolls back** the application to the previous build – the `Running` status says nothing about whether the deploy succeeded. `elemctl deploy` therefore does not trust the status and, after the deploy, checks:
 
 1. application tasks with the `Error`/`Failed` status that started after the deploy began (old errors from the history are ignored);
-2. the application's actual project version (`source.project-version`) — it must match the build that was just uploaded;
+2. the application's actual project version (`source.project-version`) – it must match the build that was just uploaded;
 3. the application uri's availability via a health-check HTTP request (informational, the `uri-status` field in the report: 401/403 are normal for closed applications).
 
 The `deploy` exit code is zero only if the build was actually applied.
@@ -128,20 +128,20 @@ Assembly.yaml            # manifest: ProjectKind, Vendor, Name, Version, ...
 {vendor}/{name}/...      # project files: .yaml, .xbsl, resources
 ```
 
-The project directory must follow the `{repo}/{vendor}/{name}/Проект.yaml` layout — paths inside the archive are built relative to the repository root. The project kind (application/library) is determined by the `ВидПроекта` field in `Проект.yaml`.
+The project directory must follow the `{repo}/{vendor}/{name}/Проект.yaml` layout – paths inside the archive are built relative to the repository root. The project kind (application/library) is determined by the `ВидПроекта` field in `Проект.yaml`.
 
 ## Limitations and status
 
 - The tool is **unofficial** and not affiliated with 1C Company; the Console API may change without notice.
-- Only the documented Console API v2 is used — the tool does not call or describe the platform console's internal APIs.
+- Only the documented Console API v2 is used – the tool does not call or describe the platform console's internal APIs.
 - Creating an application from `--project-id` alone produces, on some platform configurations, an empty skeleton without project data. The reliable path is a build source: `elemctl apps create <name> --project-id <id> --latest-build` (the `create_app` MCP tool substitutes the latest build automatically), followed by `elemctl deploy` after creation.
 - Deleted applications remain in the platform's list with a `Deleted` status and their former `id`, on which `apps get` and `deploy` return 404. `apps find` and `apps ensure` skip them; to restore the previous search behavior, use `apps find --include-deleted`.
-- The platform will not let you delete an application that has unpublished changes in the development environment (HTTP 400 `FAILED_PRECONDITION`), and there is no forced deletion in the Console API — only through the control panel; elemctl points this out in the error message.
-- Recreating an application (delete + create) changes its URL — external settings tied to the address (OIDC redirect, etc.) will need to be updated. There is no "soft" wipe of application data in the Console API; it is done in the management console.
+- The platform will not let you delete an application that has unpublished changes in the development environment (HTTP 400 `FAILED_PRECONDITION`), and there is no forced deletion in the Console API – only through the control panel; elemctl points this out in the error message.
+- Recreating an application (delete + create) changes its URL – external settings tied to the address (OIDC redirect, etc.) will need to be updated. There is no "soft" wipe of application data in the Console API; it is done in the management console.
 
 ## Origin and legal notes
 
-The code is written from scratch against the platform's external interface specification — the process and guarantees are described in [ORIGIN.md](ORIGIN.md). Trademarks and the absence of affiliation with 1C Company are covered in the [NOTICE](NOTICE) file.
+The code is written from scratch against the platform's external interface specification – the process and guarantees are described in [ORIGIN.md](ORIGIN.md). Trademarks and the absence of affiliation with 1C Company are covered in the [NOTICE](NOTICE) file.
 
 ## License
 

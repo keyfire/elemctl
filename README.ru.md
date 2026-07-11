@@ -35,7 +35,7 @@ platform's audience - but the CLI output is plain JSON.*
 - **Дампы**: создание и контроль готовности.
 - **MCP-сервер**: те же операции как инструменты для AI-агентов
   (Claude Code и другие MCP-клиенты).
-- **Расширение VS Code (отладка)**: спутник в [`editors/vscode`](editors/vscode) — отладка
+- **Расширение VS Code (отладка)**: спутник в [`editors/vscode`](editors/vscode) – отладка
   приложений 1С:Предприятие.Элемент (XBSL) в обычном VS Code через штатный debug-адаптер
   платформы; координаты debug-сессии берёт через `elemctl apps debug`.
 

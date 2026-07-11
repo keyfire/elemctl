@@ -82,13 +82,13 @@ def test_deploy_dry_run_builds_only(project_factory, tmp_path, capsys):
 def test_apps_find_found_and_not_found(monkeypatch, capsys):
     class FakeClient:
         def find_app(self, name, *, include_deleted=False):
-            if name == "site-dev":
-                return {"id": "app-42", "display-name": "site-dev"}
+            if name == "demo-app":
+                return {"id": "app-42", "display-name": "demo-app"}
             return None
 
     monkeypatch.setattr(cli, "make_client", lambda config: FakeClient())
 
-    rc = cli.main(["apps", "find", "site-dev"])
+    rc = cli.main(["apps", "find", "demo-app"])
     assert rc == 0
     assert json.loads(capsys.readouterr().out) == {"id": "app-42", "found": True}
 
@@ -107,7 +107,7 @@ def test_apps_find_request_failure_is_an_error(monkeypatch, capsys):
 
     monkeypatch.setattr(cli, "make_client", lambda config: FailingClient())
 
-    rc = cli.main(["apps", "find", "site-dev"])
+    rc = cli.main(["apps", "find", "demo-app"])
     assert rc == 1
     captured = capsys.readouterr()
     assert captured.out == ""
@@ -147,7 +147,7 @@ def test_apps_ensure_existing_returns_created_false_without_creating(monkeypatch
 
     monkeypatch.setattr(cli, "make_client", lambda config: FakeClient())
 
-    rc = cli.main(["apps", "ensure", "site-dev", "--version-id", "asm-1"])
+    rc = cli.main(["apps", "ensure", "demo-app", "--version-id", "asm-1"])
     assert rc == 0
     assert json.loads(capsys.readouterr().out) == {"id": "app-7", "created": False}
 
@@ -190,7 +190,7 @@ def test_apps_ensure_request_failure_is_an_error(monkeypatch, capsys):
 
     monkeypatch.setattr(cli, "make_client", lambda config: FailingClient())
 
-    rc = cli.main(["apps", "ensure", "site-dev"])
+    rc = cli.main(["apps", "ensure", "demo-app"])
     assert rc == 1
     captured = capsys.readouterr()
     assert captured.out == ""

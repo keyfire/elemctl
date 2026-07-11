@@ -6,13 +6,13 @@ elemctl is an independent, **clean-room** implementation, written from scratch.
 
 - a written specification of the platform's external interface (`docs/SPEC.md`), which
   records **facts about the 1C:Enterprise.Element (1cmycloud) Console API v2 contract**,
-  the build-file formats (`.xasm` / `.xlib`) and the product requirements — and nothing
+  the build-file formats (`.xasm` / `.xlib`) and the product requirements – and nothing
   else, and
 - the **Python standard library**.
 
 The API facts in the specification come from three first-hand sources:
 
-1. **The platform's own Console API reference** — the Element help shipped by the
+1. **The platform's own Console API reference** – the Element help shipped by the
    platform itself, with a page per endpoint (e.g. `POST /console/api/v2/applications`),
    under <https://1cmycloud.com/console/help/element/9.2/docs/console/>. The help is
    provided to platform users; at the time of writing it opens after signing in with a
@@ -32,7 +32,7 @@ specification alone.
 ## What is definitely NOT in it
 
 - **No third-party source code.** Nothing was ported or copied from any other
-  repository — public, private or corporate.
+  repository – public, private or corporate.
 - **No platform code.** No decompilation, disassembly or other reverse engineering of
   1C:Enterprise.Element components was performed; the platform's own client or server
   code was never used or examined.
