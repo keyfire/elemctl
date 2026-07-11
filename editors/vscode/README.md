@@ -1,6 +1,6 @@
 # XBSL Debug (1C:Element)
 
-**English** | [Русский](https://github.com/keyfire/elemctl/blob/main/editors/vscode/README.ru.md)
+**English** · [Русский](https://github.com/keyfire/elemctl/blob/main/editors/vscode/README.ru.md)
 
 Debug **1C:Enterprise.Element** (XBSL) applications in regular Visual Studio Code:
 breakpoints, call stack (client and server frames in one chain), variable values,

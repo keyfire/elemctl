@@ -1,6 +1,6 @@
 # XBSL Debug (1С:Элемент)
 
-[English](https://github.com/keyfire/elemctl/blob/main/editors/vscode/README.md) | **Русский**
+[English](https://github.com/keyfire/elemctl/blob/main/editors/vscode/README.md) · **Русский**
 
 Отладка приложений **1С:Предприятие.Элемент** (язык XBSL) в обычном Visual Studio Code:
 точки останова, стек вызовов (клиентские и серверные кадры одной цепочкой), значения
