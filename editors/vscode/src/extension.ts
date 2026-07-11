@@ -152,7 +152,7 @@ class XbslDebugAdapterFactory implements vscode.DebugAdapterDescriptorFactory {
     }
     if (!isAdapterDir(adapterPath)) {
       void offerSetup(vscode.l10n.t("No adapter jars found in {0} (the repo subdirectory).", adapterPath));
-      throw new Error(vscode.l10n.t("xbslDebug.adapterPath: {0} has no repo subdirectory with com.e1c.g5rt.debugger.* jars", adapterPath));
+      throw new Error(vscode.l10n.t("xbslDebug.adapterPath: {0} has no repo subdirectory with the adapter jars", adapterPath));
     }
     const java = (cfg().get<string>("javaPath") || "java").trim() || "java";
     const classpath = path.join(adapterPath, "repo", "*");
@@ -332,7 +332,7 @@ async function setupWizard(): Promise<void> {
   if (!adapterPath || !isAdapterDir(adapterPath)) {
     const pick = vscode.l10n.t("Choose the adapter folder...");
     const a = await vscode.window.showWarningMessage(
-      vscode.l10n.t("The platform debug adapter directory is needed (a folder with a repo subdirectory holding com.e1c.g5rt.debugger.* jars). It is extracted from the 1C:Element distribution: data/ide/theia/plugins/@1c-appengine-plugin/bin/debugger."),
+      vscode.l10n.t("The platform debug adapter directory is needed (a folder with a repo subdirectory holding the adapter's jar files). It is extracted from the 1C:Element distribution: data/ide/theia/plugins/@1c-appengine-plugin/bin/debugger."),
       pick
     );
     if (a === pick) {

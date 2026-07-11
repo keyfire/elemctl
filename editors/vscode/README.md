@@ -32,7 +32,7 @@ application through the platform debug server.
    `debug-address`/`debug-token`.
 3. **The platform debug adapter** from your 1C:Element distribution: the directory
    `.../@1c-appengine-plugin/bin/debugger` (it contains a `repo` subdirectory with
-   `com.e1c.g5rt.debugger.*` jars). Extract it to disk. The adapter consists of
+   the adapter's jar files). Extract it to disk. The adapter consists of
    proprietary 1C components, so **it is not bundled** with the extension - you take it
    from the distribution you are licensed for.
 4. **Debugging enabled on the application server** (cloud stands usually have it
@@ -91,8 +91,8 @@ to your session by a shared `sessionId`.
   ┌───────────────────────────┐
   │  editor, breakpoints,     │      DAP (stdio)   ┌────────────────────────┐
   │  Variables/Watch          │◄──────────────────►│  Java debug adapter     │
-  │                           │                    │  com.e1c.g5rt.debugger  │
-  │  ┌─────────────────────┐  │   spawns java -cp  │  .adapter.App           │
+  │                           │                    │  from the platform      │
+  │  ┌─────────────────────┐  │   spawns java -cp  │  distribution           │
   │  │ xbslDebug.adapterPath│─┼──► <adapterPath>/  └───────────┬────────────┘
   │  │ xbslDebug.javaPath   │ │      repo/*.jar                │ WebSocket
   │  │ xbslDebug.elemctlPath│ │                                │ (debug-address,
@@ -116,7 +116,7 @@ Step by step:
    get` for the application card. elemctl reads the `ELEMENT_*` credentials and the app id
    from the `.env` in the sources root.
 2. `DebugAdapterDescriptorFactory` starts
-   `java ... -cp <adapterPath>/repo/* com.e1c.g5rt.debugger.adapter.App` as a stdio DAP
+   `java ... -cp <adapterPath>/repo/*` (the adapter's main class) as a stdio DAP
    server and hands it the attach config (`uri=debug-address`, `debugToken`, a generated
    `sessionId`, `clientDebugAddress`, `workspace`, `projectLocations`, `application`,
    `locale`, `authMode`, `retryTimeout`).
@@ -133,7 +133,7 @@ on `PATH`; set them to absolute paths otherwise. The setup wizard fills them for
 
 | Setting | What to point it at | Example |
 | --- | --- | --- |
-| `xbslDebug.adapterPath` | The **debug adapter directory** extracted from your 1C:Element distribution – a folder that contains a `repo` subfolder with `com.e1c.g5rt.debugger.*` jars. In the distribution it is `.../@1c-appengine-plugin/bin/debugger`. | `C:/tools/xbsl-debug-adapter` (must contain `repo/...jar`) |
+| `xbslDebug.adapterPath` | The **debug adapter directory** extracted from your 1C:Element distribution – a folder that contains a `repo` subfolder with the adapter's jar files. In the distribution it is `.../@1c-appengine-plugin/bin/debugger`. | `C:/tools/xbsl-debug-adapter` (must contain `repo/...jar`) |
 | `xbslDebug.javaPath` | The **Java 17+ launcher**. Leave as `java` if it is on `PATH`. | `C:/Program Files/Java/jdk-21/bin/java.exe` |
 | `xbslDebug.elemctlPath` | The **elemctl executable** (>= 0.4). Leave as `elemctl` if it is on `PATH`. | `C:/Users/me/.local/bin/elemctl.exe` |
 

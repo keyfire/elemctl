@@ -6,7 +6,6 @@
   "The platform debug adapter path is not set (xbslDebug.adapterPath).": "Не задан путь к debug-адаптеру платформы (xbslDebug.adapterPath).",
   "xbslDebug.adapterPath is not set – the platform debug adapter directory (a folder with the repo subdirectory from the Element distribution). The \"XBSL: Set up 1C:Element debugging\" command can help.": "Не задан xbslDebug.adapterPath – путь к каталогу debug-адаптера платформы (папка с подкаталогом repo из дистрибутива Элемента). Команда \"XBSL: Настроить отладку\" поможет.",
   "No adapter jars found in {0} (the repo subdirectory).": "В {0} не найдены jar-ы адаптера (подкаталог repo).",
-  "xbslDebug.adapterPath: {0} has no repo subdirectory with com.e1c.g5rt.debugger.* jars": "xbslDebug.adapterPath: в {0} нет подкаталога repo с jar-ами com.e1c.g5rt.debugger.*",
   "Sources root detected automatically: {0}": "Корень исходников определён автоматически: {0}",
   "XBSL Debug: <Vendor>/<Name>/Проект.yaml not found – breakpoints may not bind. Open the repository root with the sources or set \"workspace\" in launch.json.": "XBSL Debug: не найден <Поставщик>/<Имя>/Проект.yaml – точки останова могут не привязаться. Откройте корень репозитория с исходниками или задайте \"workspace\" в launch.json.",
   "elemctl apps debug returned no debug-address/debug-token. Check that debugging is enabled on the server and elemctl supports `apps debug`.": "elemctl apps debug не вернул debug-address/debug-token. Проверьте, что отладка включена на сервере и elemctl поддерживает `apps debug`.",
@@ -17,7 +16,6 @@
   "Java executable (java / java.exe)": "Исполняемый файл Java (java / java.exe)",
   "not found": "не найдена",
   "Choose the adapter folder...": "Выбрать папку адаптера...",
-  "The platform debug adapter directory is needed (a folder with a repo subdirectory holding com.e1c.g5rt.debugger.* jars). It is extracted from the 1C:Element distribution: data/ide/theia/plugins/@1c-appengine-plugin/bin/debugger.": "Нужен каталог debug-адаптера платформы (папка с подкаталогом repo, jar-ы com.e1c.g5rt.debugger.*). Он извлекается из дистрибутива 1С:Элемент: data/ide/theia/plugins/@1c-appengine-plugin/bin/debugger.",
   "Adapter directory (contains repo/)": "Каталог адаптера (содержит repo/)",
   "No repo/ with adapter jars found in {0}.": "В {0} не найден repo/ с jar-ами адаптера.",
   "Adapter: {0}": "Адаптер: {0}",
@@ -30,5 +28,7 @@
   "Create .vscode/launch.json with a debug configuration? (Optional: F5 works without it.)": "Создать .vscode/launch.json с конфигурацией отладки? (Необязательно: F5 работает и без него.)",
   "Created {0}": "Создан {0}",
   "All set. Open an .xbsl file, put a breakpoint and press F5 – the application opens in the browser and execution stops on your breakpoint.": "Всё готово. Откройте файл .xbsl, поставьте точку останова и нажмите F5 – приложение откроется в браузере, выполнение остановится на точке.",
-  "Setup is not complete – details are in the \"XBSL Debug\" output panel.": "Настройка не завершена – детали в панели вывода \"XBSL Debug\"."
+  "Setup is not complete – details are in the \"XBSL Debug\" output panel.": "Настройка не завершена – детали в панели вывода \"XBSL Debug\".",
+  "xbslDebug.adapterPath: {0} has no repo subdirectory with the adapter jars": "xbslDebug.adapterPath: в {0} нет подкаталога repo с jar-файлами адаптера",
+  "The platform debug adapter directory is needed (a folder with a repo subdirectory holding the adapter's jar files). It is extracted from the 1C:Element distribution: data/ide/theia/plugins/@1c-appengine-plugin/bin/debugger.": "Нужен каталог debug-адаптера платформы (папка с подкаталогом repo с jar-файлами адаптера). Он извлекается из дистрибутива 1С:Элемент: data/ide/theia/plugins/@1c-appengine-plugin/bin/debugger."
 }

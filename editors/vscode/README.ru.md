@@ -29,8 +29,8 @@
    в корне исходников. Проверка: `elemctl apps debug` возвращает JSON с
    `debug-address`/`debug-token`.
 3. **Debug-адаптер платформы** из дистрибутива 1С:Элемент – каталог
-   `.../@1c-appengine-plugin/bin/debugger` (в нём подкаталог `repo` с jar-ами
-   `com.e1c.g5rt.debugger.*`). Извлеките его на диск. Адаптер – проприетарные компоненты
+   `.../@1c-appengine-plugin/bin/debugger` (в нём подкаталог `repo`
+   с jar-файлами адаптера). Извлеките его на диск. Адаптер – проприетарные компоненты
    1С, поэтому **в расширение он не входит** – возьмите его из дистрибутива, которым
    лицензированы.
 4. **Отладка включена на сервере** приложения (у облачных стендов – как правило, уже
@@ -89,8 +89,8 @@ Debug-сервер идентифицирует модуль путём **отн
   ┌───────────────────────────┐
   │  редактор, точки останова,│      DAP (stdio)   ┌────────────────────────┐
   │  Variables/Watch          │◄──────────────────►│  Java-адаптер отладки    │
-  │                           │                    │  com.e1c.g5rt.debugger  │
-  │  ┌─────────────────────┐  │  запускает java -cp│  .adapter.App           │
+  │                           │                    │  из дистрибутива        │
+  │  ┌─────────────────────┐  │  запускает java -cp│  платформы              │
   │  │ xbslDebug.adapterPath│─┼──► <adapterPath>/  └───────────┬────────────┘
   │  │ xbslDebug.javaPath   │ │      repo/*.jar                │ WebSocket
   │  │ xbslDebug.elemctlPath│ │                                │ (debug-address,
@@ -114,7 +114,7 @@ Debug-сервер идентифицирует модуль путём **отн
    карточкой приложения. Реквизиты `ELEMENT_*` и app id elemctl берёт из `.env` в корне
    исходников.
 2. `DebugAdapterDescriptorFactory` запускает
-   `java ... -cp <adapterPath>/repo/* com.e1c.g5rt.debugger.adapter.App` как stdio-DAP-сервер
+   `java ... -cp <adapterPath>/repo/*` (главный класс адаптера) как stdio-DAP-сервер
    и передаёт ему attach-конфиг (`uri=debug-address`, `debugToken`, сгенерированный
    `sessionId`, `clientDebugAddress`, `workspace`, `projectLocations`, `application`,
    `locale`, `authMode`, `retryTimeout`).
@@ -131,7 +131,7 @@ Debug-сервер идентифицирует модуль путём **отн
 
 | Настройка | На что указывать | Пример |
 | --- | --- | --- |
-| `xbslDebug.adapterPath` | **Каталог debug-адаптера**, извлечённый из вашего дистрибутива 1С:Элемент, – папка с подкаталогом `repo`, где лежат jar-ы `com.e1c.g5rt.debugger.*`. В дистрибутиве это `.../@1c-appengine-plugin/bin/debugger`. | `C:/tools/xbsl-debug-adapter` (внутри `repo/...jar`) |
+| `xbslDebug.adapterPath` | **Каталог debug-адаптера**, извлечённый из вашего дистрибутива 1С:Элемент, – папка с подкаталогом `repo`, где лежат jar-файлы адаптера. В дистрибутиве это `.../@1c-appengine-plugin/bin/debugger`. | `C:/tools/xbsl-debug-adapter` (внутри `repo/...jar`) |
 | `xbslDebug.javaPath` | **Java 17+**. Оставьте `java`, если он на `PATH`. | `C:/Program Files/Java/jdk-21/bin/java.exe` |
 | `xbslDebug.elemctlPath` | **elemctl** (>= 0.4). Оставьте `elemctl`, если он на `PATH`. | `C:/Users/me/.local/bin/elemctl.exe` |
 
