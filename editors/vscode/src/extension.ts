@@ -21,6 +21,28 @@ import * as fs from "fs";
 import * as path from "path";
 
 const DEBUG_TYPE = "xbsl";
+
+// Установка elemctl терминальной задачей; после успеха подсказываем повторить запуск.
+function runInstallElemctl(): void {
+  const name = "elemctl";
+  const task = new vscode.Task(
+    { type: "shell", task: name },
+    vscode.TaskScope.Workspace,
+    name,
+    "xbsl-debug",
+    new vscode.ShellExecution('pip install --upgrade elemctl')
+  );
+  void vscode.tasks.executeTask(task);
+  const sub = vscode.tasks.onDidEndTaskProcess((e) => {
+    if (e.execution.task.name !== name) {
+      return;
+    }
+    sub.dispose();
+    if (e.exitCode === 0) {
+      void vscode.window.showInformationMessage(vscode.l10n.t("elemctl is installed – start debugging again (F5)."));
+    }
+  });
+}
 const ADAPTER_MAIN_CLASS = "com.e1c.g5rt.debugger.adapter.App";
 
 const output = vscode.window.createOutputChannel("XBSL Debug");
@@ -50,7 +72,9 @@ function runElemctl(args: string[], cwd: string | undefined): Promise<any> {
         const hint = enoent
           ? vscode.l10n.t("elemctl not found. Install it (pipx install elemctl) or set the path in the xbslDebug.elemctlPath setting.")
           : (stderr || err.message);
-        reject(new Error(`${bin} ${args.join(" ")}: ${hint}`));
+        const failure: Error & { notFound?: boolean } = new Error(`${bin} ${args.join(" ")}: ${hint}`);
+        failure.notFound = enoent;
+        reject(failure);
         return;
       }
       const text = (stdout || "").trim();
@@ -260,8 +284,13 @@ class XbslConfigurationProvider implements vscode.DebugConfigurationProvider {
     } catch (e: any) {
       const msg = `XBSL Debug: ${e?.message ?? e}`;
       log(msg);
-      void vscode.window.showErrorMessage(msg, vscode.l10n.t("Setup wizard")).then((a) => {
-        if (a) {
+      const wizard = vscode.l10n.t("Setup wizard");
+      const install = e?.notFound ? vscode.l10n.t("Install elemctl") : undefined;
+      const buttons = install ? [install, wizard] : [wizard];
+      void vscode.window.showErrorMessage(msg, ...buttons).then((a) => {
+        if (install && a === install) {
+          runInstallElemctl();
+        } else if (a) {
           void vscode.commands.executeCommand("xbslDebug.setup");
         }
       });
@@ -365,6 +394,17 @@ async function setupWizard(): Promise<void> {
     appLine = vscode.l10n.t("elemctl: {0}", e.text.trim().slice(0, 300) || vscode.l10n.t("not found (pipx install elemctl)"));
   }
   results.push((e.ok ? "$(check) " : "$(error) ") + appLine);
+  if (!e.ok && /ENOENT/i.test(e.text)) {
+    const install = vscode.l10n.t("Install elemctl");
+    const a = await vscode.window.showWarningMessage(
+      vscode.l10n.t("elemctl was not found on PATH. Install it now?"),
+      install
+    );
+    if (a === install) {
+      runInstallElemctl();
+      results.push("    " + vscode.l10n.t("Installation started in the terminal; run the wizard again after it finishes."));
+    }
+  }
   if (!e.ok) {
     results.push("    " + vscode.l10n.t("Check: elemctl is installed and is version >= 0.4 (the apps debug command), and the sources root has a .env with ELEMENT_BASE_URL/CLIENT_ID/CLIENT_SECRET/APP_ID."));
   }

@@ -30,5 +30,9 @@
   "All set. Open an .xbsl file, put a breakpoint and press F5 – the application opens in the browser and execution stops on your breakpoint.": "Всё готово. Откройте файл .xbsl, поставьте точку останова и нажмите F5 – приложение откроется в браузере, выполнение остановится на точке.",
   "Setup is not complete – details are in the \"XBSL Debug\" output panel.": "Настройка не завершена – детали в панели вывода \"XBSL Debug\".",
   "xbslDebug.adapterPath: {0} has no repo subdirectory with the adapter jars": "xbslDebug.adapterPath: в {0} нет подкаталога repo с jar-файлами адаптера",
-  "The platform debug adapter directory is needed (a folder with a repo subdirectory holding the adapter's jar files). It is extracted from the 1C:Element distribution: data/ide/theia/plugins/@1c-appengine-plugin/bin/debugger.": "Нужен каталог debug-адаптера платформы (папка с подкаталогом repo с jar-файлами адаптера). Он извлекается из дистрибутива 1С:Элемент: data/ide/theia/plugins/@1c-appengine-plugin/bin/debugger."
+  "The platform debug adapter directory is needed (a folder with a repo subdirectory holding the adapter's jar files). It is extracted from the 1C:Element distribution: data/ide/theia/plugins/@1c-appengine-plugin/bin/debugger.": "Нужен каталог debug-адаптера платформы (папка с подкаталогом repo с jar-файлами адаптера). Он извлекается из дистрибутива 1С:Элемент: data/ide/theia/plugins/@1c-appengine-plugin/bin/debugger.",
+  "Install elemctl": "Установить elemctl",
+  "elemctl is installed – start debugging again (F5).": "elemctl установлен – запустите отладку снова (F5).",
+  "elemctl was not found on PATH. Install it now?": "elemctl не найден в PATH. Установить сейчас?",
+  "Installation started in the terminal; run the wizard again after it finishes.": "Установка запущена в терминале; после завершения запустите мастер ещё раз."
 }

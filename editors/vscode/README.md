@@ -28,7 +28,8 @@ application through the platform debug server.
 
 1. **JDK 17+** (21 works too). Check: `java -version`.
 2. **elemctl >= 0.4** (the `apps debug` command) with a configured `.env` (Console API
-   credentials) in the sources root. Check: `elemctl apps debug` returns JSON with
+   credentials) in the sources root. If elemctl is missing, the extension offers to
+   install it right from the error message and the setup wizard. Check: `elemctl apps debug` returns JSON with
    `debug-address`/`debug-token`.
 3. **The platform debug adapter** from your 1C:Element distribution: the directory
    `.../@1c-appengine-plugin/bin/debugger` (it contains a `repo` subdirectory with
