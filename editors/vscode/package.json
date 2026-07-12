@@ -138,8 +138,8 @@
     "watch": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --sourcemap --watch",
     "check": "tsc --noEmit",
     "package": "vsce package --no-dependencies -o xbsl-debug.vsix",
-    "publish:vsce": "vsce publish --no-dependencies",
-    "publish:ovsx": "ovsx publish xbsl-debug.vsix"
+    "publish:vsce": "vsce publish --no-dependencies --skip-duplicate",
+    "publish:ovsx": "ovsx publish xbsl-debug.vsix --skip-duplicate"
   },
   "devDependencies": {
     "@types/node": "^20",
