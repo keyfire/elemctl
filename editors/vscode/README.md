@@ -162,6 +162,30 @@ variables, continue. Note: `stopOnEntry` pauses every thread of a live web appli
   Watch expression for the field you need (e.g. `Данные.Возможности[0].Заголовок`). Server
   frames have no such limit.
 
+## Deploy from VS Code
+
+The companion [XBSL](https://marketplace.visualstudio.com/items?itemName=keyfire.xbsl)
+extension adds the **XBSL: deploy the project (elemctl)** command (`xbsl.deploy`, also a
+cloud button in the editor title of `.xbsl` files): it hands the project to `elemctl deploy`
+- build from sources, upload, apply, restart and **verification that the apply actually took
+effect**. On a failed apply the platform silently rolls the application back while still
+reporting `Running`; elemctl does not trust the status and exits non-zero.
+
+The exact command line is shown in a confirmation dialog, then runs as a terminal task, so
+the progress and the final JSON report stay visible. The working directory is the workspace
+folder: elemctl reads the connection and the target from its `.env` (`ELEMENT_BASE_URL`,
+`ELEMENT_CLIENT_ID`/`SECRET`, `ELEMENT_APP_ID`, `ELEMENT_PROJECT_ID`).
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `xbsl.deploy.elemctlPath` | `elemctl` | The elemctl executable for the deploy command. |
+| `xbsl.deploy.envFile` | - | A `.env` with the connection and the target, passed as `--env-file` (relative to the workspace folder or absolute); handy in a git worktree whose `.env` lives in the main checkout. |
+| `xbsl.deploy.appId` | - | Target application (`--app-id`); empty - `ELEMENT_APP_ID` from the environment / `.env`. |
+| `xbsl.deploy.extraArgs` | - | Extra `elemctl deploy` arguments, space-separated. |
+
+A set `xbsl.projectRoot` is passed as `--project-dir`; a missing elemctl is offered for
+installation right from the error message.
+
 ## See also
 
 The [XBSL](https://marketplace.visualstudio.com/items?itemName=keyfire.xbsl) extension
