@@ -133,6 +133,21 @@ claude mcp add elemctl -- elemctl mcp
 `.env`. Среди инструментов: `list_apps`, `get_app`, `deploy` (с полем `ok`
 в ответе), `verify_deploy`, `list_builds`, `merge_branch` и другие.
 
+## VS Code
+
+С редактором elemctl связывают два расширения-спутника:
+
+- [XBSL](https://marketplace.visualstudio.com/items?itemName=keyfire.xbsl) (проект
+  [xbsl-lint](https://github.com/keyfire/xbsl-lint)) – подсветка, линтер, предпросмотр форм
+  и кнопка "XBSL: деплой на стенд", запускающая `elemctl deploy` терминальной задачей с
+  проверкой применения.
+- [XBSL Debug](https://marketplace.visualstudio.com/items?itemName=keyfire.xbsl-debug)
+  (живёт в этом репозитории, [`editors/vscode`](editors/vscode)) – отладка приложений
+  1С:Элемента штатным DAP-адаптером платформы; данные отладочной сессии берёт
+  `elemctl apps debug`.
+
+Оба публикуются и в [Open VSX](https://open-vsx.org/namespace/keyfire).
+
 ## Использование как библиотеки
 
 ```python

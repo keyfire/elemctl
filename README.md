@@ -100,6 +100,20 @@ claude mcp add elemctl -- elemctl mcp
 
 The server reads connection credentials from the same `ELEMENT_*` variables / `.env`. Among the tools: `list_apps`, `get_app`, `deploy` (with an `ok` field in the response), `verify_deploy`, `list_builds`, `merge_branch` and others.
 
+## VS Code
+
+Two companion extensions integrate elemctl into the editor:
+
+- [XBSL](https://marketplace.visualstudio.com/items?itemName=keyfire.xbsl) (the
+  [xbsl-lint](https://github.com/keyfire/xbsl-lint) project) – highlighting, linting, a form
+  preview, and the *XBSL: deploy the project* button that runs `elemctl deploy` as a terminal
+  task with the apply verification.
+- [XBSL Debug](https://marketplace.visualstudio.com/items?itemName=keyfire.xbsl-debug) (lives
+  in this repository, [`editors/vscode`](editors/vscode)) – debugging 1C:Element applications
+  with the platform's DAP adapter; the debug session data comes from `elemctl apps debug`.
+
+Both are also published to [Open VSX](https://open-vsx.org/namespace/keyfire).
+
 ## Use as a library
 
 ```python

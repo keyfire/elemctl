@@ -161,3 +161,9 @@ variables, continue. Note: `stopOnEntry` pauses every thread of a live web appli
   value column already shows the whole serialized structure, and `evaluate` works - add a
   Watch expression for the field you need (e.g. `Данные.Возможности[0].Заголовок`). Server
   frames have no such limit.
+
+## See also
+
+The [XBSL](https://marketplace.visualstudio.com/items?itemName=keyfire.xbsl) extension
+(the [xbsl-lint](https://github.com/keyfire/xbsl-lint) project) - syntax highlighting,
+linting, a form preview, and a *deploy the project* button that runs `elemctl deploy`.
