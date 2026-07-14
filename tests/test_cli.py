@@ -257,3 +257,30 @@ def test_deploy_exit_code_reflects_ok(monkeypatch, capsys, project_factory, tmp_
     report = json.loads(captured.out)
     assert report["ok"] is False
     assert report["applied"] is False
+
+
+def test_mcp_command_forwards_env_file(monkeypatch, tmp_path):
+    """mcp учитывает глобальный --env-file: конфигурация передаётся серверу."""
+    pytest.importorskip("mcp", reason="extra elemctl[mcp] не установлен")
+    from elemctl import mcp_server
+
+    env_path = tmp_path / "custom.env"
+    env_path.write_text(
+        "ELEMENT_BASE_URL=https://example.test\n"
+        "ELEMENT_CLIENT_ID=id\n"
+        "ELEMENT_CLIENT_SECRET=secret\n",
+        encoding="utf-8",
+    )
+
+    captured = {}
+
+    def fake_main(config=None):
+        captured["config"] = config
+
+    monkeypatch.setattr(mcp_server, "main", fake_main)
+
+    rc = cli.main(["--env-file", str(env_path), "mcp"])
+
+    assert rc == 0
+    assert captured["config"] is not None
+    assert captured["config"].base_url == "https://example.test"

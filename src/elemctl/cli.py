@@ -436,7 +436,7 @@ def cmd_mcp(args):
         raise ElemctlError(
             'MCP-зависимость не установлена – выполните: pip install "elemctl[mcp]"'
         )
-    mcp_server.main()
+    mcp_server.main(config=_config(args))
     return 0
 
 
