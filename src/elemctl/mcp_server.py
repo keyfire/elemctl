@@ -255,9 +255,14 @@ def create_server(config=None):
     return server
 
 
-def main():
-    """Запустить MCP-сервер на stdio."""
-    create_server().run()
+def main(config=None):
+    """Запустить MCP-сервер на stdio.
+
+    config – готовая конфигурация (например, собранная CLI из --env-file
+    и остальных глобальных аргументов); без неё она собирается из
+    переменных окружения и .env при первом обращении к платформе.
+    """
+    create_server(config).run()
 
 
 if __name__ == "__main__":
