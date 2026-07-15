@@ -31,7 +31,7 @@ INSTRUCTIONS = (
     "Важно: при ошибке применения сборки платформа МОЛЧА откатывает приложение "
     "на предыдущую сборку и запускает его – статус Running не означает успех "
     "деплоя. Доверяйте только отчёту инструментов deploy/verify_deploy: поле ok, "
-    "список problems и сверка applied-version с загруженной версией. "
+    "список problems и сверка применённой сборки с загруженной (надёжно - по applied-version-id; строка версии у нового приложения нумеруется заново). "
     "Асинхронность: build_assembly, deploy, apply_build, create_app, ensure_app, "
     "delete_app и merge_branch выполняются минутами и синхронно блокируют вызов "
     "до конца – в чате это выглядит зависанием без вывода. Такие операции "
@@ -229,11 +229,20 @@ def create_server(config=None):
         return response or {"ok": True, "app-id": app_id, "version-id": version_id}
 
     @server.tool()
-    def verify_deploy(app_id: str, expected_version: str = "", since_minutes: int = 30) -> dict:
-        """Проверить фактическое применение сборки: задачи с ошибками за последние since_minutes минут, сверка версии, доступность uri."""
+    def verify_deploy(
+        app_id: str,
+        expected_version: str = "",
+        expected_assembly_id: str = "",
+        since_minutes: int = 30,
+    ) -> dict:
+        """Проверить фактическое применение сборки: задачи с ошибками за последние since_minutes минут, сверка применённой сборки (надёжно - по expected_assembly_id, строка версии - запасной вариант), доступность uri."""
         since = datetime.now(timezone.utc) - timedelta(minutes=since_minutes)
         report = _verify_deploy(
-            client(), app_id, expected_version=expected_version, since=since
+            client(),
+            app_id,
+            expected_version=expected_version,
+            expected_assembly_id=expected_assembly_id,
+            since=since,
         )
         return report.to_dict()
 

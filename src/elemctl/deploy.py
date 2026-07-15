@@ -36,6 +36,7 @@ class DeployReport:
     version: str = ""
     assembly_id: str = ""
     applied_version: str = ""
+    applied_version_id: str = ""
     applied: bool | None = None
     uri_status: int | None = None
     problems: list = field(default_factory=list)
@@ -50,6 +51,7 @@ class DeployReport:
             "version": self.version,
             "assembly-id": self.assembly_id,
             "applied-version": self.applied_version,
+            "applied-version-id": self.applied_version_id,
             "applied": self.applied,
             "uri-status": self.uri_status,
             "problems": list(self.problems),
@@ -120,6 +122,7 @@ def deploy_from_sources(
         app_id,
         card=card,
         expected_version=result.version,
+        expected_assembly_id=assembly_id,
         since=started_at,
     )
     report.assembly_id = assembly_id
@@ -127,14 +130,22 @@ def deploy_from_sources(
     return report
 
 
-def verify_deploy(client, app_id, *, expected_version="", since=None, log=None):
+def verify_deploy(client, app_id, *, expected_version="", expected_assembly_id="", since=None, log=None):
     """Самостоятельная проверка применения (без деплоя).
 
     since – момент, раньше которого ошибки задач не учитываются (старые
-    ошибки из истории не должны портить вердикт).
+    ошибки из истории не должны портить вердикт). expected_assembly_id –
+    id загруженной сборки: сверка по нему надёжна, в отличие от строки версии.
     """
     log = log or (lambda message: None)
-    report = _verify(client, app_id, card=None, expected_version=expected_version, since=since)
+    report = _verify(
+        client,
+        app_id,
+        card=None,
+        expected_version=expected_version,
+        expected_assembly_id=expected_assembly_id,
+        since=since,
+    )
     _log_outcome(report, log)
     return report
 
@@ -142,7 +153,7 @@ def verify_deploy(client, app_id, *, expected_version="", since=None, log=None):
 # -- внутреннее ---------------------------------------------------------------
 
 
-def _verify(client, app_id, *, card, expected_version, since):
+def _verify(client, app_id, *, card, expected_version, since, expected_assembly_id=""):
     problems = []
 
     # 1. Задачи приложения со статусами Error/Failed после начала деплоя.
@@ -159,13 +170,25 @@ def _verify(client, app_id, *, card, expected_version, since):
         message = task.get("error-message") or i18n.t("deploy.no-error-text")
         problems.append(f"задача {label} завершилась со статусом {status}: {message}")
 
-    # 2. Сверка фактически применённой версии с загруженной.
+    # 2. Сверка фактически применённой сборки с загруженной. Надёжный признак –
+    # равенство source.project-version-id и id загруженной сборки: строка версии
+    # не годится, потому что свежесозданное приложение нумерует версии заново
+    # (архив 1.0-1139 применяется как 1.0-3) и сравнение строк давало ложный откат.
+    # Строка версии остаётся запасной проверкой, когда id сборки неизвестен.
     if card is None:
         card = client.get_app(app_id) or {}
     source = card.get("source") or {}
     applied_version = str(source.get("project-version") or "")
+    applied_version_id = str(source.get("project-version-id") or "")
     applied = None
-    if expected_version and applied_version:
+    if expected_assembly_id and applied_version_id:
+        applied = applied_version_id == expected_assembly_id
+        if not applied:
+            problems.append(
+                f"применённая сборка {applied_version_id} не совпадает с загруженной "
+                f"{expected_assembly_id} – похоже, платформа откатила применение"
+            )
+    elif expected_version and applied_version:
         applied = applied_version == expected_version
         if not applied:
             problems.append(
@@ -183,6 +206,7 @@ def _verify(client, app_id, *, card, expected_version, since):
         status=str(card.get("status") or ""),
         version=expected_version or "",
         applied_version=applied_version,
+        applied_version_id=applied_version_id,
         applied=applied,
         uri_status=uri_status,
         problems=problems,

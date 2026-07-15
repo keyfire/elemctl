@@ -14,6 +14,7 @@ class FakeDeployClient:
         self,
         *,
         applied_version="1.0-5",
+        applied_version_id=None,
         status="Running",
         uri="https://app.test/x",
         tasks=None,
@@ -22,6 +23,7 @@ class FakeDeployClient:
         upload_response=None,
     ):
         self._applied_version = applied_version
+        self._applied_version_id = applied_version_id
         self._status = status
         self._uri = uri
         self._tasks = tasks or []
@@ -56,10 +58,12 @@ class FakeDeployClient:
 
     def _card(self):
         card = {"id": "app-1", "status": self._status, "uri": self._uri}
+        source = {}
         if self._applied_version is not None:
-            card["source"] = {"project-version": self._applied_version}
-        else:
-            card["source"] = {}
+            source["project-version"] = self._applied_version
+        if self._applied_version_id is not None:
+            source["project-version-id"] = self._applied_version_id
+        card["source"] = source
         return card
 
 
@@ -105,6 +109,39 @@ def test_deploy_detects_silent_rollback(project_factory, tmp_path):
     assert report.applied is False
     assert report.ok is False
     assert any("не совпадает" in problem for problem in report.problems)
+
+
+def test_deploy_trusts_assembly_id_over_renumbered_version(project_factory, tmp_path):
+    # Свежесозданное приложение нумерует версии заново (архив 1.0-1139 применяется
+    # как 1.0-3) - сверка по строке версии давала ложный откат. Совпадение id
+    # применённой сборки с загруженной подтверждает применение.
+    client = FakeDeployClient(
+        latest={"assembly-version": "1.0-1138", "id": "asm-old"},
+        applied_version="1.0-3",
+        applied_version_id="asm-777",
+    )
+    report = deploy_from_sources(
+        client, "app-1", "proj-1", project_dir=project_factory(), output_dir=tmp_path / "d"
+    )
+    assert report.applied is True
+    assert report.ok is True
+    assert report.applied_version_id == "asm-777"
+    assert report.problems == []
+
+
+def test_deploy_detects_rollback_by_assembly_id(project_factory, tmp_path):
+    # Откат при известном id: применённой осталась прежняя сборка.
+    client = FakeDeployClient(
+        latest={"assembly-version": "1.0-4", "id": "asm-4"},
+        applied_version="1.0-5",
+        applied_version_id="asm-old",
+    )
+    report = deploy_from_sources(
+        client, "app-1", "proj-1", project_dir=project_factory(), output_dir=tmp_path / "d"
+    )
+    assert report.applied is False
+    assert report.ok is False
+    assert any("применённая сборка" in problem for problem in report.problems)
 
 
 def test_deploy_fails_on_fresh_error_task(project_factory, tmp_path):
@@ -205,6 +242,7 @@ def test_report_to_dict_kebab_case(project_factory, tmp_path):
         "version",
         "assembly-id",
         "applied-version",
+        "applied-version-id",
         "applied",
         "uri-status",
         "problems",
@@ -222,5 +260,21 @@ def test_verify_deploy_standalone():
     assert good.ok is True
 
     bad = verify_deploy(client, "app-1", expected_version="1.0-8", since=since)
+    assert bad.applied is False
+    assert bad.ok is False
+
+
+def test_verify_deploy_standalone_by_assembly_id():
+    # id важнее строки версии: несовпадающая перенумерованная версия не портит вердикт.
+    client = FakeDeployClient(applied_version="1.0-3", applied_version_id="asm-9")
+    since = datetime.now(timezone.utc) - timedelta(minutes=30)
+
+    good = verify_deploy(
+        client, "app-1", expected_version="1.0-1139", expected_assembly_id="asm-9", since=since
+    )
+    assert good.applied is True
+    assert good.ok is True
+
+    bad = verify_deploy(client, "app-1", expected_assembly_id="asm-10", since=since)
     assert bad.applied is False
     assert bad.ok is False
