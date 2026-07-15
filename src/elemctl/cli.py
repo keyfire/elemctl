@@ -457,6 +457,15 @@ def cmd_plugins(args):
     return 0
 
 
+def cmd_self_update(args):
+    """Обновить установленный elemctl распаковкой колеса (безопасно при занятом exe)."""
+    from . import selfupdate
+
+    old, new = selfupdate.self_update(version=args.version, log=_progress)
+    _emit({"updated": old != new, "from": old, "to": new})
+    return 0
+
+
 def cmd_mcp(args):
     try:
         from . import mcp_server
@@ -706,6 +715,14 @@ def build_parser():
     # plugins -------------------------------------------------------------
     p = sub.add_parser("plugins", help="диагностика плагинов elemctl (точки расширения)")
     p.set_defaults(handler=cmd_plugins)
+
+    # self-update ---------------------------------------------------------
+    p = sub.add_parser(
+        "self-update",
+        help="обновить elemctl распаковкой колеса (безопасно, когда exe занят MCP-сервером)",
+    )
+    p.add_argument("--version", help="целевая версия (по умолчанию – последняя с PyPI)")
+    p.set_defaults(handler=cmd_self_update)
 
     # mcp ----------------------------------------------------------------
     p = sub.add_parser("mcp", help="запустить MCP-сервер (транспорт stdio)")

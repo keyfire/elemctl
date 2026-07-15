@@ -37,6 +37,8 @@ platform's audience - but the CLI output is plain JSON.*
   (Claude Code и другие MCP-клиенты).
 - **Плагины**: точки расширения (`importlib.metadata`) - внешний пакет приносит
   debug-адаптер платформы (`elemctl debug-adapter`), не раздувая ядро.
+- **Обновление**: `elemctl self-update` - обновить пакет распаковкой колеса, даже когда
+  `elemctl.exe` занят работающим MCP-сервером (штатный pipx/pip в этом случае ломает установку).
 - **Расширение VS Code (отладка)**: спутник в [`editors/vscode`](editors/vscode) – отладка
   приложений 1С:Предприятие.Элемент (XBSL) в обычном VS Code через штатный debug-адаптер
   платформы; координаты debug-сессии берёт через `elemctl apps debug`.

@@ -195,6 +195,7 @@ Commands (significant flags in parentheses):
 - `tech get [APP_ID]`, `tech set APP_ID VERSION`.
 - `debug-adapter` – the path to the platform debug adapter directory supplied by a plugin (the `elemctl.debug_adapter` entry-point group, section 10). Output `{"path": ..., "found": true, "adapter-class": ...}` when present or `{"path": null, "found": false}`; exit code 0 in both cases. The `path` is a ready value for the VS Code extension's `xbslDebug.adapterPath` (a directory with a `repo/` subdirectory).
 - `plugins` – plugin diagnostics: the declared adapter directories and whether each holds jars (`{"debug-adapter": [{"path": ..., "has-jars": true|false}]}`).
+- `self-update [--version X]` – update the installed elemctl by unpacking the wheel from PyPI into site-packages, without touching busy exe files (plain pipx/pip breaks the install when `elemctl.exe` is held by a running MCP server; only the package files are updated, and the exe stub calls the new code). Fixes `pipx_metadata.json`. Output `{updated, from, to}`.
 - `mcp` – start the MCP server; without the extra installed – a clear error with the hint `pip install "elemctl[mcp]"`.
 
 Positional APP_ID/PROJECT_ID marked as optional above are taken from the configuration (`ELEMENT_APP_ID`/`ELEMENT_PROJECT_ID`) when absent; if those are empty too – an error.
@@ -228,7 +229,8 @@ expected_version="", since_minutes=30)` – verification of the apply per sectio
   and numeric comparison of versions, deploy outcome logic (`ok`/`applied`),
   the hint on `FAILED_PRECONDITION`, application search by name, plugin discovery
   through entry points and debug-adapter path resolution (stubbed entry points,
-  directories in temp folders), adapter extraction from a tiny .car.
+  directories in temp folders), adapter extraction from a tiny .car, self-update
+  by unpacking a wheel (urllib mocked, wheel and site-packages in temp folders).
 - Docstrings and comments – literary Russian; straight quotes `"` in text, dashes –
   en dash `–` (not em dash), ellipsis – three dots `...`.
 - The library does not print to stdout/stderr itself – progress is delivered via a
