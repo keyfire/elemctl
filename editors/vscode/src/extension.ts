@@ -162,12 +162,44 @@ function standardConfig(): vscode.DebugConfiguration {
   };
 }
 
+// Спрашивает путь к адаптеру у elemctl (плагин группы elemctl.debug_adapter).
+// undefined, если elemctl недоступен или плагин с адаптером не установлен.
+async function adapterPathFromElemctl(cwd: string | undefined): Promise<string | undefined> {
+  try {
+    const info = await runElemctl(["debug-adapter"], cwd);
+    if (info && info.found && typeof info.path === "string" && info.path.trim()) {
+      return info.path.trim();
+    }
+  } catch (e: any) {
+    log(`elemctl debug-adapter: ${e?.message ?? e}`);
+  }
+  return undefined;
+}
+
+// Разрешает каталог адаптера: явная настройка xbslDebug.adapterPath имеет приоритет,
+// иначе берётся адаптер, принесённый плагином elemctl (elemctl debug-adapter).
+async function resolveAdapterPath(cwd: string | undefined): Promise<string> {
+  const configured = (cfg().get<string>("adapterPath") || "").trim();
+  if (configured) {
+    return configured;
+  }
+  const fromPlugin = await adapterPathFromElemctl(cwd);
+  if (fromPlugin) {
+    log(vscode.l10n.t("Adapter directory from the elemctl plugin: {0}", fromPlugin));
+  }
+  return fromPlugin || "";
+}
+
 // Запускает штатный Java-адаптер как stdio DAP.
 class XbslDebugAdapterFactory implements vscode.DebugAdapterDescriptorFactory {
-  createDebugAdapterDescriptor(
-    _session: vscode.DebugSession
-  ): vscode.ProviderResult<vscode.DebugAdapterDescriptor> {
-    const adapterPath = (cfg().get<string>("adapterPath") || "").trim();
+  async createDebugAdapterDescriptor(
+    session: vscode.DebugSession
+  ): Promise<vscode.DebugAdapterDescriptor> {
+    const cwd =
+      typeof session.configuration?.workspace === "string" && session.configuration.workspace
+        ? session.configuration.workspace
+        : undefined;
+    const adapterPath = await resolveAdapterPath(cwd);
     if (!adapterPath) {
       void offerSetup(vscode.l10n.t("The platform debug adapter path is not set (xbslDebug.adapterPath)."));
       throw new Error(
@@ -356,12 +388,20 @@ async function setupWizard(): Promise<void> {
   }
   results.push((j.ok ? "$(check) " : "$(error) ") + "Java: " + (j.ok ? j.text.split("\n")[0].trim() : vscode.l10n.t("not found")));
 
-  // 2. Debug-адаптер платформы.
+  // 2. Debug-адаптер платформы: настройка > адаптер от плагина elemctl > ручной выбор.
   let adapterPath = (cfg().get<string>("adapterPath") || "").trim();
+  let adapterFromPlugin = false;
+  if (!adapterPath || !isAdapterDir(adapterPath)) {
+    const fromPlugin = await adapterPathFromElemctl(root);
+    if (fromPlugin && isAdapterDir(fromPlugin)) {
+      adapterPath = fromPlugin;
+      adapterFromPlugin = true;
+    }
+  }
   if (!adapterPath || !isAdapterDir(adapterPath)) {
     const pick = vscode.l10n.t("Choose the adapter folder...");
     const a = await vscode.window.showWarningMessage(
-      vscode.l10n.t("The platform debug adapter directory is needed (a folder with a repo subdirectory holding the adapter's jar files). It is extracted from the 1C:Element distribution: data/ide/theia/plugins/@1c-appengine-plugin/bin/debugger."),
+      vscode.l10n.t("The platform debug adapter directory is needed (a folder with a repo subdirectory holding the adapter's jar files). Install the elemctl plugin (it ships the adapter) or extract it from the 1C:Element distribution: data/ide/theia/plugins/@1c-appengine-plugin/bin/debugger."),
       pick
     );
     if (a === pick) {
@@ -377,7 +417,12 @@ async function setupWizard(): Promise<void> {
     }
   }
   const adapterOk = !!adapterPath && isAdapterDir(adapterPath);
-  results.push((adapterOk ? "$(check) " : "$(error) ") + vscode.l10n.t("Adapter: {0}", adapterOk ? adapterPath : vscode.l10n.t("not configured")));
+  results.push(
+    (adapterOk ? "$(check) " : "$(error) ") +
+      (adapterOk && adapterFromPlugin
+        ? vscode.l10n.t("Adapter (elemctl plugin): {0}", adapterPath)
+        : vscode.l10n.t("Adapter: {0}", adapterOk ? adapterPath : vscode.l10n.t("not configured")))
+  );
 
   // 3. elemctl и реквизиты Console API (.env в корне исходников).
   const elemctlBin = (cfg().get<string>("elemctlPath") || "elemctl").trim() || "elemctl";
@@ -406,7 +451,7 @@ async function setupWizard(): Promise<void> {
     }
   }
   if (!e.ok) {
-    results.push("    " + vscode.l10n.t("Check: elemctl is installed and is version >= 0.4 (the apps debug command), and the sources root has a .env with ELEMENT_BASE_URL/CLIENT_ID/CLIENT_SECRET/APP_ID."));
+    results.push("    " + vscode.l10n.t("Check: elemctl is installed and is version >= 0.5 (the apps debug and debug-adapter commands), and the sources root has a .env with ELEMENT_BASE_URL/CLIENT_ID/CLIENT_SECRET/APP_ID."));
   }
 
   // 4. launch.json.

@@ -9,9 +9,16 @@
 
 from .client import ElementClient
 from .config import Config
-from .errors import ApiError, BuildError, ConfigError, ElemctlError, TransportError
+from .errors import (
+    ApiError,
+    BuildError,
+    ConfigError,
+    ElemctlError,
+    PluginError,
+    TransportError,
+)
 
-__version__ = "0.4.1"
+__version__ = "0.5.0"
 
 __all__ = [
     "ApiError",
@@ -20,6 +27,7 @@ __all__ = [
     "ConfigError",
     "ElemctlError",
     "ElementClient",
+    "PluginError",
     "TransportError",
     "__version__",
 ]

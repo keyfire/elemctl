@@ -19,6 +19,7 @@ Development notes and updates (in Russian): the [1C × AI: engineering workshop]
 - **Development-environment branches**: list, create, bind to an application, merge.
 - **Dumps**: create and check readiness.
 - **MCP server**: the same operations exposed as tools for AI agents (Claude Code and other MCP clients).
+- **Plugins**: `importlib.metadata` entry points – an external package supplies the platform debug adapter (`elemctl debug-adapter`) without bloating the core.
 - **VS Code extension (debugging)**: a companion in [`editors/vscode`](editors/vscode) – debug 1C:Enterprise.Element (XBSL) applications in plain VS Code through the platform's built-in debug adapter; it obtains the debug-session coordinates via `elemctl apps debug`.
 
 ### Honest apply verification
@@ -99,6 +100,31 @@ claude mcp add elemctl -- elemctl mcp
 ```
 
 The server reads connection credentials from the same `ELEMENT_*` variables / `.env`. Among the tools: `list_apps`, `get_app`, `deploy` (with an `ok` field in the response), `verify_deploy`, `list_builds`, `merge_branch` and others.
+
+## Plugins
+
+elemctl discovers external packages through `importlib.metadata` entry points: it declares nothing about plugins in its own `pyproject.toml` and reads them on demand. This keeps non-publishable vendor artifacts in a separate package while the elemctl core stays clean and public.
+
+One group is currently supported – **`elemctl.debug_adapter`**: a plugin package declares the directory of the platform debug adapter (proprietary 1C jars, not shipped with elemctl). The entry-point value is a path or a zero-argument callable returning a path; the path points to a directory that contains a `repo/` subdirectory with the adapter jars.
+
+```toml
+# a plugin package's pyproject.toml
+[project.entry-points."elemctl.debug_adapter"]
+name = "my_package:adapter_root"     # () -> Path to the directory containing repo/
+```
+
+```bash
+# the adapter path from the installed plugin (for the VS Code extension):
+# {"path": "...", "found": true} or {"path": null, "found": false}
+elemctl debug-adapter
+
+# which plugins are visible – install diagnostics
+elemctl plugins
+```
+
+The adapter itself (proprietary 1C jars) is extracted from the platform distribution by `tools/extract_adapter.py` – into a directory for a manual `xbslDebug.adapterPath`, or for building the plugin package. The script is not shipped in the package distribution.
+
+Plugin discovery is disabled by `ELEMCTL_NO_PLUGINS=1` (a run with the core capabilities only).
 
 ## VS Code
 

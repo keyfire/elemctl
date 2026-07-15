@@ -193,6 +193,8 @@ Commands (significant flags in parentheses):
 - `dumps create [APP_ID] [--description]`, `dumps get APP_ID DUMP_ID`.
 - `tasks list [--app-id]`, `tasks get-group TASK_ID`.
 - `tech get [APP_ID]`, `tech set APP_ID VERSION`.
+- `debug-adapter` – the path to the platform debug adapter directory supplied by a plugin (the `elemctl.debug_adapter` entry-point group, section 10). Output `{"path": ..., "found": true, "adapter-class": ...}` when present or `{"path": null, "found": false}`; exit code 0 in both cases. The `path` is a ready value for the VS Code extension's `xbslDebug.adapterPath` (a directory with a `repo/` subdirectory).
+- `plugins` – plugin diagnostics: the declared adapter directories and whether each holds jars (`{"debug-adapter": [{"path": ..., "has-jars": true|false}]}`).
 - `mcp` – start the MCP server; without the extra installed – a clear error with the hint `pip install "elemctl[mcp]"`.
 
 Positional APP_ID/PROJECT_ID marked as optional above are taken from the configuration (`ELEMENT_APP_ID`/`ELEMENT_PROJECT_ID`) when absent; if those are empty too – an error.
@@ -206,7 +208,9 @@ Server name `elemctl`, stdio transport, credentials – from the same environmen
 development_mode=True)` – when only project_id is given, the project's latest build is
 automatically used as the source (section 6.2);
 `start_app(app_id)`, `stop_app(app_id)`, `debug_info(app_id)` – data for a
-debug session (requires debugging enabled on the server), `delete_app(app_id)`
+debug session (requires debugging enabled on the server), `debug_adapter()` –
+the path to the platform debug adapter from a plugin (section 10; a local
+operation that does not call the platform), `delete_app(app_id)`
 (the docstring – a warning about irreversibility and URL change), `list_spaces()`,
 `list_projects()`, `list_builds(project_id)`,
 `build_assembly(project_dir="", output_dir="", version="")`,
@@ -222,9 +226,34 @@ expected_version="", since_minutes=30)` – verification of the apply per sectio
 - pytest tests without network access: .env parsing and configuration priorities,
   file selection and build archive contents (including the manifest), auto-increment
   and numeric comparison of versions, deploy outcome logic (`ok`/`applied`),
-  the hint on `FAILED_PRECONDITION`, application search by name.
+  the hint on `FAILED_PRECONDITION`, application search by name, plugin discovery
+  through entry points and debug-adapter path resolution (stubbed entry points,
+  directories in temp folders), adapter extraction from a tiny .car.
 - Docstrings and comments – literary Russian; straight quotes `"` in text, dashes –
   en dash `–` (not em dash), ellipsis – three dots `...`.
 - The library does not print to stdout/stderr itself – progress is delivered via a
   callback passed by the caller.
 - API errors – a dedicated exception with server response details (JSON-serializable).
+
+## 10. Plugins (entry points)
+
+elemctl discovers external packages through `importlib.metadata.entry_points`. The core declares nothing about plugins in its own `pyproject.toml` – it is a consumer that reads the entry points on demand. This keeps non-publishable vendor artifacts (proprietary 1C jars) in a separate package while the public core stays clean.
+
+The **`elemctl.debug_adapter`** group. The entry-point value is a path (Path/str) or a zero-argument callable returning a path (`() -> Path | str`). The path points to the platform debug adapter directory: a directory containing a `repo/` subdirectory with the adapter jars (including `com.e1c.g5rt.debugger.adapter*.jar`). This is a ready value for the VS Code extension's `xbslDebug.adapterPath`.
+
+Declaration in a plugin package:
+
+```toml
+[project.entry-points."elemctl.debug_adapter"]
+name = "my_package:adapter_root"
+```
+
+Discovery behavior:
+
+- entry points are sorted by name; `debug_adapter_path()` returns the first directory that actually holds the adapter jars (a directory without `repo/` or without the adapter jar is skipped), otherwise `None`;
+- a failing entry point is an error (`PluginError`, a subclass of `ElemctlError`), not a silent skip: a tool that silently drops a plugin would leave the user without debugging and without an explanation;
+- the `ELEMCTL_NO_PLUGINS=1` environment variable disables discovery (a run with the core capabilities only).
+
+Surfaces using the mechanism: the CLI `debug-adapter`/`plugins` (section 7), the MCP tool `debug_adapter` (section 8), and the VS Code extension, which requests the path from `elemctl debug-adapter` when the `adapterPath` setting is empty.
+
+The adapter itself is extracted from the platform distribution by `tools/extract_adapter.py` (clean code, not shipped in the package distribution – `prune`): the `data/ide/theia/plugins/@1c-appengine-plugin/bin/debugger/` directory from the `.car` is copied into `<output>/<version>/`, and `index.json` is updated. The proprietary jars are not included in the public package – a separate plugin package ships them.

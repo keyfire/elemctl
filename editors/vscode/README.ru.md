@@ -25,15 +25,16 @@
 ## Требования
 
 1. **JDK 17+** (подойдёт и 21). Проверка: `java -version`.
-2. **elemctl >= 0.4** (команда `apps debug`) с настроенным `.env` (реквизиты Console API)
-   в корне исходников. Если elemctl не найден, расширение само предложит установку прямо
-   из сообщения об ошибке и из мастера настройки. Проверка: `elemctl apps debug` возвращает JSON с
-   `debug-address`/`debug-token`.
-3. **Debug-адаптер платформы** из дистрибутива 1С:Элемент – каталог
-   `.../@1c-appengine-plugin/bin/debugger` (в нём подкаталог `repo`
-   с jar-файлами адаптера). Извлеките его на диск. Адаптер – проприетарные компоненты
-   1С, поэтому **в расширение он не входит** – возьмите его из дистрибутива, которым
-   лицензированы.
+2. **elemctl >= 0.5** (команды `apps debug` и `debug-adapter`) с настроенным `.env`
+   (реквизиты Console API) в корне исходников. Если elemctl не найден, расширение само
+   предложит установку прямо из сообщения об ошибке и из мастера настройки. Проверка:
+   `elemctl apps debug` возвращает JSON с `debug-address`/`debug-token`.
+3. **Debug-адаптер платформы.** Проще всего – установить плагин elemctl (пакет
+   `elemctl-plugin`), который несёт адаптер: тогда путь к нему расширение берёт у
+   `elemctl debug-adapter` автоматически, настраивать ничего не нужно. Альтернатива –
+   извлечь адаптер из дистрибутива 1С:Элемент (каталог `.../@1c-appengine-plugin/bin/debugger`,
+   в нём подкаталог `repo` с jar-файлами) и указать путь в `xbslDebug.adapterPath`. Адаптер –
+   проприетарные компоненты 1С, поэтому **в расширение он не входит**.
 4. **Отладка включена на сервере** приложения (у облачных стендов – как правило, уже
    включена).
 
@@ -43,6 +44,8 @@
 
 ```jsonc
 {
+  // adapterPath можно НЕ задавать, если установлен плагин elemctl (elemctl-plugin) –
+  // путь к адаптеру расширение возьмёт у "elemctl debug-adapter".
   "xbslDebug.adapterPath": "C:/путь/к/@1c-appengine-plugin/bin/debugger",
   "xbslDebug.javaPath": "java",        // или полный путь к java
   "xbslDebug.elemctlPath": "elemctl"   // или полный путь к elemctl
@@ -114,9 +117,10 @@ Debug-сервер идентифицирует модуль путём **отн
    за `debug-address`, `debug-token` и `client-debug-address`, и `elemctl apps get` за
    карточкой приложения. Реквизиты `ELEMENT_*` и app id elemctl берёт из `.env` в корне
    исходников.
-2. `DebugAdapterDescriptorFactory` запускает
-   `java ... -cp <adapterPath>/repo/*` (главный класс адаптера) как stdio-DAP-сервер
-   и передаёт ему attach-конфиг (`uri=debug-address`, `debugToken`, сгенерированный
+2. `DebugAdapterDescriptorFactory` берёт каталог адаптера (настройка
+   `xbslDebug.adapterPath`, а если она пуста – `elemctl debug-adapter` от плагина) и
+   запускает `java ... -cp <adapterPath>/repo/*` (главный класс адаптера) как
+   stdio-DAP-сервер и передаёт ему attach-конфиг (`uri=debug-address`, `debugToken`, сгенерированный
    `sessionId`, `clientDebugAddress`, `workspace`, `projectLocations`, `application`,
    `locale`, `authMode`, `retryTimeout`).
 3. При старте сессии расширение открывает приложение в браузере по адресу
@@ -132,9 +136,9 @@ Debug-сервер идентифицирует модуль путём **отн
 
 | Настройка | На что указывать | Пример |
 | --- | --- | --- |
-| `xbslDebug.adapterPath` | **Каталог debug-адаптера**, извлечённый из вашего дистрибутива 1С:Элемент, – папка с подкаталогом `repo`, где лежат jar-файлы адаптера. В дистрибутиве это `.../@1c-appengine-plugin/bin/debugger`. | `C:/tools/xbsl-debug-adapter` (внутри `repo/...jar`) |
+| `xbslDebug.adapterPath` | Можно оставить пустым, если установлен плагин elemctl (адаптер берётся у `elemctl debug-adapter`). Иначе – **каталог debug-адаптера**, извлечённый из вашего дистрибутива 1С:Элемент, папка с подкаталогом `repo`, где лежат jar-файлы адаптера (в дистрибутиве это `.../@1c-appengine-plugin/bin/debugger`). | `C:/tools/xbsl-debug-adapter` (внутри `repo/...jar`) |
 | `xbslDebug.javaPath` | **Java 17+**. Оставьте `java`, если он на `PATH`. | `C:/Program Files/Java/jdk-21/bin/java.exe` |
-| `xbslDebug.elemctlPath` | **elemctl** (>= 0.4). Оставьте `elemctl`, если он на `PATH`. | `C:/Users/me/.local/bin/elemctl.exe` |
+| `xbslDebug.elemctlPath` | **elemctl** (>= 0.5). Оставьте `elemctl`, если он на `PATH`. | `C:/Users/me/.local/bin/elemctl.exe` |
 
 `.env` с реквизитами Console API (`ELEMENT_BASE_URL`, `ELEMENT_CLIENT_ID`,
 `ELEMENT_CLIENT_SECRET`, `ELEMENT_APP_ID`) лежит в **корне исходников**, а не в настройке –

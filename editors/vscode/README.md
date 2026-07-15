@@ -27,15 +27,17 @@ application through the platform debug server.
 ## Prerequisites
 
 1. **JDK 17+** (21 works too). Check: `java -version`.
-2. **elemctl >= 0.4** (the `apps debug` command) with a configured `.env` (Console API
-   credentials) in the sources root. If elemctl is missing, the extension offers to
-   install it right from the error message and the setup wizard. Check: `elemctl apps debug` returns JSON with
-   `debug-address`/`debug-token`.
-3. **The platform debug adapter** from your 1C:Element distribution: the directory
-   `.../@1c-appengine-plugin/bin/debugger` (it contains a `repo` subdirectory with
-   the adapter's jar files). Extract it to disk. The adapter consists of
-   proprietary 1C components, so **it is not bundled** with the extension - you take it
-   from the distribution you are licensed for.
+2. **elemctl >= 0.5** (the `apps debug` and `debug-adapter` commands) with a configured
+   `.env` (Console API credentials) in the sources root. If elemctl is missing, the
+   extension offers to install it right from the error message and the setup wizard.
+   Check: `elemctl apps debug` returns JSON with `debug-address`/`debug-token`.
+3. **The platform debug adapter.** The easiest way is to install the elemctl plugin (the
+   `elemctl-plugin` package), which ships the adapter: the extension then gets its path
+   from `elemctl debug-adapter` automatically, with nothing to configure. Alternatively,
+   extract the adapter from your 1C:Element distribution (the directory
+   `.../@1c-appengine-plugin/bin/debugger`, which contains a `repo` subdirectory with the
+   adapter's jar files) and set `xbslDebug.adapterPath`. The adapter consists of
+   proprietary 1C components, so **it is not bundled** with the extension.
 4. **Debugging enabled on the application server** (cloud stands usually have it
    enabled already).
 
@@ -45,6 +47,8 @@ The setup wizard fills these for you; manual `settings.json` equivalent:
 
 ```jsonc
 {
+  // adapterPath can be left empty if the elemctl plugin (elemctl-plugin) is installed –
+  // the extension gets the adapter path from "elemctl debug-adapter".
   "xbslDebug.adapterPath": "C:/path/to/@1c-appengine-plugin/bin/debugger",
   "xbslDebug.javaPath": "java",        // or a full path to java
   "xbslDebug.elemctlPath": "elemctl"   // or a full path to elemctl
@@ -116,7 +120,8 @@ Step by step:
    to get `debug-address`, `debug-token` and `client-debug-address`, and `elemctl apps
    get` for the application card. elemctl reads the `ELEMENT_*` credentials and the app id
    from the `.env` in the sources root.
-2. `DebugAdapterDescriptorFactory` starts
+2. `DebugAdapterDescriptorFactory` takes the adapter directory (the `xbslDebug.adapterPath`
+   setting, or `elemctl debug-adapter` from the plugin when it is empty) and starts
    `java ... -cp <adapterPath>/repo/*` (the adapter's main class) as a stdio DAP
    server and hands it the attach config (`uri=debug-address`, `debugToken`, a generated
    `sessionId`, `clientDebugAddress`, `workspace`, `projectLocations`, `application`,
@@ -134,9 +139,9 @@ on `PATH`; set them to absolute paths otherwise. The setup wizard fills them for
 
 | Setting | What to point it at | Example |
 | --- | --- | --- |
-| `xbslDebug.adapterPath` | The **debug adapter directory** extracted from your 1C:Element distribution – a folder that contains a `repo` subfolder with the adapter's jar files. In the distribution it is `.../@1c-appengine-plugin/bin/debugger`. | `C:/tools/xbsl-debug-adapter` (must contain `repo/...jar`) |
+| `xbslDebug.adapterPath` | Can be left empty if the elemctl plugin is installed (the adapter comes from `elemctl debug-adapter`). Otherwise the **debug adapter directory** extracted from your 1C:Element distribution – a folder that contains a `repo` subfolder with the adapter's jar files (in the distribution it is `.../@1c-appengine-plugin/bin/debugger`). | `C:/tools/xbsl-debug-adapter` (must contain `repo/...jar`) |
 | `xbslDebug.javaPath` | The **Java 17+ launcher**. Leave as `java` if it is on `PATH`. | `C:/Program Files/Java/jdk-21/bin/java.exe` |
-| `xbslDebug.elemctlPath` | The **elemctl executable** (>= 0.4). Leave as `elemctl` if it is on `PATH`. | `C:/Users/me/.local/bin/elemctl.exe` |
+| `xbslDebug.elemctlPath` | The **elemctl executable** (>= 0.5). Leave as `elemctl` if it is on `PATH`. | `C:/Users/me/.local/bin/elemctl.exe` |
 
 The `.env` with Console API credentials (`ELEMENT_BASE_URL`, `ELEMENT_CLIENT_ID`,
 `ELEMENT_CLIENT_SECRET`, `ELEMENT_APP_ID`) lives in the **sources root**, not in a setting

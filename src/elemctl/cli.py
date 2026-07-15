@@ -12,7 +12,7 @@ import json
 import sys
 from pathlib import Path
 
-from . import __version__, i18n
+from . import __version__, i18n, plugins
 from .build import build_assembly
 from .client import ElementClient, extract_assembly_id
 from .config import Config
@@ -429,6 +429,34 @@ def cmd_tech_set(args):
     return 0
 
 
+def cmd_debug_adapter(args):
+    """Путь к каталогу debug-адаптера платформы, принесённому плагином.
+
+    Каталог содержит подкаталог repo/ с jar-файлами адаптера – это готовое значение
+    настройки xbslDebug.adapterPath для расширения VS Code. Отсутствие плагина – это
+    ответ (found: false, код 0), а не ошибка: ненулевой код означал бы сбой.
+    """
+    path = plugins.debug_adapter_path()
+    if path is None:
+        _emit({"path": None, "found": False})
+        return 0
+    _emit({"path": str(path), "found": True, "adapter-class": plugins.ADAPTER_MAIN_CLASS})
+    return 0
+
+
+def cmd_plugins(args):
+    """Диагностика плагинов: объявленные каталоги debug-адаптера (в т.ч. без jar)."""
+    paths = plugins.debug_adapter_paths()
+    _emit(
+        {
+            "debug-adapter": [
+                {"path": str(p), "has-jars": plugins.has_adapter_jars(p)} for p in paths
+            ]
+        }
+    )
+    return 0
+
+
 def cmd_mcp(args):
     try:
         from . import mcp_server
@@ -667,6 +695,17 @@ def build_parser():
     p.add_argument("app_id", metavar="APP_ID")
     p.add_argument("version", metavar="VERSION")
     p.set_defaults(handler=cmd_tech_set)
+
+    # debug-adapter -------------------------------------------------------
+    p = sub.add_parser(
+        "debug-adapter",
+        help="путь к debug-адаптеру платформы из плагина (для расширения VS Code)",
+    )
+    p.set_defaults(handler=cmd_debug_adapter)
+
+    # plugins -------------------------------------------------------------
+    p = sub.add_parser("plugins", help="диагностика плагинов elemctl (точки расширения)")
+    p.set_defaults(handler=cmd_plugins)
 
     # mcp ----------------------------------------------------------------
     p = sub.add_parser("mcp", help="запустить MCP-сервер (транспорт stdio)")

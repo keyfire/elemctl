@@ -23,6 +23,10 @@ class TransportError(ElemctlError):
     """Сетевая ошибка: до сервера не удалось достучаться."""
 
 
+class PluginError(ElemctlError):
+    """Ошибка обнаружения или загрузки плагина elemctl (точки расширения)."""
+
+
 class ApiError(ElemctlError):
     """Ошибка Console API: HTTP-статус и тело ответа сервера.
 

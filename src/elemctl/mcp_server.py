@@ -16,7 +16,7 @@ except ImportError as error:  # pragma: no cover - ветка без extra
         'для MCP-сервера нужен extra: pip install "elemctl[mcp]"'
     ) from error
 
-from . import i18n
+from . import i18n, plugins
 from .build import build_assembly
 from .client import ElementClient, extract_assembly_id
 from .config import Config
@@ -153,6 +153,19 @@ def create_server(config=None):
         Требует включённой отладки на сервере (config/debug.yml: enabled: true).
         """
         return client().get_debug_info(app_id) or {"app-id": app_id}
+
+    @server.tool()
+    def debug_adapter() -> dict:
+        """Путь к debug-адаптеру платформы из плагина (для расширения VS Code).
+
+        Каталог содержит подкаталог repo/ с jar-файлами адаптера – готовое значение
+        настройки xbslDebug.adapterPath. Отсутствие плагина – это ответ (found: false),
+        а не ошибка. Локальная операция, к платформе не обращается.
+        """
+        path = plugins.debug_adapter_path()
+        if path is None:
+            return {"path": None, "found": False}
+        return {"path": str(path), "found": True, "adapter-class": plugins.ADAPTER_MAIN_CLASS}
 
     @server.tool()
     def delete_app(app_id: str) -> dict:

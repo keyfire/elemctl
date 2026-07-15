@@ -19,6 +19,7 @@ EXPECTED_TOOLS = {
     "start_app",
     "stop_app",
     "debug_info",
+    "debug_adapter",
     "delete_app",
     "list_spaces",
     "list_projects",
