@@ -30,6 +30,11 @@ classifiers = [
 ]
 dependencies = []
 
+[project.urls]
+Homepage = "https://github.com/keyfire/elemctl"
+Repository = "https://github.com/keyfire/elemctl"
+Issues = "https://github.com/keyfire/elemctl/issues"
+
 [project.optional-dependencies]
 mcp = ["mcp>=1.2"]
 dev = ["pytest>=7"]
