@@ -91,28 +91,7 @@ stdio; the adapter talks to the platform's debug server over a WebSocket; the de
 (your application, opened in a browser) connects to the same debug server and is stitched
 to your session by a shared `sessionId`.
 
-```
-   VS Code (this extension)                          1C:Element cloud
-  ┌───────────────────────────┐
-  │  editor, breakpoints,     │      DAP (stdio)   ┌────────────────────────┐
-  │  Variables/Watch          │◄──────────────────►│  Java debug adapter     │
-  │                           │                    │  from the platform      │
-  │  ┌─────────────────────┐  │   spawns java -cp  │  distribution           │
-  │  │ xbslDebug.adapterPath│─┼──► <adapterPath>/  └───────────┬────────────┘
-  │  │ xbslDebug.javaPath   │ │      repo/*.jar                │ WebSocket
-  │  │ xbslDebug.elemctlPath│ │                                │ (debug-address,
-  │  └─────────────────────┘  │                                │  debug-token)
-  └────────────┬──────────────┘                                ▼
-               │ elemctl apps debug / apps get     ┌────────────────────────┐
-               │ (Console API /actions/debug)      │  platform debug server  │
-               ▼                                    └───────────┬────────────┘
-        reads .env in the sources root                          │ same sessionId
-        (ELEMENT_* credentials, app id)                         │
-                                                                ▼
-                                            browser: <app-uri>?debug-server-host=...
-                                                     &debug-session-id=<sessionId>
-                                            (the extension opens this URL on start)
-```
+![VS Code with this extension, the Java debug adapter and elemctl on the developer machine; the platform debug server and the Console API in the 1C:Element cloud; the browser with the debugged application joins the debug server by the same sessionId](https://raw.githubusercontent.com/keyfire/elemctl/main/editors/vscode/images/how-it-works.png)
 
 Step by step:
 
