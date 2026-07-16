@@ -7,6 +7,7 @@ callback log, который передаёт вызывающая сторон�
 from __future__ import annotations
 
 import json
+import re
 import time
 from urllib.parse import urlencode
 
@@ -40,6 +41,15 @@ def extract_assembly_id(payload):
         if value:
             return value
     return None
+
+
+_UUID_RE = re.compile(
+    r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+)
+
+
+def _looks_like_uuid(value):
+    return bool(_UUID_RE.match(str(value)))
 
 
 def _as_list(payload, *keys):
@@ -386,13 +396,33 @@ class ElementClient:
         payload = self._api("GET", f"/projects/{project_id}/assemblies")
         return _as_list(payload, "items", "assemblies")
 
+    def resolve_assembly_id(self, project_id, version_or_id):
+        """Ид сборки по её версии либо самому ид.
+
+        API адресует сборку только UUID (на версию отвечает 400 "Version is not a valid
+        UUID"); версию, к тому же, платформа при загрузке перенумеровывает по-своему.
+        Не-UUID аргумент ищется в списке сборок по assembly-version / project-version.
+        """
+        if _looks_like_uuid(version_or_id):
+            return version_or_id
+        for assembly in self.list_assemblies(project_id):
+            if version_or_id in (
+                assembly.get("assembly-version"), assembly.get("project-version")
+            ):
+                return assembly.get("id")
+        raise ConfigError(i18n.t(
+            "client.assembly-not-found", version=version_or_id, project=project_id
+        ))
+
     def get_assembly(self, project_id, version):
-        """Карточка сборки по версии."""
-        return self._api("GET", f"/projects/{project_id}/assemblies/{version}")
+        """Карточка сборки по версии либо ид."""
+        assembly_id = self.resolve_assembly_id(project_id, version)
+        return self._api("GET", f"/projects/{project_id}/assemblies/{assembly_id}")
 
     def delete_assembly(self, project_id, version):
-        """Удалить сборку по версии."""
-        return self._api("DELETE", f"/projects/{project_id}/assemblies/{version}")
+        """Удалить сборку по версии либо ид."""
+        assembly_id = self.resolve_assembly_id(project_id, version)
+        return self._api("DELETE", f"/projects/{project_id}/assemblies/{assembly_id}")
 
     def latest_assembly(self, project_id):
         """Последняя сборка проекта по числовому счётчику версии, либо None."""

@@ -96,6 +96,10 @@ MESSAGES = {
         "en": "build file not found: {path}",
     },
     # -- client.py ----------------------------------------------------------------
+    "client.assembly-not-found": {
+        "ru": "сборка '{version}' не найдена в проекте {project} (ни по версии, ни по ид)",
+        "en": "assembly '{version}' not found in project {project} (neither by version nor by id)",
+    },
     "client.apply-source-required": {
         "ru": "нужен источник применения: image_id либо project_id",
         "en": "an apply source is required: image_id or project_id",

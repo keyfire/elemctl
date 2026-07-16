@@ -593,7 +593,7 @@ def build_parser():
     p.add_argument("--project-id")
     p.set_defaults(handler=cmd_builds_list)
 
-    p = builds_sub.add_parser("get", help="карточка сборки по версии")
+    p = builds_sub.add_parser("get", help="карточка сборки по версии либо ид")
     p.add_argument("version", metavar="VERSION")
     p.add_argument("--project-id")
     p.set_defaults(handler=cmd_builds_get)
@@ -607,7 +607,7 @@ def build_parser():
     p.add_argument("--commit-message", help="сообщение коммита (метаданные)")
     p.set_defaults(handler=cmd_builds_upload)
 
-    p = builds_sub.add_parser("delete", help="удалить сборку по версии")
+    p = builds_sub.add_parser("delete", help="удалить сборку по версии либо ид")
     p.add_argument("version", metavar="VERSION")
     p.add_argument("--project-id")
     p.set_defaults(handler=cmd_builds_delete)

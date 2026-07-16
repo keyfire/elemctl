@@ -9,7 +9,7 @@ import pytest
 from elemctl.auth import extract_token
 from elemctl.client import ElementClient, extract_assembly_id
 from elemctl.config import Config
-from elemctl.errors import ApiError
+from elemctl.errors import ApiError, ConfigError
 from tests.conftest import FakeTransport
 
 API = "/console/api/v2"
@@ -134,6 +134,30 @@ def test_assemblies_list_normalization(api):
     assert client.list_assemblies("p1") == [{"assembly-version": "1.0-1"}]
     assert client.list_assemblies("p1") == [{"assembly-version": "1.0-2"}]
     assert client.list_assemblies("p1") == [{"assembly-version": "1.0-3"}]
+
+
+def test_assembly_resolved_by_version(api):
+    """get/delete сборки принимают версию: API адресует сборку только UUID, поэтому
+    не-UUID аргумент резолвится в id по списку сборок (версию платформа перенумеровывает)."""
+    client, transport = api
+    assembly_id = "019f6d02-8606-7e4a-afc6-971f921eade5"
+    transport.add(
+        "GET", f"{API}/projects/p1/assemblies",
+        [{"assembly-version": "1.0-39", "project-version": "1.0-39", "id": assembly_id}],
+    )
+    transport.add("DELETE", f"{API}/projects/p1/assemblies/{assembly_id}", {"deleted": True})
+    assert client.delete_assembly("p1", "1.0-39") == {"deleted": True}
+    # UUID проходит без похода за списком.
+    transport.add("DELETE", f"{API}/projects/p1/assemblies/{assembly_id}", {"deleted": True})
+    assert client.delete_assembly("p1", assembly_id) == {"deleted": True}
+    assert len(transport.calls_to("GET", f"{API}/projects/p1/assemblies")) == 1
+
+
+def test_assembly_unknown_version_is_config_error(api):
+    client, transport = api
+    transport.add("GET", f"{API}/projects/p1/assemblies", [])
+    with pytest.raises(ConfigError, match="не найдена"):
+        client.get_assembly("p1", "9.9-99")
 
 
 def test_latest_assembly_numeric_order(api):

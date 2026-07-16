@@ -88,7 +88,7 @@ Application statuses: stable `Running`, `Stopped`, `Error`; transitional `Starti
   - `POST /projects` – create a new project from a build.
   Query parameters (all optional): `SpaceId`, `BranchName`, `CommitId`, `CommitMessage`. Note: the names of these query parameters are in PascalCase. The response contains the id of the created build in one of the fields: `image-id`, `assembly-id`, or `id` (check in this order).
 - `GET /projects/{id}/assemblies` – list of builds. Each element contains `assembly-version` (a string like `1.0-42`) and an id (`id` or `image-id`). The response may be either an array or an object with the list in the `items` or `assemblies` field.
-- `GET /projects/{id}/assemblies/{version}` – build card by version; `DELETE .../{version}` – delete.
+- `GET /projects/{id}/assemblies/{assembly-id}` – build card; `DELETE .../{assembly-id}` – delete. The API addresses a build ONLY by UUID: a version gets a 400 "Version is not a valid UUID". The client must also accept a version (that is what the user sees), resolving it to an id via the build list (`assembly-version`/`project-version`); note that the platform renumbers the manifest version on upload. Deleting a build that took part in an apply (even a rolled-back one) is rejected by the platform with a 500.
 
 Comparing build versions: by the numeric suffix after the last hyphen (`1.0-10` is newer than `1.0-9`; lexicographic comparison gives the wrong order).
 
