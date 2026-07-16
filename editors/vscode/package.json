@@ -2,7 +2,7 @@
   "name": "xbsl-debug",
   "displayName": "XBSL Debug (1C:Element)",
   "description": "%ext.description%",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "publisher": "keyfire",
   "license": "MIT",
   "icon": "icon.png",

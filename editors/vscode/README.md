@@ -142,6 +142,7 @@ on `PATH`; set them to absolute paths otherwise. The setup wizard fills them for
 | `xbslDebug.adapterPath` | Can be left empty if the elemctl plugin is installed (the adapter comes from `elemctl debug-adapter`). Otherwise the **debug adapter directory** extracted from your 1C:Element distribution – a folder that contains a `repo` subfolder with the adapter's jar files (in the distribution it is `.../@1c-appengine-plugin/bin/debugger`). | `C:/tools/xbsl-debug-adapter` (must contain `repo/...jar`) |
 | `xbslDebug.javaPath` | The **Java 17+ launcher**. Leave as `java` if it is on `PATH`. | `C:/Program Files/Java/jdk-21/bin/java.exe` |
 | `xbslDebug.elemctlPath` | The **elemctl executable** (>= 0.5). Leave as `elemctl` if it is on `PATH`. | `C:/Users/me/.local/bin/elemctl.exe` |
+| `xbslDebug.fixVariablesFilter` | Work around the platform crash on filterless `variables` requests (see [Known limitations](#known-limitations)). Keep it on. | `true` (default) |
 
 The `.env` with Console API credentials (`ELEMENT_BASE_URL`, `ELEMENT_CLIENT_ID`,
 `ELEMENT_CLIENT_SECRET`, `ELEMENT_APP_ID`) lives in the **sources root**, not in a setting
@@ -157,15 +158,17 @@ variables, continue. Note: `stopOnEntry` pauses every thread of a live web appli
 
 ## Known limitations
 
-- **Expanding a structure in the Variables tree on a client frame** does not respond and
-  crashes the debuggee's client runtime, while the adapter survives. This is independent
-  of the platform version (verified by matching the adapter and application versions - it
-  still fails). Server frames expand to any depth, and the platform's own web IDE expands
-  client-frame structures fine, so the issue is specific to debugging the application as a
-  standalone browser tab through the external adapter. Workarounds on client frames: the
-  value column already shows the whole serialized structure, and `evaluate` works - add a
-  Watch expression for the field you need (e.g. `Данные.Возможности[0].Заголовок`). Server
-  frames have no such limit.
+- **Expanding a structure in the Variables tree on a client frame** used to hang the
+  debuggee's client runtime and drop the session. The root cause is a platform bug: a DAP
+  `variables` request WITHOUT the `filter` field (which is exactly what the VS Code
+  Variables view sends for small values) crashes the debugged application's JS runtime,
+  while a filtered request works fine. Since 0.3.0 the extension works around it
+  automatically: a DAP middleware rewrites every filterless `variables` request into
+  filtered ones (`named` + `indexed`, with the counts taken from the parent's response)
+  and merges the results, so the whole value tree expands normally on both client and
+  server frames. The workaround is controlled by the `xbslDebug.fixVariablesFilter`
+  setting (on by default) - keep it on until the platform learns to handle
+  `filter=NONE`.
 
 ## Deploy from VS Code
 
