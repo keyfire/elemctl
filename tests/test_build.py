@@ -1,4 +1,4 @@
-"""Тесты локальной сборки: отбор файлов, манифест, состав архива."""
+"""Тесты локальной сборки: отбор файлов, манифест, состав архива, разбор архива."""
 
 from __future__ import annotations
 
@@ -12,9 +12,38 @@ from elemctl.build import (
     build_assembly,
     build_manifest,
     find_project_dir,
+    inspect_assembly,
     read_project_meta,
 )
 from elemctl.errors import BuildError
+
+
+def _fill_library(project_dir):
+    """Наполнить библиотеку: подсистема, пакет внутри неё, глобальные и локальные типы.
+
+    Подсистема.yaml намеренно не создаётся: у подсистемы библиотеки его может не быть
+    (проверено на e1c::BizKubMessageQueueLibrary), поэтому состав определяется
+    раскладкой каталогов, а не файлом-описанием.
+    """
+    subsystem = project_dir / "ОчередьСообщений"
+    (subsystem / "Структуры").mkdir(parents=True)
+    (subsystem / "ОчередьПрограммныйИнтерфейс.yaml").write_text(
+        "ВидЭлемента: ОбщийМодуль\nИмя: ОчередьПрограммныйИнтерфейс\nОбластьВидимости: Глобально\n",
+        encoding="utf-8",
+    )
+    (subsystem / "ОчередьСлужебный.yaml").write_text(
+        "ВидЭлемента: ОбщийМодуль\nИмя: ОчередьСлужебный\nОбластьВидимости: ВПроекте\n",
+        encoding="utf-8",
+    )
+    (subsystem / "Структуры" / "ОписаниеСообщения.yaml").write_text(
+        "ВидЭлемента: Структура\nИмя: ОписаниеСообщения\nОбластьВидимости: Глобально\n",
+        encoding="utf-8",
+    )
+    (subsystem / "Структуры" / "ОписаниеТокена.yaml").write_text(
+        # Без ОбластьВидимости – умолчание ВПодсистеме, наружу тип не виден.
+        "ВидЭлемента: Структура\nИмя: ОписаниеТокена\n",
+        encoding="utf-8",
+    )
 
 
 def _fill_project(project_dir):
@@ -169,3 +198,60 @@ def test_manifest_field_order():
         "BranchName",
         "CommitId",
     ]
+
+
+def test_inspect_library_archive(project_factory, tmp_path):
+    project_dir = project_factory(kind="Библиотека", base_version="9.0")
+    project_yaml = project_dir / "Проект.yaml"
+    project_yaml.write_text(
+        project_yaml.read_text(encoding="utf-8")
+        + "Представление: Библиотека очереди сообщений\nРежимСовместимости: 9.0\n",
+        encoding="utf-8",
+    )
+    _fill_library(project_dir)
+
+    built = build_assembly(project_dir, output_dir=tmp_path / "dist", version="9.0.2")
+    report = inspect_assembly(built.file)
+
+    assert report["kind"] == "Library"
+    assert (report["vendor"], report["name"], report["version"]) == ("acme", "crm", "9.0.2")
+    assert report["representation"] == "Библиотека очереди сообщений"
+    # Совместимость берётся из РежимСовместимости: свойства ВерсияТехнологии в Проект.yaml нет.
+    assert report["compatibility"] == "9.0"
+
+    assert report["subsystems"] == [
+        {
+            "name": "ОчередьСообщений",
+            "qualified": "acme::crm::ОчередьСообщений",
+            "packages": ["Структуры"],
+            "global_types": 2,
+        }
+    ]
+    # Наружу видны только Глобально, и полное имя включает сегмент пакета.
+    assert [item["qualified"] for item in report["global_types"]] == [
+        "acme::crm::ОчередьСообщений::ОчередьПрограммныйИнтерфейс",
+        "acme::crm::ОчередьСообщений::Структуры::ОписаниеСообщения",
+    ]
+    assert [item["kind"] for item in report["global_types"]] == ["ОбщийМодуль", "Структура"]
+
+
+def test_inspect_rejects_foreign_file(tmp_path):
+    foreign = tmp_path / "заметка.txt"
+    foreign.write_text("не архив", encoding="utf-8")
+    with pytest.raises(BuildError) as excinfo:
+        inspect_assembly(foreign)
+    assert "не является архивом сборки" in str(excinfo.value)
+
+
+def test_inspect_requires_manifest(tmp_path):
+    archive_path = tmp_path / "без-манифеста.xlib"
+    with zipfile.ZipFile(archive_path, "w") as archive:
+        archive.writestr("acme/crm/Проект.yaml", "Имя: crm\n")
+    with pytest.raises(BuildError) as excinfo:
+        inspect_assembly(archive_path)
+    assert "Assembly.yaml" in str(excinfo.value)
+
+
+def test_inspect_missing_file(tmp_path):
+    with pytest.raises(BuildError):
+        inspect_assembly(tmp_path / "нет-такого.xlib")

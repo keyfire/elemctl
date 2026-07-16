@@ -142,6 +142,20 @@ File selection for the archive:
 - the directories `.git`, `.claude`, `.github`, `__pycache__`, `node_modules`, `.venv` and all hidden ones (starting with a dot) are excluded;
 - the files `.gitignore`, `.env`, `.DS_Store` and `*.xasm`, `*.xlib` files are excluded.
 
+### 5.1. Parsing a built archive
+
+The reverse of a build: given a `.xasm`/`.xlib` file – the manifest, the project properties from its `Проект.yaml` inside the archive, and the contents. It is needed to attach a library to a project without unpacking its sources.
+
+The layout inside a project (directories are the only source of truth about the contents):
+
+- a first-level directory is a **subsystem**; `Подсистема.yaml` is **optional** (a library subsystem may have none at all), so it cannot be relied upon when looking for subsystems;
+- a nested directory of a subsystem is a **package**; a package has no description file, every directory contributes a name segment;
+- the qualified name of a type: `{vendor}::{name}::{subsystem}[::{package}]::{TypeName}`. The same name without the last segment is what `Использование` and `импорт` take.
+
+Only types with `ОбластьВидимости: Глобально` are visible outside, in the project that attached the library (the default is `ВПодсистеме`, the global scope is written explicitly).
+
+Compatibility is checked against the `РежимСовместимости` property of `Проект.yaml`. The `ВерсияТехнологии` property **does not exist** in `Проект.yaml` – it belongs to the body of the Console API request that creates an application, not to the project file.
+
 ## 6. Platform behavioral specifics (must be accounted for)
 
 1. **Silent rollback of build apply.** If applying a build to the application fails (e.g., a compilation error), the platform silently rolls the application back to the previous build and starts it – the `Running` status does NOT mean success. A reliable check of the deploy result:
@@ -215,6 +229,7 @@ operation that does not call the platform), `delete_app(app_id)`
 (the docstring – a warning about irreversibility and URL change), `list_spaces()`,
 `list_projects()`, `list_builds(project_id)`,
 `build_assembly(project_dir="", output_dir="", version="")`,
+`inspect_assembly(file)` – parsing of a built archive (section 5.1; a local operation),
 `deploy(app_id, project_id, project_dir="", version="", branch="",
 commit_message="")` – returns the deploy report plus a `log` field with progress
 lines; `apply_build(app_id, version_id)`, `verify_deploy(app_id,

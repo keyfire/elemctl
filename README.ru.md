@@ -108,6 +108,9 @@ elemctl apps debug <app-id>
 # только собрать архив .xasm, никуда не загружая
 elemctl build --project-dir acme/crm --output ./dist
 
+# разобрать готовый архив: манифест, подсистемы, глобальные типы с полными именами
+elemctl inspect ./dist/e1c-CurrencyConverter-2.0.xlib
+
 # принять изменения ветки среды разработки
 elemctl branches merge <branch-id>
 ```

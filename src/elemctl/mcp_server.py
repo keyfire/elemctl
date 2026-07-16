@@ -17,7 +17,7 @@ except ImportError as error:  # pragma: no cover - ветка без extra
     ) from error
 
 from . import i18n, plugins
-from .build import build_assembly
+from .build import build_assembly, inspect_assembly
 from .client import ElementClient, extract_assembly_id
 from .config import Config
 from .deploy import (
@@ -196,6 +196,12 @@ def create_server(config=None):
             project_dir or None, output_dir=output_dir or None, version=version
         )
         return {"file": str(result.file), "version": result.version, "kind": result.kind}
+
+    # Имя функции отличается от имени инструмента по той же причине, что и у build_assembly.
+    @server.tool(name="inspect_assembly")
+    def inspect_assembly_tool(file: str) -> dict:
+        """Разобрать архив сборки (.xasm/.xlib): манифест, свойства проекта, подсистемы и глобальные типы с полными именами."""
+        return inspect_assembly(file)
 
     @server.tool()
     def deploy(

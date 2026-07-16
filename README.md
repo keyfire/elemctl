@@ -79,6 +79,9 @@ elemctl apps debug <app-id>
 # only build the .xasm archive, without uploading it anywhere
 elemctl build --project-dir acme/crm --output ./dist
 
+# parse a built archive: manifest, subsystems, global types with qualified names
+elemctl inspect ./dist/e1c-CurrencyConverter-2.0.xlib
+
 # merge changes from a development-environment branch
 elemctl branches merge <branch-id>
 ```

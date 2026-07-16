@@ -13,7 +13,7 @@ import sys
 from pathlib import Path
 
 from . import __version__, i18n, plugins
-from .build import build_assembly
+from .build import build_assembly, inspect_assembly
 from .client import ElementClient, extract_assembly_id
 from .config import Config
 from .deploy import deploy_from_sources
@@ -310,6 +310,11 @@ def cmd_build(args):
         kind=args.kind or "",
     )
     _emit({"file": str(result.file)})
+    return 0
+
+
+def cmd_inspect(args):
+    _emit(inspect_assembly(args.file))
     return 0
 
 
@@ -617,6 +622,11 @@ def build_parser():
     p.add_argument("--branch", help="имя ветки в манифест (по умолчанию из git)")
     p.add_argument("--kind", choices=["application", "library"], help="вид проекта (по умолчанию из Проект.yaml)")
     p.set_defaults(handler=cmd_build)
+
+    # inspect ---------------------------------------------------------------
+    p = sub.add_parser("inspect", help="разобрать готовый архив сборки (.xasm/.xlib)")
+    p.add_argument("file", metavar="FILE", help="файл архива сборки")
+    p.set_defaults(handler=cmd_inspect)
 
     # deploy ----------------------------------------------------------------
     p = sub.add_parser(

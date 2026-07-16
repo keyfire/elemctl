@@ -50,6 +50,18 @@ MESSAGES = {
         "ru": "неизвестный вид проекта: {kind} (ожидалось application или library)",
         "en": "unknown project kind: {kind} (expected application or library)",
     },
+    "build.not-archive": {
+        "ru": "файл не является архивом сборки: {file}",
+        "en": "the file is not a build archive: {file}",
+    },
+    "build.no-manifest": {
+        "ru": "в архиве {file} нет манифеста {manifest}",
+        "en": "archive {file} has no manifest {manifest}",
+    },
+    "build.no-project-file": {
+        "ru": "в архиве {file} нет файла проекта {entry}",
+        "en": "archive {file} has no project file {entry}",
+    },
     # -- cli.py -------------------------------------------------------------------
     "cli.not-set": {
         "ru": "не задан {what}",

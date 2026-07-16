@@ -25,6 +25,7 @@ EXPECTED_TOOLS = {
     "list_projects",
     "list_builds",
     "build_assembly",
+    "inspect_assembly",
     "deploy",
     "apply_build",
     "verify_deploy",

@@ -19,6 +19,11 @@ from .errors import BuildError
 from .versions import next_version
 
 PROJECT_FILE = "Проект.yaml"
+MANIFEST_FILE = "Assembly.yaml"
+SUBSYSTEM_FILE = "Подсистема.yaml"
+
+# Область видимости, при которой тип доступен подключившему библиотеку проекту.
+GLOBAL_SCOPE = "Глобально"
 
 # Расширения, попадающие в архив: исходники, изображения, веб-ресурсы.
 ALLOWED_EXTENSIONS = {
@@ -248,7 +253,118 @@ def build_assembly(
     )
 
 
+def inspect_assembly(path):
+    """Разобрать готовый архив сборки (.xasm/.xlib) – обратная операция к build_assembly.
+
+    Возвращает манифест, свойства проекта, его подсистемы и типы, доступные
+    подключившему проекту (ОбластьВидимости: Глобально), – с полными именами.
+    Пространство имён типа – {vendor}::{name}::{подсистема}[::{пакет}], где пакет –
+    вложенный каталог подсистемы (файла-описания у пакета нет).
+    """
+    archive_path = Path(path)
+    if not archive_path.is_file():
+        raise BuildError(i18n.t("build.not-found", file=archive_path))
+    try:
+        with zipfile.ZipFile(archive_path) as archive:
+            names = archive.namelist()
+            if MANIFEST_FILE not in names:
+                raise BuildError(
+                    i18n.t("build.no-manifest", file=archive_path, manifest=MANIFEST_FILE)
+                )
+            manifest = parse_flat_yaml(_read_entry(archive, MANIFEST_FILE))
+            vendor = manifest.get("Vendor", "").strip()
+            name = manifest.get("Name", "").strip()
+            prefix = f"{vendor}/{name}/"
+            project_entry = prefix + PROJECT_FILE
+            if project_entry not in names:
+                raise BuildError(
+                    i18n.t("build.no-project-file", file=archive_path, entry=project_entry)
+                )
+            project = parse_flat_yaml(_read_entry(archive, project_entry))
+            elements = _archive_elements(archive, names, prefix)
+    except zipfile.BadZipFile:
+        raise BuildError(i18n.t("build.not-archive", file=archive_path))
+
+    return {
+        "file": str(archive_path),
+        "manifest": manifest,
+        "kind": manifest.get("ProjectKind", ""),
+        "vendor": vendor,
+        "name": name,
+        "version": manifest.get("Version", ""),
+        # ВерсияТехнологии в Проект.yaml не существует – совместимость задаёт
+        # РежимСовместимости, именно его и сверяют с целевым проектом.
+        "compatibility": project.get("РежимСовместимости", ""),
+        "representation": project.get("Представление", ""),
+        "project": project,
+        "subsystems": _subsystems(elements, vendor, name),
+        "global_types": [item for item in elements if item["scope"] == GLOBAL_SCOPE],
+    }
+
+
 # -- внутреннее ---------------------------------------------------------------
+
+
+def _read_entry(archive, entry):
+    return archive.read(entry).decode("utf-8-sig")
+
+
+def _archive_elements(archive, names, prefix):
+    """Элементы проекта в архиве: имя, вид, область видимости, полное имя."""
+    vendor_name = prefix.rstrip("/").split("/")
+    elements = []
+    for entry in sorted(names):
+        if not entry.startswith(prefix) or not entry.endswith(".yaml"):
+            continue
+        parts = entry[len(prefix):].split("/")
+        if parts[-1] in (PROJECT_FILE, SUBSYSTEM_FILE) or len(parts) < 2:
+            continue
+        values = parse_flat_yaml(_read_entry(archive, entry))
+        kind = values.get("ВидЭлемента", "")
+        if not kind:
+            continue
+        # Каталоги между подсистемой и файлом – пакеты, каждый даёт сегмент имени.
+        namespace = "::".join(vendor_name + parts[:-1])
+        element_name = values.get("Имя", "") or parts[-1][: -len(".yaml")]
+        elements.append({
+            "name": element_name,
+            "kind": kind,
+            # Область видимости по умолчанию – ВПодсистеме, глобальная пишется явно.
+            "scope": values.get("ОбластьВидимости", "ВПодсистеме"),
+            "subsystem": parts[0],
+            "namespace": namespace,
+            "qualified": f"{namespace}::{element_name}",
+            "entry": entry,
+        })
+    return elements
+
+
+def _subsystems(elements, vendor, name):
+    """Подсистемы проекта и их пакеты – по раскладке каталогов.
+
+    Подсистема – каталог первого уровня; Подсистема.yaml необязателен (у библиотеки
+    его может не быть вовсе), поэтому опираться на него нельзя.
+    """
+    found = {}
+    for item in elements:
+        subsystem = item["subsystem"]
+        entry = found.setdefault(subsystem, {
+            "name": subsystem,
+            "qualified": f"{vendor}::{name}::{subsystem}",
+            "packages": set(),
+            "global_types": 0,
+        })
+        package = item["namespace"].split("::")[3:]
+        if package:
+            entry["packages"].add("::".join(package))
+        if item["scope"] == GLOBAL_SCOPE:
+            entry["global_types"] += 1
+    result = []
+    for subsystem in sorted(found):
+        entry = found[subsystem]
+        entry["packages"] = sorted(entry["packages"])
+        result.append(entry)
+    return result
 
 
 def _is_excluded_dir(name):
