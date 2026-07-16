@@ -11,6 +11,7 @@
   "config.javaPath": "Path to the Java executable (JDK 17+). Default: `java` from PATH. Example: `C:/Program Files/Java/jdk-21/bin/java.exe`.",
   "config.elemctlPath": "Path to elemctl (>= 0.5, with the `apps debug` and `debug-adapter` commands). Default: `elemctl` from PATH. elemctl reads Console API credentials from the `.env` in the sources root. Example: `C:/Users/me/.local/bin/elemctl.exe`.",
   "config.openApplicationOnStart": "Open the debuggee application in the browser when the session starts (with debug session parameters).",
+  "config.fixVariablesFilter": "Work around the structure-expansion crash on a client frame: add the filter field (named/indexed) to `variables` requests that VS Code sends without one. Without the workaround, expanding a structure/array in the Variables view hangs the debuggee application's JS runtime and drops the session. Keep it on until the platform fixes handling of filter=NONE.",
   "snippet.attach.label": "1C:Element: debug an application (attach)",
   "snippet.attach.description": "Attach to an Element application via elemctl + the platform adapter",
   "initial.attach.name": "Debug 1C:Element application"

@@ -15,7 +15,7 @@
 // (detectWorkspaceRoot), даже если в VS Code открыт подкаталог.
 
 import * as vscode from "vscode";
-import { execFile } from "child_process";
+import { execFile, spawn, ChildProcess } from "child_process";
 import { randomUUID } from "crypto";
 import * as fs from "fs";
 import * as path from "path";
@@ -190,6 +190,177 @@ async function resolveAdapterPath(cwd: string | undefined): Promise<string> {
   return fromPlugin || "";
 }
 
+// Прокси-адаптер: порождает штатный Java-адаптер как stdio DAP и переписывает исходящие запросы
+// `variables` без поля `filter` в filtered-форму.
+//
+// Зачем: раскрытие структуры/массива на КЛИЕНТСКОМ кадре запросом `variables` без `filter` (в
+// протоколе платформы это GetVariableInfo с filter=NONE) вешает JS-рантайм отлаживаемого приложения
+// и рвёт сессию отладки (оверлей "Произошла внутренняя ошибка"). С `filter=named`/`indexed` то же
+// раскрытие работает штатно на любую глубину. Панель Variables VS Code для переменных с небольшим
+// числом детей шлёт запрос БЕЗ фильтра – отсюда падение; здесь мы дописываем фильтр за неё.
+// (Доказано экспериментально; count и версия платформы ни при чём. Ссылка – корневой каталог по
+// вложенным ссылкам; счётчики namedVariables/indexedVariables берём из ответов родителя.)
+class FilterFixDebugAdapter implements vscode.DebugAdapter {
+  private readonly child: ChildProcess;
+  private readonly emitter = new vscode.EventEmitter<vscode.DebugProtocolMessage>();
+  readonly onDidSendMessage: vscode.Event<vscode.DebugProtocolMessage> = this.emitter.event;
+  private buffer = Buffer.alloc(0);
+  // variablesReference -> число именованных/индексных детей (из ответов variables/evaluate/...).
+  private readonly refInfo = new Map<number, { named: number; indexed: number }>();
+  private synthSeq = 1_000_000; // seq для собственных под-запросов (вне диапазона seq VS Code)
+  // seq под-запроса -> { идентификатор слияния, слот }
+  private readonly subToMerge = new Map<number, { mergeId: number; slot: 0 | 1 }>();
+  // идентификатор слияния -> контекст (для смешанного named+indexed узла: два под-запроса -> один ответ)
+  private readonly merges = new Map<number, { origSeq: number; parts: [any[] | null, any[] | null]; remaining: number }>();
+  private rewrites = 0;
+
+  constructor(command: string, args: string[], cwd: string | undefined) {
+    this.child = spawn(command, args, { cwd, stdio: ["pipe", "pipe", "pipe"], windowsHide: true });
+    this.child.stdout?.on("data", (d: Buffer) => this.onChildData(d));
+    this.child.stderr?.on("data", (d: Buffer) => log(`adapter: ${d.toString("utf8").trimEnd()}`));
+    this.child.on("error", (e) => log(`adapter process error: ${e.message}`));
+    this.child.on("exit", (code, sig) => log(`adapter exited (code=${code ?? "-"} signal=${sig ?? "-"}); variables-запросов переписано: ${this.rewrites}`));
+  }
+
+  // Сообщение ОТ VS Code -> адаптеру. Здесь ловим `variables` без filter.
+  handleMessage(message: vscode.DebugProtocolMessage): void {
+    const m = message as any;
+    if (m?.type === "request" && m.command === "variables" && m.arguments && !m.arguments.filter) {
+      const ref: number = m.arguments.variablesReference;
+      const info = this.refInfo.get(ref);
+      if (info) {
+        const { named, indexed } = info;
+        if (named > 0 && indexed > 0) {
+          // Смешанный узел: разбиваем на два под-запроса (indexed, затем named) и склеиваем ответы.
+          const mergeId = this.synthSeq++;
+          const subIndexed = this.synthSeq++;
+          const subNamed = this.synthSeq++;
+          this.merges.set(mergeId, { origSeq: m.seq, parts: [null, null], remaining: 2 });
+          this.subToMerge.set(subIndexed, { mergeId, slot: 0 });
+          this.subToMerge.set(subNamed, { mergeId, slot: 1 });
+          this.rewrites++;
+          this.writeToChild({ seq: subIndexed, type: "request", command: "variables", arguments: { variablesReference: ref, filter: "indexed", start: 0, count: indexed } });
+          this.writeToChild({ seq: subNamed, type: "request", command: "variables", arguments: { variablesReference: ref, filter: "named", start: 0, count: named } });
+          return; // оригинальный запрос не пересылаем – ответим слиянием
+        }
+        if (named > 0 || indexed > 0) {
+          // Однородный узел: дописываем фильтр к тому же запросу (тот же seq – ответ уйдёт как есть).
+          m.arguments.filter = named > 0 ? "named" : "indexed";
+          m.arguments.start = 0;
+          m.arguments.count = named > 0 ? named : indexed;
+          this.rewrites++;
+        }
+      }
+      // Неизвестная ссылка (напр. область видимости кадра) – без фильтра работает, не трогаем.
+    }
+    this.writeToChild(m);
+  }
+
+  dispose(): void {
+    try {
+      this.child.kill();
+    } catch {
+      /* уже завершился */
+    }
+    this.emitter.dispose();
+  }
+
+  // --- обмен с дочерним процессом (DAP по stdio: Content-Length + JSON) ---
+
+  private writeToChild(msg: any): void {
+    const body = Buffer.from(JSON.stringify(msg), "utf8");
+    this.child.stdin?.write(`Content-Length: ${body.length}\r\n\r\n`);
+    this.child.stdin?.write(body);
+  }
+
+  private onChildData(chunk: Buffer): void {
+    this.buffer = Buffer.concat([this.buffer, chunk]);
+    for (;;) {
+      const sep = this.buffer.indexOf("\r\n\r\n");
+      if (sep < 0) {
+        return;
+      }
+      const header = this.buffer.subarray(0, sep).toString("ascii");
+      const match = /content-length:\s*(\d+)/i.exec(header);
+      if (!match) {
+        this.buffer = this.buffer.subarray(sep + 4); // испорченный заголовок – пропускаем
+        continue;
+      }
+      const len = parseInt(match[1], 10);
+      const start = sep + 4;
+      if (this.buffer.length < start + len) {
+        return; // тело ещё не пришло целиком
+      }
+      const body = this.buffer.subarray(start, start + len).toString("utf8");
+      this.buffer = this.buffer.subarray(start + len);
+      let msg: any;
+      try {
+        msg = JSON.parse(body);
+      } catch {
+        continue;
+      }
+      this.onChildMessage(msg);
+    }
+  }
+
+  // Сообщение ОТ адаптера -> VS Code. Перехватываем ответы под-запросов слияния и учёт счётчиков.
+  private onChildMessage(msg: any): void {
+    if (msg?.type === "response") {
+      const sub = this.subToMerge.get(msg.request_seq);
+      if (sub) {
+        this.subToMerge.delete(msg.request_seq);
+        const ctx = this.merges.get(sub.mergeId);
+        if (ctx) {
+          const list: any[] = msg.success ? (msg.body?.variables ?? []) : [];
+          for (const v of list) {
+            this.recordVar(v);
+          }
+          ctx.parts[sub.slot] = list;
+          ctx.remaining -= 1;
+          if (ctx.remaining === 0) {
+            this.merges.delete(sub.mergeId);
+            const merged = [...(ctx.parts[0] ?? []), ...(ctx.parts[1] ?? [])]; // indexed, затем named
+            this.emitter.fire({
+              seq: this.synthSeq++,
+              type: "response",
+              request_seq: ctx.origSeq,
+              success: true,
+              command: "variables",
+              body: { variables: merged },
+            } as any);
+          }
+        }
+        return; // ответы под-запросов наружу не отдаём
+      }
+      this.trackCounts(msg);
+    }
+    this.emitter.fire(msg as vscode.DebugProtocolMessage);
+  }
+
+  // Запоминает namedVariables/indexedVariables из ответов, несущих переменные или ссылку.
+  private trackCounts(msg: any): void {
+    const body = msg.body;
+    if (!body) {
+      return;
+    }
+    if (Array.isArray(body.variables)) {
+      for (const v of body.variables) {
+        this.recordVar(v);
+      }
+    }
+    // evaluate / setVariable / setExpression: ссылка и счётчики прямо в теле ответа.
+    if (typeof body.variablesReference === "number" && body.variablesReference > 0) {
+      this.refInfo.set(body.variablesReference, { named: body.namedVariables ?? 0, indexed: body.indexedVariables ?? 0 });
+    }
+  }
+
+  private recordVar(v: any): void {
+    if (v && typeof v.variablesReference === "number" && v.variablesReference > 0) {
+      this.refInfo.set(v.variablesReference, { named: v.namedVariables ?? 0, indexed: v.indexedVariables ?? 0 });
+    }
+  }
+}
+
 // Запускает штатный Java-адаптер как stdio DAP.
 class XbslDebugAdapterFactory implements vscode.DebugAdapterDescriptorFactory {
   async createDebugAdapterDescriptor(
@@ -223,6 +394,11 @@ class XbslDebugAdapterFactory implements vscode.DebugAdapterDescriptorFactory {
       ADAPTER_MAIN_CLASS,
     ];
     log(`${java} -cp ${classpath} ${ADAPTER_MAIN_CLASS}`);
+    // По умолчанию – через прокси, дописывающий filter к запросам variables (обход краха раскрытия
+    // структуры на клиентском кадре). Отключается настройкой xbslDebug.fixVariablesFilter.
+    if (cfg().get<boolean>("fixVariablesFilter", true)) {
+      return new vscode.DebugAdapterInlineImplementation(new FilterFixDebugAdapter(java, args, cwd));
+    }
     return new vscode.DebugAdapterExecutable(java, args);
   }
 }

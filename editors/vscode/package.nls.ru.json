@@ -11,6 +11,7 @@
   "config.javaPath": "Путь к исполняемому файлу Java (JDK 17+). По умолчанию – `java` из PATH. Пример: `C:/Program Files/Java/jdk-21/bin/java.exe`.",
   "config.elemctlPath": "Путь к elemctl (нужна версия >= 0.5 с командами `apps debug` и `debug-adapter`). По умолчанию – `elemctl` из PATH. Реквизиты Console API elemctl берёт из `.env` в корне исходников. Пример: `C:/Users/me/.local/bin/elemctl.exe`.",
   "config.openApplicationOnStart": "Открывать отлаживаемое приложение в браузере при старте сессии (с параметрами debug-сессии).",
+  "config.fixVariablesFilter": "Обходить крах раскрытия структуры на клиентском кадре: дописывать поле filter (named/indexed) к запросам variables, которые VS Code шлёт без него. Без обхода раскрытие структуры/массива в панели переменных вешает JS-рантайм отлаживаемого приложения и рвёт сессию. Оставьте включённым, пока платформа не исправит обработку filter=NONE.",
   "snippet.attach.label": "1С:Элемент: отладка приложения (attach)",
   "snippet.attach.description": "Присоединиться к приложению Элемента через elemctl + штатный адаптер",
   "initial.attach.name": "Отладка приложения 1С:Элемент"

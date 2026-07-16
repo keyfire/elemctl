@@ -2,7 +2,7 @@
   "name": "xbsl-debug",
   "displayName": "XBSL Debug (1C:Element)",
   "description": "%ext.description%",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "publisher": "keyfire",
   "license": "MIT",
   "icon": "icon.png",
@@ -128,6 +128,11 @@
           "type": "boolean",
           "default": true,
           "description": "%config.openApplicationOnStart%"
+        },
+        "xbslDebug.fixVariablesFilter": {
+          "type": "boolean",
+          "default": true,
+          "description": "%config.fixVariablesFilter%"
         }
       }
     }
