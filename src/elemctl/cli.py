@@ -514,7 +514,9 @@ def build_parser():
     )
     parser.add_argument("--version", action="version", version=f"elemctl {__version__}")
 
-    sub = parser.add_subparsers(dest="command", metavar="команда")
+    # title= renders the list under "команды:" instead of argparse's default
+    # "positional arguments: команда" - the same heading the sibling tools use.
+    sub = parser.add_subparsers(dest="command", metavar="команда", title="команды")
 
     p = sub.add_parser("token", help="получить и напечатать токен")
     p.set_defaults(handler=cmd_token)
