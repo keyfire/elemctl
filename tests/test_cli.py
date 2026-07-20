@@ -207,6 +207,20 @@ def test_error_is_json_on_stderr(capsys):
     assert "app-id" in payload["error"]
 
 
+def test_app_source_error_explains_how_to_get_a_project(capsys):
+    """Без источника ошибка подсказывает путь к новому проекту.
+
+    Пустого приложения в Console API нет, а команды создания проекта тоже нет:
+    новый проект заводится загрузкой сборки без --project-id. Пока это не было
+    написано в ошибке, способ приходилось искать перебором.
+    """
+    rc = cli.main(["apps", "create", "Имя"])
+    assert rc == 1
+    payload = json.loads(capsys.readouterr().err)
+    assert "builds upload" in payload["error"]
+    assert "--project-id" in payload["error"]
+
+
 def test_deploy_exit_code_reflects_ok(monkeypatch, capsys, project_factory, tmp_path):
     from tests.test_deploy import FakeDeployClient
 

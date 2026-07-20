@@ -489,7 +489,11 @@ def _add_create_flags(p):
     """Добавить флаги источника и создания приложения (общие для apps create и apps ensure)."""
     p.add_argument("name", metavar="NAME")
     p.add_argument("--project-id", help="проект-источник")
-    p.add_argument("--version-id", help="id сборки-источника")
+    p.add_argument(
+        "--version-id",
+        help="id сборки-источника; нового проекта ещё нет – заведите его "
+             "'builds upload <файл>.xasm --space-id <id>' без --project-id",
+    )
     p.add_argument("--latest-build", action="store_true", help="источник – последняя сборка проекта")
     p.add_argument("--space-id", help="пространство")
     p.add_argument("--tech-version", help="версия технологии")
@@ -602,7 +606,11 @@ def build_parser():
 
     p = builds_sub.add_parser("upload", help="загрузить файл сборки (.xasm/.xlib)")
     p.add_argument("file", metavar="FILE")
-    p.add_argument("--project-id", help="проект (без него создаётся новый проект)")
+    p.add_argument(
+        "--project-id",
+        help="проект; БЕЗ него платформа заводит новый проект – это единственный "
+             "способ создать проект через Console API",
+    )
     p.add_argument("--space-id")
     p.add_argument("--branch", help="имя git-ветки (метаданные)")
     p.add_argument("--commit", help="хэш коммита (метаданные)")

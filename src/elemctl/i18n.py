@@ -88,8 +88,16 @@ MESSAGES = {
         "en": "--latest-build requires --project-id (or ELEMENT_PROJECT_ID)",
     },
     "cli.app-source-required": {
-        "ru": "нужен источник приложения: --version-id либо --project-id [--latest-build]",
-        "en": "an application source is required: --version-id or --project-id [--latest-build]",
+        "ru": "нужен источник приложения: --version-id либо --project-id [--latest-build]. "
+              "Приложение всегда создаётся из сборки: пустого приложения в Console API нет. "
+              "Если проекта ещё нет, заведите его загрузкой сборки БЕЗ --project-id "
+              "(builds upload <файл>.xasm --space-id <id>) - в ответе придёт assembly-id, "
+              "его и передайте в --version-id",
+        "en": "an application source is required: --version-id or --project-id [--latest-build]. "
+              "An application is always created from an assembly: Console API has no empty one. "
+              "If the project does not exist yet, create it by uploading an assembly WITHOUT "
+              "--project-id (builds upload <file>.xasm --space-id <id>) - the response carries "
+              "the assembly-id to pass as --version-id",
     },
     "cli.build-file-not-found": {
         "ru": "файл сборки не найден: {path}",
