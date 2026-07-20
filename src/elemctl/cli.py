@@ -488,264 +488,252 @@ def cmd_mcp(args):
 def _add_create_flags(p):
     """Добавить флаги источника и создания приложения (общие для apps create и apps ensure)."""
     p.add_argument("name", metavar="NAME")
-    p.add_argument("--project-id", help="проект-источник")
-    p.add_argument(
-        "--version-id",
-        help="id сборки-источника; нового проекта ещё нет – заведите его "
-             "'builds upload <файл>.xasm --space-id <id>' без --project-id",
-    )
-    p.add_argument("--latest-build", action="store_true", help="источник – последняя сборка проекта")
-    p.add_argument("--space-id", help="пространство")
-    p.add_argument("--tech-version", help="версия технологии")
-    p.add_argument("--no-dev-mode", action="store_true", help="не создавать среду разработки")
-    p.add_argument("--wait", action="store_true", help="дождаться готовности приложения")
+    p.add_argument("--project-id", help=i18n.t("cli.help.create-project-id"))
+    p.add_argument("--version-id", help=i18n.t("cli.help.create-version-id"))
+    p.add_argument("--latest-build", action="store_true", help=i18n.t("cli.help.create-latest-build"))
+    p.add_argument("--space-id", help=i18n.t("cli.help.create-space-id"))
+    p.add_argument("--tech-version", help=i18n.t("cli.help.create-tech-version"))
+    p.add_argument("--no-dev-mode", action="store_true", help=i18n.t("cli.help.create-no-dev-mode"))
+    p.add_argument("--wait", action="store_true", help=i18n.t("cli.help.create-wait"))
 
 
 def build_parser():
     parser = argparse.ArgumentParser(
         prog="elemctl",
-        description="Управление приложениями платформы 1С:Предприятие.Элемент (Console API v2)",
+        description=i18n.t("cli.help.description"),
     )
-    parser.add_argument("--base-url", help="базовый URL платформы (ELEMENT_BASE_URL)")
-    parser.add_argument("--client-id", help="Client-Id для получения токена (ELEMENT_CLIENT_ID)")
-    parser.add_argument("--client-secret", help="Client-Secret (ELEMENT_CLIENT_SECRET)")
-    parser.add_argument("--env-file", help="путь к .env-файлу (по умолчанию .env в текущем каталоге)")
-    parser.add_argument("--timeout", type=float, default=None, help="таймаут запросов в секундах (по умолчанию 60)")
+    parser.add_argument("--base-url", help=i18n.t("cli.help.base-url"))
+    parser.add_argument("--client-id", help=i18n.t("cli.help.client-id"))
+    parser.add_argument("--client-secret", help=i18n.t("cli.help.client-secret"))
+    parser.add_argument("--env-file", help=i18n.t("cli.help.env-file"))
+    parser.add_argument("--timeout", type=float, default=None, help=i18n.t("cli.help.timeout"))
     parser.add_argument(
         "--lang",
         choices=i18n.LANGS,
-        help="язык вывода (по умолчанию: env ELEMCTL_LANG / локаль системы / ru)",
+        help=i18n.t("cli.help.lang"),
     )
     parser.add_argument("--version", action="version", version=f"elemctl {__version__}")
 
     # title= renders the list under "команды:" instead of argparse's default
     # "positional arguments: команда" - the same heading the sibling tools use.
-    sub = parser.add_subparsers(dest="command", metavar="команда", title="команды")
+    sub = parser.add_subparsers(
+        dest="command",
+        metavar=i18n.t("cli.help.command-metavar"),
+        title=i18n.t("cli.help.commands-title"),
+    )
+    action = i18n.t("cli.help.action-metavar")  # metavar подкоманд каждой группы
 
-    p = sub.add_parser("token", help="получить и напечатать токен")
+    p = sub.add_parser("token", help=i18n.t("cli.help.token"))
     p.set_defaults(handler=cmd_token)
 
     # apps ----------------------------------------------------------------
-    apps = sub.add_parser("apps", help="приложения")
-    apps_sub = apps.add_subparsers(dest="subcommand", metavar="действие", required=True)
+    apps = sub.add_parser("apps", help=i18n.t("cli.help.apps"))
+    apps_sub = apps.add_subparsers(dest="subcommand", metavar=action, required=True)
 
-    p = apps_sub.add_parser("list", help="список приложений")
-    p.add_argument("--name", help="фильтр по имени")
+    p = apps_sub.add_parser("list", help=i18n.t("cli.help.apps-list"))
+    p.add_argument("--name", help=i18n.t("cli.help.apps-list-name"))
     p.set_defaults(handler=cmd_apps_list)
 
-    p = apps_sub.add_parser("get", help="карточка приложения")
+    p = apps_sub.add_parser("get", help=i18n.t("cli.help.apps-get"))
     p.add_argument("app_id", nargs="?", metavar="APP_ID")
     p.set_defaults(handler=cmd_apps_get)
 
-    p = apps_sub.add_parser("find", help="найти приложение по имени (точное совпадение без учёта регистра)")
+    p = apps_sub.add_parser("find", help=i18n.t("cli.help.apps-find"))
     p.add_argument("name", metavar="NAME")
     p.add_argument(
         "--include-deleted",
         action="store_true",
-        help="искать и среди удалённых приложений (по умолчанию пропускаются)",
+        help=i18n.t("cli.help.apps-find-include-deleted"),
     )
     p.set_defaults(handler=cmd_apps_find)
 
-    p = apps_sub.add_parser("create", help="создать приложение")
+    p = apps_sub.add_parser("create", help=i18n.t("cli.help.apps-create"))
     _add_create_flags(p)
     p.set_defaults(handler=cmd_apps_create)
 
-    p = apps_sub.add_parser("ensure", help="создать приложение, если его ещё нет (идемпотентно)")
+    p = apps_sub.add_parser("ensure", help=i18n.t("cli.help.apps-ensure"))
     _add_create_flags(p)
     p.set_defaults(handler=cmd_apps_ensure)
 
-    p = apps_sub.add_parser("delete", help="удалить приложение (необратимо, URL меняется при пересоздании)")
+    p = apps_sub.add_parser("delete", help=i18n.t("cli.help.apps-delete"))
     p.add_argument("app_id", metavar="APP_ID")
     p.set_defaults(handler=cmd_apps_delete)
 
-    p = apps_sub.add_parser("start", help="запустить приложение")
+    p = apps_sub.add_parser("start", help=i18n.t("cli.help.apps-start"))
     p.add_argument("app_id", nargs="?", metavar="APP_ID")
     p.set_defaults(handler=cmd_apps_start)
 
-    p = apps_sub.add_parser("stop", help="остановить приложение")
+    p = apps_sub.add_parser("stop", help=i18n.t("cli.help.apps-stop"))
     p.add_argument("app_id", nargs="?", metavar="APP_ID")
     p.set_defaults(handler=cmd_apps_stop)
 
-    p = apps_sub.add_parser("debug", help="данные для сессии отладки (debug-token, debug-address)")
+    p = apps_sub.add_parser("debug", help=i18n.t("cli.help.apps-debug"))
     p.add_argument("app_id", nargs="?", metavar="APP_ID")
     p.set_defaults(handler=cmd_apps_debug)
 
     # spaces ----------------------------------------------------------------
-    spaces = sub.add_parser("spaces", help="пространства")
-    spaces_sub = spaces.add_subparsers(dest="subcommand", metavar="действие", required=True)
-    p = spaces_sub.add_parser("list", help="список пространств")
+    spaces = sub.add_parser("spaces", help=i18n.t("cli.help.spaces"))
+    spaces_sub = spaces.add_subparsers(dest="subcommand", metavar=action, required=True)
+    p = spaces_sub.add_parser("list", help=i18n.t("cli.help.spaces-list"))
     p.set_defaults(handler=cmd_spaces_list)
 
     # projects --------------------------------------------------------------
-    projects = sub.add_parser("projects", help="проекты")
-    projects_sub = projects.add_subparsers(dest="subcommand", metavar="действие", required=True)
+    projects = sub.add_parser("projects", help=i18n.t("cli.help.projects"))
+    projects_sub = projects.add_subparsers(dest="subcommand", metavar=action, required=True)
 
-    p = projects_sub.add_parser("list", help="список проектов")
+    p = projects_sub.add_parser("list", help=i18n.t("cli.help.projects-list"))
     p.set_defaults(handler=cmd_projects_list)
 
-    p = projects_sub.add_parser("get", help="карточка проекта")
+    p = projects_sub.add_parser("get", help=i18n.t("cli.help.projects-get"))
     p.add_argument("project_id", nargs="?", metavar="PROJECT_ID")
     p.set_defaults(handler=cmd_projects_get)
 
-    p = projects_sub.add_parser("delete", help="удалить проект")
+    p = projects_sub.add_parser("delete", help=i18n.t("cli.help.projects-delete"))
     p.add_argument("project_id", metavar="PROJECT_ID")
     p.set_defaults(handler=cmd_projects_delete)
 
     # builds ----------------------------------------------------------------
-    builds = sub.add_parser("builds", help="сборки проекта на платформе")
-    builds_sub = builds.add_subparsers(dest="subcommand", metavar="действие", required=True)
+    builds = sub.add_parser("builds", help=i18n.t("cli.help.builds"))
+    builds_sub = builds.add_subparsers(dest="subcommand", metavar=action, required=True)
 
-    p = builds_sub.add_parser("list", help="список сборок проекта")
+    p = builds_sub.add_parser("list", help=i18n.t("cli.help.builds-list"))
     p.add_argument("--project-id")
     p.set_defaults(handler=cmd_builds_list)
 
-    p = builds_sub.add_parser("get", help="карточка сборки по версии либо ид")
+    p = builds_sub.add_parser("get", help=i18n.t("cli.help.builds-get"))
     p.add_argument("version", metavar="VERSION")
     p.add_argument("--project-id")
     p.set_defaults(handler=cmd_builds_get)
 
-    p = builds_sub.add_parser("upload", help="загрузить файл сборки (.xasm/.xlib)")
+    p = builds_sub.add_parser("upload", help=i18n.t("cli.help.builds-upload"))
     p.add_argument("file", metavar="FILE")
-    p.add_argument(
-        "--project-id",
-        help="проект; БЕЗ него платформа заводит новый проект – это единственный "
-             "способ создать проект через Console API",
-    )
+    p.add_argument("--project-id", help=i18n.t("cli.help.builds-upload-project-id"))
     p.add_argument("--space-id")
-    p.add_argument("--branch", help="имя git-ветки (метаданные)")
-    p.add_argument("--commit", help="хэш коммита (метаданные)")
-    p.add_argument("--commit-message", help="сообщение коммита (метаданные)")
+    p.add_argument("--branch", help=i18n.t("cli.help.builds-upload-branch"))
+    p.add_argument("--commit", help=i18n.t("cli.help.builds-upload-commit"))
+    p.add_argument("--commit-message", help=i18n.t("cli.help.builds-upload-commit-message"))
     p.set_defaults(handler=cmd_builds_upload)
 
-    p = builds_sub.add_parser("delete", help="удалить сборку по версии либо ид")
+    p = builds_sub.add_parser("delete", help=i18n.t("cli.help.builds-delete"))
     p.add_argument("version", metavar="VERSION")
     p.add_argument("--project-id")
     p.set_defaults(handler=cmd_builds_delete)
 
     # build -----------------------------------------------------------------
-    p = sub.add_parser("build", help="локально собрать архив сборки из исходников")
-    p.add_argument("--project-dir", help="каталог проекта (по умолчанию ищется вглубь от текущего)")
-    p.add_argument("--output", help="каталог для архива (по умолчанию текущий)")
-    p.add_argument("--build-version", help="явная версия сборки, например 1.0-42")
-    p.add_argument("--last-build", help="версия последней сборки проекта – для автоинкремента")
-    p.add_argument("--commit", help="хэш коммита в манифест (по умолчанию из git)")
-    p.add_argument("--branch", help="имя ветки в манифест (по умолчанию из git)")
-    p.add_argument("--kind", choices=["application", "library"], help="вид проекта (по умолчанию из Проект.yaml)")
+    p = sub.add_parser("build", help=i18n.t("cli.help.build"))
+    p.add_argument("--project-dir", help=i18n.t("cli.help.build-project-dir"))
+    p.add_argument("--output", help=i18n.t("cli.help.build-output"))
+    p.add_argument("--build-version", help=i18n.t("cli.help.build-build-version"))
+    p.add_argument("--last-build", help=i18n.t("cli.help.build-last-build"))
+    p.add_argument("--commit", help=i18n.t("cli.help.build-commit"))
+    p.add_argument("--branch", help=i18n.t("cli.help.build-branch"))
+    p.add_argument("--kind", choices=["application", "library"], help=i18n.t("cli.help.build-kind"))
     p.set_defaults(handler=cmd_build)
 
     # inspect ---------------------------------------------------------------
-    p = sub.add_parser("inspect", help="разобрать готовый архив сборки (.xasm/.xlib)")
-    p.add_argument("file", metavar="FILE", help="файл архива сборки")
+    p = sub.add_parser("inspect", help=i18n.t("cli.help.inspect"))
+    p.add_argument("file", metavar="FILE", help=i18n.t("cli.help.inspect-file"))
     p.set_defaults(handler=cmd_inspect)
 
     # deploy ----------------------------------------------------------------
-    p = sub.add_parser(
-        "deploy",
-        help="полный цикл: сборка -> загрузка -> применение -> перезапуск -> проверка применения",
-    )
+    p = sub.add_parser("deploy", help=i18n.t("cli.help.deploy"))
     p.add_argument("--app-id")
     p.add_argument("--project-id")
     p.add_argument("--project-dir")
-    p.add_argument("--output", help="каталог для архива (по умолчанию временный)")
-    p.add_argument("--build-version", help="явная версия сборки")
-    p.add_argument("--branch", help="имя ветки в метаданные (по умолчанию из git)")
-    p.add_argument("--commit", help="хэш коммита в метаданные (по умолчанию из git)")
-    p.add_argument("--commit-message", help="сообщение коммита (метаданные загрузки)")
-    p.add_argument("--dry-run", action="store_true", help="только сборка, без загрузки")
+    p.add_argument("--output", help=i18n.t("cli.help.deploy-output"))
+    p.add_argument("--build-version", help=i18n.t("cli.help.deploy-build-version"))
+    p.add_argument("--branch", help=i18n.t("cli.help.deploy-branch"))
+    p.add_argument("--commit", help=i18n.t("cli.help.deploy-commit"))
+    p.add_argument("--commit-message", help=i18n.t("cli.help.deploy-commit-message"))
+    p.add_argument("--dry-run", action="store_true", help=i18n.t("cli.help.deploy-dry-run"))
     p.set_defaults(handler=cmd_deploy)
 
     # branches ----------------------------------------------------------------
-    branches = sub.add_parser("branches", help="ветки среды разработки")
-    branches_sub = branches.add_subparsers(dest="subcommand", metavar="действие", required=True)
+    branches = sub.add_parser("branches", help=i18n.t("cli.help.branches"))
+    branches_sub = branches.add_subparsers(dest="subcommand", metavar=action, required=True)
 
-    p = branches_sub.add_parser("list", help="список веток")
+    p = branches_sub.add_parser("list", help=i18n.t("cli.help.branches-list"))
     p.add_argument("--project-id")
     p.add_argument("--name")
     p.set_defaults(handler=cmd_branches_list)
 
-    p = branches_sub.add_parser("get", help="карточка ветки")
+    p = branches_sub.add_parser("get", help=i18n.t("cli.help.branches-get"))
     p.add_argument("branch_id", metavar="ID")
     p.set_defaults(handler=cmd_branches_get)
 
-    p = branches_sub.add_parser("create", help="создать ветку")
+    p = branches_sub.add_parser("create", help=i18n.t("cli.help.branches-create"))
     p.add_argument("name", metavar="NAME")
     p.add_argument("--project-id")
-    p.add_argument("--app-id", help="сразу привязать к приложению")
+    p.add_argument("--app-id", help=i18n.t("cli.help.branches-create-app-id"))
     p.set_defaults(handler=cmd_branches_create)
 
-    p = branches_sub.add_parser("update", help="изменить ветку (перепривязать к приложению)")
+    p = branches_sub.add_parser("update", help=i18n.t("cli.help.branches-update"))
     p.add_argument("branch_id", metavar="ID")
     p.add_argument("--app-id")
     p.set_defaults(handler=cmd_branches_update)
 
-    p = branches_sub.add_parser("delete", help="удалить ветку")
+    p = branches_sub.add_parser("delete", help=i18n.t("cli.help.branches-delete"))
     p.add_argument("branch_id", metavar="ID")
     p.set_defaults(handler=cmd_branches_delete)
 
-    p = branches_sub.add_parser("merge", help="принять изменения ветки")
+    p = branches_sub.add_parser("merge", help=i18n.t("cli.help.branches-merge"))
     p.add_argument("branch_id", metavar="ID")
     p.set_defaults(handler=cmd_branches_merge)
 
     # dumps ----------------------------------------------------------------
-    dumps = sub.add_parser("dumps", help="дампы приложений")
-    dumps_sub = dumps.add_subparsers(dest="subcommand", metavar="действие", required=True)
+    dumps = sub.add_parser("dumps", help=i18n.t("cli.help.dumps"))
+    dumps_sub = dumps.add_subparsers(dest="subcommand", metavar=action, required=True)
 
-    p = dumps_sub.add_parser("create", help="создать дамп")
+    p = dumps_sub.add_parser("create", help=i18n.t("cli.help.dumps-create"))
     p.add_argument("app_id", nargs="?", metavar="APP_ID")
-    p.add_argument("--description", help="описание дампа")
+    p.add_argument("--description", help=i18n.t("cli.help.dumps-create-description"))
     p.set_defaults(handler=cmd_dumps_create)
 
-    p = dumps_sub.add_parser("get", help="статус дампа")
+    p = dumps_sub.add_parser("get", help=i18n.t("cli.help.dumps-get"))
     p.add_argument("app_id", metavar="APP_ID")
     p.add_argument("dump_id", metavar="DUMP_ID")
     p.set_defaults(handler=cmd_dumps_get)
 
     # tasks ----------------------------------------------------------------
-    tasks = sub.add_parser("tasks", help="задачи приложений")
-    tasks_sub = tasks.add_subparsers(dest="subcommand", metavar="действие", required=True)
+    tasks = sub.add_parser("tasks", help=i18n.t("cli.help.tasks"))
+    tasks_sub = tasks.add_subparsers(dest="subcommand", metavar=action, required=True)
 
-    p = tasks_sub.add_parser("list", help="список задач приложений")
-    p.add_argument("--app-id", help="фильтр по приложению (на клиенте)")
+    p = tasks_sub.add_parser("list", help=i18n.t("cli.help.tasks-list"))
+    p.add_argument("--app-id", help=i18n.t("cli.help.tasks-list-app-id"))
     p.set_defaults(handler=cmd_tasks_list)
 
-    p = tasks_sub.add_parser("get-group", help="статус групповой задачи")
+    p = tasks_sub.add_parser("get-group", help=i18n.t("cli.help.tasks-get-group"))
     p.add_argument("task_id", metavar="TASK_ID")
     p.set_defaults(handler=cmd_tasks_get_group)
 
     # tech ----------------------------------------------------------------
-    tech = sub.add_parser("tech", help="версия технологии")
-    tech_sub = tech.add_subparsers(dest="subcommand", metavar="действие", required=True)
+    tech = sub.add_parser("tech", help=i18n.t("cli.help.tech"))
+    tech_sub = tech.add_subparsers(dest="subcommand", metavar=action, required=True)
 
-    p = tech_sub.add_parser("get", help="версия технологии приложения")
+    p = tech_sub.add_parser("get", help=i18n.t("cli.help.tech-get"))
     p.add_argument("app_id", nargs="?", metavar="APP_ID")
     p.set_defaults(handler=cmd_tech_get)
 
-    p = tech_sub.add_parser("set", help="обновить версию технологии (групповая задача)")
+    p = tech_sub.add_parser("set", help=i18n.t("cli.help.tech-set"))
     p.add_argument("app_id", metavar="APP_ID")
     p.add_argument("version", metavar="VERSION")
     p.set_defaults(handler=cmd_tech_set)
 
     # debug-adapter -------------------------------------------------------
-    p = sub.add_parser(
-        "debug-adapter",
-        help="путь к debug-адаптеру платформы из плагина (для расширения VS Code)",
-    )
+    p = sub.add_parser("debug-adapter", help=i18n.t("cli.help.debug-adapter"))
     p.set_defaults(handler=cmd_debug_adapter)
 
     # plugins -------------------------------------------------------------
-    p = sub.add_parser("plugins", help="диагностика плагинов elemctl (точки расширения)")
+    p = sub.add_parser("plugins", help=i18n.t("cli.help.plugins"))
     p.set_defaults(handler=cmd_plugins)
 
     # self-update ---------------------------------------------------------
-    p = sub.add_parser(
-        "self-update",
-        help="обновить elemctl распаковкой колеса (безопасно, когда exe занят MCP-сервером)",
-    )
-    p.add_argument("--version", help="целевая версия (по умолчанию – последняя с PyPI)")
+    p = sub.add_parser("self-update", help=i18n.t("cli.help.self-update"))
+    p.add_argument("--version", help=i18n.t("cli.help.self-update-version"))
     p.set_defaults(handler=cmd_self_update)
 
     # mcp ----------------------------------------------------------------
-    p = sub.add_parser("mcp", help="запустить MCP-сервер (транспорт stdio)")
+    p = sub.add_parser("mcp", help=i18n.t("cli.help.mcp"))
     p.set_defaults(handler=cmd_mcp)
 
     return parser
@@ -754,8 +742,15 @@ def build_parser():
 def main(argv=None):
     """Точка входа CLI; возвращает код завершения процесса."""
     _reconfigure_streams()
+    if argv is None:
+        argv = sys.argv[1:]
+    # Язык нужен ДО build_parser: справка (help=) собирается на выбранном языке. Предсканируем
+    # argv на --lang; env и локаль t() учтёт сам через current_lang() при сборке парсера.
+    i18n.set_lang(i18n.lang_from_argv(argv))
     parser = build_parser()
     args = parser.parse_args(argv)
+    # Повторно закрепляем язык уже из разобранных аргументов: argparse принимает и сокращения
+    # (--lan en), которых предскан не ловит; для рантайма это авторитетный источник.
     i18n.set_lang(args.lang)  # None сохраняет порядок env / локаль / ru
     handler = getattr(args, "handler", None)
     if handler is None:

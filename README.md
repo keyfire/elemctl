@@ -92,7 +92,7 @@ For the full list of commands: `elemctl --help`, and by group: `elemctl apps --h
 
 ## Language
 
-Error and progress messages come in Russian and English (the JSON result is language-neutral). The language is picked by `--lang ru|en` > the `ELEMCTL_LANG` env var > the system locale > Russian. The command help text is in Russian.
+Error and progress messages, and the `--help` text, come in Russian and English (the JSON result is language-neutral). The language is picked by `--lang ru|en` > the `ELEMCTL_LANG` env var > the system locale > Russian; `--lang` is read before the parser is built, so `elemctl --lang en --help` prints English help.
 
 ## MCP server
 

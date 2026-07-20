@@ -144,3 +144,26 @@ def test_system_locale_is_recognised(monkeypatch):
     monkeypatch.delenv("ELEMCTL_LANG", raising=False)
     monkeypatch.setattr(i18n._locale, "getlocale", lambda *a: ("English_United States", "1252"))
     assert i18n.current_lang() == "en"
+
+
+# --- Предскан --lang в argv (справка собирается до разбора) ----------------------------
+
+def test_lang_from_argv_reads_separate_value():
+    assert i18n.lang_from_argv(["--lang", "en", "apps", "list"]) == "en"
+
+
+def test_lang_from_argv_reads_equals_form():
+    assert i18n.lang_from_argv(["--lang=ru", "deploy"]) == "ru"
+
+
+def test_lang_from_argv_is_none_without_flag():
+    assert i18n.lang_from_argv(["apps", "list"]) is None
+
+
+def test_lang_from_argv_rejects_unknown_value():
+    # Неизвестный язык не закрепляется – argparse потом отвергнет его своим сообщением.
+    assert i18n.lang_from_argv(["--lang", "de"]) is None
+
+
+def test_lang_from_argv_ignores_dangling_flag():
+    assert i18n.lang_from_argv(["apps", "--lang"]) is None

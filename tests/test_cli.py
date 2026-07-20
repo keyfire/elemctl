@@ -37,6 +37,25 @@ def test_version_flag(capsys):
     assert f"elemctl {elemctl.__version__}" in capsys.readouterr().out
 
 
+def test_help_text_follows_lang_flag(capsys):
+    """--lang переводит и текст справки (--help), а не только рантайм-ошибки: язык
+    определяется до сборки парсера. Проверяем оба направления явным флагом – это не
+    зависит от локали машины. conftest закрепил ru; восстановим его после."""
+    from elemctl import i18n
+
+    try:
+        with pytest.raises(SystemExit) as info:
+            cli.main(["--lang", "en", "--help"])
+        assert info.value.code == 0
+        assert "Manage 1C:Enterprise.Element" in capsys.readouterr().out
+
+        with pytest.raises(SystemExit):
+            cli.main(["--lang", "ru", "--help"])
+        assert "Управление приложениями" in capsys.readouterr().out
+    finally:
+        i18n.set_lang("ru")
+
+
 def test_module_entry_point():
     """python -m elemctl – запасной путь для вызывающих без консольной точки входа в PATH."""
     import_root = Path(elemctl.__file__).resolve().parent.parent
