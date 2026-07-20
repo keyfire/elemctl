@@ -38,8 +38,30 @@ INSTRUCTIONS = (
     "запускать CLI-командой elemctl фоновым процессом (у агента – механизм "
     "фонового запуска вроде run_in_background, результат придёт нотификацией), а "
     "не синхронным вызовом MCP-инструмента; сами MCP-инструменты предпочтительны "
-    "для быстрых операций чтения (list/get/find/list-builds/verify-deploy)."
+    "для быстрых операций чтения (list/get/find/list-builds/verify-deploy). "
+    "Окружение: по умолчанию используется то, с которым запущен сервер; чтобы "
+    "обратиться к другому стенду (например, к локальному вместо облачного), "
+    "передайте его .env параметром env_file – он есть у каждого инструмента."
 )
+
+
+def _brief_app(app):
+    """Краткая карточка приложения: то, по чему его узнают и выбирают.
+
+    Полная карточка несёт списки пользователей, флаги среды разработки и прочее,
+    что в списке не нужно: пространство из полусотни приложений даёт десятки
+    тысяч символов ответа. Версия берётся из source – это фактически применённая
+    сборка, по ней сверяют деплой.
+    """
+    source = app.get("source") or {}
+    return {
+        "id": app.get("id"),
+        "name": app.get("name") or app.get("display-name"),
+        "status": app.get("status"),
+        "uri": app.get("uri"),
+        "project-version": source.get("project-version"),
+        "project-version-id": source.get("project-version-id"),
+    }
 
 
 def create_server(config=None):
@@ -49,38 +71,58 @@ def create_server(config=None):
     окружения и .env при первом обращении к платформе.
     """
     server = FastMCP("elemctl", instructions=INSTRUCTIONS)
-    state = {"client": None, "config": config}
+    state = {"clients": {}, "config": config}
 
-    def client():
-        if state["client"] is None:
-            cfg = state["config"] or Config.from_env()
-            state["client"] = ElementClient(cfg)
-        return state["client"]
+    def client(env_file: str = ""):
+        """Клиент платформы для нужного окружения.
+
+        Без env_file – конфигурация, с которой запущен сервер; с ним –
+        отдельный клиент по указанному .env, он кэшируется по пути. Так один
+        сервер обслуживает и облако, и локальный стенд: раньше окружение
+        задавалось только при запуске, и второй стенд оставался недоступен.
+        """
+        key = env_file or ""
+        if key not in state["clients"]:
+            cfg = (
+                state["config"] if not key and state["config"]
+                else Config.from_env(env_file=key or None)
+            )
+            state["clients"][key] = ElementClient(cfg)
+        return state["clients"][key]
 
     @server.tool()
-    def list_apps(name: str = "") -> list:
-        """Список приложений платформы; name – необязательный фильтр по имени."""
-        return client().list_apps(name=name)
+    def list_apps(name: str = "", brief: bool = True, env_file: str = "") -> list:
+        """Список приложений платформы; name – необязательный фильтр по имени.
+
+        brief (по умолчанию) оставляет от карточки только id, имя, статус, uri и
+        применённую версию: полные карточки всего пространства – это десятки тысяч
+        символов, которые в ответе агенту почти всегда лишние. brief=false отдаёт
+        карточки целиком. env_file – путь к .env другого окружения.
+        """
+        apps = client(env_file).list_apps(name=name)
+        if not brief:
+            return apps
+        return [_brief_app(app) for app in apps if isinstance(app, dict)]
 
     @server.tool()
-    def get_app(app_id: str) -> dict:
+    def get_app(app_id: str, env_file: str = "") -> dict:
         """Карточка приложения: статус, uri, фактическая версия проекта (source.project-version)."""
-        return client().get_app(app_id)
+        return client(env_file).get_app(app_id)
 
     @server.tool()
-    def find_app(name: str, include_deleted: bool = False) -> dict:
+    def find_app(name: str, include_deleted: bool = False, env_file: str = "") -> dict:
         """Найти приложение по точному имени без учёта регистра; вернуть id и признак found.
 
         Удалённые приложения (статус Deleted) по умолчанию пропускаются: на их
         прежнем id get и deploy отвечают 404. include_deleted=True ищет среди
         всех приложений, включая удалённые.
         """
-        app = client().find_app(name, include_deleted=include_deleted)
+        app = client(env_file).find_app(name, include_deleted=include_deleted)
         if app is None:
             return {"id": None, "found": False}
         return {"id": app.get("id"), "found": True, "application": app}
 
-    def _create_app(name, project_id, version_id, space_id, development_mode):
+    def _create_app(name, project_id, version_id, space_id, development_mode, env_file=""):
         """Создать приложение (общая логика create_app и ensure_app).
 
         Источник – version_id (id сборки) либо последняя сборка project_id
@@ -90,13 +132,13 @@ def create_server(config=None):
         if not source_version_id:
             if not project_id:
                 raise ElemctlError(i18n.t("mcp.project-or-version-required"))
-            latest = client().latest_assembly(project_id)
+            latest = client(env_file).latest_assembly(project_id)
             if latest is None:
                 raise ElemctlError(
                     f"у проекта {project_id} нет сборок – загрузите сборку или укажите version_id"
                 )
             source_version_id = extract_assembly_id(latest)
-        return client().create_app(
+        return client(env_file).create_app(
             name,
             project_version_id=source_version_id,
             development_mode=development_mode,
@@ -110,9 +152,10 @@ def create_server(config=None):
         version_id: str = "",
         space_id: str = "",
         development_mode: bool = True,
+        env_file: str = "",
     ) -> dict:
         """Создать приложение. При задании только project_id источником берётся последняя сборка проекта (создание из проекта целиком может дать пустой каркас)."""
-        return _create_app(name, project_id, version_id, space_id, development_mode)
+        return _create_app(name, project_id, version_id, space_id, development_mode, env_file)
 
     @server.tool()
     def ensure_app(
@@ -121,6 +164,7 @@ def create_server(config=None):
         version_id: str = "",
         space_id: str = "",
         development_mode: bool = True,
+        env_file: str = "",
     ) -> dict:
         """Идемпотентно создать приложение по имени, если его ещё нет.
 
@@ -130,29 +174,29 @@ def create_server(config=None):
         приложения (статус Deleted) не в счёт. Параметры создания – как у
         create_app; они действуют, только когда создание происходит.
         """
-        existing = client().find_app(name)
+        existing = client(env_file).find_app(name)
         if existing is not None:
             return {"id": existing.get("id"), "created": False}
-        card = _create_app(name, project_id, version_id, space_id, development_mode)
+        card = _create_app(name, project_id, version_id, space_id, development_mode, env_file)
         return {"id": (card or {}).get("id"), "created": True}
 
     @server.tool()
-    def start_app(app_id: str) -> dict:
+    def start_app(app_id: str, env_file: str = "") -> dict:
         """Запустить приложение."""
-        return client().start_app(app_id) or {"ok": True, "app-id": app_id}
+        return client(env_file).start_app(app_id) or {"ok": True, "app-id": app_id}
 
     @server.tool()
-    def stop_app(app_id: str) -> dict:
+    def stop_app(app_id: str, env_file: str = "") -> dict:
         """Остановить приложение."""
-        return client().stop_app(app_id) or {"ok": True, "app-id": app_id}
+        return client(env_file).stop_app(app_id) or {"ok": True, "app-id": app_id}
 
     @server.tool()
-    def debug_info(app_id: str) -> dict:
+    def debug_info(app_id: str, env_file: str = "") -> dict:
         """Данные для сессии отладки приложения: debug-token и debug-address.
 
         Требует включённой отладки на сервере (config/debug.yml: enabled: true).
         """
-        return client().get_debug_info(app_id) or {"app-id": app_id}
+        return client(env_file).get_debug_info(app_id) or {"app-id": app_id}
 
     @server.tool()
     def debug_adapter() -> dict:
@@ -168,24 +212,24 @@ def create_server(config=None):
         return {"path": str(path), "found": True, "adapter-class": plugins.ADAPTER_MAIN_CLASS}
 
     @server.tool()
-    def delete_app(app_id: str) -> dict:
+    def delete_app(app_id: str, env_file: str = "") -> dict:
         """Удалить приложение. НЕОБРАТИМО: данные теряются, а пересозданное приложение получит другой URL – внешние настройки (OIDC redirect и т.п.) придётся обновлять."""
-        return client().delete_app(app_id) or {"deleted": True, "app-id": app_id}
+        return client(env_file).delete_app(app_id) or {"deleted": True, "app-id": app_id}
 
     @server.tool()
-    def list_spaces() -> list:
+    def list_spaces(env_file: str = "") -> list:
         """Список пространств."""
-        return client().list_spaces()
+        return client(env_file).list_spaces()
 
     @server.tool()
-    def list_projects() -> list:
+    def list_projects(env_file: str = "") -> list:
         """Список проектов."""
-        return client().list_projects()
+        return client(env_file).list_projects()
 
     @server.tool()
-    def list_builds(project_id: str) -> list:
+    def list_builds(project_id: str, env_file: str = "") -> list:
         """Список сборок проекта."""
-        return client().list_assemblies(project_id)
+        return client(env_file).list_assemblies(project_id)
 
     # Имя функции отличается от имени инструмента, чтобы не затенять
     # импортированный build_assembly из модуля build.
@@ -211,11 +255,12 @@ def create_server(config=None):
         version: str = "",
         branch: str = "",
         commit_message: str = "",
+        env_file: str = "",
     ) -> dict:
         """Полный цикл деплоя из исходников с честной проверкой применения; итог – поле ok, детали – problems и log."""
         lines: list[str] = []
         report = deploy_from_sources(
-            client(),
+            client(env_file),
             app_id,
             project_id,
             project_dir=project_dir or None,
@@ -229,9 +274,9 @@ def create_server(config=None):
         return payload
 
     @server.tool()
-    def apply_build(app_id: str, version_id: str) -> dict:
+    def apply_build(app_id: str, version_id: str, env_file: str = "") -> dict:
         """Применить загруженную сборку (по id) к приложению; после применения проверьте итог инструментом verify_deploy."""
-        response = client().apply_build(app_id, image_id=version_id)
+        response = client(env_file).apply_build(app_id, image_id=version_id)
         return response or {"ok": True, "app-id": app_id, "version-id": version_id}
 
     @server.tool()
@@ -240,11 +285,12 @@ def create_server(config=None):
         expected_version: str = "",
         expected_assembly_id: str = "",
         since_minutes: int = 30,
+        env_file: str = "",
     ) -> dict:
         """Проверить фактическое применение сборки: задачи с ошибками за последние since_minutes минут, сверка применённой сборки (надёжно - по expected_assembly_id, строка версии - запасной вариант), доступность uri."""
         since = datetime.now(timezone.utc) - timedelta(minutes=since_minutes)
         report = _verify_deploy(
-            client(),
+            client(env_file),
             app_id,
             expected_version=expected_version,
             expected_assembly_id=expected_assembly_id,
@@ -253,19 +299,19 @@ def create_server(config=None):
         return report.to_dict()
 
     @server.tool()
-    def list_app_tasks(app_id: str = "") -> list:
+    def list_app_tasks(app_id: str = "", env_file: str = "") -> list:
         """Задачи приложений; app_id – необязательный фильтр (выполняется на клиенте)."""
-        return client().list_app_tasks(app_id)
+        return client(env_file).list_app_tasks(app_id)
 
     @server.tool()
-    def list_branches(project_id: str = "", name: str = "") -> list:
+    def list_branches(project_id: str = "", name: str = "", env_file: str = "") -> list:
         """Список веток среды разработки; фильтры project_id и name необязательны."""
-        return client().list_branches(project_id=project_id, name=name)
+        return client(env_file).list_branches(project_id=project_id, name=name)
 
     @server.tool()
-    def merge_branch(branch_id: str) -> dict:
+    def merge_branch(branch_id: str, env_file: str = "") -> dict:
         """Принять изменения ветки среды разработки (merge)."""
-        return client().merge_branch(branch_id) or {"merged": True, "branch-id": branch_id}
+        return client(env_file).merge_branch(branch_id) or {"merged": True, "branch-id": branch_id}
 
     return server
 
