@@ -269,6 +269,61 @@ def test_api_error_details_serializable(api):
     assert "нет такого" in payload["error"]
 
 
+def _error_card(app_id="app-1"):
+    return {"id": app_id, "status": "Error", "error": "Неизвестная ошибка. Обратитесь к администратору"}
+
+
+def test_wait_app_ready_reports_task_errors(api):
+    """Статус Error: к обобщённому тексту платформы добавляются ошибки задач.
+
+    Ради этого метод и заведён – подробности компиляции лежат только в задаче,
+    и без них причину приходится искать в логах сервера.
+    """
+    client, transport = api
+    transport.add("GET", f"{API}/applications/app-1", _error_card())
+    transport.add("GET", f"{API}/tasks/application-tasks", [
+        {"application-id": "app-1", "status": "Completed", "error-message": "", "operation-type": "X"},
+        {
+            "application-id": "app-1",
+            "status": "Failed",
+            "operation-type": "CreateApplication",
+            "error-message": 'Ошибка создания приложения: acme/Проект/Форма.yaml [22:27]: Тип "Х" не виден',
+        },
+        {"application-id": "other", "status": "Failed", "error-message": "чужая задача"},
+    ])
+
+    with pytest.raises(ApiError) as excinfo:
+        client.wait_app_ready("app-1")
+
+    message = str(excinfo.value)
+    assert "Неизвестная ошибка" in message
+    assert "CreateApplication" in message and "[22:27]" in message
+    assert "чужая задача" not in message
+
+
+def test_wait_app_ready_survives_unavailable_tasks(api):
+    """Диагностика необязательна: сбой запроса задач не подменяет исходную ошибку."""
+    client, transport = api
+    transport.add("GET", f"{API}/applications/app-1", _error_card())
+    transport.add("GET", f"{API}/tasks/application-tasks", {"message": "нет доступа"}, status=403)
+
+    with pytest.raises(ApiError) as excinfo:
+        client.wait_app_ready("app-1")
+    assert "Неизвестная ошибка" in str(excinfo.value)
+
+
+def test_failed_task_messages_skips_empty_and_successful(api):
+    client, transport = api
+    transport.add("GET", f"{API}/tasks/application-tasks", [
+        {"application-id": "app-1", "status": "Failed", "error-message": "  "},
+        {"application-id": "app-1", "status": "Completed", "error-message": "не ошибка"},
+        {"application-id": "app-1", "status": "Error", "error-message": "первая"},
+        {"application-id": "app-1", "status": "Failed", "error-message": "вторая", "operation-type": "Op"},
+    ])
+    # Свежие первыми: платформа отдаёт задачи в порядке появления.
+    assert client.failed_task_messages("app-1") == ["Op: вторая", "первая"]
+
+
 def test_token_cached_in_file(tmp_path):
     """Второй клиент с тем же кешем не ходит за токеном повторно."""
     cache_dir = tmp_path / "cache"

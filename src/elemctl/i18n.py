@@ -116,6 +116,14 @@ MESSAGES = {
               "the platform does not delete such applications via the API; publish "
               "or discard the changes, or delete the application through the control panel",
     },
+    "client.app-created-with-error": {
+        "ru": "приложение {app} создано со статусом Error: {error}",
+        "en": "application {app} was created with status Error: {error}",
+    },
+    "client.no-error-text": {
+        "ru": "без текста ошибки",
+        "en": "no error text",
+    },
     "client.waiting-status": {
         "ru": "статус приложения: {status} – ждём...",
         "en": "application status: {status} – waiting...",

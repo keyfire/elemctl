@@ -15,10 +15,9 @@ from datetime import datetime, timezone
 
 from . import i18n
 from .build import build_assembly
-from .client import extract_assembly_id
+from .client import FAILED_TASK_STATUSES, extract_assembly_id
 
-# Статусы задач приложения, означающие ошибку (сравнение без учёта регистра).
-FAILED_TASK_STATUSES = {"error", "failed"}
+__all__ = ["FAILED_TASK_STATUSES"]  # имя осталось на прежнем месте для импортирующих
 
 
 @dataclass

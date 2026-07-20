@@ -28,6 +28,9 @@ STOP_TIMEOUT = 180.0
 START_TIMEOUT = 300.0
 READY_TIMEOUT = 600.0
 
+# Статусы задач приложения, означающие ошибку (сравнение без учёта регистра).
+FAILED_TASK_STATUSES = {"error", "failed"}
+
 
 def extract_assembly_id(payload):
     """Достать id сборки из ответа платформы.
@@ -495,6 +498,32 @@ class ElementClient:
             if isinstance(task, dict) and task.get("application-id") == app_id
         ]
 
+    def failed_task_messages(self, app_id):
+        """Тексты ошибок неуспешных задач приложения, свежие первыми.
+
+        Платформа кладёт в карточку приложения обобщённое "Неизвестная ошибка",
+        а подробности (для сборки – файл, строка и колонка каждой ошибки
+        компиляции) отдаёт в поле error-message задачи. Ради этого и метод:
+        без него причина ищется в логах сервера.
+        """
+        messages = []
+        try:
+            tasks = self.list_app_tasks(app_id)
+        except ApiError:
+            return messages  # диагностика не должна подменять исходную ошибку
+        for task in tasks:
+            if not isinstance(task, dict):
+                continue
+            if str(task.get("status") or "").lower() not in FAILED_TASK_STATUSES:
+                continue
+            text = (task.get("error-message") or "").strip()
+            if not text:
+                continue
+            label = task.get("operation-type") or task.get("id") or ""
+            messages.append(f"{label}: {text}" if label else text)
+        messages.reverse()
+        return messages
+
     # -- ожидания состояний -----------------------------------------------------
 
     def wait_app_status(
@@ -549,9 +578,12 @@ class ElementClient:
             card = self.get_app(app_id) or {}
             status = (card.get("status") or "").strip()
             if status == "Error":
+                text = card.get("error") or i18n.t("client.no-error-text")
+                details = self.failed_task_messages(app_id)
+                if details:
+                    text += "\n" + "\n".join(details)
                 raise ApiError(
-                    f"приложение {app_id} создано со статусом Error: "
-                    f"{card.get('error') or 'без текста ошибки'}",
+                    i18n.t("client.app-created-with-error", app=app_id, error=text),
                     body=card,
                 )
             if status in ("Running", "Stopped") and card.get("uri"):
