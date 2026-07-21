@@ -20,6 +20,19 @@ from elemctl.transport import HttpResponse
 i18n.set_lang("ru")
 
 
+@pytest.fixture(autouse=True)
+def _pinned_language(monkeypatch):
+    """Закрепить русский ПЕРЕД КАЖДЫМ тестом – однократного закрепления при импорте мало.
+
+    Тест, зовущий cli.main без --lang, снимает закрепление (set_lang(None) возвращает порядок
+    env / локаль), и все последующие сверки с русским текстом падали бы на английской локали.
+    Закрепляем обоими путями: set_lang – явный выбор, ELEMCTL_LANG – фолбэк на случай снятия.
+    Тесты i18n, проверяющие env и локаль, сами переопределяют или удаляют эту переменную.
+    """
+    monkeypatch.setenv("ELEMCTL_LANG", "ru")
+    i18n.set_lang("ru")
+
+
 class FakeTransport:
     """Транспорт-заглушка: отвечает по таблице маршрутов и записывает вызовы.
 
