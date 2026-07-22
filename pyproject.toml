@@ -50,3 +50,5 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# src-layout: тесты идут в чистом клоне без editable-установки пакета
+pythonpath = ["src"]
