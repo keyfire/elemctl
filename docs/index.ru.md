@@ -1,8 +1,10 @@
-# Elemctl
-
-[English](https://github.com/keyfire/elemctl/blob/main/README.md) · **Русский**
-
-**Документация: [docs.keyfire.ru/elemctl](https://docs.keyfire.ru/elemctl/ru/)**
+---
+title: "Elemctl"
+description: "CLI, MCP-сервер и библиотека для Console API 1С:Элемента: приложения, сборки из исходников и деплой одной командой с честной проверкой, что изменение применилось."
+sidebar:
+  label: Главная
+  order: 1
+---
 
 Утилита командной строки, MCP-сервер и Python-библиотека для управления
 приложениями облачной платформы **1С:Предприятие.Элемент** (1cmycloud.com)
@@ -17,14 +19,10 @@ elemctl закрывает жизненный цикл приложения на
 CI, MCP-сервер для AI-агентов (Claude Code и другие MCP-клиенты) и
 python-модуль `elemctl` для собственных скриптов.
 
-*elemctl is a CLI tool, MCP server and Python library for the
-1C:Enterprise.Element (1cmycloud) Console API: manage applications, upload
-builds and deploy with honest apply verification. Docs are in Russian - the
-platform's audience - but the CLI output is plain JSON.*
-
 Заметки о разработке и новости – в Telegram-канале [1С × ИИ: инженерный цех](https://t.me/ceh_1c_ai).
 
 ## Возможности
+
 
 - **Приложения**: список, карточка, создание, запуск, остановка, удаление,
   версия технологии, данные для сессии отладки (`apps debug`).
@@ -63,6 +61,7 @@ platform's audience - but the CLI output is plain JSON.*
 
 ## Установка
 
+
 ```bash
 pipx install elemctl            # или: pip install elemctl
 pip install "elemctl[mcp]"      # с MCP-сервером
@@ -71,24 +70,8 @@ pip install "elemctl[mcp]"      # с MCP-сервером
 Требуется Python 3.10+. Ядро и CLI не имеют внешних зависимостей
 (только стандартная библиотека).
 
-## Настройка
-
-Реквизиты подключения берутся из переменных окружения либо из `.env`
-в текущем каталоге (переменные окружения имеют приоритет):
-
-| Переменная | Назначение |
-|---|---|
-| `ELEMENT_BASE_URL` | базовый URL платформы, например `https://1cmycloud.com` |
-| `ELEMENT_CLIENT_ID` | Client-Id для получения токена |
-| `ELEMENT_CLIENT_SECRET` | Client-Secret |
-| `ELEMENT_APP_ID` | приложение по умолчанию (необязательно) |
-| `ELEMENT_PROJECT_ID` | проект по умолчанию (необязательно) |
-| `ELEMENT_SPACE_ID` | пространство по умолчанию (необязательно) |
-
-Client-Id/Client-Secret выпускаются в панели управления 1cmycloud
-(раздел интеграций Console API). Шаблон файла - [.env.example](.env.example).
-
 ## Быстрый старт
+
 
 ```bash
 # список приложений
@@ -123,115 +106,16 @@ elemctl branches merge <branch-id>
 Полный список команд: `elemctl --help`, по группам - `elemctl apps --help`,
 `elemctl deploy --help` и т.д.
 
-## Язык
+## Рядом
 
-Сообщения об ошибках, прогресс и текст `--help` выводятся на русском и английском
-(JSON-результат от языка не зависит). Язык выбирается так: `--lang ru|en` > переменная
-`ELEMCTL_LANG` > системная локаль > русский; `--lang` читается до построения парсера,
-поэтому `elemctl --lang en --help` печатает справку по-английски.
-
-## MCP-сервер
-
-Сервер отдаёт операции платформы как MCP-инструменты (транспорт stdio):
-
-```bash
-pip install "elemctl[mcp]"
-claude mcp add elemctl -- elemctl mcp
-```
-
-Реквизиты подключения сервер берёт из тех же переменных `ELEMENT_*` /
-`.env`. Среди инструментов: `list_apps`, `get_app`, `deploy` (с полем `ok`
-в ответе), `verify_deploy`, `list_builds`, `merge_branch` и другие.
-
-Одно окружение не приковывает: у каждого инструмента, обращающегося к платформе,
-есть необязательный `env_file` - путь к `.env` другого стенда. Так один сервер
-работает и с облаком, и с локальной установкой, без перезапуска с другими
-реквизитами. `list_apps` по умолчанию отдаёт краткие карточки (id, имя, статус,
-uri, применённая версия): полные карточки пространства - это десятки тысяч
-символов в ответе агенту, за ними - `brief=false`.
-
-## Плагины
-
-elemctl подхватывает внешние пакеты через точки расширения `importlib.metadata`:
-сам он в своём `pyproject.toml` о плагинах ничего не объявляет, а читает их при
-обращении. Так непубликуемые вендорские артефакты живут отдельным пакетом, а ядро
-elemctl остаётся чистым и общедоступным.
-
-Сейчас поддержана одна группа - **`elemctl.debug_adapter`**: пакет-плагин объявляет
-каталог debug-адаптера платформы (проприетарные jar 1С, в состав elemctl не входят).
-Значение точки расширения - путь либо функция без аргументов, возвращающая путь;
-путь указывает на каталог с подкаталогом `repo/`, где лежат jar-файлы адаптера.
-
-```toml
-# pyproject.toml пакета-плагина
-[project.entry-points."elemctl.debug_adapter"]
-имя = "мой_пакет:adapter_root"     # () -> Path на каталог, содержащий repo/
-```
-
-```bash
-# путь к адаптеру от установленного плагина (для расширения VS Code):
-# {"path": "...", "found": true} либо {"path": null, "found": false}
-elemctl debug-adapter
-
-# какие плагины видны - диагностика установки
-elemctl plugins
-```
-
-Сам адаптер (проприетарные jar 1С) извлекается из дистрибутива платформы скриптом
-`tools/extract_adapter.py` - в каталог для ручной настройки `xbslDebug.adapterPath` либо
-для сборки пакета-плагина. Скрипт в дистрибутив пакета не входит.
-
-Обнаружение плагинов отключается переменной `ELEMCTL_NO_PLUGINS=1` (прогон только
-со штатными возможностями ядра).
-
-## VS Code
-
-С редактором elemctl связывают два расширения-спутника:
-
-- [XBSL](https://marketplace.visualstudio.com/items?itemName=keyfire.xbsl) (проект
-  [xbsl-lint](https://github.com/keyfire/xbsl-lint)) – подсветка, линтер, предпросмотр форм
-  и кнопка "XBSL: деплой на стенд", запускающая `elemctl deploy` терминальной задачей с
-  проверкой применения.
-- [XBSL Debug](https://marketplace.visualstudio.com/items?itemName=keyfire.xbsl-debug)
-  (живёт в этом репозитории, [`editors/vscode`](editors/vscode)) – отладка приложений
-  1С:Элемента штатным DAP-адаптером платформы; данные отладочной сессии берёт
-  `elemctl apps debug`.
-
-Оба публикуются и в [Open VSX](https://open-vsx.org/namespace/keyfire).
-
-## Использование как библиотеки
-
-```python
-from elemctl import Config, ElementClient
-from elemctl.deploy import deploy_from_sources
-
-client = ElementClient(Config.from_env())
-apps = client.list_apps()
-
-report = deploy_from_sources(
-    client,
-    app_id="...",
-    project_id="...",
-    project_dir="acme/crm",
-    log=print,
-)
-assert report.ok, report.problems
-```
-
-## Формат сборки
-
-`.xasm` (приложение) и `.xlib` (библиотека) - это ZIP-архив:
-
-```
-Assembly.yaml            # манифест: ProjectKind, Vendor, Name, Version, ...
-{vendor}/{name}/...      # файлы проекта: .yaml, .xbsl, ресурсы
-```
-
-Каталог проекта должен лежать по схеме `{repo}/{vendor}/{name}/Проект.yaml` -
-пути в архиве строятся относительно корня репозитория. Вид проекта
-(приложение/библиотека) определяется по полю `ВидПроекта` в `Проект.yaml`.
+- **[XBSL](https://docs.keyfire.ru/xbsl/ru/)** – то, что происходит с исходниками до деплоя: линтер с
+  автоправками, LSP-сервер, скаффолдинг метаданных и расширение VS Code, из которого
+  `elemctl deploy` запускается кнопкой в заголовке редактора.
+- **[EDT-Bridge](https://docs.keyfire.ru/edt-bridge/ru/)** – соседняя платформа: мост MCP внутрь 1С:EDT для
+  конфигураций 1С:Предприятия.
 
 ## Ограничения и статус
+
 
 - Инструмент **неофициальный** и не аффилирован с фирмой "1С"; Console API
   может меняться без предупреждения.
@@ -259,13 +143,3 @@ Assembly.yaml            # манифест: ProjectKind, Vendor, Name, Version,
   настройки, завязанные на адрес (OIDC redirect и т.п.), придётся обновлять.
   "Мягкой" очистки данных приложения в Console API нет, она выполняется в
   консоли управления.
-
-## Происхождение и правовые заметки
-
-Код написан с нуля по спецификации внешнего интерфейса платформы - процесс и
-гарантии описаны в [ORIGIN.md](ORIGIN.md). Товарные знаки и отсутствие
-аффилиации с фирмой "1С" - в файле [NOTICE](NOTICE).
-
-## Лицензия
-
-[MIT](LICENSE)

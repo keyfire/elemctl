@@ -28,6 +28,7 @@ code comments stay in Russian.
 
 from __future__ import annotations
 
+import argparse as _argparse
 import locale as _locale
 import os
 
@@ -228,8 +229,86 @@ MESSAGES = {
         "en": "Client-Id for obtaining a token (ELEMENT_CLIENT_ID)",
     },
     "cli.help.client-secret": {
-        "ru": "Client-Secret (ELEMENT_CLIENT_SECRET)",
-        "en": "Client-Secret (ELEMENT_CLIENT_SECRET)",
+        "ru": "Client-Secret к этому Client-Id (ELEMENT_CLIENT_SECRET)",
+        "en": "the Client-Secret for that Client-Id (ELEMENT_CLIENT_SECRET)",
+    },
+    # argparse печатает свои -h/--help по-английски всегда (см. i18n.ArgumentParser).
+    "cli.help.group.positional": {
+        "ru": "аргументы",
+        "en": "positional arguments",
+    },
+    "cli.help.group.options": {
+        "ru": "параметры",
+        "en": "options",
+    },
+    "cli.help.help": {
+        "ru": "показать эту справку и выйти",
+        "en": "show this help message and exit",
+    },
+    "cli.help.version": {
+        "ru": "показать версию и выйти",
+        "en": "show the version and exit",
+    },
+    # -- аргументы-идентификаторы, общие для нескольких команд --
+    "cli.help.arg.app-id": {
+        "ru": "ид приложения (по умолчанию ELEMENT_APP_ID)",
+        "en": "the application id (default: ELEMENT_APP_ID)",
+    },
+    "cli.help.arg.app-id-required": {
+        "ru": "ид приложения",
+        "en": "the application id",
+    },
+    "cli.help.arg.project-id": {
+        "ru": "ид проекта (по умолчанию ELEMENT_PROJECT_ID)",
+        "en": "the project id (default: ELEMENT_PROJECT_ID)",
+    },
+    "cli.help.arg.project-id-required": {
+        "ru": "ид проекта",
+        "en": "the project id",
+    },
+    "cli.help.arg.app-name": {
+        "ru": "имя приложения",
+        "en": "the application name",
+    },
+    "cli.help.arg.assembly-version": {
+        "ru": "версия сборки либо её ид",
+        "en": "the assembly version or its id",
+    },
+    "cli.help.arg.assembly-file": {
+        "ru": "файл сборки .xasm/.xlib",
+        "en": "the .xasm/.xlib assembly file",
+    },
+    "cli.help.arg.space-id": {
+        "ru": "пространство, в котором завести проект – нужно, когда --project-id не задан",
+        "en": "the space to create the project in – needed when --project-id is omitted",
+    },
+    "cli.help.arg.branch-id": {
+        "ru": "ид ветки",
+        "en": "the branch id",
+    },
+    "cli.help.arg.branch-name": {
+        "ru": "имя ветки",
+        "en": "the branch name",
+    },
+    "cli.help.arg.dump-id": {
+        "ru": "ид дампа",
+        "en": "the dump id",
+    },
+    "cli.help.arg.task-id": {
+        "ru": "ид групповой задачи",
+        "en": "the group task id",
+    },
+    "cli.help.arg.tech-version": {
+        "ru": "версия технологии, на которую перевести приложение",
+        "en": "the technology version to move the application to",
+    },
+    "cli.help.branches-list-name": {
+        "ru": "фильтр по имени ветки",
+        "en": "filter by branch name",
+    },
+    "cli.help.deploy-project-dir": {
+        "ru": "каталог проекта (по умолчанию ищется вглубь от текущего)",
+        "en": "the project directory (by default searched downward from the current one)",
     },
     "cli.help.env-file": {
         "ru": "путь к .env-файлу (по умолчанию .env в текущем каталоге)",
@@ -654,6 +733,23 @@ def t(key: str, /, **fields) -> str:
         return key
     template = entry.get(current_lang()) or entry[DEFAULT_LANG]
     return template.format(**fields)
+
+
+class ArgumentParser(_argparse.ArgumentParser):
+    """ArgumentParser с локализованным `-h/--help`.
+
+    Свои встроенные строки argparse берёт из каталога gettext, то есть по-английски
+    всегда: в русской справке каждой команды строка `-h, --help` оставалась на чужом
+    языке. Вложенные парсеры наследуют класс родителя (`add_subparsers` подставляет
+    `parser_class=type(self)`), поэтому достаточно создать этим классом корневой.
+    """
+
+    def __init__(self, *args, add_help: bool = True, **kwargs) -> None:
+        super().__init__(*args, add_help=False, **kwargs)
+        self._positionals.title = t("cli.help.group.positional")
+        self._optionals.title = t("cli.help.group.options")
+        if add_help:
+            self.add_argument("-h", "--help", action="help", help=t("cli.help.help"))
 
 
 register(MESSAGES)

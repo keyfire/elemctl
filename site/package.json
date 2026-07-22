@@ -1,0 +1,15 @@
+{
+  "name": "elemctl-docs",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Documentation site for elemctl, built with Blume.",
+  "type": "module",
+  "scripts": {
+    "dev": "blume dev",
+    "build": "blume build",
+    "preview": "blume preview"
+  },
+  "devDependencies": {
+    "blume": "^1.1.2"
+  }
+}

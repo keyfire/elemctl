@@ -487,7 +487,7 @@ def cmd_mcp(args):
 
 def _add_create_flags(p):
     """Добавить флаги источника и создания приложения (общие для apps create и apps ensure)."""
-    p.add_argument("name", metavar="NAME")
+    p.add_argument("name", metavar="NAME", help=i18n.t("cli.help.arg.app-name"))
     p.add_argument("--project-id", help=i18n.t("cli.help.create-project-id"))
     p.add_argument("--version-id", help=i18n.t("cli.help.create-version-id"))
     p.add_argument("--latest-build", action="store_true", help=i18n.t("cli.help.create-latest-build"))
@@ -498,7 +498,7 @@ def _add_create_flags(p):
 
 
 def build_parser():
-    parser = argparse.ArgumentParser(
+    parser = i18n.ArgumentParser(
         prog="elemctl",
         description=i18n.t("cli.help.description"),
     )
@@ -512,7 +512,8 @@ def build_parser():
         choices=i18n.LANGS,
         help=i18n.t("cli.help.lang"),
     )
-    parser.add_argument("--version", action="version", version=f"elemctl {__version__}")
+    parser.add_argument("--version", action="version", help=i18n.t("cli.help.version"),
+                        version=f"elemctl {__version__}")
 
     # title= renders the list under "команды:" instead of argparse's default
     # "positional arguments: команда" - the same heading the sibling tools use.
@@ -535,11 +536,11 @@ def build_parser():
     p.set_defaults(handler=cmd_apps_list)
 
     p = apps_sub.add_parser("get", help=i18n.t("cli.help.apps-get"))
-    p.add_argument("app_id", nargs="?", metavar="APP_ID")
+    p.add_argument("app_id", nargs="?", metavar="APP_ID", help=i18n.t("cli.help.arg.app-id"))
     p.set_defaults(handler=cmd_apps_get)
 
     p = apps_sub.add_parser("find", help=i18n.t("cli.help.apps-find"))
-    p.add_argument("name", metavar="NAME")
+    p.add_argument("name", metavar="NAME", help=i18n.t("cli.help.arg.app-name"))
     p.add_argument(
         "--include-deleted",
         action="store_true",
@@ -556,19 +557,19 @@ def build_parser():
     p.set_defaults(handler=cmd_apps_ensure)
 
     p = apps_sub.add_parser("delete", help=i18n.t("cli.help.apps-delete"))
-    p.add_argument("app_id", metavar="APP_ID")
+    p.add_argument("app_id", metavar="APP_ID", help=i18n.t("cli.help.arg.app-id-required"))
     p.set_defaults(handler=cmd_apps_delete)
 
     p = apps_sub.add_parser("start", help=i18n.t("cli.help.apps-start"))
-    p.add_argument("app_id", nargs="?", metavar="APP_ID")
+    p.add_argument("app_id", nargs="?", metavar="APP_ID", help=i18n.t("cli.help.arg.app-id"))
     p.set_defaults(handler=cmd_apps_start)
 
     p = apps_sub.add_parser("stop", help=i18n.t("cli.help.apps-stop"))
-    p.add_argument("app_id", nargs="?", metavar="APP_ID")
+    p.add_argument("app_id", nargs="?", metavar="APP_ID", help=i18n.t("cli.help.arg.app-id"))
     p.set_defaults(handler=cmd_apps_stop)
 
     p = apps_sub.add_parser("debug", help=i18n.t("cli.help.apps-debug"))
-    p.add_argument("app_id", nargs="?", metavar="APP_ID")
+    p.add_argument("app_id", nargs="?", metavar="APP_ID", help=i18n.t("cli.help.arg.app-id"))
     p.set_defaults(handler=cmd_apps_debug)
 
     # spaces ----------------------------------------------------------------
@@ -585,11 +586,11 @@ def build_parser():
     p.set_defaults(handler=cmd_projects_list)
 
     p = projects_sub.add_parser("get", help=i18n.t("cli.help.projects-get"))
-    p.add_argument("project_id", nargs="?", metavar="PROJECT_ID")
+    p.add_argument("project_id", nargs="?", metavar="PROJECT_ID", help=i18n.t("cli.help.arg.project-id"))
     p.set_defaults(handler=cmd_projects_get)
 
     p = projects_sub.add_parser("delete", help=i18n.t("cli.help.projects-delete"))
-    p.add_argument("project_id", metavar="PROJECT_ID")
+    p.add_argument("project_id", metavar="PROJECT_ID", help=i18n.t("cli.help.arg.project-id-required"))
     p.set_defaults(handler=cmd_projects_delete)
 
     # builds ----------------------------------------------------------------
@@ -597,26 +598,26 @@ def build_parser():
     builds_sub = builds.add_subparsers(dest="subcommand", metavar=action, required=True)
 
     p = builds_sub.add_parser("list", help=i18n.t("cli.help.builds-list"))
-    p.add_argument("--project-id")
+    p.add_argument("--project-id", help=i18n.t("cli.help.arg.project-id"))
     p.set_defaults(handler=cmd_builds_list)
 
     p = builds_sub.add_parser("get", help=i18n.t("cli.help.builds-get"))
-    p.add_argument("version", metavar="VERSION")
-    p.add_argument("--project-id")
+    p.add_argument("version", metavar="VERSION", help=i18n.t("cli.help.arg.assembly-version"))
+    p.add_argument("--project-id", help=i18n.t("cli.help.arg.project-id"))
     p.set_defaults(handler=cmd_builds_get)
 
     p = builds_sub.add_parser("upload", help=i18n.t("cli.help.builds-upload"))
-    p.add_argument("file", metavar="FILE")
+    p.add_argument("file", metavar="FILE", help=i18n.t("cli.help.arg.assembly-file"))
     p.add_argument("--project-id", help=i18n.t("cli.help.builds-upload-project-id"))
-    p.add_argument("--space-id")
+    p.add_argument("--space-id", help=i18n.t("cli.help.arg.space-id"))
     p.add_argument("--branch", help=i18n.t("cli.help.builds-upload-branch"))
     p.add_argument("--commit", help=i18n.t("cli.help.builds-upload-commit"))
     p.add_argument("--commit-message", help=i18n.t("cli.help.builds-upload-commit-message"))
     p.set_defaults(handler=cmd_builds_upload)
 
     p = builds_sub.add_parser("delete", help=i18n.t("cli.help.builds-delete"))
-    p.add_argument("version", metavar="VERSION")
-    p.add_argument("--project-id")
+    p.add_argument("version", metavar="VERSION", help=i18n.t("cli.help.arg.assembly-version"))
+    p.add_argument("--project-id", help=i18n.t("cli.help.arg.project-id"))
     p.set_defaults(handler=cmd_builds_delete)
 
     # build -----------------------------------------------------------------
@@ -637,9 +638,9 @@ def build_parser():
 
     # deploy ----------------------------------------------------------------
     p = sub.add_parser("deploy", help=i18n.t("cli.help.deploy"))
-    p.add_argument("--app-id")
-    p.add_argument("--project-id")
-    p.add_argument("--project-dir")
+    p.add_argument("--app-id", help=i18n.t("cli.help.arg.app-id"))
+    p.add_argument("--project-id", help=i18n.t("cli.help.arg.project-id"))
+    p.add_argument("--project-dir", help=i18n.t("cli.help.deploy-project-dir"))
     p.add_argument("--output", help=i18n.t("cli.help.deploy-output"))
     p.add_argument("--build-version", help=i18n.t("cli.help.deploy-build-version"))
     p.add_argument("--branch", help=i18n.t("cli.help.deploy-branch"))
@@ -653,31 +654,31 @@ def build_parser():
     branches_sub = branches.add_subparsers(dest="subcommand", metavar=action, required=True)
 
     p = branches_sub.add_parser("list", help=i18n.t("cli.help.branches-list"))
-    p.add_argument("--project-id")
-    p.add_argument("--name")
+    p.add_argument("--project-id", help=i18n.t("cli.help.arg.project-id"))
+    p.add_argument("--name", help=i18n.t("cli.help.branches-list-name"))
     p.set_defaults(handler=cmd_branches_list)
 
     p = branches_sub.add_parser("get", help=i18n.t("cli.help.branches-get"))
-    p.add_argument("branch_id", metavar="ID")
+    p.add_argument("branch_id", metavar="ID", help=i18n.t("cli.help.arg.branch-id"))
     p.set_defaults(handler=cmd_branches_get)
 
     p = branches_sub.add_parser("create", help=i18n.t("cli.help.branches-create"))
-    p.add_argument("name", metavar="NAME")
-    p.add_argument("--project-id")
+    p.add_argument("name", metavar="NAME", help=i18n.t("cli.help.arg.branch-name"))
+    p.add_argument("--project-id", help=i18n.t("cli.help.arg.project-id"))
     p.add_argument("--app-id", help=i18n.t("cli.help.branches-create-app-id"))
     p.set_defaults(handler=cmd_branches_create)
 
     p = branches_sub.add_parser("update", help=i18n.t("cli.help.branches-update"))
-    p.add_argument("branch_id", metavar="ID")
-    p.add_argument("--app-id")
+    p.add_argument("branch_id", metavar="ID", help=i18n.t("cli.help.arg.branch-id"))
+    p.add_argument("--app-id", help=i18n.t("cli.help.arg.app-id"))
     p.set_defaults(handler=cmd_branches_update)
 
     p = branches_sub.add_parser("delete", help=i18n.t("cli.help.branches-delete"))
-    p.add_argument("branch_id", metavar="ID")
+    p.add_argument("branch_id", metavar="ID", help=i18n.t("cli.help.arg.branch-id"))
     p.set_defaults(handler=cmd_branches_delete)
 
     p = branches_sub.add_parser("merge", help=i18n.t("cli.help.branches-merge"))
-    p.add_argument("branch_id", metavar="ID")
+    p.add_argument("branch_id", metavar="ID", help=i18n.t("cli.help.arg.branch-id"))
     p.set_defaults(handler=cmd_branches_merge)
 
     # dumps ----------------------------------------------------------------
@@ -685,13 +686,13 @@ def build_parser():
     dumps_sub = dumps.add_subparsers(dest="subcommand", metavar=action, required=True)
 
     p = dumps_sub.add_parser("create", help=i18n.t("cli.help.dumps-create"))
-    p.add_argument("app_id", nargs="?", metavar="APP_ID")
+    p.add_argument("app_id", nargs="?", metavar="APP_ID", help=i18n.t("cli.help.arg.app-id"))
     p.add_argument("--description", help=i18n.t("cli.help.dumps-create-description"))
     p.set_defaults(handler=cmd_dumps_create)
 
     p = dumps_sub.add_parser("get", help=i18n.t("cli.help.dumps-get"))
-    p.add_argument("app_id", metavar="APP_ID")
-    p.add_argument("dump_id", metavar="DUMP_ID")
+    p.add_argument("app_id", metavar="APP_ID", help=i18n.t("cli.help.arg.app-id-required"))
+    p.add_argument("dump_id", metavar="DUMP_ID", help=i18n.t("cli.help.arg.dump-id"))
     p.set_defaults(handler=cmd_dumps_get)
 
     # tasks ----------------------------------------------------------------
@@ -703,7 +704,7 @@ def build_parser():
     p.set_defaults(handler=cmd_tasks_list)
 
     p = tasks_sub.add_parser("get-group", help=i18n.t("cli.help.tasks-get-group"))
-    p.add_argument("task_id", metavar="TASK_ID")
+    p.add_argument("task_id", metavar="TASK_ID", help=i18n.t("cli.help.arg.task-id"))
     p.set_defaults(handler=cmd_tasks_get_group)
 
     # tech ----------------------------------------------------------------
@@ -711,12 +712,12 @@ def build_parser():
     tech_sub = tech.add_subparsers(dest="subcommand", metavar=action, required=True)
 
     p = tech_sub.add_parser("get", help=i18n.t("cli.help.tech-get"))
-    p.add_argument("app_id", nargs="?", metavar="APP_ID")
+    p.add_argument("app_id", nargs="?", metavar="APP_ID", help=i18n.t("cli.help.arg.app-id"))
     p.set_defaults(handler=cmd_tech_get)
 
     p = tech_sub.add_parser("set", help=i18n.t("cli.help.tech-set"))
-    p.add_argument("app_id", metavar="APP_ID")
-    p.add_argument("version", metavar="VERSION")
+    p.add_argument("app_id", metavar="APP_ID", help=i18n.t("cli.help.arg.app-id-required"))
+    p.add_argument("version", metavar="VERSION", help=i18n.t("cli.help.arg.tech-version"))
     p.set_defaults(handler=cmd_tech_set)
 
     # debug-adapter -------------------------------------------------------
