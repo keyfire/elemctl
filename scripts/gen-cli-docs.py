@@ -253,7 +253,16 @@ def page(lang: str) -> str:
     return out.getvalue()
 
 
-for lang, fname in (("en", "cli.md"), ("ru", "cli.ru.md")):
-    text = page(lang)
-    (ROOT / "docs" / fname).write_text(text, encoding="utf-8", newline="")
-    print(f"{fname}: {len(text.splitlines())} строк")
+def generate() -> dict[str, str]:
+    """Имя файла -> содержимое страницы; сборка без записи на диск (нужно тестам)."""
+    return {fname: page(lang) for lang, fname in (("en", "cli.md"), ("ru", "cli.ru.md"))}
+
+
+def main() -> None:
+    for fname, text in generate().items():
+        (ROOT / "docs" / fname).write_text(text, encoding="utf-8", newline="")
+        print(f"{fname}: {len(text.splitlines())} строк")
+
+
+if __name__ == "__main__":
+    main()
