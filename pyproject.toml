@@ -34,6 +34,7 @@ dependencies = []
 Homepage = "https://github.com/keyfire/elemctl"
 Repository = "https://github.com/keyfire/elemctl"
 Issues = "https://github.com/keyfire/elemctl/issues"
+Changelog = "https://github.com/keyfire/elemctl/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 mcp = ["mcp>=1.2"]

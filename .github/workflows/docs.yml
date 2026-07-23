@@ -12,6 +12,10 @@ on:
       - "docs/**"
       - "site/**"
       - ".github/workflows/docs.yml"
+      # Страница истории изменений – зеркало корневого CHANGELOG (см. scripts/sync-docs.mjs).
+      - "CHANGELOG.md"
+      - "CHANGELOG.ru.md"
+      - "scripts/sync-docs.mjs"
   workflow_dispatch:
 
 permissions:
@@ -39,6 +43,11 @@ jobs:
           cache-dependency-path: site/package-lock.json
       - name: Install
         run: npm ci
+        working-directory: site
+      # Зеркалим CHANGELOG в страницы сайта перед сборкой, чтобы задеплоенный сайт
+      # всегда совпадал с актуальным файлом в корне репозитория.
+      - name: Sync mirrored docs
+        run: npm run sync:docs
         working-directory: site
       - name: Build
         run: npx blume build
