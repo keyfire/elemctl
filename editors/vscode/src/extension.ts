@@ -435,7 +435,21 @@ class XbslConfigurationProvider implements vscode.DebugConfigurationProvider {
       if (typeof config.envFile === "string" && config.envFile) {
         globalArgs.push("--env-file", config.envFile);
       }
-      const appArgs = config.appId ? [String(config.appId)] : [];
+      // app-id: launch.json > настройка > .env/переменные окружения (их читает сам elemctl).
+      // Без всего этого elemctl упал бы с голым "не задан app-id" - спрашиваем заранее и
+      // запоминаем ответ в настройке, чтобы следующий запуск не спрашивал.
+      let appId = config.appId ? String(config.appId) : (cfg().get<string>("appId", "") || "").trim();
+      if (!appId && !envProvidesAppId(root, typeof config.envFile === "string" ? config.envFile : undefined)) {
+        const entered = await promptForAppId();
+        if (entered === undefined) {
+          return undefined; // отмена ввода - отмена отладки, без сообщения об ошибке
+        }
+        appId = entered;
+        await vscode.workspace
+          .getConfiguration("xbslDebug", folder?.uri)
+          .update("appId", appId, vscode.ConfigurationTarget.Workspace);
+      }
+      const appArgs = appId ? [appId] : [];
       const debugInfo: DebugInfo = await runElemctl([...globalArgs, "apps", "debug", ...appArgs], root);
       if (!debugInfo["debug-address"] || !debugInfo["debug-token"]) {
         throw new Error(
@@ -505,6 +519,37 @@ class XbslConfigurationProvider implements vscode.DebugConfigurationProvider {
       return undefined;
     }
   }
+}
+
+// Задание APP_ID/ELEMENT_APP_ID в .env - источники, которые читает сам elemctl.
+const ENV_APP_ID_RE = /^\s*(?:export\s+)?(?:ELEMENT_APP_ID|APP_ID)\s*=\s*\S/m;
+
+function envProvidesAppId(root: string | undefined, envFile?: string): boolean {
+  if (process.env.ELEMENT_APP_ID || process.env.APP_ID) {
+    return true;
+  }
+  if (!root) {
+    return false;
+  }
+  const file = envFile ? (path.isAbsolute(envFile) ? envFile : path.join(root, envFile)) : path.join(root, ".env");
+  try {
+    return ENV_APP_ID_RE.test(fs.readFileSync(file, "utf8"));
+  } catch {
+    return false; // нет файла - нет и app-id в нём
+  }
+}
+
+async function promptForAppId(): Promise<string | undefined> {
+  const value = await vscode.window.showInputBox({
+    title: vscode.l10n.t("Application id for debugging"),
+    prompt: vscode.l10n.t(
+      "elemctl needs the application id (APP_ID). Take it from `elemctl apps list` or from the application card in the platform console; the value is saved to the xbslDebug.appId setting."
+    ),
+    placeHolder: "0198c0de-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+    ignoreFocusOut: true,
+    validateInput: (v) => (v.trim() ? undefined : vscode.l10n.t("The application id must not be empty.")),
+  });
+  return value === undefined ? undefined : value.trim();
 }
 
 // sessionId -> URL отлаживаемого приложения, открываемый при старте сессии.

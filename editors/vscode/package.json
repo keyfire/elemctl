@@ -124,6 +124,11 @@
           "description": "%config.elemctlPath%",
           "scope": "machine-overridable"
         },
+        "xbslDebug.appId": {
+          "type": "string",
+          "default": "",
+          "description": "%config.appId%"
+        },
         "xbslDebug.openApplicationOnStart": {
           "type": "boolean",
           "default": true,
