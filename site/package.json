@@ -5,7 +5,10 @@
   "description": "Documentation site for elemctl, built with Blume.",
   "type": "module",
   "scripts": {
+    "sync:docs": "node ../scripts/sync-docs.mjs",
+    "predev": "npm run sync:docs",
     "dev": "blume dev",
+    "prebuild": "npm run sync:docs",
     "build": "blume build",
     "preview": "blume preview"
   },
