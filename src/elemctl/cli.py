@@ -13,7 +13,7 @@ import sys
 from pathlib import Path
 
 from . import __version__, i18n, plugins
-from .build import build_assembly, inspect_assembly
+from .build import build_assembly, inspect_assembly, read_assembly_manifest
 from .client import ElementClient, extract_assembly_id
 from .config import Config
 from .deploy import deploy_from_sources
@@ -270,21 +270,76 @@ def cmd_builds_get(args):
     return 0
 
 
+def _upload_target(args, config):
+    """Проект-цель загрузки и источник этого выбора.
+
+    Источники: "flag" – флаг --project-id, "env" – ELEMENT_PROJECT_ID из
+    окружения или .env-файла, None – проект не задан, платформа создаст новый.
+    Флаг --new-project отключает привязку из окружения; вместе с --project-id
+    он противоречив, это ошибка вызова.
+    """
+    if args.new_project:
+        if args.project_id:
+            raise ElemctlError(i18n.t("cli.upload-new-project-conflict"))
+        return None, None
+    if args.project_id:
+        return args.project_id, "flag"
+    if config.project_id:
+        return config.project_id, "env"
+    return None, None
+
+
+def _warn_upload_name_mismatch(client, project_id, file_path):
+    """Предупредить, когда имя заливаемой сборки не совпадает с именем проекта.
+
+    Панель показывает проект под именем последней залитой сборки, поэтому
+    чужая сборка молча переименует проект. Проверка вспомогательная: любой
+    её сбой не мешает загрузке.
+    """
+    try:
+        assembly_name = (read_assembly_manifest(file_path).get("Name") or "").strip()
+        project_card = client.get_project(project_id) or {}
+        project_name = (project_card.get("name") or "").strip()
+    except Exception:
+        return
+    if assembly_name and project_name and assembly_name != project_name:
+        _progress(
+            i18n.t(
+                "cli.upload-name-mismatch",
+                assembly=assembly_name,
+                project=project_name,
+                project_id=project_id,
+            )
+        )
+
+
 def cmd_builds_upload(args):
     config = _config(args)
     client = make_client(config)
     file_path = Path(args.file)
     if not file_path.is_file():
         raise ElemctlError(i18n.t("cli.build-file-not-found", path=file_path))
+    project_id, project_id_source = _upload_target(args, config)
+    if project_id_source == "env":
+        _progress(i18n.t("cli.upload-target-from-env", project_id=project_id))
+    if project_id:
+        _warn_upload_name_mismatch(client, project_id, file_path)
     response = client.upload_assembly(
         file_path.read_bytes(),
-        project_id=args.project_id or config.project_id or None,
+        project_id=project_id,
         space_id=args.space_id or config.space_id or None,
         branch_name=args.branch or None,
         commit_id=args.commit or None,
         commit_message=args.commit_message or None,
     )
-    _emit({"assembly-id": extract_assembly_id(response), "response": response})
+    _emit(
+        {
+            "assembly-id": extract_assembly_id(response),
+            "project-id": project_id,
+            "project-id-source": project_id_source,
+            "response": response,
+        }
+    )
     return 0
 
 
@@ -609,6 +664,11 @@ def build_parser():
     p = builds_sub.add_parser("upload", help=i18n.t("cli.help.builds-upload"))
     p.add_argument("file", metavar="FILE", help=i18n.t("cli.help.arg.assembly-file"))
     p.add_argument("--project-id", help=i18n.t("cli.help.builds-upload-project-id"))
+    p.add_argument(
+        "--new-project",
+        action="store_true",
+        help=i18n.t("cli.help.builds-upload-new-project"),
+    )
     p.add_argument("--space-id", help=i18n.t("cli.help.arg.space-id"))
     p.add_argument("--branch", help=i18n.t("cli.help.builds-upload-branch"))
     p.add_argument("--commit", help=i18n.t("cli.help.builds-upload-commit"))

@@ -86,7 +86,7 @@ Application statuses: stable `Running`, `Stopped`, `Error`; transitional `Starti
 - Uploading a build file – a binary POST (Content-Type `application/octet-stream`, body – the file bytes):
   - `POST /projects/{id}/assemblies` – add a build to an existing project;
   - `POST /projects` – create a new project from a build.
-  Query parameters (all optional): `SpaceId`, `BranchName`, `CommitId`, `CommitMessage`. Note: the names of these query parameters are in PascalCase. The response contains the id of the created build in one of the fields: `image-id`, `assembly-id`, or `id` (check in this order).
+  Query parameters (all optional): `SpaceId`, `BranchName`, `CommitId`, `CommitMessage`. Note: the names of these query parameters are in PascalCase. The response contains the id of the created build in one of the fields: `image-id`, `assembly-id`, or `id` (check in this order). The console shows a project under the name of the last uploaded build (the manifest `Name`), so a build uploaded into a project under a different name silently renames that project – the client warns about such a mismatch before uploading (best effort, never blocks the upload).
 - `GET /projects/{id}/assemblies` – list of builds. Each element contains `assembly-version` (a string like `1.0-42`) and an id (`id` or `image-id`). The response may be either an array or an object with the list in the `items` or `assemblies` field.
 - `GET /projects/{id}/assemblies/{assembly-id}` – build card; `DELETE .../{assembly-id}` – delete. The API addresses a build ONLY by UUID: a version gets a 400 "Version is not a valid UUID". The client must also accept a version (that is what the user sees), resolving it to an id via the build list (`assembly-version`/`project-version`); note that the platform renumbers the manifest version on upload. Deleting a build that took part in an apply (even a rolled-back one) is rejected by the platform with a 500.
 
@@ -190,8 +190,12 @@ Commands (significant flags in parentheses):
 - `spaces list`.
 - `projects list`, `projects get [PROJECT_ID]`, `projects delete PROJECT_ID`.
 - `builds list [--project-id]`, `builds get VERSION [--project-id]`,
-  `builds upload FILE [--project-id --space-id --branch --commit
-  --commit-message]`, `builds delete VERSION [--project-id]`.
+  `builds upload FILE [--project-id --new-project --space-id --branch --commit
+  --commit-message]`, `builds delete VERSION [--project-id]`. `builds upload`
+  reports the chosen target in the output (`project-id`, `project-id-source`:
+  `flag`/`env`/none) and notes on stderr when the target comes from
+  `ELEMENT_PROJECT_ID`; `--new-project` ignores the environment binding and
+  always creates a new project (mutually exclusive with `--project-id`).
 - `build [--project-dir --output --build-version --last-build --commit
   --branch --kind {application,library}]` – build the archive locally, output
   `{"file": path}`. Without `--project-dir`, the project directory is found automatically

@@ -426,7 +426,7 @@ usage: elemctl builds get [-h] [--project-id PROJECT_ID] VERSION
 ### `elemctl builds upload`
 
 ```bash
-usage: elemctl builds upload [-h] [--project-id PROJECT_ID] [--space-id SPACE_ID]
+usage: elemctl builds upload [-h] [--project-id PROJECT_ID] [--new-project] [--space-id SPACE_ID]
                              [--branch BRANCH] [--commit COMMIT] [--commit-message COMMIT_MESSAGE]
                              FILE
 ```
@@ -443,6 +443,7 @@ usage: elemctl builds upload [-h] [--project-id PROJECT_ID] [--space-id SPACE_ID
 |---|---|
 | `-h, --help` | show this help message and exit |
 | `--project-id PROJECT_ID` | project; WITHOUT it the platform creates a new project – the only way to create a project through the Console API |
+| `--new-project` | upload the build as a new project, ignoring ELEMENT_PROJECT_ID from the environment and the .env file |
 | `--space-id SPACE_ID` | the space to create the project in – needed when `--project-id` is omitted |
 | `--branch BRANCH` | git branch name (metadata) |
 | `--commit COMMIT` | commit hash (metadata) |

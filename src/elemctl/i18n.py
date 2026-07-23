@@ -91,6 +91,26 @@ MESSAGES = {
         "ru": "для --latest-build нужен --project-id (или ELEMENT_PROJECT_ID)",
         "en": "--latest-build requires --project-id (or ELEMENT_PROJECT_ID)",
     },
+    "cli.upload-new-project-conflict": {
+        "ru": "флаги --new-project и --project-id несовместимы: либо новый проект, "
+              "либо конкретный",
+        "en": "--new-project and --project-id are mutually exclusive: either a new "
+              "project or a specific one",
+    },
+    "cli.upload-target-from-env": {
+        "ru": "цель загрузки – проект {project_id} из ELEMENT_PROJECT_ID (окружение "
+              "или .env-файл); загрузить новым проектом – флаг --new-project",
+        "en": "upload target is project {project_id} from ELEMENT_PROJECT_ID (the "
+              "environment or the .env file); pass --new-project to upload as a new project",
+    },
+    "cli.upload-name-mismatch": {
+        "ru": "внимание: имя сборки '{assembly}' не совпадает с именем проекта-цели "
+              "'{project}' ({project_id}) – после загрузки панель покажет проект "
+              "под именем сборки",
+        "en": "warning: the assembly name '{assembly}' differs from the target project "
+              "name '{project}' ({project_id}) – after the upload the console shows "
+              "the project under the assembly name",
+    },
     "cli.app-source-required": {
         "ru": "нужен источник приложения: --version-id либо --project-id [--latest-build]. "
               "Приложение всегда создаётся из сборки: пустого приложения в Console API нет. "
@@ -455,6 +475,12 @@ MESSAGES = {
     "cli.help.builds-upload": {
         "ru": "загрузить файл сборки (.xasm/.xlib)",
         "en": "upload an assembly file (.xasm/.xlib)",
+    },
+    "cli.help.builds-upload-new-project": {
+        "ru": "загрузить сборку новым проектом, игнорируя ELEMENT_PROJECT_ID из "
+              "окружения и .env-файла",
+        "en": "upload the build as a new project, ignoring ELEMENT_PROJECT_ID from "
+              "the environment and the .env file",
     },
     "cli.help.builds-upload-project-id": {
         "ru": "проект; БЕЗ него платформа заводит новый проект – это единственный "

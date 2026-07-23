@@ -17,6 +17,15 @@ day are named in the heading. The format follows
 ## Unreleased
 
 ### Added
+- `builds upload` reports the upload target: the JSON output carries `project-id` and
+  `project-id-source` (`flag`/`env`/none), and when the target comes from `ELEMENT_PROJECT_ID`
+  a stderr note says so – previously the build could silently land in the project from the
+  environment when a new project was intended.
+- `builds upload --new-project` uploads the build as a new project, ignoring
+  `ELEMENT_PROJECT_ID` from the environment and the `.env` file.
+- `builds upload` warns when the assembly name differs from the target project name: the
+  console shows a project under the name of the last uploaded build, so a foreign build
+  silently renames the project. The check is best effort and never blocks the upload.
 - The command reference and its generator are under tests (`tests/test_cli_docs.py`): every
   command answers `--help`, every one is covered by a section of the reference, the pages stay
   fresh, and the two language versions actually differ.

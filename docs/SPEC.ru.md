@@ -128,7 +128,11 @@ Windows) с TTL 1 час; ключ кеша должен различать па
   Query-параметры (все необязательные): `SpaceId`, `BranchName`, `CommitId`,
   `CommitMessage`. Внимание: имена этих query-параметров - в PascalCase.
   Ответ содержит id созданной сборки в одном из полей: `image-id`,
-  `assembly-id` или `id` (проверять в этом порядке).
+  `assembly-id` или `id` (проверять в этом порядке). Панель показывает проект
+  под именем последней залитой сборки (`Name` из манифеста), поэтому сборка,
+  залитая в проект под другим именем, молча переименовывает этот проект -
+  клиент предупреждает о таком несовпадении перед загрузкой (вспомогательно,
+  загрузку не блокирует).
 - `GET /projects/{id}/assemblies` - список сборок. Элемент содержит
   `assembly-version` (строка вида `1.0-42`) и id (`id` либо `image-id`).
   Ответ может быть как массивом, так и объектом со списком в поле `items`
@@ -319,8 +323,12 @@ stderr и код возврата 1.
 - `spaces list`.
 - `projects list`, `projects get [PROJECT_ID]`, `projects delete PROJECT_ID`.
 - `builds list [--project-id]`, `builds get VERSION [--project-id]`,
-  `builds upload FILE [--project-id --space-id --branch --commit
-  --commit-message]`, `builds delete VERSION [--project-id]`.
+  `builds upload FILE [--project-id --new-project --space-id --branch --commit
+  --commit-message]`, `builds delete VERSION [--project-id]`. `builds upload`
+  сообщает выбранную цель в выводе (`project-id`, `project-id-source`:
+  `flag`/`env`/нет) и пишет в stderr, когда цель пришла из
+  `ELEMENT_PROJECT_ID`; `--new-project` отключает привязку из окружения и
+  всегда создаёт новый проект (несовместим с `--project-id`).
 - `build [--project-dir --output --build-version --last-build --commit
   --branch --kind {application,library}]` - локально собрать архив, вывести
   `{"file": путь}`. Без `--project-dir` каталог проекта ищется автоматически

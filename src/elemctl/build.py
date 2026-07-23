@@ -253,6 +253,26 @@ def build_assembly(
     )
 
 
+def read_assembly_manifest(path):
+    """Манифест архива сборки (.xasm/.xlib) без разбора содержимого.
+
+    Лёгкая операция для проверок перед загрузкой: читается только
+    Assembly.yaml из корня архива.
+    """
+    archive_path = Path(path)
+    if not archive_path.is_file():
+        raise BuildError(i18n.t("build.not-found", file=archive_path))
+    try:
+        with zipfile.ZipFile(archive_path) as archive:
+            if MANIFEST_FILE not in archive.namelist():
+                raise BuildError(
+                    i18n.t("build.no-manifest", file=archive_path, manifest=MANIFEST_FILE)
+                )
+            return parse_flat_yaml(_read_entry(archive, MANIFEST_FILE))
+    except zipfile.BadZipFile:
+        raise BuildError(i18n.t("build.not-archive", file=archive_path))
+
+
 def inspect_assembly(path):
     """Разобрать готовый архив сборки (.xasm/.xlib) – обратная операция к build_assembly.
 

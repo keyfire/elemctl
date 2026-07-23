@@ -240,6 +240,139 @@ def test_app_source_error_explains_how_to_get_a_project(capsys):
     assert "--project-id" in payload["error"]
 
 
+class FakeUploadClient:
+    """Клиент для тестов builds upload: запоминает вызовы, отвечает карточкой проекта."""
+
+    def __init__(self, project_name="crm", fail_get_project=False):
+        self.upload_kwargs = None
+        self.get_project_calls = []
+        self._project_name = project_name
+        self._fail_get_project = fail_get_project
+
+    def get_project(self, project_id):
+        self.get_project_calls.append(project_id)
+        if self._fail_get_project:
+            raise ApiError("нет доступа", status=403)
+        return {"id": project_id, "name": self._project_name}
+
+    def upload_assembly(self, data, **kwargs):
+        self.upload_kwargs = kwargs
+        return {"image-id": "asm-1"}
+
+
+def _built_archive(project_factory, tmp_path, capsys):
+    """Собрать синтетический проект в архив; вернуть путь к файлу сборки."""
+    project_dir = project_factory()
+    rc = cli.main(
+        ["build", "--project-dir", str(project_dir), "--output", str(tmp_path / "dist"),
+         "--branch", "", "--commit", ""]
+    )
+    assert rc == 0
+    return json.loads(capsys.readouterr().out)["file"]
+
+
+def test_builds_upload_reports_env_project_id_source(
+    monkeypatch, capsys, project_factory, tmp_path
+):
+    """Цель из ELEMENT_PROJECT_ID больше не молчаливая: источник в JSON, подсказка в stderr.
+
+    Сборка чужого проекта однажды легла в проект из env – рецепт "upload без
+    --project-id создаёт новый проект" не работал, и об этом ничто не сообщало.
+    """
+    archive = _built_archive(project_factory, tmp_path, capsys)
+    fake = FakeUploadClient()
+    monkeypatch.setattr(cli, "make_client", lambda config: fake)
+    monkeypatch.setenv("ELEMENT_PROJECT_ID", "proj-env")
+
+    rc = cli.main(["builds", "upload", archive])
+
+    assert rc == 0
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+    assert payload["assembly-id"] == "asm-1"
+    assert payload["project-id"] == "proj-env"
+    assert payload["project-id-source"] == "env"
+    assert fake.upload_kwargs["project_id"] == "proj-env"
+    assert "ELEMENT_PROJECT_ID" in captured.err
+    assert "--new-project" in captured.err
+    # Имя сборки (crm) совпало с именем проекта – предупреждения о несовпадении нет.
+    assert "внимание" not in captured.err
+
+
+def test_builds_upload_new_project_ignores_env(monkeypatch, capsys, project_factory, tmp_path):
+    """--new-project отключает env-привязку: платформа создаёт новый проект."""
+    archive = _built_archive(project_factory, tmp_path, capsys)
+    fake = FakeUploadClient()
+    monkeypatch.setattr(cli, "make_client", lambda config: fake)
+    monkeypatch.setenv("ELEMENT_PROJECT_ID", "proj-env")
+
+    rc = cli.main(["builds", "upload", archive, "--new-project"])
+
+    assert rc == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["project-id"] is None
+    assert payload["project-id-source"] is None
+    assert fake.upload_kwargs["project_id"] is None
+    # Проекта-цели нет – карточка проекта не запрашивается.
+    assert fake.get_project_calls == []
+
+
+def test_builds_upload_new_project_conflicts_with_project_id(
+    monkeypatch, capsys, project_factory, tmp_path
+):
+    archive = _built_archive(project_factory, tmp_path, capsys)
+    fake = FakeUploadClient()
+    monkeypatch.setattr(cli, "make_client", lambda config: fake)
+
+    rc = cli.main(["builds", "upload", archive, "--new-project", "--project-id", "proj-1"])
+
+    assert rc == 1
+    captured = capsys.readouterr()
+    assert "error" in json.loads(captured.err)
+    assert fake.upload_kwargs is None
+
+
+def test_builds_upload_warns_when_assembly_name_differs(
+    monkeypatch, capsys, project_factory, tmp_path
+):
+    """Несовпадение имени сборки и проекта-цели – предупреждение, но не отказ.
+
+    Панель показывает проект под именем последней залитой сборки: чужая сборка
+    молча переименовала проект, и это заметили только по панели.
+    """
+    archive = _built_archive(project_factory, tmp_path, capsys)
+    fake = FakeUploadClient(project_name="Сайт")
+    monkeypatch.setattr(cli, "make_client", lambda config: fake)
+
+    rc = cli.main(["builds", "upload", archive, "--project-id", "proj-1"])
+
+    assert rc == 0
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+    assert payload["project-id-source"] == "flag"
+    assert fake.get_project_calls == ["proj-1"]
+    assert "'crm'" in captured.err
+    assert "'Сайт'" in captured.err
+    # Цель задана флагом, а не окружением – env-подсказки нет.
+    assert "ELEMENT_PROJECT_ID" not in captured.err
+
+
+def test_builds_upload_name_check_failure_does_not_block(
+    monkeypatch, capsys, project_factory, tmp_path
+):
+    """Сверка имён вспомогательная: сбой карточки проекта не мешает загрузке."""
+    archive = _built_archive(project_factory, tmp_path, capsys)
+    fake = FakeUploadClient(fail_get_project=True)
+    monkeypatch.setattr(cli, "make_client", lambda config: fake)
+
+    rc = cli.main(["builds", "upload", archive, "--project-id", "proj-1"])
+
+    assert rc == 0
+    captured = capsys.readouterr()
+    assert json.loads(captured.out)["assembly-id"] == "asm-1"
+    assert "внимание" not in captured.err
+
+
 def test_deploy_exit_code_reflects_ok(monkeypatch, capsys, project_factory, tmp_path):
     from tests.test_deploy import FakeDeployClient
 
