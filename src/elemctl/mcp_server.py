@@ -64,6 +64,23 @@ def _brief_app(app):
     }
 
 
+def _brief_project(project):
+    """Краткая карточка проекта: то, по чему его узнают и выбирают.
+
+    Полная карточка несёт группу, default-image, код артефакта и даты – в
+    списке это лишнее. Счётчик приложений оставлен: по нему видно, какие
+    проекты реально применяются.
+    """
+    return {
+        "id": project.get("id"),
+        "name": project.get("name"),
+        "project-kind": project.get("project-kind"),
+        "space-id": project.get("space-id"),
+        "application-count": project.get("application-count"),
+        "deleted": project.get("deleted"),
+    }
+
+
 def create_server(config=None):
     """Создать MCP-сервер elemctl со всеми инструментами.
 
@@ -222,9 +239,17 @@ def create_server(config=None):
         return client(env_file).list_spaces()
 
     @server.tool()
-    def list_projects(env_file: str = "") -> list:
-        """Список проектов."""
-        return client(env_file).list_projects()
+    def list_projects(brief: bool = True, env_file: str = "") -> list:
+        """Список проектов.
+
+        brief (по умолчанию) оставляет от карточки id, имя, вид проекта,
+        пространство, счётчик приложений и признак удаления; brief=false
+        отдаёт карточки целиком. env_file – путь к .env другого окружения.
+        """
+        projects = client(env_file).list_projects()
+        if not brief:
+            return projects
+        return [_brief_project(project) for project in projects if isinstance(project, dict)]
 
     @server.tool()
     def list_builds(project_id: str, env_file: str = "") -> list:

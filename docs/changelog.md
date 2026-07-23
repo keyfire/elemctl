@@ -14,6 +14,12 @@ day are named in the heading. The format follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html). The VS Code debug companion in
 `editors/vscode` is released separately under the `vscode-v*` tags and is not tracked here.
 
+## Unreleased
+
+### Changed
+- MCP: `list_projects` returns brief cards by default (id, name, project kind, space,
+  application count, deletion flag), like `list_apps` does; pass `brief=false` for full cards.
+
 ## 2026-07-24 – 0.12.0
 
 ### Added

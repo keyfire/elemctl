@@ -8,7 +8,7 @@ import pytest
 
 pytest.importorskip("mcp", reason="extra elemctl[mcp] не установлен")
 
-from elemctl.mcp_server import INSTRUCTIONS, _brief_app, create_server
+from elemctl.mcp_server import INSTRUCTIONS, _brief_app, _brief_project, create_server
 
 EXPECTED_TOOLS = {
     "list_apps",
@@ -95,6 +95,41 @@ def test_list_apps_is_brief_by_default():
     list_tool = next(tool for tool in tools if tool.name == "list_apps")
     properties = (list_tool.inputSchema or {}).get("properties") or {}
     assert properties.get("brief", {}).get("default") is True
+
+
+def test_list_projects_is_brief_by_default():
+    server = create_server()
+    tools = asyncio.run(server.list_tools())
+    list_tool = next(tool for tool in tools if tool.name == "list_projects")
+    properties = (list_tool.inputSchema or {}).get("properties") or {}
+    assert properties.get("brief", {}).get("default") is True
+
+
+def test_brief_project_keeps_only_the_identifying_fields():
+    card = {
+        "id": "proj-1",
+        "name": "crm",
+        "project-kind": "Application",
+        "space-id": "space-1",
+        "application-count": 2,
+        "deleted": False,
+        "code": "ART00000000000000000001",
+        "group-id": "grp-1",
+        "presentation": "crm",
+        "default-image": {"id": "img-1", "version": "1.0-1"},
+        "date-created": "2026-01-01T00:00:00Z",
+        "description": "",
+        "parent-id": None,
+    }
+    brief = _brief_project(card)
+    assert brief == {
+        "id": "proj-1",
+        "name": "crm",
+        "project-kind": "Application",
+        "space-id": "space-1",
+        "application-count": 2,
+        "deleted": False,
+    }
 
 
 def test_brief_app_keeps_only_the_identifying_fields():
