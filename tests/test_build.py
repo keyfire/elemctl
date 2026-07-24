@@ -53,8 +53,21 @@ def _fill_project(project_dir):
     (project_dir / "Основная" / "Справочник.xbsl").write_text("// код\n", encoding="utf-8")
     (project_dir / "Ресурсы").mkdir()
     (project_dir / "Ресурсы" / "logo.png").write_bytes(b"\x89PNG fake")
+    # Ресурс – произвольный файл: расширения вне белого списка тоже включаются.
+    (project_dir / "Ресурсы" / "Политика.pdf").write_bytes(b"%PDF fake")
+    (project_dir / "Ресурсы" / "СчётНаОплату.mxl").write_bytes(b"MXL fake")
+    (project_dir / "Ресурсы" / "Шаблоны").mkdir()
+    (project_dir / "Ресурсы" / "Шаблоны" / "Письмо.htm").write_text(
+        "<html/>", encoding="utf-8"
+    )
+    # Каталог ресурсов бывает и на вложенных уровнях (у пакета).
+    (project_dir / "Основная" / "Ресурсы").mkdir()
+    (project_dir / "Основная" / "Ресурсы" / "Шаблон.docx").write_bytes(b"DOCX fake")
     # Мусор, который в архив попасть не должен:
     (project_dir / "заметка.tmp").write_text("temp", encoding="utf-8")
+    (project_dir / "протокол.pdf").write_bytes(b"%PDF fake")  # вне Ресурсы – белый список
+    (project_dir / "Ресурсы" / ".env").write_text("SECRET=1", encoding="utf-8")
+    (project_dir / "Ресурсы" / "сборка 1.0-2.xasm").write_bytes(b"PK")
     (project_dir / ".env").write_text("SECRET=1", encoding="utf-8")
     (project_dir / ".DS_Store").write_bytes(b"\x00")
     (project_dir / "старая сборка 1.0-1.xasm").write_bytes(b"PK")
@@ -88,7 +101,11 @@ def test_archive_composition_and_manifest(project_factory, tmp_path):
         "acme/crm/Проект.xbsl",
         "acme/crm/Основная/Справочник.yaml",
         "acme/crm/Основная/Справочник.xbsl",
+        "acme/crm/Основная/Ресурсы/Шаблон.docx",
         "acme/crm/Ресурсы/logo.png",
+        "acme/crm/Ресурсы/Политика.pdf",
+        "acme/crm/Ресурсы/СчётНаОплату.mxl",
+        "acme/crm/Ресурсы/Шаблоны/Письмо.htm",
     }
     # Разделители путей – только прямые слэши.
     assert not any("\\" in name for name in names)

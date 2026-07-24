@@ -25,12 +25,17 @@ SUBSYSTEM_FILE = "Подсистема.yaml"
 # Область видимости, при которой тип доступен подключившему библиотеку проекту.
 GLOBAL_SCOPE = "Глобально"
 
-# Расширения, попадающие в архив: исходники, изображения, веб-ресурсы.
+# Расширения, попадающие в архив вне каталогов ресурсов: исходники,
+# изображения, веб-ресурсы.
 ALLOWED_EXTENSIONS = {
     ".yaml", ".xbsl", ".xbql", ".md", ".txt", ".json",
     ".png", ".svg", ".jpg", ".jpeg", ".gif", ".webp", ".ico",
-    ".css", ".html", ".js", ".woff", ".woff2", ".ttf", ".eot",
+    ".css", ".htm", ".html", ".js", ".woff", ".woff2", ".ttf", ".eot",
 }
+
+# Каталог ресурсов подсистемы или пакета. Ресурс по документации платформы -
+# произвольный файл, поэтому внутри таких каталогов отбора по расширению нет.
+RESOURCES_DIR = "Ресурсы"
 
 # Каталоги, исключаемые целиком (плюс все скрытые – с точки в начале).
 EXCLUDED_DIRS = {".git", ".claude", ".github", "__pycache__", "node_modules", ".venv"}
@@ -142,15 +147,21 @@ def read_project_meta(project_dir):
 
 
 def collect_project_files(project_dir):
-    """Отобрать файлы проекта для архива по правилам раздела 5 спецификации."""
+    """Отобрать файлы проекта для архива по правилам раздела 5 спецификации.
+
+    Вне каталогов ресурсов действует белый список расширений; внутри каталога
+    `Ресурсы` (на любом уровне, включая его подкаталоги) включаются файлы любых
+    расширений - ресурсом может быть произвольный файл: .pdf, .htm, .mxl и т.д.
+    """
     project_dir = Path(project_dir)
     selected = []
     for root, dirs, files in os.walk(project_dir):
         dirs[:] = sorted(d for d in dirs if not _is_excluded_dir(d))
+        in_resources = RESOURCES_DIR in Path(root).relative_to(project_dir).parts
         for file_name in sorted(files):
             if _is_excluded_file(file_name):
                 continue
-            if Path(file_name).suffix.lower() not in ALLOWED_EXTENSIONS:
+            if not in_resources and Path(file_name).suffix.lower() not in ALLOWED_EXTENSIONS:
                 continue
             selected.append(Path(root) / file_name)
     return selected
