@@ -138,7 +138,7 @@ Git metadata (commit hash, branch name) – from the git repository containing t
 
 File selection for the archive:
 
-- inside `Ресурсы` (resources) directories – at any level, including their subdirectories – files of ANY extension are included: per the platform documentation a resource is an arbitrary file (`.pdf`, `.htm`, `.mxl`, `.docx`, `.xsd` etc.);
+- inside resource directories (the literal directory name is `Ресурсы`) – at any level, including their subdirectories – files of ANY extension are included: per the platform documentation a resource is an arbitrary file (`.pdf`, `.htm`, `.mxl`, `.docx`, `.xsd` etc.);
 - outside resource directories only these extensions are included: `.yaml .xbsl .xbql .md .txt .json` (sources), `.png .svg .jpg .jpeg .gif .webp .ico` (images), `.css .htm .html .js .woff .woff2 .ttf .eot` (web resources);
 - the directories `.git`, `.claude`, `.github`, `__pycache__`, `node_modules`, `.venv` and all hidden ones (starting with a dot) are excluded;
 - the files `.gitignore`, `.env`, `.DS_Store` and `*.xasm`, `*.xlib` files are excluded – including inside resource directories.
