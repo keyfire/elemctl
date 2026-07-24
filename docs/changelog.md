@@ -14,6 +14,16 @@ day are named in the heading. The format follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html). The VS Code debug companion in
 `editors/vscode` is released separately under the `vscode-v*` tags and is not tracked here.
 
+## 2026-07-24 – 0.13.1
+
+### Fixed
+- Build: files inside `Ресурсы` (resources) directories are now archived regardless of
+  extension (`.pdf`, `.htm`, `.mxl`, `.docx`, `.xsd` etc.) – per the platform documentation
+  a resource is an arbitrary file. Previously the general extension allowlist applied to
+  them too, such files were silently dropped from the assembly, and applying it failed with
+  "Unknown resource" followed by a platform rollback. Outside resource directories the
+  allowlist still applies and now also accepts `.htm` (previously only `.html`).
+
 ## 2026-07-24 – 0.13.0
 
 ### Changed
