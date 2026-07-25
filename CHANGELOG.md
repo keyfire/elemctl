@@ -8,6 +8,24 @@ day are named in the heading. The format follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html). The VS Code debug companion in
 `editors/vscode` is released separately under the `vscode-v*` tags and is not tracked here.
 
+## Unreleased
+
+### Added
+- The **`elemctl.commands`** entry point group – a plugin package brings commands of its own.
+  The value is a `Command`, a list of them or a zero-argument callable returning either; one
+  declaration serves both surfaces at once, becoming a CLI subcommand and an MCP tool with a
+  proper schema, while the core knows nothing about what the command does. That is where a
+  command belongs when it knows about someone's own environment – internal circuits,
+  neighbouring systems, private stands – and therefore cannot live in a public core. The
+  declaration types are `Argument`, `Command` and `CommandContext` from `elemctl.plugins`; the
+  handler gets the configuration, a client built on first use and a progress callback. A
+  result that is a dict with `"ok": false` gives exit code 1, the MCP tool additionally takes
+  `env_file` and returns the progress in a `log` field. A plugin may not take over a name the
+  core already occupies – neither a subcommand nor a tool – and a wrong declaration is
+  reported at discovery time rather than when the command is run.
+- `plugins` reports the commands the plugins bring (`commands`: the name, the entry point and
+  the name of the MCP tool) alongside the adapter directories.
+
 ## 2026-07-26 – 0.15.0
 
 ### Added

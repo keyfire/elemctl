@@ -72,7 +72,16 @@ FLAG_RE = re.compile(r"(?<![\w`-])(--?[a-zA-Z][\w-]*)")
 
 
 def run(args: list[str], lang: str) -> str:
-    env = dict(os.environ, PYTHONPATH=str(SRC), ELEMCTL_LANG=lang, COLUMNS="100")
+    # ELEMCTL_NO_PLUGINS: the reference describes the core, and the core alone.
+    # Plugins bring subcommands of their own, and the page must not depend on what
+    # happens to be installed on the machine of whoever regenerates it.
+    env = dict(
+        os.environ,
+        PYTHONPATH=str(SRC),
+        ELEMCTL_LANG=lang,
+        COLUMNS="100",
+        ELEMCTL_NO_PLUGINS="1",
+    )
     # The timeout is mandatory: a command that does not handle --help starts the server
     # itself and waits for input instead of printing the help – without a limit the
     # documentation generation hangs.

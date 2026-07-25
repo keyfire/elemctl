@@ -250,7 +250,8 @@ Commands (significant flags in parentheses):
 - `tasks list [--app-id]`, `tasks get-group TASK_ID`.
 - `tech get [APP_ID]`, `tech set APP_ID VERSION`.
 - `debug-adapter` – the path to the platform debug adapter directory supplied by a plugin (the `elemctl.debug_adapter` entry-point group, section 10). Output `{"path": ..., "found": true, "adapter-class": ...}` when present or `{"path": null, "found": false}`; exit code 0 in both cases. The `path` is a ready value for the VS Code extension's `xbslDebug.adapterPath` (a directory with a `repo/` subdirectory).
-- `plugins` – plugin diagnostics: the declared adapter directories and whether each holds jars (`{"debug-adapter": [{"path": ..., "has-jars": true|false}]}`).
+- `plugins` – plugin diagnostics: what the plugins bring. `debug-adapter` – the declared adapter directories and whether each holds jars; `commands` – the commands of the plugins with the entry point they arrived through and the name of their MCP tool (`null` when the command stays out of MCP): `{"debug-adapter": [{"path": ..., "has-jars": true|false}], "commands": [{"name": ..., "source": ..., "mcp": ...}]}`.
+- The subcommands the plugins bring (section 10, the `elemctl.commands` group) stand alongside the commands of the core and are listed by `--help`. They may not take over a name of the core; the command reference describes the core alone.
 - `self-update [--version X]` – update the installed elemctl by unpacking the wheel from PyPI into site-packages, without touching busy exe files (plain pipx/pip breaks the install when `elemctl.exe` is held by a running MCP server; only the package files are updated, and the exe stub calls the new code). Fixes `pipx_metadata.json`. Output `{updated, from, to}`.
 - `mcp` – start the MCP server; without the extra installed – a clear error with the hint `pip install "elemctl[mcp]"`.
 
@@ -284,6 +285,11 @@ expected_version="", since_minutes=30)` – verification of the apply per sectio
 `list_app_tasks(app_id="")`, `list_branches(project_id="", name="")`,
 `merge_branch(branch_id)`.
 
+The tools the plugins bring (section 10, the `elemctl.commands` group) are registered
+alongside these: the schema is built out of the declared arguments, the description is the
+`help` of the command, and the core adds an `env_file` parameter of its own. A name already
+taken by a tool of the core is an error rather than a silent override.
+
 ## 9. Quality requirements
 
 - pytest tests without network access: .env parsing and configuration priorities,
@@ -316,12 +322,29 @@ Declaration in a plugin package:
 name = "my_package:adapter_root"
 ```
 
+The **`elemctl.commands`** group. The entry-point value is a `Command`, a list of them, or a zero-argument callable returning either. One declaration serves both surfaces: the core builds a CLI subcommand and an MCP tool out of it and knows nothing about what the command does. This is where a command belongs when it knows about someone's own environment – internal circuits, neighbouring systems, private stands – and therefore cannot live in a public core.
+
+```toml
+[project.entry-points."elemctl.commands"]
+name = "my_package.commands:commands"
+```
+
+The declaration types are exported from `elemctl.plugins`:
+
+- `Argument(name, help="", type=str, default=None, required=False, choices=())` – `name` is `"--stand"` for an option or `"stand"` for a positional argument; the value name (`dest`) is the name without the leading dashes and with the inner ones replaced by underscores, exactly as argparse does it. The types are `str`, `int`, `float`, `bool`; `bool` means a flag (`store_true` in the CLI, a boolean with a default of `false` in MCP) and therefore cannot be positional. `required` works for an option; a positional argument is required unless `required=False` makes it optional.
+- `Command(name, help, handler, arguments=[], mcp=True, mcp_name="")` – `name` is the CLI subcommand; the MCP tool is named `mcp_name` or the same name with dashes turned into underscores. `mcp=False` leaves the command in the CLI only. `source` is filled in by discovery with the name of the entry point.
+- `CommandContext` – what the handler gets: `config` (the assembled connection configuration), `client` (a platform client built on first use and cached, so a command that never reaches the platform does not demand credentials) and `log(message)` for progress lines.
+
+The handler is called as `handler(context, **values)`, the values keyed by `dest`. Its result must be JSON-serializable: the CLI prints it, the MCP tool returns it. A result that is a dict with `"ok": false` gives CLI exit code 1 – the same convention the `deploy` and `probe` reports follow. To the MCP tool the core adds an `env_file` parameter (like every core tool has) and, for a dict result, a `log` field with the progress lines.
+
 Discovery behavior:
 
 - entry points are sorted by name; `debug_adapter_path()` returns the first directory that actually holds the adapter jars (a directory without `repo/` or without the adapter jar is skipped), otherwise `None`;
 - a failing entry point is an error (`PluginError`, a subclass of `ElemctlError`), not a silent skip: a tool that silently drops a plugin would leave the user without debugging and without an explanation;
-- the `ELEMCTL_NO_PLUGINS=1` environment variable disables discovery (a run with the core capabilities only).
+- a command declaration is validated at discovery time, not when the command is run: an empty name, a handler that is not callable, an unsupported argument type, a boolean positional argument and duplicate value names are all `PluginError`;
+- a plugin may not take over a name the core already occupies – neither a CLI subcommand nor an MCP tool. That is an error too, and since the parser is built before any command runs, the CLI reports it as JSON on stderr with exit code 1 rather than a traceback;
+- the `ELEMCTL_NO_PLUGINS=1` environment variable disables discovery (a run with the core capabilities only). The command reference generator sets it, so the reference describes the core alone.
 
-Surfaces using the mechanism: the CLI `debug-adapter`/`plugins` (section 7), the MCP tool `debug_adapter` (section 8), and the VS Code extension, which requests the path from `elemctl debug-adapter` when the `adapterPath` setting is empty.
+Surfaces using the mechanism: the CLI `debug-adapter`/`plugins` (section 7) and the subcommands of the plugins, the MCP tool `debug_adapter` (section 8) and the tools of the plugins, and the VS Code extension, which requests the path from `elemctl debug-adapter` when the `adapterPath` setting is empty.
 
 The adapter itself is extracted from the platform distribution by `tools/extract_adapter.py` (clean code, not shipped in the package distribution – `prune`): the `data/ide/theia/plugins/@1c-appengine-plugin/bin/debugger/` directory from the `.car` is copied into `<output>/<version>/`, and `index.json` is updated. The proprietary jars are not included in the public package – a separate plugin package ships them.

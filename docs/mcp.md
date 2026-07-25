@@ -25,20 +25,45 @@ A single environment is not a limit: every tool that talks to the platform takes
 
 elemctl discovers external packages through `importlib.metadata` entry points: it declares nothing about plugins in its own `pyproject.toml` and reads them on demand. This keeps non-publishable vendor artifacts in a separate package while the elemctl core stays clean and public.
 
-One group is currently supported – **`elemctl.debug_adapter`**: a plugin package declares the directory of the platform debug adapter (proprietary 1C jars, not shipped with elemctl). The entry-point value is a path or a zero-argument callable returning a path; the path points to a directory that contains a `repo/` subdirectory with the adapter jars.
+**`elemctl.debug_adapter`** – a plugin package declares the directory of the platform debug adapter (proprietary 1C jars, not shipped with elemctl). The entry-point value is a path or a zero-argument callable returning a path; the path points to a directory that contains a `repo/` subdirectory with the adapter jars.
+
+**`elemctl.commands`** – a plugin package brings commands of its own. The entry-point value is a `Command`, a list of them, or a zero-argument callable returning either. ONE declaration gives both surfaces: elemctl builds a CLI subcommand out of it and an MCP tool with a proper schema, and knows nothing about what the command does. That is where a command belongs when it is about your own environment – internal circuits, other systems, your stands – and therefore has no place in a public core.
 
 ```toml
 # a plugin package's pyproject.toml
 [project.entry-points."elemctl.debug_adapter"]
 name = "my_package:adapter_root"     # () -> Path to the directory containing repo/
+
+[project.entry-points."elemctl.commands"]
+name = "my_package.commands:commands"   # () -> list[Command]
 ```
+
+```python
+# my_package/commands.py
+from elemctl.plugins import Argument, Command
+
+def warm_up(context, stand="", force=False):
+    context.log(f"warming up {stand}")          # progress: stderr in the CLI, the log field in MCP
+    card = context.client.get_app(stand)        # the client is built on first use
+    return {"ok": True, "status": card.get("status")}
+
+def commands():
+    return [Command(
+        name="warm-up",
+        help="open the admin page of a fresh stand",
+        handler=warm_up,
+        arguments=[Argument("--stand", help="the application"), Argument("--force", type=bool)],
+    )]
+```
+
+The result of a handler has to be JSON-serializable: the CLI prints it, the MCP tool returns it. A result that is a dict with `"ok": false` gives exit code 1 in the CLI – the same convention the reports of `deploy` and `probe` follow. Argument types are `str`, `int`, `float` and `bool` (a flag); `env_file` is added to the MCP tool by elemctl, so a plugin command reaches other environments exactly like the core tools do. A command may not take over a name the core already occupies – that is an error, not a silent override.
 
 ```bash
 # the adapter path from the installed plugin (for the VS Code extension):
 # {"path": "...", "found": true} or {"path": null, "found": false}
 elemctl debug-adapter
 
-# which plugins are visible – install diagnostics
+# what the plugins bring – adapter directories and commands
 elemctl plugins
 ```
 

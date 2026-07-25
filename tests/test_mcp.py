@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 
 import pytest
 
@@ -168,3 +169,73 @@ def test_app_tools_accept_name_in_docstring():
     for name in ("get_app", "delete_app", "start_app", "stop_app", "debug_info"):
         description = by_name[name].description or ""
         assert "имя" in description, name
+
+
+# --- Tools brought by a plugin -----------------------------------------------------
+
+def _plugin_command(**overrides):
+    """A stand-in command of a plugin: it reports what it was given."""
+    from elemctl import plugins
+
+    def handler(context, stand="", retries=1, force=False):
+        context.log("греем стенд")
+        return {"stand": stand, "retries": retries, "force": force}
+
+    fields = {
+        "name": "warm-up",
+        "help": "прогреть стенд",
+        "handler": handler,
+        "arguments": [
+            plugins.Argument("--stand", help="имя стенда", default=""),
+            plugins.Argument("--retries", type=int, default=1),
+            plugins.Argument("--force", type=bool),
+        ],
+    }
+    fields.update(overrides)
+    return plugins.Command(**fields)
+
+
+def _server_with(monkeypatch, *commands):
+    from elemctl import plugins
+
+    monkeypatch.setattr(plugins, "plugin_commands", lambda: list(commands))
+    return create_server()
+
+
+def test_plugin_command_becomes_a_tool_with_a_schema(monkeypatch):
+    """One declaration – and the tool has the types, the defaults and env_file.
+
+    The signature of such a tool is only known at runtime, so it is assembled by
+    hand; this is the check that FastMCP builds the schema out of it.
+    """
+    server = _server_with(monkeypatch, _plugin_command())
+    tool = next(t for t in asyncio.run(server.list_tools()) if t.name == "warm_up")
+
+    assert tool.description == "прогреть стенд"
+    properties = (tool.inputSchema or {}).get("properties") or {}
+    assert properties["stand"]["type"] == "string"
+    assert properties["retries"] == {"default": 1, "title": "Retries", "type": "integer"}
+    assert properties["force"]["type"] == "boolean"
+    assert properties["force"]["default"] is False
+    assert "env_file" in properties  # added by the core, like every platform tool has it
+
+
+def test_plugin_tool_call_returns_the_result_and_the_log(monkeypatch):
+    server = _server_with(monkeypatch, _plugin_command())
+
+    result = asyncio.run(server.call_tool("warm_up", {"stand": "dev", "retries": 3}))
+
+    payload = json.loads(result[0].text)
+    assert payload == {"stand": "dev", "retries": 3, "force": False, "log": ["греем стенд"]}
+
+
+def test_plugin_command_can_stay_out_of_mcp(monkeypatch):
+    server = _server_with(monkeypatch, _plugin_command(mcp=False))
+    assert "warm_up" not in {t.name for t in asyncio.run(server.list_tools())}
+
+
+def test_plugin_cannot_take_over_a_core_tool(monkeypatch):
+    from elemctl.errors import PluginError
+
+    with pytest.raises(PluginError, match="deploy"):
+        _server_with(monkeypatch, _plugin_command(name="deploy"))

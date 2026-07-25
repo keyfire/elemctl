@@ -7,6 +7,7 @@ the optional extra "elemctl[mcp]" (the mcp>=1.2 package, FastMCP is used).
 
 from __future__ import annotations
 
+import inspect
 from datetime import datetime, timedelta, timezone
 
 try:
@@ -24,7 +25,7 @@ from .deploy import (
     deploy_from_sources,
     verify_deploy as _verify_deploy,
 )
-from .errors import ElemctlError
+from .errors import ElemctlError, PluginError
 from .probe import probe_project
 
 INSTRUCTIONS = (
@@ -360,7 +361,83 @@ def create_server(config=None):
         """Принять изменения ветки среды разработки (merge)."""
         return client(env_file).merge_branch(branch_id) or {"merged": True, "branch-id": branch_id}
 
+    add_plugin_tools(server, client)
     return server
+
+
+def _plugin_tool(command, client_for_env):
+    """Build the MCP tool function of a plugin command.
+
+    FastMCP derives the schema of a tool from the signature of the function, and
+    the signature here is only known at runtime – so it is assembled by hand out
+    of the declared arguments (checked against a live FastMCP: the schema comes
+    out with the types and the defaults in place). env_file is added by the core
+    to every such tool, exactly like the tools of the core have it.
+    """
+    parameters = [
+        inspect.Parameter(
+            argument.dest,
+            inspect.Parameter.KEYWORD_ONLY,
+            annotation=argument.type,
+            default=argument.value_default,
+        )
+        for argument in command.arguments
+    ]
+    parameters.append(
+        inspect.Parameter("env_file", inspect.Parameter.KEYWORD_ONLY, annotation=str, default="")
+    )
+
+    def tool(**values):
+        env_file = values.pop("env_file", "")
+        lines: list[str] = []
+        target = client_for_env(env_file)
+        context = plugins.CommandContext(target.config, client=target, log=lines.append)
+        result = command.handler(context, **values)
+        if isinstance(result, dict):
+            return {**result, "log": lines}
+        return result
+
+    tool.__name__ = command.tool_name
+    tool.__doc__ = command.help
+    tool.__signature__ = inspect.Signature(parameters)
+    tool.__annotations__ = {p.name: p.annotation for p in parameters}
+    return tool
+
+
+def _registered_tool_names(server):
+    """The names of the tools already registered on the server.
+
+    FastMCP has no synchronous public listing (its list_tools is a coroutine), so
+    the tool manager is asked directly. A version that renames it must not break
+    the server – hence the fallback to an empty set: a clash would then be left
+    to FastMCP itself.
+    """
+    lister = getattr(getattr(server, "_tool_manager", None), "list_tools", None)
+    if lister is None:
+        return set()
+    return {tool.name for tool in lister()}
+
+
+def add_plugin_tools(server, client_for_env):
+    """Register the commands the plugins bring as tools of the server.
+
+    A name already taken by a tool of the core is an error rather than a silent
+    override – the same rule the CLI subcommands follow.
+    """
+    taken = _registered_tool_names(server)
+    for command in plugins.plugin_commands():
+        if not command.mcp:
+            continue
+        if command.tool_name in taken:
+            raise PluginError(i18n.t(
+                "plugins.tool-name-taken", where=command.source, name=command.tool_name
+            ))
+        taken.add(command.tool_name)
+        server.add_tool(
+            _plugin_tool(command, client_for_env),
+            name=command.tool_name,
+            description=command.help,
+        )
 
 
 def main(config=None):

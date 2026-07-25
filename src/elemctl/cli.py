@@ -23,7 +23,7 @@ from .build import (
 from .client import ElementClient, brief_app, extract_assembly_id
 from .config import Config
 from .deploy import deploy_from_sources
-from .errors import ApiError, ConfigError, ElemctlError
+from .errors import ApiError, ConfigError, ElemctlError, PluginError
 from .probe import probe_project
 
 
@@ -586,13 +586,26 @@ def cmd_debug_adapter(args):
 
 
 def cmd_plugins(args):
-    """Plugin diagnostics: the declared debug adapter directories (jar-less ones included)."""
+    """Plugin diagnostics: what the plugins bring – adapter directories and commands.
+
+    The adapter directories are listed jar-less ones included (that is exactly
+    what a diagnostic is for), the commands – with the entry point they arrived
+    through and whether they are exposed to MCP.
+    """
     paths = plugins.debug_adapter_paths()
     _emit(
         {
             "debug-adapter": [
                 {"path": str(p), "has-jars": plugins.has_adapter_jars(p)} for p in paths
-            ]
+            ],
+            "commands": [
+                {
+                    "name": command.name,
+                    "source": command.source,
+                    "mcp": command.tool_name if command.mcp else None,
+                }
+                for command in plugins.plugin_commands()
+            ],
         }
     )
     return 0
@@ -617,6 +630,61 @@ def cmd_mcp(args):
 
 
 # -- parser --------------------------------------------------------------------
+
+
+def _plugin_handler(command):
+    """The CLI handler of a plugin command: the context, the call, the JSON, the exit code."""
+
+    def handle(args):
+        config = _config(args)
+        context = plugins.CommandContext(config, client_factory=make_client, log=_progress)
+        values = {
+            argument.dest: getattr(args, argument.dest, argument.value_default)
+            for argument in command.arguments
+        }
+        result = command.handler(context, **values)
+        _emit(result)
+        # The same convention the core reports follow: ok: false is exit code 1.
+        return 1 if isinstance(result, dict) and result.get("ok") is False else 0
+
+    return handle
+
+
+def _argument_kwargs(argument):
+    """Translate an argument declaration into the keyword arguments of add_argument."""
+    kwargs = {"help": argument.help}
+    if argument.type is bool:
+        kwargs["action"] = "store_true"
+        return kwargs
+    kwargs["type"] = argument.type
+    kwargs["default"] = argument.default
+    if argument.choices:
+        kwargs["choices"] = list(argument.choices)
+    if argument.is_option:
+        if argument.required:
+            kwargs["required"] = True
+    elif not argument.required:
+        kwargs["nargs"] = "?"
+    return kwargs
+
+
+def add_plugin_commands(sub):
+    """Register the commands the plugins bring as subcommands of the CLI.
+
+    A name that the core already occupies is an error rather than a silent
+    override: a plugin must not be able to substitute itself for `deploy`. The
+    check is against the parsers already registered, so it stays true whatever
+    the core grows.
+    """
+    for command in plugins.plugin_commands():
+        if command.name in sub.choices:
+            raise PluginError(i18n.t(
+                "plugins.command-name-taken", where=command.source, name=command.name
+            ))
+        parser = sub.add_parser(command.name, help=command.help)
+        for argument in command.arguments:
+            parser.add_argument(argument.name, **_argument_kwargs(argument))
+        parser.set_defaults(handler=_plugin_handler(command), plugin_command=command)
 
 
 def _add_create_flags(p):
@@ -902,6 +970,11 @@ def build_parser():
     p = sub.add_parser("mcp", help=i18n.t("cli.help.mcp"))
     p.set_defaults(handler=cmd_mcp)
 
+    # plugins ------------------------------------------------------------
+    # Last of all: the commands of the core are already in place, and a name
+    # clash with any of them is caught right here.
+    add_plugin_commands(sub)
+
     return parser
 
 
@@ -914,7 +987,12 @@ def main(argv=None):
     # language. So argv is prescanned for --lang; env and the locale are taken into account by
     # t() itself through current_lang() while the parser is being built.
     i18n.set_lang(i18n.lang_from_argv(argv))
-    parser = build_parser()
+    try:
+        parser = build_parser()
+    except ElemctlError as error:
+        # A broken plugin must not fall out as a traceback: the parser is built
+        # before any command runs, so its errors need the same JSON treatment.
+        return _fail({"error": str(error)})
     args = parser.parse_args(argv)
     # Pin the language again, now out of the parsed arguments: argparse also accepts
     # abbreviations (--lan en), which the prescan does not catch; for the runtime this is the

@@ -290,6 +290,58 @@ MESSAGES = {
         "ru": "точка расширения '{name}' группы {group} не загрузилась ({value}): {error}",
         "en": "the entry point '{name}' of the group {group} failed to load ({value}): {error}",
     },
+    "plugins.not-commands": {
+        "ru": "точка расширения '{name}' обязана дать Command, их список или функцию без "
+              "аргументов, возвращающую одно из этого; получено: {value}",
+        "en": "the entry point '{name}' must give a Command, a list of them or a function "
+              "without arguments returning either; got: {value}",
+    },
+    "plugins.command-name-required": {
+        "ru": "у команды плагина '{where}' пустое имя",
+        "en": "a command of the plugin '{where}' has an empty name",
+    },
+    "plugins.command-handler-required": {
+        "ru": "у команды '{name}' плагина '{where}' обработчик не вызываемый",
+        "en": "the handler of the command '{name}' of the plugin '{where}' is not callable",
+    },
+    "plugins.not-an-argument": {
+        "ru": "у команды '{name}' плагина '{where}' аргумент объявлен не типом Argument: {value}",
+        "en": "the command '{name}' of the plugin '{where}' declares an argument that is not "
+              "an Argument: {value}",
+    },
+    "plugins.argument-type-unsupported": {
+        "ru": "аргумент {argument} команды '{name}' плагина '{where}' объявлен типом {type}; "
+              "поддерживаются: {supported}",
+        "en": "the argument {argument} of the command '{name}' of the plugin '{where}' is "
+              "declared as {type}; supported are: {supported}",
+    },
+    "plugins.flag-must-be-option": {
+        "ru": "аргумент {argument} команды '{name}' плагина '{where}' булев, а такой аргумент "
+              "может быть только опцией (имя с дефисами впереди)",
+        "en": "the argument {argument} of the command '{name}' of the plugin '{where}' is "
+              "boolean, and such an argument can only be an option (a name starting with dashes)",
+    },
+    "plugins.argument-duplicate": {
+        "ru": "у команды '{name}' плагина '{where}' два аргумента дают одно имя значения: {argument}",
+        "en": "two arguments of the command '{name}' of the plugin '{where}' give the same "
+              "value name: {argument}",
+    },
+    "plugins.command-name-taken": {
+        "ru": "плагин '{where}' приносит команду '{name}', но такая команда у elemctl уже есть – "
+              "плагин обязан выбрать другое имя",
+        "en": "the plugin '{where}' brings the command '{name}', but elemctl already has one – "
+              "the plugin has to pick another name",
+    },
+    "plugins.tool-name-taken": {
+        "ru": "плагин '{where}' приносит инструмент MCP '{name}', но такой у elemctl уже есть – "
+              "поможет mcp_name у команды",
+        "en": "the plugin '{where}' brings the MCP tool '{name}', but elemctl already has one – "
+              "the mcp_name of the command helps here",
+    },
+    "plugins.no-client": {
+        "ru": "команде плагина не с чем обратиться к платформе: клиент не передан",
+        "en": "a command of a plugin has nothing to reach the platform with: no client was given",
+    },
     # -- selfupdate.py ------------------------------------------------------------
     "selfupdate.version-not-found": {
         "ru": "версия не найдена на PyPI",

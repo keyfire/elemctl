@@ -51,6 +51,20 @@ def _no_ci_build_number(monkeypatch):
         monkeypatch.delenv(var, raising=False)
 
 
+@pytest.fixture(autouse=True)
+def _no_plugins(monkeypatch):
+    """Turn plugin discovery off BEFORE EVERY test.
+
+    The parser and the MCP server now pick up the commands of the plugins, so a
+    plugin installed in the developer's environment would add subcommands and
+    tools – the checks of the command tree and of the tool set would then depend
+    on what happens to be installed. The plugin tests set the variable themselves.
+    """
+    from elemctl.plugins import ENV_DISABLE
+
+    monkeypatch.setenv(ENV_DISABLE, "1")
+
+
 class FakeTransport:
     """A stub transport: answers from a route table and records the calls.
 
