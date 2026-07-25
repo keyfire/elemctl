@@ -25,6 +25,7 @@ from .deploy import (
     verify_deploy as _verify_deploy,
 )
 from .errors import ElemctlError
+from .probe import probe_project
 
 INSTRUCTIONS = (
     "Инструменты управления платформой 1С:Предприятие.Элемент (Console API v2). "
@@ -32,8 +33,8 @@ INSTRUCTIONS = (
     "на предыдущую сборку и запускает его – статус Running не означает успех "
     "деплоя. Доверяйте только отчёту инструментов deploy/verify_deploy: поле ok, "
     "список problems и сверка применённой сборки с загруженной (надёжно - по applied-version-id; строка версии у нового приложения нумеруется заново). "
-    "Асинхронность: build_assembly, deploy, apply_build, create_app, ensure_app, "
-    "delete_app и merge_branch выполняются минутами и синхронно блокируют вызов "
+    "Асинхронность: build_assembly, deploy, probe, apply_build, create_app, "
+    "ensure_app, delete_app и merge_branch выполняются минутами и синхронно блокируют вызов "
     "до конца – в чате это выглядит зависанием без вывода. Такие операции "
     "запускать CLI-командой elemctl фоновым процессом (у агента – механизм "
     "фонового запуска вроде run_in_background, результат придёт нотификацией), а "
@@ -283,6 +284,36 @@ def create_server(config=None):
             version=version,
             branch=branch or None,
             commit_message=commit_message,
+            log=lines.append,
+        )
+        payload = report.to_dict()
+        payload["log"] = lines
+        return payload
+
+    @server.tool()
+    def probe(
+        project_dir: str = "",
+        space_id: str = "",
+        keep: bool = False,
+        env_file: str = "",
+    ) -> dict:
+        """Проверить компиляцию исходников серверным компилятором, НЕ трогая рабочее приложение.
+
+        Собирает архив, заливает его без указания проекта (платформа сама кладёт
+        сборку в проект этих исходников – он определяется поставщиком и именем),
+        создаёт по ней одноразовое приложение – это и есть компиляция, – а затем
+        убирает за собой приложение и сборку. ELEMENT_APP_ID и ELEMENT_PROJECT_ID
+        окружения намеренно не используются. Итог – поле ok; ошибки в errors
+        (файл, строка, колонка, окружение, текст), исходные сообщения платформы –
+        в messages, итог уборки – в cleanup. keep=true оставляет приложение и
+        сборку на стенде для разбора руками.
+        """
+        lines: list[str] = []
+        report = probe_project(
+            client(env_file),
+            project_dir=project_dir or None,
+            space_id=space_id or None,
+            keep=keep,
             log=lines.append,
         )
         payload = report.to_dict()

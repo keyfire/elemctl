@@ -24,6 +24,7 @@ from .client import ElementClient, brief_app, extract_assembly_id
 from .config import Config
 from .deploy import deploy_from_sources
 from .errors import ApiError, ConfigError, ElemctlError
+from .probe import probe_project
 
 
 def make_client(config):
@@ -459,6 +460,33 @@ def cmd_deploy(args):
     return 0 if report.ok else 1
 
 
+def cmd_probe(args):
+    """An isolated compilation check that does not touch the working application.
+
+    The environment is taken WITHOUT ELEMENT_APP_ID and ELEMENT_PROJECT_ID: the
+    probe must not be able to reach the working application, and the target
+    project is chosen by the platform out of the vendor and the name of the
+    manifest. The exit code follows the compilation verdict; leftovers of a
+    failed cleanup go to stderr, they do not change the verdict.
+    """
+    if args.require_clean:
+        _ensure_clean_tree(args.project_dir)
+    config = _config(args)
+    client = make_client(config)
+    report = probe_project(
+        client,
+        project_dir=args.project_dir,
+        output_dir=args.output,
+        space_id=args.space_id or config.space_id or None,
+        app_name=args.name or "",
+        version=args.build_version or "",
+        keep=args.keep,
+        log=_progress,
+    )
+    _emit(report.to_dict())
+    return 0 if report.ok else 1
+
+
 def cmd_branches_list(args):
     client = make_client(_config(args))
     _emit(client.list_branches(project_id=args.project_id or "", name=args.name or ""))
@@ -770,6 +798,21 @@ def build_parser():
         help=i18n.t("cli.help.deploy-require-clean"),
     )
     p.set_defaults(handler=cmd_deploy)
+
+    # probe -----------------------------------------------------------------
+    p = sub.add_parser("probe", help=i18n.t("cli.help.probe"))
+    p.add_argument("--project-dir", help=i18n.t("cli.help.probe-project-dir"))
+    p.add_argument("--output", help=i18n.t("cli.help.probe-output"))
+    p.add_argument("--build-version", help=i18n.t("cli.help.probe-build-version"))
+    p.add_argument("--name", help=i18n.t("cli.help.probe-name"))
+    p.add_argument("--space-id", help=i18n.t("cli.help.probe-space-id"))
+    p.add_argument("--keep", action="store_true", help=i18n.t("cli.help.probe-keep"))
+    p.add_argument(
+        "--require-clean",
+        action="store_true",
+        help=i18n.t("cli.help.probe-require-clean"),
+    )
+    p.set_defaults(handler=cmd_probe)
 
     # branches ----------------------------------------------------------------
     branches = sub.add_parser("branches", help=i18n.t("cli.help.branches"))

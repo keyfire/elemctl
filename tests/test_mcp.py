@@ -28,6 +28,7 @@ EXPECTED_TOOLS = {
     "build_assembly",
     "inspect_assembly",
     "deploy",
+    "probe",
     "apply_build",
     "verify_deploy",
     "list_app_tasks",

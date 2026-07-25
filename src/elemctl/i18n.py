@@ -245,6 +245,10 @@ MESSAGES = {
         "ru": "ждём готовности приложения: статус {status}...",
         "en": "waiting for the application to be ready: status {status}...",
     },
+    "client.waiting-deleted": {
+        "ru": "ждём удаления приложения: статус {status}...",
+        "en": "waiting for the application to be deleted: status {status}...",
+    },
     "client.stopping": {
         "ru": "статус {status} – останавливаем приложение...",
         "en": "status {status} – stopping the application...",
@@ -413,6 +417,57 @@ MESSAGES = {
     "deploy.verify-failed": {
         "ru": "проверка НЕ пройдена",
         "en": "verification FAILED",
+    },
+    # -- probe.py -----------------------------------------------------------------
+    "probe.built": {
+        "ru": "собран архив {file} (версия {version})",
+        "en": "built archive {file} (version {version})",
+    },
+    "probe.uploaded": {
+        "ru": "сборка загружена (id: {assembly}, проект: {project})",
+        "en": "build uploaded (id: {assembly}, project: {project})",
+    },
+    "probe.unknown": {
+        "ru": "не определён",
+        "en": "unknown",
+    },
+    "probe.creating": {
+        "ru": "создаём одноразовое приложение {name} – это и есть компиляция...",
+        "en": "creating the throwaway application {name} – that is the compilation...",
+    },
+    "probe.compiled": {
+        "ru": "компиляция пройдена",
+        "en": "compilation passed",
+    },
+    "probe.failed": {
+        "ru": "компиляция НЕ пройдена, сообщений: {count}",
+        "en": "compilation FAILED, messages: {count}",
+    },
+    "probe.no-assembly-id": {
+        "ru": "платформа не вернула ид сборки в ответе на загрузку – компилировать нечего",
+        "en": "the platform returned no build id in the upload response – nothing to compile",
+    },
+    "probe.no-app-id": {
+        "ru": "платформа не вернула ид приложения в ответе на создание",
+        "en": "the platform returned no application id in the create response",
+    },
+    "probe.kept": {
+        "ru": "уборка отключена (--keep): приложение {app}, сборка {version} остались на стенде",
+        "en": "cleanup is off (--keep): the application {app} and the build {version} are left in place",
+    },
+    "probe.app-still-there": {
+        "ru": "приложение {app} не исчезло за отведённое время – сборку и проект оставили",
+        "en": "the application {app} has not disappeared in time – the build and the project are left",
+    },
+    "probe.assembly-kept": {
+        "ru": "сборка {version} осталась в проекте {project}: пока живо приложение из неё, "
+              "платформа удалить её не даёт",
+        "en": "the build {version} is left in project {project}: the platform refuses to delete it "
+              "while an application created from it is alive",
+    },
+    "probe.cleanup-problem": {
+        "ru": "уборка: {problem}",
+        "en": "cleanup: {problem}",
     },
     # -- help: argparse help texts (cli.py) ---------------------------------------
     # CLI help strings. Key: cli.help.<command> or cli.help.<command>-<flag>.
@@ -772,6 +827,40 @@ MESSAGES = {
     "cli.help.deploy-require-clean": {
         "ru": "прервать деплой, если в каталоге проекта есть незакоммиченные изменения",
         "en": "abort the deploy if the project directory has uncommitted changes",
+    },
+    "cli.help.probe": {
+        "ru": "изолированная проверка компиляции: сборка -> одноразовое приложение -> "
+              "ошибки с файлом и позицией -> уборка",
+        "en": "isolated compilation check: build -> throwaway application -> errors with "
+              "file and position -> cleanup",
+    },
+    "cli.help.probe-project-dir": {
+        "ru": "каталог проекта (по умолчанию ищется вглубь от текущего)",
+        "en": "the project directory (by default searched downward from the current one)",
+    },
+    "cli.help.probe-output": {
+        "ru": "каталог для архива (по умолчанию временный)",
+        "en": "directory for the archive (default: a temporary one)",
+    },
+    "cli.help.probe-build-version": {
+        "ru": "явная версия сборки (по умолчанию {{база}}-probe-{{токен}} – она обязана быть новой)",
+        "en": "explicit build version (default {{base}}-probe-{{token}} – it has to be a new one)",
+    },
+    "cli.help.probe-name": {
+        "ru": "имя одноразового приложения (по умолчанию elemctl-probe-{{токен}})",
+        "en": "name of the throwaway application (default elemctl-probe-{{token}})",
+    },
+    "cli.help.probe-space-id": {
+        "ru": "пространство для проекта и приложения (ELEMENT_SPACE_ID)",
+        "en": "the space for the project and the application (ELEMENT_SPACE_ID)",
+    },
+    "cli.help.probe-keep": {
+        "ru": "не убирать за собой: оставить приложение и сборку для разбора руками",
+        "en": "skip the cleanup: leave the application and the build for a hands-on look",
+    },
+    "cli.help.probe-require-clean": {
+        "ru": "прервать проверку, если в каталоге проекта есть незакоммиченные изменения",
+        "en": "abort the check if the project directory has uncommitted changes",
     },
     "cli.help.branches": {
         "ru": "ветки среды разработки",

@@ -14,6 +14,34 @@ day are named in the heading. The format follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html). The VS Code debug companion in
 `editors/vscode` is released separately under the `vscode-v*` tags and is not tracked here.
 
+## Unreleased
+
+### Added
+- `elemctl probe` – an isolated compilation check of the sources that does not touch the
+  working application. Compilation on this platform is the server's and happens when a build
+  is applied, so the probe builds the archive, uploads it, creates a THROWAWAY application out
+  of it – that is the compilation – and removes what it created afterwards. The errors come
+  back parsed: `file` (relative to the project directory), `line`, `column`, `environment`
+  (`Сервер`/`Клиент`) and the text; the platform's own messages are kept verbatim in
+  `messages`. `ELEMENT_APP_ID` and `ELEMENT_PROJECT_ID` are deliberately not used – the probe
+  must not be able to reach the working application. Exit code 0 only when `ok`; `--keep`
+  leaves the application and the build in place for a hands-on look. The same as the `probe`
+  MCP tool.
+
+### Fixed
+- The documented behaviour of deleting a build was wrong: the platform rejects it with a 500
+  only while an application created from that build is still alive – after the application
+  has really disappeared the same request succeeds. That is why `probe` deletes the
+  application first, waits for it to be gone (the new `wait_app_deleted` of the client), and
+  only then deletes the build.
+
+### Documentation
+- A platform project is identified by the `Vendor` + `Name` pair of the manifest, not by the
+  `Ид` of `Проект.yaml`: an upload without a project id lands in the project that already owns
+  the pair, and a second project for the same pair is refused with a 409 `ALREADY_EXISTS`
+  (a freshly generated `Ид` does not help). The upload response describes that project in its
+  `artifact` object: `artifact-id`, `configuration-id`, `name`.
+
 ## 2026-07-25 – 0.14.0
 
 ### Added

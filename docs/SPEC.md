@@ -86,9 +86,10 @@ Application statuses: stable `Running`, `Stopped`, `Error`; transitional `Starti
 - Uploading a build file – a binary POST (Content-Type `application/octet-stream`, body – the file bytes):
   - `POST /projects/{id}/assemblies` – add a build to an existing project;
   - `POST /projects` – create a new project from a build.
-  Query parameters (all optional): `SpaceId`, `BranchName`, `CommitId`, `CommitMessage`. Note: the names of these query parameters are in PascalCase. The response contains the id of the created build in one of the fields: `image-id`, `assembly-id`, or `id` (check in this order). The console shows a project under the name of the last uploaded build (the manifest `Name`), so a build uploaded into a project under a different name silently renames that project – the client warns about such a mismatch before uploading (best effort, never blocks the upload).
+  Query parameters (all optional): `SpaceId`, `BranchName`, `CommitId`, `CommitMessage`. Note: the names of these query parameters are in PascalCase. The response contains the id of the created build in one of the fields: `image-id`, `assembly-id`, or `id` (check in this order), and an `artifact` object describing the project the build landed in: `artifact-id` (the project id – it opens as a project card), `configuration-id` (the `Ид` of `Проект.yaml`) and `name` (the project presentation). The console shows a project under the name of the last uploaded build (the manifest `Name`), so a build uploaded into a project under a different name silently renames that project – the client warns about such a mismatch before uploading (best effort, never blocks the upload).
+- **A project is identified by the pair `Vendor` + `Name` of the manifest** (section 6.8). `POST /projects` therefore does not always create a project: when a project with that pair already exists, the build is added to it and its `artifact-id` comes back in the response. Two ways to hit a 409 `ALREADY_EXISTS`: uploading a version that is already there ("Версия сборки ... уже присутствует в группе проекта") and registering the same vendor+name under another project ("Сборка с именем поставщика ... уже зарегистрирована в другом проекте") – the latter even with a freshly generated `Ид` in `Проект.yaml`.
 - `GET /projects/{id}/assemblies` – list of builds. Each element contains `assembly-version` (a string like `1.0-42`) and an id (`id` or `image-id`). The response may be either an array or an object with the list in the `items` or `assemblies` field.
-- `GET /projects/{id}/assemblies/{assembly-id}` – build card; `DELETE .../{assembly-id}` – delete. The API addresses a build ONLY by UUID: a version gets a 400 "Version is not a valid UUID". The client must also accept a version (that is what the user sees), resolving it to an id via the build list (`assembly-version`/`project-version`); note that the platform renumbers the manifest version on upload. Deleting a build that took part in an apply (even a rolled-back one) is rejected by the platform with a 500.
+- `GET /projects/{id}/assemblies/{assembly-id}` – build card; `DELETE .../{assembly-id}` – delete. The API addresses a build ONLY by UUID: a version gets a 400 "Version is not a valid UUID". The client must also accept a version (that is what the user sees), resolving it to an id via the build list (`assembly-version`/`project-version`); note that the platform renumbers the manifest version on upload. Deleting a build is rejected with a 500 while an application created from it still exists (section 6.9); once that application is really gone, the same request succeeds.
 
 Comparing build versions: by the numeric suffix after the last hyphen (`1.0-10` is newer than `1.0-9`; lexicographic comparison gives the wrong order).
 
@@ -169,6 +170,9 @@ Compatibility is checked against the `РежимСовместимости` prop
 5. **Restart after apply.** `project/update` may restart the application itself. After the call, wait until it leaves the transitional statuses; if the result is not `Running` – stop it (if not `Stopped`), wait for `Stopped`, start it, wait for `Running`. Reasonable timeouts: waiting for stop ~3 min, for start/stabilization ~5 min, polling every ~10 s.
 6. **Error is terminal.** A stable `Error` (e.g., after a failed apply) is an immediate failure: surface the error messages of the application tasks (section 4.6) right away. Do not try to stop/restart such an application and do not keep waiting for another status – from `Error` it does not transition to `Stopped`, and the wait just eats the whole timeout.
 7. **Windows.** Temporary files and caches – only via `tempfile`; switch console output to UTF-8 (`reconfigure` for stdout/stderr), otherwise Cyrillic breaks.
+8. **The project is identified by vendor and name.** The identity of a platform project is the `Vendor` + `Name` pair of the manifest, not the `Ид` of `Проект.yaml`: an upload without a project id lands in the project that already owns that pair, and creating a second project for the same pair is refused with a 409 (section 4.4). A truly separate project can therefore only be had by renaming the sources – which is why an isolated compilation check is built around a throwaway APPLICATION rather than a throwaway project.
+9. **Deletion is asynchronous and ordered.** `DELETE /applications/{id}` returns immediately, and the application lives on for a while with a `DeleteApplication` task. While it exists, deleting the build it was created from is rejected with a 500. The order for cleanup: delete the application, wait until its card answers 404 (or its status becomes `Deleted`), and only then delete the build.
+10. **Compilation is the server's, and it happens on apply.** A local build only packs an archive – the syntax, the types and the visibility of the sources are checked by the server compiler when a build is applied or an application is created out of it. There is no separate "compile" endpoint, so the only way to check the sources without risking the working application is a throwaway application created from the same build (section 7, `probe`).
 
 ## 7. CLI requirements
 
@@ -214,6 +218,30 @@ Commands (significant flags in parentheses):
 - `deploy [--app-id --project-id --project-dir --output --build-version
   --branch --commit --commit-message --dry-run --require-clean]` –
   the full cycle: build -> upload -> apply -> restart -> verification of the actual apply (section 6.1). Output – a JSON report with fields: `app-id`, `uri`, `status`, `version`, `assembly-id`, `applied-version`, `applied` (true/false/null – null when the actual version could not be determined), `uri-status`, `problems` (list of strings), `ok` (boolean), `dirty`/`dirty-files` (uncommitted changes of the project directory at build time – the build captures the current disk state, so the divergence from HEAD must be visible; a warning also goes to stderr; null when git is unavailable). Return code 0 only when `ok`. `--dry-run` – build only. `--require-clean` – abort before building on a dirty tree.
+- `probe [--project-dir --output --build-version --name --space-id --keep
+  --require-clean]` – an isolated compilation check of the sources: build ->
+  upload -> a THROWAWAY application (that is the compilation, section 6.10) ->
+  errors with file and position -> cleanup. `ELEMENT_APP_ID` and
+  `ELEMENT_PROJECT_ID` are deliberately NOT used: the probe must not be able to
+  reach the working application, and the target project is chosen by the platform
+  out of the vendor and the name of the manifest (section 6.8). The default build
+  version is `{base}-probe-{token}`: it has to be a new one every time (a repeat
+  is a 409) and it must not look like the project's latest build – the counter is
+  numeric, and a non-numeric suffix keeps a probe build out of that comparison.
+  Cleanup runs whether the compilation passed or failed, in the order of section
+  6.9: the application, then the build, then – only if the probe itself created
+  it – the project. Output: `ok`, `project-dir`, `vendor`, `name`, `file`,
+  `version`, `project-id`, `assembly-id`, `app-id`, `app-name`, `status`,
+  `errors` (a list of `{file, entry, line, column, environment, message}`, where
+  `file` is the path relative to the project directory), `messages` (the platform
+  texts verbatim – nothing is lost when the failure is not a compilation one) and
+  `cleanup` (`kept`, `app-deleted`, `assembly-deleted`, `project-deleted`,
+  `problems`). Return code 0 only when `ok`; a failed cleanup is a problem in the
+  report and on stderr, it does not change the compilation verdict. `--keep`
+  leaves the application and the build in place for a hands-on look. What a probe
+  does leave behind is a tombstone: the platform keeps deleted applications in
+  the list with the `Deleted` status and their former id, and there is no API to
+  remove them.
 - `branches list [--project-id --name]`, `branches get ID`,
   `branches create NAME [--project-id --app-id]`,
   `branches update ID [--app-id]`, `branches delete ID`,
@@ -249,7 +277,9 @@ id (UUID) or the exact application name (resolved like the CLI does),
 `inspect_assembly(file)` – parsing of a built archive (section 5.1; a local operation),
 `deploy(app_id, project_id, project_dir="", version="", branch="",
 commit_message="")` – returns the deploy report plus a `log` field with progress
-lines; `apply_build(app_id, version_id)`, `verify_deploy(app_id,
+lines; `probe(project_dir="", space_id="", keep=False)` – an isolated
+compilation check that does not touch the working application (section 7),
+the report plus a `log` field; `apply_build(app_id, version_id)`, `verify_deploy(app_id,
 expected_version="", since_minutes=30)` – verification of the apply per section 6.1;
 `list_app_tasks(app_id="")`, `list_branches(project_id="", name="")`,
 `merge_branch(branch_id)`.

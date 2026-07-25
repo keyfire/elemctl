@@ -18,6 +18,7 @@ Development notes and updates (in Russian): the [1C × AI: engineering workshop]
 - **Projects and builds**: upload `.xasm`/`.xlib`, list builds, delete.
 - **Build from sources**: package a project directory (`Проект.yaml` + modules) into a build archive with a manifest and git metadata. The version comes from the flag, the last build's counter or the CI run number in the environment (`CI_PIPELINE_IID` / `GITHUB_RUN_NUMBER` / `BUILD_NUMBER`), and the output carries it as a field. Descriptors written with English key spellings (`Name`/`Vendor`/`Version`) are read as well as Russian ones.
 - **One-command deploy**: build -> upload -> apply -> restart -> **verification that the apply actually took effect**. Uncommitted changes of the project directory are reported (`dirty` in the report); `--require-clean` aborts on a dirty tree.
+- **Compilation check without risking the application** (`elemctl probe`): the sources are compiled by the SERVER through a throwaway application, the errors come back with file, line and column, and the probe removes what it created. The working application is out of reach on purpose – `ELEMENT_APP_ID` and `ELEMENT_PROJECT_ID` are not used.
 - **Development-environment branches**: list, create, bind to an application, merge.
 - **Dumps**: create and check readiness.
 - **MCP server**: the same operations exposed as tools for AI agents (Claude Code and other MCP clients).
@@ -74,6 +75,10 @@ elemctl apps ensure acme-crm-dev --project-id <project-id> --latest-build --wait
 # full deploy cycle from sources with apply verification
 elemctl deploy --app-id <app-id> --project-id <project-id> --project-dir acme/crm
 
+# compile the sources on the server without touching the working application:
+# ok, plus errors with file, line and column; cleans up after itself
+elemctl probe --project-dir acme/crm
+
 # debug-session data: {"debug-token": ..., "debug-address": ...}
 # (debugging must be enabled on the server: config/debug.yml enabled: true)
 elemctl apps debug <app-id>
@@ -105,7 +110,7 @@ pip install "elemctl[mcp]"
 claude mcp add elemctl -- elemctl mcp
 ```
 
-The server reads connection credentials from the same `ELEMENT_*` variables / `.env`. Among the tools: `list_apps`, `get_app`, `deploy` (with an `ok` field in the response), `verify_deploy`, `list_builds`, `merge_branch` and others.
+The server reads connection credentials from the same `ELEMENT_*` variables / `.env`. Among the tools: `list_apps`, `get_app`, `deploy` (with an `ok` field in the response), `probe` (a compilation check that does not touch the working application), `verify_deploy`, `list_builds`, `merge_branch` and others.
 
 A single environment is not a limit: every tool that talks to the platform takes an optional `env_file` - a path to another installation's `.env`. One server thus serves both the cloud and a local installation without a restart with different credentials. `list_apps` returns brief cards by default (id, name, status, uri, applied version): full cards of a whole space are tens of thousands of characters in an agent's response - pass `brief=false` for them.
 
@@ -184,6 +189,8 @@ The project directory must follow the `{repo}/{vendor}/{name}/Проект.yaml`
 - Only the documented Console API v2 is used – the tool does not call or describe the platform console's internal APIs.
 - Creating an application from `--project-id` alone produces, on some platform configurations, an empty skeleton without project data. The reliable path is a build source: `elemctl apps create <name> --project-id <id> --latest-build` (the `create_app` MCP tool substitutes the latest build automatically), followed by `elemctl deploy` after creation.
 - An application created with an `Error` status is described by the platform only as "Неизвестная ошибка. Обратитесь к администратору"; the details - files, lines and columns of the compilation errors - live in the application's task. `apps create --wait` and `apps ensure` print them after the generic text, the way `deploy` and `verify` have long done, so there is no need to dig through the server log.
+- There is no way to compile the sources without creating something on the platform: compilation is the server's and it happens when a build is applied. That is what `probe` is for – it takes the hit on a throwaway application instead of the working one. A probe run costs as long as creating an application does (minutes), so it belongs before a deploy or in CI, not in a per-keystroke loop.
+- A platform project is identified by the `Vendor` + `Name` pair of the manifest, not by the `Ид` of `Проект.yaml`: a build upload without a project id lands in the project that already owns the pair, and a second project for the same pair is refused with a 409.
 - Deleted applications remain in the platform's list with a `Deleted` status and their former `id`, on which `apps get` and `deploy` return 404. `apps find` and `apps ensure` skip them; to restore the previous search behavior, use `apps find --include-deleted`.
 - The platform will not let you delete an application that has unpublished changes in the development environment (HTTP 400 `FAILED_PRECONDITION`), and there is no forced deletion in the Console API – only through the control panel; elemctl points this out in the error message.
 - Recreating an application (delete + create) changes its URL – external settings tied to the address (OIDC redirect, etc.) will need to be updated. There is no "soft" wipe of application data in the Console API; it is done in the management console.

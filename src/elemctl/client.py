@@ -27,6 +27,7 @@ POLL_INTERVAL = 10.0
 STOP_TIMEOUT = 180.0
 START_TIMEOUT = 300.0
 READY_TIMEOUT = 600.0
+DELETE_TIMEOUT = 180.0
 
 # Application task statuses that mean a failure (compared case-insensitively).
 FAILED_TASK_STATUSES = {"error", "failed"}
@@ -43,6 +44,27 @@ def extract_assembly_id(payload):
         value = payload.get(key)
         if value:
             return value
+    return None
+
+
+def extract_project_id(payload):
+    """Extract the project id out of a build upload response.
+
+    On an upload without a project id the platform answers with the build id and
+    an artifact – that artifact IS the project the build landed in (verified by a
+    live call: the artifact-id opens as a project card). The plain id field is
+    deliberately not looked at: at the top level it is the id of the build.
+    """
+    if not isinstance(payload, dict):
+        return None
+    artifact = payload.get("artifact")
+    if isinstance(artifact, dict):
+        for key in ("artifact-id", "project-id", "id"):
+            if artifact.get(key):
+                return artifact[key]
+    for key in ("project-id", "artifact-id"):
+        if payload.get(key):
+            return payload[key]
     return None
 
 
@@ -700,6 +722,36 @@ class ElementClient:
                 ))
             if log:
                 log(i18n.t("client.waiting-ready", status=status or i18n.t("client.transitional")))
+            self._sleep(poll)
+
+    def wait_app_deleted(self, app_id, *, timeout=DELETE_TIMEOUT, poll=POLL_INTERVAL, log=None):
+        """Wait until a deleted application really disappears; True when it has.
+
+        Deletion is asynchronous: the call returns right away, and the
+        application lives on for a while with a DeleteApplication task. The
+        distinction matters to whoever deletes the build afterwards – while the
+        application exists, the platform rejects that with a 500. A gone
+        application is a 404 to the card request or the Deleted status. Running
+        out of the timeout is an answer (False), not an exception: the caller is
+        cleaning up and has to report rather than fall over.
+        """
+        deadline = time.monotonic() + timeout
+        while True:
+            try:
+                card = self.get_app(app_id) or {}
+            except ApiError as error:
+                if error.status == 404:
+                    return True
+                raise
+            if _is_deleted(card):
+                return True
+            if time.monotonic() >= deadline:
+                return False
+            if log:
+                log(i18n.t(
+                    "client.waiting-deleted",
+                    status=card.get("status") or i18n.t("client.transitional"),
+                ))
             self._sleep(poll)
 
     def ensure_running(self, app_id, *, log=None):

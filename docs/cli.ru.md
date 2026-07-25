@@ -47,6 +47,7 @@ usage: elemctl [-h] [--base-url BASE_URL] [--client-id CLIENT_ID] [--client-secr
 | `build` | локально собрать архив сборки из исходников |
 | `inspect` | разобрать готовый архив сборки (.xasm/.xlib) |
 | `deploy` | полный цикл: сборка -&gt; загрузка -&gt; применение -&gt; перезапуск -&gt; проверка применения |
+| `probe` | изолированная проверка компиляции: сборка -&gt; одноразовое приложение -&gt; ошибки с файлом и позицией -&gt; уборка |
 | `branches` | ветки среды разработки |
 | `dumps` | дампы приложений |
 | `tasks` | задачи приложений |
@@ -533,6 +534,27 @@ usage: elemctl deploy [-h] [--app-id APP_ID] [--project-id PROJECT_ID] [--projec
 | `--commit-message COMMIT_MESSAGE` | сообщение коммита (метаданные загрузки) |
 | `--dry-run` | только сборка, без загрузки |
 | `--require-clean` | прервать деплой, если в каталоге проекта есть незакоммиченные изменения |
+
+## `elemctl probe`
+
+```bash
+usage: elemctl probe [-h] [--project-dir PROJECT_DIR] [--output OUTPUT]
+                     [--build-version BUILD_VERSION] [--name NAME] [--space-id SPACE_ID] [--keep]
+                     [--require-clean]
+```
+
+**Параметры**
+
+| Параметр | Описание |
+|---|---|
+| `-h, --help` | показать эту справку и выйти |
+| `--project-dir PROJECT_DIR` | каталог проекта (по умолчанию ищется вглубь от текущего) |
+| `--output OUTPUT` | каталог для архива (по умолчанию временный) |
+| `--build-version BUILD_VERSION` | явная версия сборки (по умолчанию {база}`-probe-`{токен} – она обязана быть новой) |
+| `--name NAME` | имя одноразового приложения (по умолчанию elemctl-probe-{токен}) |
+| `--space-id SPACE_ID` | пространство для проекта и приложения (ELEMENT_SPACE_ID) |
+| `--keep` | не убирать за собой: оставить приложение и сборку для разбора руками |
+| `--require-clean` | прервать проверку, если в каталоге проекта есть незакоммиченные изменения |
 
 ## `elemctl branches`
 

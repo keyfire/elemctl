@@ -26,6 +26,18 @@ report = deploy_from_sources(
 assert report.ok, report.problems
 ```
 
+A compilation check that does not touch the working application – the same cycle
+the `probe` command runs:
+
+```python
+from elemctl.probe import probe_project
+
+report = probe_project(client, project_dir="acme/crm", log=print)
+for error in report.errors:
+    print(f"{error['file']}:{error['line']}:{error['column']} {error['message']}")
+assert report.ok, report.messages
+```
+
 ## Build format
 
 

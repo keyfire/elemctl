@@ -47,6 +47,7 @@ usage: elemctl [-h] [--base-url BASE_URL] [--client-id CLIENT_ID] [--client-secr
 | `build` | build an assembly archive locally from sources |
 | `inspect` | inspect a prebuilt assembly archive (.xasm/.xlib) |
 | `deploy` | full cycle: build -&gt; upload -&gt; apply -&gt; restart -&gt; verify the apply |
+| `probe` | isolated compilation check: build -&gt; throwaway application -&gt; errors with file and position -&gt; cleanup |
 | `branches` | development-environment branches |
 | `dumps` | application dumps |
 | `tasks` | application tasks |
@@ -533,6 +534,27 @@ usage: elemctl deploy [-h] [--app-id APP_ID] [--project-id PROJECT_ID] [--projec
 | `--commit-message COMMIT_MESSAGE` | commit message (upload metadata) |
 | `--dry-run` | build only, no upload |
 | `--require-clean` | abort the deploy if the project directory has uncommitted changes |
+
+## `elemctl probe`
+
+```bash
+usage: elemctl probe [-h] [--project-dir PROJECT_DIR] [--output OUTPUT]
+                     [--build-version BUILD_VERSION] [--name NAME] [--space-id SPACE_ID] [--keep]
+                     [--require-clean]
+```
+
+**Options**
+
+| Option | Description |
+|---|---|
+| `-h, --help` | show this help message and exit |
+| `--project-dir PROJECT_DIR` | the project directory (by default searched downward from the current one) |
+| `--output OUTPUT` | directory for the archive (default: a temporary one) |
+| `--build-version BUILD_VERSION` | explicit build version (default {base}`-probe-`{token} – it has to be a new one) |
+| `--name NAME` | name of the throwaway application (default elemctl-probe-{token}) |
+| `--space-id SPACE_ID` | the space for the project and the application (ELEMENT_SPACE_ID) |
+| `--keep` | skip the cleanup: leave the application and the build for a hands-on look |
+| `--require-clean` | abort the check if the project directory has uncommitted changes |
 
 ## `elemctl branches`
 
