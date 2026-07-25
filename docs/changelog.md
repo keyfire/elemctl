@@ -14,6 +14,32 @@ day are named in the heading. The format follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html). The VS Code debug companion in
 `editors/vscode` is released separately under the `vscode-v*` tags and is not tracked here.
 
+## Unreleased
+
+### Added
+- `elemctl user-lists` – the sign-in settings of a user list, the ones a control panel
+  usually holds: `list`, `get`, `self-registration [--enable|--disable]` and
+  `password-login [--enable|--disable]`. The list is addressed by id, by its exact
+  presentation or by `--app` – the application's own list. Without a flag the two setting
+  commands only read the state, so the same command answers "how is it now". Behind
+  "signing in with a login and a password" there is the account service of type `Local`:
+  the answer says `enabled: null` when the list has no such service at all, and `changed`
+  tells whether this very call altered anything – switching to the state that is already
+  there sends no request. The MCP side is `list_user_lists` and `configure_user_list`,
+  which does both settings in one call.
+
+### Documentation
+- The Console API contract now describes user lists (section 4.7): the settings endpoints,
+  the meaning of the `Local` account service, and the fact that the link between an
+  application and a list carries no settings of its own. Also written down: the composition
+  of the authentication FORMS and the "connect users automatically" setting are not in the
+  API at all (verified on a live stand); the rules for parsing an account service response
+  are accepted under `userPropertiesCalculationRules` while the reference's own schema calls
+  them `calculation-rules` and the platform answers 400 to that spelling – and a GET never
+  returns them, so the setting is write-only; `POST /user-lists` wants the whole card and
+  answers a 500 "Failed to parse json" to anything less; an unknown Console API path is
+  answered with a 401 "Handler ... not found", not a 404.
+
 ## 2026-07-26 – 0.16.0
 
 ### Added

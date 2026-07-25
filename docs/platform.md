@@ -70,6 +70,22 @@ Comparing build versions: by the numeric suffix after the last hyphen (`1.0-10` 
 
 The tool works ONLY with the documented Console API v2. Internal (undocumented) platform console APIs are not used and not described.
 
+### User lists
+
+A user list holds the users of an application (an application has one of its own, named after it – the application card points at it with `default-user-list`) or of the control panel (one per installation).
+
+- `GET /user-lists` – the list: `id`, `presentation`, `space-id`; there is no server-side name filter. `GET /user-lists/{id}` – the full card. `POST /user-lists` creates one, and it wants the WHOLE card: an incomplete body is answered with a 500 and the misleading text "Failed to parse json". `DELETE /user-lists/{id}` removes it.
+- `GET|PUT /user-lists/{id}/settings/self-registration` – `{enabled, phone-required, email-required}`, the control panel's "allow users to register themselves".
+- `GET|POST /user-lists/{id}/settings/account-services-settings`, `PUT|DELETE .../{account-service-id}` – the account services. An entry is `{account-service-id, account-service-type, local-id, enabled, create-user-on-auth, additional-settings}`; the type `Local` authenticates by a password, the rest (`OIDC`, `Cas`, `ActiveDirectory`, `Esia`) are external. Both writes want the whole entry.
+- `GET|POST|DELETE /applications/{id}/userlists` – the ids of the lists connected to an application. Note the spelling: `userlists` here, `user-lists` at the top level. The link carries no settings of its own.
+
+Worth knowing before you build on this:
+
+- the rules for parsing an account service response (`presentation-rule`, `email-rule`, `phone-rule`, `response-kind`) are accepted under the key `userPropertiesCalculationRules`, although the reference's own schema calls the field `calculation-rules` – that spelling is answered with a 400. A GET never returns the rules: the setting is write-only, and an API client cannot confirm it applied;
+- the composition of the authentication FORMS of an application and the connection setting "users of the list are connected automatically on sign-in" are not in the API at all – those stay in the control panel;
+- a GET of an account service returns the `client_secret` of an OIDC client in cleartext, so such answers do not belong in logs and reports as they are;
+- an unknown path of the Console API is answered with a **401** carrying "Handler of HTTP request ... not found", not a 404 – when probing for the surface, that is the sign that a method does not exist.
+
 ### Application tasks
 
 `GET /tasks/application-tasks` – list of tasks for all applications (there is no server-side filter – filter on the client). Task fields: `id`, `application-id`, `status` (including `Error`, `Failed`), `operation-type`, `error-message`, `start-date` (ISO 8601, may end with `Z`).

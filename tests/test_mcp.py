@@ -32,6 +32,8 @@ EXPECTED_TOOLS = {
     "probe",
     "apply_build",
     "verify_deploy",
+    "list_user_lists",
+    "configure_user_list",
     "list_app_tasks",
     "list_branches",
     "merge_branch",

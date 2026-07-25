@@ -97,6 +97,18 @@ MESSAGES = {
         "ru": "--project-id (или ELEMENT_PROJECT_ID)",
         "en": "--project-id (or ELEMENT_PROJECT_ID)",
     },
+    "cli.user-list-source-conflict": {
+        "ru": "список задан дважды: аргументом LIST и флагом --app – оставьте что-то одно",
+        "en": "the list is given twice: as the LIST argument and as --app – keep one of them",
+    },
+    "cli.user-list-required": {
+        "ru": "не задан список пользователей: аргумент LIST либо флаг --app",
+        "en": "no user list given: the LIST argument or the --app flag",
+    },
+    "cli.enable-disable-conflict": {
+        "ru": "флаги --enable и --disable несовместимы",
+        "en": "--enable and --disable are mutually exclusive",
+    },
     "cli.latest-build-needs-project": {
         "ru": "для --latest-build нужен --project-id (или ELEMENT_PROJECT_ID)",
         "en": "--latest-build requires --project-id (or ELEMENT_PROJECT_ID)",
@@ -244,6 +256,23 @@ MESSAGES = {
     "client.waiting-ready": {
         "ru": "ждём готовности приложения: статус {status}...",
         "en": "waiting for the application to be ready: status {status}...",
+    },
+    "client.user-list-not-found": {
+        "ru": "список пользователей '{name}' не найден",
+        "en": "the user list '{name}' was not found",
+    },
+    "client.user-list-ambiguous": {
+        "ru": "под представление '{name}' подходит несколько списков пользователей: {ids} – "
+              "укажите ид",
+        "en": "several user lists match the presentation '{name}': {ids} – give the id",
+    },
+    "client.app-has-no-user-list": {
+        "ru": "у приложения {app} нет собственного списка пользователей (default-user-list пуст)",
+        "en": "the application {app} has no user list of its own (default-user-list is empty)",
+    },
+    "client.account-service-id-required": {
+        "ru": "у сервиса учётных записей не задан account-service-id",
+        "en": "the account service has no account-service-id",
     },
     "client.waiting-deleted": {
         "ru": "ждём удаления приложения: статус {status}...",
@@ -879,6 +908,46 @@ MESSAGES = {
     "cli.help.deploy-require-clean": {
         "ru": "прервать деплой, если в каталоге проекта есть незакоммиченные изменения",
         "en": "abort the deploy if the project directory has uncommitted changes",
+    },
+    "cli.help.user-lists": {
+        "ru": "списки пользователей и их настройки входа",
+        "en": "user lists and their sign-in settings",
+    },
+    "cli.help.user-lists-list": {
+        "ru": "список списков пользователей",
+        "en": "list the user lists",
+    },
+    "cli.help.user-lists-list-name": {
+        "ru": "фильтр по подстроке представления",
+        "en": "filter by a presentation substring",
+    },
+    "cli.help.user-lists-get": {
+        "ru": "карточка списка: регистрация, политика паролей, сервисы учётных записей",
+        "en": "the list card: registration, password policy, account services",
+    },
+    "cli.help.user-lists-self-registration": {
+        "ru": "самостоятельная регистрация пользователей: показать или переключить",
+        "en": "self-registration of users: show or switch",
+    },
+    "cli.help.user-lists-password-login": {
+        "ru": "вход по логину и паролю (сервис учётных записей Local): показать или переключить",
+        "en": "signing in with a login and a password (the Local account service): show or switch",
+    },
+    "cli.help.user-lists-app": {
+        "ru": "взять собственный список приложения (ид либо точное имя приложения)",
+        "en": "take the application's own list (its id or exact name)",
+    },
+    "cli.help.arg.user-list": {
+        "ru": "ид списка пользователей либо его точное представление",
+        "en": "the user list id or its exact presentation",
+    },
+    "cli.help.user-lists-enable": {
+        "ru": "включить",
+        "en": "turn on",
+    },
+    "cli.help.user-lists-disable": {
+        "ru": "выключить",
+        "en": "turn off",
     },
     "cli.help.probe": {
         "ru": "изолированная проверка компиляции: сборка -> одноразовое приложение -> "

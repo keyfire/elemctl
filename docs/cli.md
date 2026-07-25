@@ -47,6 +47,7 @@ usage: elemctl [-h] [--base-url BASE_URL] [--client-id CLIENT_ID] [--client-secr
 | `build` | build an assembly archive locally from sources |
 | `inspect` | inspect a prebuilt assembly archive (.xasm/.xlib) |
 | `deploy` | full cycle: build -&gt; upload -&gt; apply -&gt; restart -&gt; verify the apply |
+| `user-lists` | user lists and their sign-in settings |
 | `probe` | isolated compilation check: build -&gt; throwaway application -&gt; errors with file and position -&gt; cleanup |
 | `branches` | development-environment branches |
 | `dumps` | application dumps |
@@ -534,6 +535,101 @@ usage: elemctl deploy [-h] [--app-id APP_ID] [--project-id PROJECT_ID] [--projec
 | `--commit-message COMMIT_MESSAGE` | commit message (upload metadata) |
 | `--dry-run` | build only, no upload |
 | `--require-clean` | abort the deploy if the project directory has uncommitted changes |
+
+## `elemctl user-lists`
+
+```bash
+usage: elemctl user-lists [-h] action ...
+```
+
+**Arguments**
+
+| Option | Description |
+|---|---|
+| `list` | list the user lists |
+| `get` | the list card: registration, password policy, account services |
+| `self-registration` | self-registration of users: show or switch |
+| `password-login` | signing in with a login and a password (the Local account service): show or switch |
+
+**Options**
+
+| Option | Description |
+|---|---|
+| `-h, --help` | show this help message and exit |
+
+### `elemctl user-lists list`
+
+```bash
+usage: elemctl user-lists list [-h] [--name NAME]
+```
+
+**Options**
+
+| Option | Description |
+|---|---|
+| `-h, --help` | show this help message and exit |
+| `--name NAME` | filter by a presentation substring |
+
+### `elemctl user-lists get`
+
+```bash
+usage: elemctl user-lists get [-h] [--app APP] [LIST]
+```
+
+**Arguments**
+
+| Option | Description |
+|---|---|
+| `LIST` | the user list id or its exact presentation |
+
+**Options**
+
+| Option | Description |
+|---|---|
+| `-h, --help` | show this help message and exit |
+| `--app APP` | take the application's own list (its id or exact name) |
+
+### `elemctl user-lists self-registration`
+
+```bash
+usage: elemctl user-lists self-registration [-h] [--app APP] [--enable] [--disable] [LIST]
+```
+
+**Arguments**
+
+| Option | Description |
+|---|---|
+| `LIST` | the user list id or its exact presentation |
+
+**Options**
+
+| Option | Description |
+|---|---|
+| `-h, --help` | show this help message and exit |
+| `--app APP` | take the application's own list (its id or exact name) |
+| `--enable` | turn on |
+| `--disable` | turn off |
+
+### `elemctl user-lists password-login`
+
+```bash
+usage: elemctl user-lists password-login [-h] [--app APP] [--enable] [--disable] [LIST]
+```
+
+**Arguments**
+
+| Option | Description |
+|---|---|
+| `LIST` | the user list id or its exact presentation |
+
+**Options**
+
+| Option | Description |
+|---|---|
+| `-h, --help` | show this help message and exit |
+| `--app APP` | take the application's own list (its id or exact name) |
+| `--enable` | turn on |
+| `--disable` | turn off |
 
 ## `elemctl probe`
 

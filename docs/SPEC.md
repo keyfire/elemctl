@@ -108,6 +108,24 @@ The tool works ONLY with the documented Console API v2. Internal (undocumented) 
 
 `GET /tasks/application-tasks` – list of tasks for all applications (there is no server-side filter – filter on the client). Task fields: `id`, `application-id`, `status` (including `Error`, `Failed`), `operation-type`, `error-message`, `start-date` (ISO 8601, may end with `Z`).
 
+### 4.7. User lists
+
+A user list holds the users of an application (an application has one of its own, named after it) or of the control panel (one per installation). What the panel calls the sign-in settings lives here.
+
+- `GET /user-lists` – the list of user lists: `id`, `presentation`, `space-id`. There is no server-side name filter – filter on the client.
+- `GET /user-lists/{id}` – the full card: `self-registration`, `password-policy`, `password-policy-enabled`, `account-services-settings`, `confirmations`, the gateways, `include-personal-data-in-messages`.
+- `GET|PUT /user-lists/{id}/settings/self-registration` – `{enabled, phone-required, email-required}`. This is the panel's "allow users to register themselves". The PUT wants the whole object.
+- `GET|POST /user-lists/{id}/settings/account-services-settings`, `PUT|DELETE .../{account-service-id}` – the account services of the list. An entry is `{account-service-id, account-service-type, local-id, enabled, create-user-on-auth, additional-settings}`. The type `Local` is the one that authenticates by a password, so the panel's "allow signing in with a login and a password" is that entry being `enabled`; the other types (`OIDC`, `Cas`, `ActiveDirectory`, `Esia`) are external services. The PUT wants the whole entry back.
+- `GET /applications/{id}/userlists` (note: no dash) – the ids of the lists connected to the application; `POST` connects, `DELETE` disconnects. There are NO per-connection settings: the link is a set of ids and nothing more.
+- The application card names the application's own list in `default-user-list` – that is the list of its users, as opposed to the panel list also connected to it.
+
+Two things the panel can do and the API cannot, and both therefore stay manual:
+
+- the composition of the authentication FORMS of an application is not in the API at all;
+- the connection setting "users of the list are connected to the application automatically on sign-in" is not represented either – neither in `userlists` (a set of ids) nor in the application's `account-services-settings` (verified on a stand where the setting is on: nothing appears there).
+
+The rules for parsing the response of an account service (`presentation-rule`, `email-rule`, `phone-rule`, `response-kind` – JsonPath/XPath) are accepted in the body of an account service under the key `userPropertiesCalculationRules`. Two traps: the schema of the reference calls the same thing `calculation-rules` and the platform answers 400 to that spelling, and a GET never returns the rules – the setting is write-only, so an API client cannot confirm it applied.
+
 ## 5. Build file format (.xasm / .xlib)
 
 A build file is a ZIP archive (deflate):
@@ -196,6 +214,19 @@ Commands (significant flags in parentheses):
   - `apps ensure` idempotently brings an application with the given name into existence: it searches by the `apps find` rules (deleted ones do not count) and creates only if absent. Output `{"id": ..., "created": true|false}`; `created: false` means the application already existed and was NOT touched. The creation flags are the same as for `apps create` and take effect only when creation happens. An existing application is never recreated: `delete` + `create` produce a new URL and break external bindings to the former one.
   - `--latest-build` – use the project's latest build as the source (protection against an empty skeleton, section 6.2); `--wait` – wait until ready (section 6.4) and output the final card.
 - `spaces list`.
+- `user-lists list [--name]`, `user-lists get [LIST] [--app]`,
+  `user-lists self-registration [LIST] [--app --enable --disable]`,
+  `user-lists password-login [LIST] [--app --enable --disable]` – user lists and their
+  sign-in settings (section 4.7). The target is the `LIST` argument (an id or the exact
+  presentation, resolved like an application name: no match is an error, several matches
+  are an error listing the ids) or `--app` – the application's own list out of its
+  `default-user-list`; giving both is an error. Without `--enable`/`--disable` the two
+  setting commands only READ the current state, so the same command answers "how is it
+  now"; both flags at once is an error. `password-login` works on the account service of
+  type `Local`: the output is `{"list-id", "enabled", "changed"}`, where `enabled: null`
+  means the list has no such service at all (nothing signs in by password) and `changed`
+  says whether this very call altered anything – switching to the state that is already
+  there sends no request.
 - `projects list`, `projects get [PROJECT_ID]`, `projects delete PROJECT_ID`.
 - `builds list [--project-id]`, `builds get VERSION [--project-id]`,
   `builds upload FILE [--project-id --new-project --space-id --branch --commit
@@ -283,7 +314,12 @@ compilation check that does not touch the working application (section 7),
 the report plus a `log` field; `apply_build(app_id, version_id)`, `verify_deploy(app_id,
 expected_version="", since_minutes=30)` – verification of the apply per section 6.1;
 `list_app_tasks(app_id="")`, `list_branches(project_id="", name="")`,
-`merge_branch(branch_id)`.
+`merge_branch(branch_id)`, `list_user_lists(name="")` and
+`configure_user_list(list_id="", app_id="", self_registration=None, password_login=None)` –
+the sign-in settings of a user list (section 4.7) in one call: the list is given by id, by
+presentation or by the application whose own list it is; both flags are optional, and
+without them the tool only reports the state (`self-registration-enabled`,
+`password-login-enabled`, `changed`).
 
 The tools the plugins bring (section 10, the `elemctl.commands` group) are registered
 alongside these: the schema is built out of the declared arguments, the description is the

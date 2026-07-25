@@ -347,6 +347,69 @@ def create_server(config=None):
         return report.to_dict()
 
     @server.tool()
+    def list_user_lists(name: str = "", env_file: str = "") -> list:
+        """Списки пользователей; name – фильтр по подстроке представления (на клиенте).
+
+        Собственный список приложения назван по нему же ("Список пользователей
+        приложения ..."), список панели управления – один на стенд.
+        """
+        return client(env_file).list_user_lists(name=name)
+
+    @server.tool()
+    def configure_user_list(
+        list_id: str = "",
+        app_id: str = "",
+        self_registration: bool | None = None,
+        password_login: bool | None = None,
+        env_file: str = "",
+    ) -> dict:
+        """Настройки входа списка пользователей: самостоятельная регистрация и вход по паролю.
+
+        Список задаётся list_id (ид либо точное представление) ЛИБО app_id –
+        тогда берётся собственный список приложения. Оба флага необязательны:
+        без них команда только показывает состояние, поэтому её же удобно звать
+        для проверки. За "входом по логину и паролю" стоит сервис учётных
+        записей типа Local; список без такого сервиса – не ошибка, в ответе
+        password-login-enabled будет null. Состав ФОРМ аутентификации в Console
+        API не живёт вовсе – он остаётся ручным.
+        """
+        target = client(env_file)
+        if list_id and app_id:
+            raise ElemctlError(i18n.t("cli.user-list-source-conflict"))
+        if app_id:
+            resolved = target.app_user_list_id(app_id)
+        elif list_id:
+            resolved = target.resolve_user_list_id(list_id)
+        else:
+            raise ElemctlError(i18n.t("cli.user-list-required"))
+
+        changed = []
+        if self_registration is not None:
+            target.set_self_registration(resolved, enabled=self_registration)
+            changed.append("self-registration")
+        if password_login is not None:
+            outcome = target.set_password_login(resolved, enabled=password_login)
+            if outcome["changed"]:
+                changed.append("password-login")
+
+        local = next(
+            (
+                service for service in target.list_account_services(resolved)
+                if isinstance(service, dict)
+                and str(service.get("account-service-type") or "").lower() == "local"
+            ),
+            None,
+        )
+        return {
+            "list-id": resolved,
+            "self-registration-enabled": bool(
+                (target.get_self_registration(resolved) or {}).get("enabled")
+            ),
+            "password-login-enabled": None if local is None else bool(local.get("enabled")),
+            "changed": changed,
+        }
+
+    @server.tool()
     def list_app_tasks(app_id: str = "", env_file: str = "") -> list:
         """Задачи приложений; app_id – необязательный фильтр (выполняется на клиенте)."""
         return client(env_file).list_app_tasks(app_id)

@@ -46,6 +46,9 @@ platform's audience - but the CLI output is plain JSON.*
   строкой и колонкой, а созданное пробник за собой убирает. До рабочего
   приложения он намеренно не дотягивается – `ELEMENT_APP_ID` и
   `ELEMENT_PROJECT_ID` не используются.
+- **Списки пользователей**: настройки входа, за которыми обычно ходят в панель –
+  самостоятельная регистрация и вход по логину и паролю (`elemctl user-lists`). Список
+  адресуется ид, представлением либо приложением, чей это список.
 - **Ветки среды разработки**: список, создание, привязка к приложению, merge.
 - **Дампы**: создание и контроль готовности.
 - **MCP-сервер**: те же операции как инструменты для AI-агентов
@@ -132,6 +135,10 @@ elemctl build --project-dir acme/crm --output ./dist
 # разобрать готовый архив: манифест, подсистемы, глобальные типы с полными именами
 elemctl inspect ./dist/e1c-CurrencyConverter-2.0.xlib
 
+# запретить вход по паролю и саморегистрацию в списке пользователей приложения
+elemctl user-lists password-login --app crm-dev --disable
+elemctl user-lists self-registration --app crm-dev --disable
+
 # принять изменения ветки среды разработки
 elemctl branches merge <branch-id>
 ```
@@ -161,7 +168,7 @@ claude mcp add elemctl -- elemctl mcp
 Реквизиты подключения сервер берёт из тех же переменных `ELEMENT_*` /
 `.env`. Среди инструментов: `list_apps`, `get_app`, `deploy` (с полем `ok`
 в ответе), `probe` (проверка компиляции, не трогающая рабочее приложение),
-`verify_deploy`, `list_builds`, `merge_branch` и другие.
+`verify_deploy`, `list_builds`, `configure_user_list`, `merge_branch` и другие.
 
 Одно окружение не приковывает: у каждого инструмента, обращающегося к платформе,
 есть необязательный `env_file` - путь к `.env` другого стенда. Так один сервер

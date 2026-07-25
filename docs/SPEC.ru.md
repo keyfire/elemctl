@@ -187,6 +187,50 @@ Windows) с TTL 1 час; ключ кеша должен различать па
 `status` (в т.ч. `Error`, `Failed`), `operation-type`, `error-message`,
 `start-date` (ISO 8601, может оканчиваться на `Z`).
 
+### 4.7. Списки пользователей
+
+Список пользователей держит пользователей приложения (у приложения есть свой,
+названный по нему) либо панели управления (один на установку). То, что панель
+называет настройками входа, живёт здесь.
+
+- `GET /user-lists` - список списков: `id`, `presentation`, `space-id`. Фильтра
+  по имени на сервере нет - фильтровать на клиенте.
+- `GET /user-lists/{id}` - полная карточка: `self-registration`,
+  `password-policy`, `password-policy-enabled`, `account-services-settings`,
+  `confirmations`, шлюзы, `include-personal-data-in-messages`.
+- `GET|PUT /user-lists/{id}/settings/self-registration` -
+  `{enabled, phone-required, email-required}`. Это и есть "Разрешить
+  пользователям регистрироваться самостоятельно" из панели. PUT требует объект
+  целиком.
+- `GET|POST /user-lists/{id}/settings/account-services-settings`,
+  `PUT|DELETE .../{account-service-id}` - сервисы учётных записей списка. Запись:
+  `{account-service-id, account-service-type, local-id, enabled,
+  create-user-on-auth, additional-settings}`. Тип `Local` - тот, что
+  аутентифицирует паролем, поэтому "Разрешить вход по логину и паролю" из панели
+  это его `enabled`; остальные типы (`OIDC`, `Cas`, `ActiveDirectory`, `Esia`) -
+  внешние сервисы. PUT требует запись целиком.
+- `GET /applications/{id}/userlists` (внимание: без дефиса) - ид списков,
+  подключённых к приложению; `POST` подключает, `DELETE` отключает. Настроек
+  подключения там НЕТ: связь это множество ид и ничего больше.
+- Собственный список приложения назван в карточке приложения полем
+  `default-user-list` - это список его пользователей, в отличие от списка панели,
+  тоже к нему подключённого.
+
+Две вещи панель умеет, а API нет, и обе поэтому остаются ручными:
+
+- состава ФОРМ аутентификации приложения в API нет вовсе;
+- настройка подключения "пользователи списка подключаются к приложению
+  автоматически при входе" тоже не представлена - ни в `userlists` (множество
+  ид), ни в `account-services-settings` приложения (проверено на стенде, где
+  настройка включена: там ничего не появляется).
+
+Правила разбора ответа сервиса учётных записей (`presentation-rule`,
+`email-rule`, `phone-rule`, `response-kind` - JsonPath/XPath) принимаются в теле
+сервиса под ключом `userPropertiesCalculationRules`. Две ловушки: схема
+справочника называет то же самое `calculation-rules`, и на такое написание
+платформа отвечает 400, а GET правила не возвращает никогда - настройка на
+запись, подтвердить её применение клиентом API нельзя.
+
 ## 5. Формат файла сборки (.xasm / .xlib)
 
 Файл сборки - ZIP-архив (deflate):
@@ -375,6 +419,18 @@ stderr и код возврата 1.
     пустого каркаса, п. 6.2); `--wait` - дождаться готовности (п. 6.4) и
     вывести финальную карточку.
 - `spaces list`.
+- `user-lists list [--name]`, `user-lists get [LIST] [--app]`,
+  `user-lists self-registration [LIST] [--app --enable --disable]`,
+  `user-lists password-login [LIST] [--app --enable --disable]` - списки пользователей и
+  их настройки входа (п. 4.7). Цель - аргумент `LIST` (ид либо точное представление,
+  резолв как у имени приложения: нет совпадений - ошибка, несколько - ошибка с перечнем
+  ид) либо `--app` - собственный список приложения из его `default-user-list`; задать
+  оба - ошибка. Без `--enable`/`--disable` обе команды-настройки только ЧИТАЮТ текущее
+  состояние, поэтому та же команда отвечает на вопрос "как сейчас"; оба флага сразу -
+  ошибка. `password-login` работает с сервисом учётных записей типа `Local`: вывод -
+  `{"list-id", "enabled", "changed"}`, где `enabled: null` означает, что такого сервиса
+  у списка нет вовсе (паролем входить нечем), а `changed` говорит, изменил ли что-то
+  именно этот вызов - перевод в состояние, которое уже стоит, запроса не делает.
 - `projects list`, `projects get [PROJECT_ID]`, `projects delete PROJECT_ID`.
 - `builds list [--project-id]`, `builds get VERSION [--project-id]`,
   `builds upload FILE [--project-id --new-project --space-id --branch --commit
@@ -488,7 +544,12 @@ commit_message="")` - возвращает отчёт деплоя плюс по
 `log`; `apply_build(app_id, version_id)`, `verify_deploy(app_id,
 expected_version="", since_minutes=30)` - проверка применения по п. 6.1;
 `list_app_tasks(app_id="")`, `list_branches(project_id="", name="")`,
-`merge_branch(branch_id)`.
+`merge_branch(branch_id)`, `list_user_lists(name="")` и
+`configure_user_list(list_id="", app_id="", self_registration=None, password_login=None)` -
+настройки входа списка пользователей (п. 4.7) одним вызовом: список задаётся ид,
+представлением либо приложением, чей это список; оба флага необязательны, без них
+инструмент только сообщает состояние (`self-registration-enabled`,
+`password-login-enabled`, `changed`).
 
 Рядом с ними регистрируются инструменты, которые приносят плагины (п. 10, группа
 `elemctl.commands`): схема строится по объявленным аргументам, описание - `help`

@@ -19,6 +19,7 @@ Development notes and updates (in Russian): the [1C × AI: engineering workshop]
 - **Build from sources**: package a project directory (`Проект.yaml` + modules) into a build archive with a manifest and git metadata. The version comes from the flag, the last build's counter or the CI run number in the environment (`CI_PIPELINE_IID` / `GITHUB_RUN_NUMBER` / `BUILD_NUMBER`), and the output carries it as a field. Descriptors written with English key spellings (`Name`/`Vendor`/`Version`) are read as well as Russian ones.
 - **One-command deploy**: build -> upload -> apply -> restart -> **verification that the apply actually took effect**. Uncommitted changes of the project directory are reported (`dirty` in the report); `--require-clean` aborts on a dirty tree.
 - **Compilation check without risking the application** (`elemctl probe`): the sources are compiled by the SERVER through a throwaway application, the errors come back with file, line and column, and the probe removes what it created. The working application is out of reach on purpose – `ELEMENT_APP_ID` and `ELEMENT_PROJECT_ID` are not used.
+- **User lists**: the sign-in settings a control panel usually holds – self-registration and signing in with a login and a password (`elemctl user-lists`). The list is addressed by id, by presentation or by the application whose own list it is.
 - **Development-environment branches**: list, create, bind to an application, merge.
 - **Dumps**: create and check readiness.
 - **MCP server**: the same operations exposed as tools for AI agents (Claude Code and other MCP clients).
@@ -89,6 +90,10 @@ elemctl build --project-dir acme/crm --output ./dist
 # parse a built archive: manifest, subsystems, global types with qualified names
 elemctl inspect ./dist/e1c-CurrencyConverter-2.0.xlib
 
+# forbid signing in by password and self-registration in the application's user list
+elemctl user-lists password-login --app crm-dev --disable
+elemctl user-lists self-registration --app crm-dev --disable
+
 # merge changes from a development-environment branch
 elemctl branches merge <branch-id>
 ```
@@ -110,7 +115,7 @@ pip install "elemctl[mcp]"
 claude mcp add elemctl -- elemctl mcp
 ```
 
-The server reads connection credentials from the same `ELEMENT_*` variables / `.env`. Among the tools: `list_apps`, `get_app`, `deploy` (with an `ok` field in the response), `probe` (a compilation check that does not touch the working application), `verify_deploy`, `list_builds`, `merge_branch` and others.
+The server reads connection credentials from the same `ELEMENT_*` variables / `.env`. Among the tools: `list_apps`, `get_app`, `deploy` (with an `ok` field in the response), `probe` (a compilation check that does not touch the working application), `verify_deploy`, `list_builds`, `configure_user_list`, `merge_branch` and others.
 
 A single environment is not a limit: every tool that talks to the platform takes an optional `env_file` - a path to another installation's `.env`. One server thus serves both the cloud and a local installation without a restart with different credentials. `list_apps` returns brief cards by default (id, name, status, uri, applied version): full cards of a whole space are tens of thousands of characters in an agent's response - pass `brief=false` for them.
 

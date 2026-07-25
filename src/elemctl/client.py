@@ -32,6 +32,11 @@ DELETE_TIMEOUT = 180.0
 # Application task statuses that mean a failure (compared case-insensitively).
 FAILED_TASK_STATUSES = {"error", "failed"}
 
+# The type of the account service that authenticates by a login and a password:
+# what the control panel calls "signing in with a login and a password" is this
+# service being enabled in the user list.
+LOCAL_SERVICE = "Local"
+
 
 def extract_assembly_id(payload):
     """Extract the assembly id out of a platform response.
@@ -443,6 +448,130 @@ class ElementClient:
     def get_group_task(self, task_id):
         """The status of a group task."""
         return self._api("GET", f"/tasks/group-tasks/{task_id}")
+
+    # -- user lists ----------------------------------------------------------
+
+    def list_user_lists(self, name=""):
+        """The list of user lists; name is an optional filter by a presentation substring.
+
+        The filter runs on the client, case-insensitively: a user list is
+        recognized by its presentation, and an application's own list is called
+        after the application.
+        """
+        lists = _as_list(self._api("GET", "/user-lists"), "items", "user-lists")
+        needle = (name or "").strip().lower()
+        if not needle:
+            return lists
+        return [
+            entry for entry in lists
+            if isinstance(entry, dict) and needle in str(entry.get("presentation") or "").lower()
+        ]
+
+    def get_user_list(self, list_id):
+        """The full user list card: settings of registration, passwords and account services."""
+        return self._api("GET", f"/user-lists/{list_id}")
+
+    def resolve_user_list_id(self, name_or_id):
+        """The user list id by its presentation or by the id itself.
+
+        A UUID passes through without any requests; any other value is looked up
+        by an exact, case-insensitive presentation match. Nothing found is an
+        error, several matches is an error listing the ids – the rules of
+        resolve_app_id, for the same reason: a command that changes a setting
+        must not guess which list it changes.
+        """
+        if _looks_like_uuid(name_or_id):
+            return str(name_or_id)
+        target = str(name_or_id or "").strip().lower()
+        if not target:
+            raise ConfigError(i18n.t("client.user-list-not-found", name=name_or_id))
+        matches = [
+            entry for entry in self.list_user_lists()
+            if isinstance(entry, dict)
+            and str(entry.get("presentation") or "").strip().lower() == target
+        ]
+        if not matches:
+            raise ConfigError(i18n.t("client.user-list-not-found", name=name_or_id))
+        if len(matches) > 1:
+            ids = ", ".join(str(entry.get("id")) for entry in matches)
+            raise ConfigError(
+                i18n.t("client.user-list-ambiguous", name=name_or_id, ids=ids)
+            )
+        return matches[0].get("id")
+
+    def app_user_list_id(self, app_id):
+        """The id of the application's own (default) user list.
+
+        The application card names it in default-user-list; that is the list the
+        users of the application itself live in, as opposed to the control panel
+        list also connected to the application.
+        """
+        card = self.get_app(self.resolve_app_id(app_id)) or {}
+        list_id = card.get("default-user-list")
+        if not list_id:
+            raise ConfigError(i18n.t("client.app-has-no-user-list", app=app_id))
+        return list_id
+
+    def get_self_registration(self, list_id):
+        """The self-registration settings of the list: enabled and what is required."""
+        return self._api("GET", f"/user-lists/{list_id}/settings/self-registration")
+
+    def set_self_registration(self, list_id, enabled):
+        """Turn self-registration on or off; return the settings as they became.
+
+        The platform expects the whole settings object, so the current one is
+        read first and only the flag is replaced – the phone-required and
+        email-required requirements stay as they were.
+        """
+        settings = dict(self.get_self_registration(list_id) or {})
+        settings["enabled"] = bool(enabled)
+        self._api(
+            "PUT", f"/user-lists/{list_id}/settings/self-registration", json_body=settings
+        )
+        return self.get_self_registration(list_id)
+
+    def list_account_services(self, list_id):
+        """The account services of the list (Local, OIDC, Esia and the like)."""
+        payload = self._api("GET", f"/user-lists/{list_id}/settings/account-services-settings")
+        return _as_list(payload, "items", "account-services-settings")
+
+    def update_account_service(self, list_id, service):
+        """Update one account service of the list; the body is the whole entry.
+
+        The entry is addressed by its account-service-id, and the platform wants
+        it back in full – so the caller passes a card read from
+        list_account_services with the fields it needs changed.
+        """
+        service_id = service.get("account-service-id")
+        if not service_id:
+            raise ConfigError(i18n.t("client.account-service-id-required"))
+        return self._api(
+            "PUT",
+            f"/user-lists/{list_id}/settings/account-services-settings/{service_id}",
+            json_body=service,
+        )
+
+    def set_password_login(self, list_id, enabled):
+        """Allow or forbid signing in with a login and a password.
+
+        Behind the wording of the control panel there is the account service of
+        type Local: it is the one that authenticates by a password. A list
+        without such a service (an application that only signs in through an
+        external service) is not an error – there is simply nothing to change,
+        and the answer says so.
+        """
+        for service in self.list_account_services(list_id):
+            if not isinstance(service, dict):
+                continue
+            if str(service.get("account-service-type") or "").lower() != LOCAL_SERVICE.lower():
+                continue
+            if bool(service.get("enabled")) == bool(enabled):
+                return {"service": service, "changed": False}
+            updated = dict(service)
+            updated["enabled"] = bool(enabled)
+            self.update_account_service(list_id, updated)
+            return {"service": updated, "changed": True}
+        return {"service": None, "changed": False}
 
     # -- spaces and projects ------------------------------------------------
 

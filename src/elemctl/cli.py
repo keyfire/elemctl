@@ -460,6 +460,88 @@ def cmd_deploy(args):
     return 0 if report.ok else 1
 
 
+def _user_list_id(client, args):
+    """The id of the target user list: from the argument or from the application.
+
+    Exactly one of the two is expected. --app takes the application's own list
+    (default-user-list of its card) – that is the everyday case: the settings of
+    the checklist are made on the list of a particular application, and its
+    presentation is named after the application anyway.
+    """
+    target = getattr(args, "user_list", None)
+    app = getattr(args, "app", None)
+    if target and app:
+        raise ElemctlError(i18n.t("cli.user-list-source-conflict"))
+    if app:
+        return client.app_user_list_id(app)
+    if target:
+        return client.resolve_user_list_id(target)
+    raise ConfigError(i18n.t("cli.user-list-required"))
+
+
+def cmd_user_lists_list(args):
+    client = make_client(_config(args))
+    _emit(client.list_user_lists(name=args.name or ""))
+    return 0
+
+
+def cmd_user_lists_get(args):
+    client = make_client(_config(args))
+    _emit(client.get_user_list(_user_list_id(client, args)))
+    return 0
+
+
+def cmd_user_lists_self_registration(args):
+    """Self-registration of users of the list: read the state or change it."""
+    client = make_client(_config(args))
+    list_id = _user_list_id(client, args)
+    if args.enable == args.disable:  # neither given, or both at once
+        if args.enable:
+            raise ElemctlError(i18n.t("cli.enable-disable-conflict"))
+        _emit({"list-id": list_id, "self-registration": client.get_self_registration(list_id)})
+        return 0
+    settings = client.set_self_registration(list_id, enabled=args.enable)
+    _emit({"list-id": list_id, "self-registration": settings})
+    return 0
+
+
+def cmd_user_lists_password_login(args):
+    """Signing in with a login and a password – the account service of type Local.
+
+    Without a flag the command answers with the current state; the answer says
+    `enabled: null` when the list has no such service at all (nothing to sign in
+    with by password), and `changed` tells whether this very call altered
+    anything.
+    """
+    client = make_client(_config(args))
+    list_id = _user_list_id(client, args)
+    if args.enable == args.disable:
+        if args.enable:
+            raise ElemctlError(i18n.t("cli.enable-disable-conflict"))
+        service = next(
+            (
+                item for item in client.list_account_services(list_id)
+                if isinstance(item, dict)
+                and str(item.get("account-service-type") or "").lower() == "local"
+            ),
+            None,
+        )
+        _emit({
+            "list-id": list_id,
+            "enabled": None if service is None else bool(service.get("enabled")),
+            "changed": False,
+        })
+        return 0
+    outcome = client.set_password_login(list_id, enabled=args.enable)
+    service = outcome["service"]
+    _emit({
+        "list-id": list_id,
+        "enabled": None if service is None else bool(service.get("enabled")),
+        "changed": outcome["changed"],
+    })
+    return 0
+
+
 def cmd_probe(args):
     """An isolated compilation check that does not touch the working application.
 
@@ -866,6 +948,41 @@ def build_parser():
         help=i18n.t("cli.help.deploy-require-clean"),
     )
     p.set_defaults(handler=cmd_deploy)
+
+    # user-lists ------------------------------------------------------------
+    user_lists = sub.add_parser("user-lists", help=i18n.t("cli.help.user-lists"))
+    user_lists_sub = user_lists.add_subparsers(dest="subcommand", metavar=action, required=True)
+
+    def add_target(parser):
+        """The target list: a positional argument or --app (the application's own list)."""
+        parser.add_argument(
+            "user_list", nargs="?", metavar="LIST", help=i18n.t("cli.help.arg.user-list")
+        )
+        parser.add_argument("--app", help=i18n.t("cli.help.user-lists-app"))
+
+    p = user_lists_sub.add_parser("list", help=i18n.t("cli.help.user-lists-list"))
+    p.add_argument("--name", help=i18n.t("cli.help.user-lists-list-name"))
+    p.set_defaults(handler=cmd_user_lists_list)
+
+    p = user_lists_sub.add_parser("get", help=i18n.t("cli.help.user-lists-get"))
+    add_target(p)
+    p.set_defaults(handler=cmd_user_lists_get)
+
+    p = user_lists_sub.add_parser(
+        "self-registration", help=i18n.t("cli.help.user-lists-self-registration")
+    )
+    add_target(p)
+    p.add_argument("--enable", action="store_true", help=i18n.t("cli.help.user-lists-enable"))
+    p.add_argument("--disable", action="store_true", help=i18n.t("cli.help.user-lists-disable"))
+    p.set_defaults(handler=cmd_user_lists_self_registration)
+
+    p = user_lists_sub.add_parser(
+        "password-login", help=i18n.t("cli.help.user-lists-password-login")
+    )
+    add_target(p)
+    p.add_argument("--enable", action="store_true", help=i18n.t("cli.help.user-lists-enable"))
+    p.add_argument("--disable", action="store_true", help=i18n.t("cli.help.user-lists-disable"))
+    p.set_defaults(handler=cmd_user_lists_password_login)
 
     # probe -----------------------------------------------------------------
     p = sub.add_parser("probe", help=i18n.t("cli.help.probe"))
