@@ -33,6 +33,21 @@ def _pinned_language(monkeypatch):
     i18n.set_lang("ru")
 
 
+@pytest.fixture(autouse=True)
+def _no_ci_build_number(monkeypatch):
+    """Вычистить CI-переменные с номером прогона ПЕРЕД КАЖДЫМ тестом.
+
+    Версия сборки берёт суффикс из окружения CI, а сами тесты идут в GitHub
+    Actions, где GITHUB_RUN_NUMBER установлена всегда: без зачистки версии в
+    тестах сборки зависели бы от номера прогона – локально зелено, в CI нет.
+    Тесты CI-суффикса ставят переменные явно.
+    """
+    from elemctl.build import CI_BUILD_NUMBER_VARS
+
+    for var in CI_BUILD_NUMBER_VARS:
+        monkeypatch.delenv(var, raising=False)
+
+
 class FakeTransport:
     """Транспорт-заглушка: отвечает по таблице маршрутов и записывает вызовы.
 

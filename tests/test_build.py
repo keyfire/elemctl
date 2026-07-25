@@ -191,7 +191,9 @@ def test_layout_scheme_enforced(tmp_path):
     )
     with pytest.raises(BuildError) as excinfo:
         read_project_meta(project_dir)
-    assert "{repo}/{vendor}/{name}" in str(excinfo.value)
+    # Проверяются подстановки, а не строка схемы: текст локализуется.
+    assert ".../acme/crm" in str(excinfo.value)
+    assert "acme/другое-имя" in str(excinfo.value)
 
 
 def test_manifest_field_order():
@@ -272,3 +274,145 @@ def test_inspect_requires_manifest(tmp_path):
 def test_inspect_missing_file(tmp_path):
     with pytest.raises(BuildError):
         inspect_assembly(tmp_path / "нет-такого.xlib")
+
+
+# -- версия из окружения CI ------------------------------------------------------
+
+
+def test_ci_build_number_order_and_digits_only():
+    from elemctl.build import ci_build_number
+
+    # Порядок перебора фиксированный; нечисловые значения пропускаются.
+    var, number = ci_build_number({"BUILD_NUMBER": "5", "CI_PIPELINE_IID": "9"})
+    assert (var, number) == ("CI_PIPELINE_IID", "9")
+    var, number = ci_build_number({"CI_PIPELINE_IID": "9a", "GITHUB_RUN_NUMBER": "12"})
+    assert (var, number) == ("GITHUB_RUN_NUMBER", "12")
+    assert ci_build_number({"CI_PIPELINE_IID": ""}) == ("", "")
+    assert ci_build_number({}) == ("", "")
+
+
+def test_build_version_from_ci_environment(project_factory, tmp_path, monkeypatch):
+    """Без явной версии и последней сборки суффикс берётся из номера прогона CI."""
+    monkeypatch.setenv("CI_PIPELINE_IID", "137")
+    result = build_assembly(project_factory(), output_dir=tmp_path / "out")
+    assert result.version == "1.0-137"
+    assert result.version_source == "CI_PIPELINE_IID"
+
+
+def test_build_version_ci_environment_yields_to_flag_and_last_build(
+    project_factory, tmp_path, monkeypatch
+):
+    """Явная версия и автоинкремент от последней сборки старше номера прогона CI."""
+    monkeypatch.setenv("CI_PIPELINE_IID", "137")
+    project_dir = project_factory()
+    explicit = build_assembly(project_dir, output_dir=tmp_path / "a", version="2.0-9")
+    assert (explicit.version, explicit.version_source) == ("2.0-9", "flag")
+    incremented = build_assembly(
+        project_dir, output_dir=tmp_path / "b", last_build_version="1.0-41"
+    )
+    assert (incremented.version, incremented.version_source) == ("1.0-42", "last-build")
+
+
+def test_build_version_default_without_ci(project_factory, tmp_path):
+    result = build_assembly(project_factory(), output_dir=tmp_path / "out")
+    assert result.version == "1.0-1"
+    assert result.version_source == "default"
+
+
+# -- английские написания дескриптора ---------------------------------------------
+
+
+def _english_project(tmp_path, *, version_line="Version: 3.1", kind_line=""):
+    project_dir = tmp_path / "repo-en" / "acme" / "crm"
+    project_dir.mkdir(parents=True)
+    lines = ["Name: crm", "Vendor: acme", version_line]
+    if kind_line:
+        lines.append(kind_line)
+    (project_dir / "Проект.yaml").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    (project_dir / "Проект.xbsl").write_text("// module\n", encoding="utf-8")
+    return project_dir
+
+
+def test_project_meta_english_keys(tmp_path):
+    """Дескриптор с английскими ключами читается наравне с русским.
+
+    Платформа применяет такой проект штатно, а сборка раньше отвечала
+    'должны быть заполнены поля "Имя" и "Поставщик"'.
+    """
+    meta = read_project_meta(_english_project(tmp_path))
+    assert (meta.name, meta.vendor, meta.base_version) == ("crm", "acme", "3.1")
+    assert meta.kind == "Application"
+
+
+def test_project_meta_english_library_kind(tmp_path):
+    meta = read_project_meta(
+        _english_project(tmp_path, kind_line="ProjectKind: Library")
+    )
+    assert meta.kind == "Library"
+
+
+def test_project_meta_mixed_keys_version_not_lost(tmp_path):
+    """Русские Имя/Поставщик и английский Version: версия не подменяется умолчанием.
+
+    Раньше сборка молча получала "1.0" вместо заявленной – имя артефакта и
+    версия разъезжались с проектом.
+    """
+    project_dir = tmp_path / "repo-mixed" / "acme" / "crm"
+    project_dir.mkdir(parents=True)
+    (project_dir / "Проект.yaml").write_text(
+        "Имя: crm\nПоставщик: acme\nVersion: 1.0.0\n", encoding="utf-8"
+    )
+    meta = read_project_meta(project_dir)
+    assert meta.base_version == "1.0.0"
+
+
+def test_build_english_project_end_to_end(tmp_path):
+    """Английский дескриптор собирается: манифест несёт Name/Vendor/Version проекта."""
+    result = build_assembly(
+        _english_project(tmp_path, kind_line="CompatibilityMode: 10.0"),
+        output_dir=tmp_path / "out",
+        version="3.1-7",
+    )
+    assert result.name == "crm" and result.vendor == "acme"
+    report = inspect_assembly(result.file)
+    assert report["manifest"]["Name"] == "crm"
+    assert report["manifest"]["Vendor"] == "acme"
+    assert report["version"] == "3.1-7"
+    assert report["compatibility"] == "10.0"
+
+
+# -- незакоммиченные изменения каталога проекта -----------------------------------
+
+
+def test_git_dirty_files_outside_repository_is_none(project_factory, tmp_path):
+    from elemctl.build import git_dirty_files
+
+    assert git_dirty_files(project_factory()) is None
+
+
+def test_build_result_dirty_files_in_repository(project_factory, tmp_path):
+    import shutil
+    import subprocess
+
+    from elemctl.build import git_dirty_files
+
+    if shutil.which("git") is None:
+        pytest.skip("git недоступен")
+    project_dir = project_factory()
+    repo_root = project_dir.parent.parent
+    subprocess.run(["git", "-C", str(repo_root), "init", "-q"], check=True)
+    subprocess.run(["git", "-C", str(repo_root), "add", "."], check=True)
+    subprocess.run(
+        ["git", "-C", str(repo_root), "-c", "user.name=t", "-c", "user.email=t@t",
+         "commit", "-qm", "init"],
+        check=True,
+    )
+
+    assert git_dirty_files(project_dir) == []
+    (project_dir / "Проект.xbsl").write_text("// правка\n", encoding="utf-8")
+    dirty = git_dirty_files(project_dir)
+    assert dirty is not None and len(dirty) == 1
+    assert "Проект.xbsl" in dirty[0]
+
+    result = build_assembly(project_dir, output_dir=tmp_path / "out", version="1.0-1")
+    assert result.dirty_files == dirty

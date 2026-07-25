@@ -46,6 +46,11 @@ EXCLUDED_FILES = {".gitignore", ".env", ".DS_Store"}
 # Файлы, исключаемые по расширению (готовые архивы сборок).
 EXCLUDED_SUFFIXES = (".xasm", ".xlib")
 
+# Переменные окружения CI с номером прогона - источник суффикса версии сборки,
+# когда ни явная версия, ни последняя сборка не заданы: каждый прогон CI идёт
+# в чистом рабочем каталоге, и локальная нумерация всегда давала бы "-1".
+CI_BUILD_NUMBER_VARS = ("CI_PIPELINE_IID", "GITHUB_RUN_NUMBER", "BUILD_NUMBER")
+
 
 @dataclass
 class ProjectMeta:
@@ -61,7 +66,14 @@ class ProjectMeta:
 
 @dataclass
 class BuildResult:
-    """Результат локальной сборки архива."""
+    """Результат локальной сборки архива.
+
+    version_source – откуда взялась версия сборки: "flag" (задана явно),
+    "last-build" (автоинкремент от последней сборки), имя переменной CI
+    (номер прогона из окружения) либо "default". dirty_files – файлы с
+    незакоммиченными изменениями в каталоге проекта; None, когда git
+    недоступен или каталог не в репозитории.
+    """
 
     file: Path
     name: str
@@ -71,6 +83,8 @@ class BuildResult:
     branch: str
     commit: str
     files: list = field(default_factory=list)
+    version_source: str = ""
+    dirty_files: list | None = None
 
 
 def parse_flat_yaml(text):
@@ -97,6 +111,34 @@ def parse_flat_yaml(text):
     return values
 
 
+def descriptor_value(values, russian, english):
+    """Значение свойства дескриптора по русскому либо английскому написанию.
+
+    Двуязычие исходников - заявленная возможность платформы: дескриптор,
+    записанный английскими ключами (Name, Vendor, Version...), применяется
+    штатно, поэтому и читать его нужно в обоих написаниях.
+    """
+    for key in (russian, english):
+        value = str(values.get(key, "") or "").strip()
+        if value:
+            return value
+    return ""
+
+
+def ci_build_number(environ=None):
+    """Номер прогона CI из окружения: имя переменной и числовое значение.
+
+    Переменные перебираются в порядке CI_BUILD_NUMBER_VARS; нечисловые
+    значения пропускаются. Без номера возвращается пара пустых строк.
+    """
+    env = os.environ if environ is None else environ
+    for var in CI_BUILD_NUMBER_VARS:
+        value = str(env.get(var, "") or "").strip()
+        if value.isdigit():
+            return var, value
+    return "", ""
+
+
 def find_project_dir(start=None):
     """Найти каталог проекта: первый каталог с Проект.yaml вглубь от start."""
     base = Path(start) if start else Path.cwd()
@@ -120,22 +162,22 @@ def read_project_meta(project_dir):
         raise BuildError(i18n.t("build.not-found", file=project_file))
     values = parse_flat_yaml(project_file.read_text(encoding="utf-8-sig"))
 
-    name = values.get("Имя", "").strip()
-    vendor = values.get("Поставщик", "").strip()
+    name = descriptor_value(values, "Имя", "Name")
+    vendor = descriptor_value(values, "Поставщик", "Vendor")
     if not name or not vendor:
-        raise BuildError(
-            f'в {project_file} должны быть заполнены поля "Имя" и "Поставщик"'
-        )
+        raise BuildError(i18n.t("build.name-vendor-required", file=project_file))
     if project_dir.name != name or project_dir.parent.name != vendor:
-        raise BuildError(
-            "каталог проекта обязан лежать по схеме {repo}/{vendor}/{name}/"
-            + PROJECT_FILE
-            + f": ожидался путь .../{vendor}/{name}, фактический – "
-            + f"{project_dir.parent.name}/{project_dir.name}"
-        )
+        raise BuildError(i18n.t(
+            "build.layout-mismatch",
+            file=PROJECT_FILE,
+            vendor=vendor,
+            name=name,
+            actual=f"{project_dir.parent.name}/{project_dir.name}",
+        ))
 
-    base_version = values.get("Версия", "").strip() or "1.0"
-    kind = "Library" if values.get("ВидПроекта", "").strip() == "Библиотека" else "Application"
+    base_version = descriptor_value(values, "Версия", "Version") or "1.0"
+    kind_value = descriptor_value(values, "ВидПроекта", "ProjectKind").lower()
+    kind = "Library" if kind_value in ("библиотека", "library") else "Application"
     return ProjectMeta(
         name=name,
         vendor=vendor,
@@ -177,6 +219,33 @@ def git_metadata(project_dir):
     return commit, branch
 
 
+def git_dirty_files(project_dir):
+    """Файлы с незакоммиченными изменениями в каталоге проекта.
+
+    Сборка снимает диск в момент запуска, поэтому расхождение с HEAD должно
+    быть видно вызывающему. Возвращается список путей из git status
+    --porcelain, ограниченный каталогом; None – когда git недоступен или
+    каталог не в репозитории (отличие от пустого списка "чисто").
+    """
+    try:
+        # core.quotepath=false: иначе не-ASCII пути приходят октальными
+        # escape-последовательностями в кавычках и предупреждение нечитаемо.
+        completed = subprocess.run(
+            ["git", "-C", str(project_dir), "-c", "core.quotepath=false",
+             "status", "--porcelain", "--", "."],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=15,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if completed.returncode != 0:
+        return None
+    return [line[3:] for line in completed.stdout.splitlines() if line.strip()]
+
+
 def build_manifest(*, kind, vendor, name, version, created, branch="", commit=""):
     """Собрать текст манифеста Assembly.yaml."""
     lines = [
@@ -207,8 +276,9 @@ def build_assembly(
 ):
     """Собрать архив сборки из исходников проекта; вернуть BuildResult.
 
-    Версия: явная version, иначе автоинкремент от last_build_version,
-    а без обеих – "{базовая версия}-1". branch и commit переопределяют
+    Версия: явная version, иначе автоинкремент от last_build_version, иначе
+    суффикс из номера прогона CI (переменные CI_BUILD_NUMBER_VARS), а без
+    всего этого – "{базовая версия}-1". branch и commit переопределяют
     git-метаданные (None – взять из git). kind переопределяет вид проекта
     ("application"/"library").
     """
@@ -216,9 +286,20 @@ def build_assembly(
     meta = read_project_meta(directory)
 
     project_kind = _normalize_kind(kind) or meta.kind
-    build_version = version.strip() if version else next_version(
-        meta.base_version, last_build_version or None
-    )
+    if version and version.strip():
+        build_version = version.strip()
+        version_source = "flag"
+    elif last_build_version:
+        build_version = next_version(meta.base_version, last_build_version)
+        version_source = "last-build"
+    else:
+        ci_var, ci_number = ci_build_number()
+        if ci_number:
+            build_version = f"{meta.base_version}-{ci_number}"
+            version_source = ci_var
+        else:
+            build_version = next_version(meta.base_version, None)
+            version_source = "default"
 
     git_commit, git_branch = ("", "")
     if branch is None or commit is None:
@@ -261,6 +342,8 @@ def build_assembly(
         branch=branch_name,
         commit=commit_id,
         files=archive_names,
+        version_source=version_source,
+        dirty_files=git_dirty_files(meta.project_dir),
     )
 
 
@@ -325,8 +408,8 @@ def inspect_assembly(path):
         "version": manifest.get("Version", ""),
         # ВерсияТехнологии в Проект.yaml не существует – совместимость задаёт
         # РежимСовместимости, именно его и сверяют с целевым проектом.
-        "compatibility": project.get("РежимСовместимости", ""),
-        "representation": project.get("Представление", ""),
+        "compatibility": descriptor_value(project, "РежимСовместимости", "CompatibilityMode"),
+        "representation": descriptor_value(project, "Представление", "Presentation"),
         "project": project,
         "subsystems": _subsystems(elements, vendor, name),
         "global_types": [item for item in elements if item["scope"] == GLOBAL_SCOPE],
@@ -356,7 +439,7 @@ def _archive_elements(archive, names, prefix):
             continue
         # Каталоги между подсистемой и файлом – пакеты, каждый даёт сегмент имени.
         namespace = "::".join(vendor_name + parts[:-1])
-        element_name = values.get("Имя", "") or parts[-1][: -len(".yaml")]
+        element_name = descriptor_value(values, "Имя", "Name") or parts[-1][: -len(".yaml")]
         elements.append({
             "name": element_name,
             "kind": kind,

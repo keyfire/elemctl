@@ -66,6 +66,16 @@ MESSAGES = {
         "ru": "в архиве {file} нет файла проекта {entry}",
         "en": "archive {file} has no project file {entry}",
     },
+    "build.name-vendor-required": {
+        "ru": 'в {file} должны быть заполнены поля "Имя"/"Name" и "Поставщик"/"Vendor"',
+        "en": '{file} must have the "Имя"/"Name" and "Поставщик"/"Vendor" fields filled in',
+    },
+    "build.layout-mismatch": {
+        "ru": "каталог проекта обязан лежать по схеме {{репозиторий}}/{{поставщик}}/{{имя}}/"
+              "{file}: ожидался путь .../{vendor}/{name}, фактический – {actual}",
+        "en": "the project directory must follow the {{repo}}/{{vendor}}/{{name}}/{file} "
+              "layout: expected .../{vendor}/{name}, actual – {actual}",
+    },
     # -- cli.py -------------------------------------------------------------------
     "cli.not-set": {
         "ru": "не задан {what}",
@@ -127,10 +137,55 @@ MESSAGES = {
         "ru": "файл сборки не найден: {path}",
         "en": "build file not found: {path}",
     },
+    "cli.require-clean-no-git": {
+        "ru": "--require-clean: git недоступен или {dir} не в репозитории – "
+              "подтвердить чистоту дерева нечем",
+        "en": "--require-clean: git is unavailable or {dir} is not inside a repository – "
+              "there is nothing to confirm a clean tree with",
+    },
+    "cli.require-clean-dirty": {
+        "ru": "--require-clean: в {dir} есть незакоммиченные изменения ({count}) – "
+              "операция отменена",
+        "en": "--require-clean: {dir} has uncommitted changes ({count}) – "
+              "the operation is cancelled",
+    },
     # -- client.py ----------------------------------------------------------------
     "client.assembly-not-found": {
         "ru": "сборка '{version}' не найдена в проекте {project} (ни по версии, ни по ид)",
         "en": "assembly '{version}' not found in project {project} (neither by version nor by id)",
+    },
+    "client.app-not-found": {
+        "ru": "приложение '{name}' не найдено (ни по ид, ни по точному имени)",
+        "en": "application '{name}' not found (neither by id nor by exact name)",
+    },
+    "client.app-name-ambiguous": {
+        "ru": "имя приложения '{name}' неоднозначно, совпадений несколько: {ids} – "
+              "укажите ид (UUID)",
+        "en": "the application name '{name}' is ambiguous, there are several matches: "
+              "{ids} – pass the id (UUID)",
+    },
+    "client.app-error-status": {
+        "ru": "приложение {app} в статусе Error: {error}",
+        "en": "application {app} is in status Error: {error}",
+    },
+    "client.wait-status-timeout": {
+        "ru": "не дождались статуса {expected} приложения {app} за {timeout} с "
+              "(текущий: {status})",
+        "en": "did not reach status {expected} of application {app} within {timeout} s "
+              "(current: {status})",
+    },
+    "client.wait-ready-timeout": {
+        "ru": "приложение {app} не стало готовым за {timeout} с (статус: {status}, uri: {uri})",
+        "en": "application {app} did not become ready within {timeout} s "
+              "(status: {status}, uri: {uri})",
+    },
+    "client.transitional-status": {
+        "ru": "переходный",
+        "en": "transitional",
+    },
+    "client.no-uri": {
+        "ru": "нет",
+        "en": "none",
     },
     "client.apply-source-required": {
         "ru": "нужен источник применения: image_id либо project_id",
@@ -200,6 +255,16 @@ MESSAGES = {
     "deploy.built": {
         "ru": "собран архив {file} (версия {version})",
         "en": "built archive {file} (version {version})",
+    },
+    "deploy.dirty-tree": {
+        "ru": "внимание: в каталоге проекта незакоммиченные изменения ({count}): {files} – "
+              "в архив снято текущее состояние диска, а не HEAD",
+        "en": "warning: the project directory has uncommitted changes ({count}): {files} – "
+              "the archive captured the current disk state, not HEAD",
+    },
+    "deploy.and-more": {
+        "ru": " и ещё {count}",
+        "en": " and {count} more",
     },
     "deploy.uploaded": {
         "ru": "сборка загружена (id: {id})",
@@ -277,6 +342,14 @@ MESSAGES = {
     "cli.help.arg.app-id-required": {
         "ru": "ид приложения",
         "en": "the application id",
+    },
+    "cli.help.arg.app-ref": {
+        "ru": "ид (UUID) либо точное имя приложения (по умолчанию ELEMENT_APP_ID)",
+        "en": "the application id (UUID) or its exact name (default: ELEMENT_APP_ID)",
+    },
+    "cli.help.arg.app-ref-required": {
+        "ru": "ид (UUID) либо точное имя приложения",
+        "en": "the application id (UUID) or its exact name",
     },
     "cli.help.arg.project-id": {
         "ru": "ид проекта (по умолчанию ELEMENT_PROJECT_ID)",
@@ -367,8 +440,12 @@ MESSAGES = {
         "en": "list applications",
     },
     "cli.help.apps-list-name": {
-        "ru": "фильтр по имени",
-        "en": "filter by name",
+        "ru": "фильтр по подстроке имени без учёта регистра (выполняется на клиенте)",
+        "en": "case-insensitive name substring filter (applied client-side)",
+    },
+    "cli.help.apps-list-brief": {
+        "ru": "краткие карточки: ид, имя, статус, uri, применённая версия",
+        "en": "brief cards: id, name, status, uri, applied version",
     },
     "cli.help.apps-get": {
         "ru": "карточка приложения",
@@ -536,6 +613,10 @@ MESSAGES = {
         "ru": "вид проекта (по умолчанию из Проект.yaml)",
         "en": "project kind (default: from Проект.yaml)",
     },
+    "cli.help.build-require-clean": {
+        "ru": "прервать сборку, если в каталоге проекта есть незакоммиченные изменения",
+        "en": "abort the build if the project directory has uncommitted changes",
+    },
     "cli.help.inspect": {
         "ru": "разобрать готовый архив сборки (.xasm/.xlib)",
         "en": "inspect a prebuilt assembly archive (.xasm/.xlib)",
@@ -571,6 +652,10 @@ MESSAGES = {
     "cli.help.deploy-dry-run": {
         "ru": "только сборка, без загрузки",
         "en": "build only, no upload",
+    },
+    "cli.help.deploy-require-clean": {
+        "ru": "прервать деплой, если в каталоге проекта есть незакоммиченные изменения",
+        "en": "abort the deploy if the project directory has uncommitted changes",
     },
     "cli.help.branches": {
         "ru": "ветки среды разработки",
