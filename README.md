@@ -14,10 +14,10 @@ Development notes and updates (in Russian): the [1C × AI: engineering workshop]
 
 ## Features
 
-- **Applications**: list, details, create, start, stop, delete, technology version, debug-session data (`apps debug`).
+- **Applications**: list (with a client-side name filter and `--brief` cards), details, create, start, stop, delete, technology version, debug-session data (`apps debug`). Commands addressing one application accept its id or its exact name.
 - **Projects and builds**: upload `.xasm`/`.xlib`, list builds, delete.
-- **Build from sources**: package a project directory (`Проект.yaml` + modules) into a build archive with a manifest and git metadata, with automatic version increment.
-- **One-command deploy**: build -> upload -> apply -> restart -> **verification that the apply actually took effect**.
+- **Build from sources**: package a project directory (`Проект.yaml` + modules) into a build archive with a manifest and git metadata. The version comes from the flag, the last build's counter or the CI run number in the environment (`CI_PIPELINE_IID` / `GITHUB_RUN_NUMBER` / `BUILD_NUMBER`), and the output carries it as a field. Descriptors written with English key spellings (`Name`/`Vendor`/`Version`) are read as well as Russian ones.
+- **One-command deploy**: build -> upload -> apply -> restart -> **verification that the apply actually took effect**. Uncommitted changes of the project directory are reported (`dirty` in the report); `--require-clean` aborts on a dirty tree.
 - **Development-environment branches**: list, create, bind to an application, merge.
 - **Dumps**: create and check readiness.
 - **MCP server**: the same operations exposed as tools for AI agents (Claude Code and other MCP clients).

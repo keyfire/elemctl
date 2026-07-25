@@ -20,7 +20,7 @@ Common prefix: `{base}/console/api/v2`. Request and response bodies are JSON (ex
 
 ### Applications
 
-- `GET /applications` – list; optional `name` query (filter).
+- `GET /applications` – list. The `name` query parameter exists but the platform IGNORES it and returns the full list (verified against a live instance) – name filtering must be done client-side.
 - `GET /applications/{id}` – card. Significant response fields: `id`, `status`, `uri` (address of the running application), `error` (error text, if any), `technology-version`, `date-updated`, `display-name`, `publication-context`, `source` (an object with source information, containing among other things `project-version` – the version of the applied build).
 - `POST /applications` – create. Body:
   - `source` – the object `{"type": "repository"}` plus exactly one of the keys: `project-version-id` (id of the source build) or `image-id` (project id);
@@ -96,9 +96,9 @@ A build file is a ZIP archive (deflate):
 
 Build file name: `{Имя} {Version}.xasm` (with a space).
 
-Project metadata – from `Проект.yaml` (YAML; parsing flat top-level `key: value` pairs is sufficient, skip nested indented lines): `Имя`, `Поставщик`, `Версия` (base, e.g. `1.0`), `ВидПроекта` (the value `Библиотека` means a library, otherwise an application).
+Project metadata – from `Проект.yaml` (YAML; parsing flat top-level `key: value` pairs is sufficient, skip nested indented lines). Bilingual sources are a declared platform capability – a descriptor written with English keys deploys fine – so every key is read in both spellings: `Имя`/`Name`, `Поставщик`/`Vendor`, `Версия`/`Version` (base, e.g. `1.0`), `ВидПроекта`/`ProjectKind` (the value `Библиотека`/`Library` means a library, otherwise an application). The Russian spelling wins when both are present.
 
-Build version, if not set explicitly: `{base version}-{N+1}`, where N is the counter from the version of the project's latest build; if there are no builds – `{base version}-1`.
+Build version, if not set explicitly: `{base version}-{N+1}`, where N is the counter from the version of the project's latest build. Without a last build, the suffix comes from the CI run number in the environment – the first numeric value of `CI_PIPELINE_IID`, `GITHUB_RUN_NUMBER`, `BUILD_NUMBER` (in that order) – so a clean CI checkout does not produce `-1` on every run; with no CI number either, the version is `{base version}-1`.
 
 Git metadata (commit hash, branch name) – from the git repository containing the project directory; if git is unavailable, leave them empty.
 
@@ -132,4 +132,5 @@ Compatibility is checked against the `РежимСовместимости` prop
 3. **Deletion with drafts.** If the application's development environment has unpublished edits, `DELETE /applications/{id}` returns 400 with `FAILED_PRECONDITION` in the body. There is no forced deletion in the API – only the control panel; the tool must provide a clear hint.
 4. **Readiness of a new application.** After creation, the application is in transitional statuses and without a `uri` for some time – provide for waiting until ready (a `uri` has appeared and the status is stable). An `Error` status while waiting is an immediate error.
 5. **Restart after apply.** `project/update` may restart the application itself. After the call, wait until it leaves the transitional statuses; if the result is not `Running` – stop it (if not `Stopped`), wait for `Stopped`, start it, wait for `Running`. Reasonable timeouts: waiting for stop ~3 min, for start/stabilization ~5 min, polling every ~10 s.
-6. **Windows.** Temporary files and caches – only via `tempfile`; switch console output to UTF-8 (`reconfigure` for stdout/stderr), otherwise Cyrillic breaks.
+6. **Error is terminal.** A stable `Error` (e.g., after a failed apply) is an immediate failure: surface the error messages of the application tasks right away. Do not try to stop/restart such an application and do not keep waiting for another status – from `Error` it does not transition to `Stopped`, and the wait just eats the whole timeout.
+7. **Windows.** Temporary files and caches – only via `tempfile`; switch console output to UTF-8 (`reconfigure` for stdout/stderr), otherwise Cyrillic breaks.

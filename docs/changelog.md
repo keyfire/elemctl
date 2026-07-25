@@ -14,6 +14,44 @@ day are named in the heading. The format follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html). The VS Code debug companion in
 `editors/vscode` is released separately under the `vscode-v*` tags and is not tracked here.
 
+## Unreleased
+
+### Added
+- Build: without an explicit version and a last build, the version suffix comes from the CI
+  run number in the environment (`CI_PIPELINE_IID`, `GITHUB_RUN_NUMBER`, `BUILD_NUMBER` – the
+  first numeric value in that order), so a clean CI checkout no longer produces `-1` on every
+  run and a CI job reduces to a plain `elemctl build`.
+- `build` (and `deploy --dry-run`) output the build's `name`, `vendor`, `version`,
+  `version-source` (`flag`/`last-build`/the CI variable name/`default`), `kind`, `branch`,
+  `commit` and `dirty` alongside `file` – CI no longer parses the version out of the file name.
+- `apps get/delete/start/stop/debug` (CLI) and `get_app`/`delete_app`/`start_app`/`stop_app`/
+  `debug_info` (MCP) accept the application's exact name as well as its id: a non-UUID value
+  is resolved through the list case-insensitively; several matches are an error listing the
+  ids, so destructive commands never guess.
+- `apps list --brief` – brief cards (id, name, status, uri, applied version), like the MCP
+  tool has had; with `--name` it answers "is acme-crm-dev alive" in a couple hundred bytes
+  instead of tens of kilobytes.
+- The deploy report and `elemctl build` surface uncommitted changes of the project directory
+  (`dirty`, `dirty-files` plus a stderr warning): the build captures the current disk state,
+  so the divergence from HEAD must be visible. The new `--require-clean` flag of `build` and
+  `deploy` aborts before building instead (an unavailable git is also a refusal – there is
+  nothing to confirm a clean tree with).
+
+### Changed
+- `apps list --name` (CLI) and `list_apps(name=...)` (MCP) filter by a case-insensitive name
+  substring on the client. The platform ignores the `name` query parameter and returns the
+  full list (verified against a live instance), so the former pass-through filter did not
+  filter anything.
+- Descriptor keys of `Проект.yaml` are read in both spellings – `Имя`/`Name`,
+  `Поставщик`/`Vendor`, `Версия`/`Version`, `ВидПроекта`/`ProjectKind` (values
+  `Библиотека`/`Library`), same for `CompatibilityMode`/`Presentation` in `inspect`:
+  bilingual sources are a declared platform capability, and a descriptor written with
+  English keys deploys fine. Previously such a project was rejected with "Имя and Поставщик
+  must be filled in", and a mixed one silently got version `1.0` instead of the declared one.
+- Waiting for application statuses treats `Error` as terminal: `deploy` fails right away
+  with the tasks' compilation errors instead of polling for `Stopped` through the whole
+  180-second timeout (an application in `Error` never reaches `Stopped`).
+
 ## 2026-07-24 – 0.13.1
 
 ### Fixed

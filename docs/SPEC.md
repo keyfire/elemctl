@@ -54,7 +54,7 @@ Common prefix: `{base}/console/api/v2`. Request and response bodies are JSON (ex
 
 ### 4.1. Applications
 
-- `GET /applications` – list; optional `name` query (filter).
+- `GET /applications` – list. The `name` query parameter exists but the platform IGNORES it and returns the full list (verified against a live instance) – name filtering must be done client-side.
 - `GET /applications/{id}` – card. Significant response fields: `id`, `status`, `uri` (address of the running application), `error` (error text, if any), `technology-version`, `date-updated`, `display-name`, `publication-context`, `source` (an object with source information, containing among other things `project-version` – the version of the applied build).
 - `POST /applications` – create. Body:
   - `source` – the object `{"type": "repository"}` plus exactly one of the keys: `project-version-id` (id of the source build) or `image-id` (project id);
@@ -130,9 +130,9 @@ A build file is a ZIP archive (deflate):
 
 Build file name: `{Имя} {Version}.xasm` (with a space).
 
-Project metadata – from `Проект.yaml` (YAML; parsing flat top-level `key: value` pairs is sufficient, skip nested indented lines): `Имя`, `Поставщик`, `Версия` (base, e.g. `1.0`), `ВидПроекта` (the value `Библиотека` means a library, otherwise an application).
+Project metadata – from `Проект.yaml` (YAML; parsing flat top-level `key: value` pairs is sufficient, skip nested indented lines). Bilingual sources are a declared platform capability – a descriptor written with English keys deploys fine – so every key is read in both spellings: `Имя`/`Name`, `Поставщик`/`Vendor`, `Версия`/`Version` (base, e.g. `1.0`), `ВидПроекта`/`ProjectKind` (the value `Библиотека`/`Library` means a library, otherwise an application). The Russian spelling wins when both are present.
 
-Build version, if not set explicitly: `{base version}-{N+1}`, where N is the counter from the version of the project's latest build; if there are no builds – `{base version}-1`.
+Build version, if not set explicitly: `{base version}-{N+1}`, where N is the counter from the version of the project's latest build. Without a last build, the suffix comes from the CI run number in the environment – the first numeric value of `CI_PIPELINE_IID`, `GITHUB_RUN_NUMBER`, `BUILD_NUMBER` (in that order) – so a clean CI checkout does not produce `-1` on every run; with no CI number either, the version is `{base version}-1`.
 
 Git metadata (commit hash, branch name) – from the git repository containing the project directory; if git is unavailable, leave them empty.
 
@@ -167,7 +167,8 @@ Compatibility is checked against the `РежимСовместимости` prop
 3. **Deletion with drafts.** If the application's development environment has unpublished edits, `DELETE /applications/{id}` returns 400 with `FAILED_PRECONDITION` in the body. There is no forced deletion in the API – only the control panel; the tool must provide a clear hint.
 4. **Readiness of a new application.** After creation, the application is in transitional statuses and without a `uri` for some time – provide for waiting until ready (a `uri` has appeared and the status is stable). An `Error` status while waiting is an immediate error.
 5. **Restart after apply.** `project/update` may restart the application itself. After the call, wait until it leaves the transitional statuses; if the result is not `Running` – stop it (if not `Stopped`), wait for `Stopped`, start it, wait for `Running`. Reasonable timeouts: waiting for stop ~3 min, for start/stabilization ~5 min, polling every ~10 s.
-6. **Windows.** Temporary files and caches – only via `tempfile`; switch console output to UTF-8 (`reconfigure` for stdout/stderr), otherwise Cyrillic breaks.
+6. **Error is terminal.** A stable `Error` (e.g., after a failed apply) is an immediate failure: surface the error messages of the application tasks (section 4.6) right away. Do not try to stop/restart such an application and do not keep waiting for another status – from `Error` it does not transition to `Stopped`, and the wait just eats the whole timeout.
+7. **Windows.** Temporary files and caches – only via `tempfile`; switch console output to UTF-8 (`reconfigure` for stdout/stderr), otherwise Cyrillic breaks.
 
 ## 7. CLI requirements
 
@@ -178,12 +179,14 @@ Output: the result is JSON on stdout (`ensure_ascii=False`, indent 2); progress 
 Commands (significant flags in parentheses):
 
 - `token` – obtain and print the token.
-- `apps list [--name]`, `apps get [APP_ID]`, `apps find NAME [--include-deleted]`,
+- `apps list [--name --brief]`, `apps get [APP_ID]`, `apps find NAME [--include-deleted]`,
   `apps create NAME [--project-id --version-id --latest-build --space-id
   --tech-version --no-dev-mode --wait]`,
   `apps ensure NAME [--project-id --version-id --latest-build --space-id
   --tech-version --no-dev-mode --wait]`, `apps delete APP_ID`,
   `apps start [APP_ID]`, `apps stop [APP_ID]`.
+  - `apps list --name` filters by a case-insensitive name substring on the client (section 4.1: the platform ignores the query parameter); `--brief` prints brief cards (id, name, status, uri, applied version) instead of full ones.
+  - `APP_ID` of `apps get/delete/start/stop/debug` is the application id (UUID) or its exact name: a non-UUID value is resolved through the list by an exact case-insensitive match (deleted applications do not count). No match is an error; several matches are an error listing the ids – destructive commands must not guess.
   - `apps find` searches by an exact (case-insensitive) name match among the fields `name`, `display-name`, `publication-context`; output `{"id": ..., "found": true|false}`, return code 0 in both cases – the absence of an application is an answer, not an error. A non-zero return code means the request failed and is accompanied by JSON with an `error` field on stderr. In scripts, check the `found` field, not the return code.
   - Deleted applications remain in the platform list with the `Deleted` status and their former `id`. `apps find` SKIPS them: the found id must be usable, otherwise the caller gets an id on which `apps get` and `deploy` return 404. The `--include-deleted` flag restores the former behavior – searching among all applications, including deleted ones.
   - `apps ensure` idempotently brings an application with the given name into existence: it searches by the `apps find` rules (deleted ones do not count) and creates only if absent. Output `{"id": ..., "created": true|false}`; `created: false` means the application already existed and was NOT touched. The creation flags are the same as for `apps create` and take effect only when creation happens. An existing application is never recreated: `delete` + `create` produce a new URL and break external bindings to the former one.
@@ -198,13 +201,19 @@ Commands (significant flags in parentheses):
   `ELEMENT_PROJECT_ID`; `--new-project` ignores the environment binding and
   always creates a new project (mutually exclusive with `--project-id`).
 - `build [--project-dir --output --build-version --last-build --commit
-  --branch --kind {application,library}]` – build the archive locally, output
-  `{"file": path}`. Without `--project-dir`, the project directory is found automatically
+  --branch --kind {application,library} --require-clean]` – build the archive locally.
+  Output: `file`, `name`, `vendor`, `version`, `version-source`
+  (`flag`/`last-build`/the CI variable name/`default`), `kind`, `branch`, `commit`,
+  `dirty` (whether the project directory has uncommitted changes; null when git is
+  unavailable) – the version is a field of its own so CI does not parse the file name.
+  Without `--project-dir`, the project directory is found automatically
   (the first directory with `Проект.yaml` when descending from the current one). `--kind`
-  defaults based on `ВидПроекта`.
+  defaults based on `ВидПроекта`. `--require-clean` aborts before building when the
+  project directory has uncommitted changes (git unavailable also aborts: there is
+  nothing to confirm a clean tree with).
 - `deploy [--app-id --project-id --project-dir --output --build-version
-  --branch --commit --commit-message --dry-run]` –
-  the full cycle: build -> upload -> apply -> restart -> verification of the actual apply (section 6.1). Output – a JSON report with fields: `app-id`, `uri`, `status`, `version`, `assembly-id`, `applied-version`, `applied` (true/false/null – null when the actual version could not be determined), `uri-status`, `problems` (list of strings), `ok` (boolean). Return code 0 only when `ok`. `--dry-run` – build only.
+  --branch --commit --commit-message --dry-run --require-clean]` –
+  the full cycle: build -> upload -> apply -> restart -> verification of the actual apply (section 6.1). Output – a JSON report with fields: `app-id`, `uri`, `status`, `version`, `assembly-id`, `applied-version`, `applied` (true/false/null – null when the actual version could not be determined), `uri-status`, `problems` (list of strings), `ok` (boolean), `dirty`/`dirty-files` (uncommitted changes of the project directory at build time – the build captures the current disk state, so the divergence from HEAD must be visible; a warning also goes to stderr; null when git is unavailable). Return code 0 only when `ok`. `--dry-run` – build only. `--require-clean` – abort before building on a dirty tree.
 - `branches list [--project-id --name]`, `branches get ID`,
   `branches create NAME [--project-id --app-id]`,
   `branches update ID [--app-id]`, `branches delete ID`,
@@ -223,7 +232,8 @@ Positional APP_ID/PROJECT_ID marked as optional above are taken from the configu
 
 Server name `elemctl`, stdio transport, credentials – from the same environment variables/.env. In the server instructions, warn about the silent rollback of build apply (section 6.1). Tools (docstrings – short, in Russian):
 
-`list_apps(name="")`, `get_app(app_id)`, `find_app(name)`,
+`list_apps(name="")` – `name` filters by a case-insensitive substring on the
+client (section 4.1), `get_app(app_id)`, `find_app(name)`,
 `create_app(name, project_id="", version_id="", space_id="",
 development_mode=True)` – when only project_id is given, the project's latest build is
 automatically used as the source (section 6.2);
@@ -232,6 +242,8 @@ debug session (requires debugging enabled on the server), `debug_adapter()` –
 the path to the platform debug adapter from a plugin (section 10; a local
 operation that does not call the platform), `delete_app(app_id)`
 (the docstring – a warning about irreversibility and URL change), `list_spaces()`,
+`app_id` of `get_app`/`delete_app`/`start_app`/`stop_app`/`debug_info` is the
+id (UUID) or the exact application name (resolved like the CLI does),
 `list_projects()`, `list_builds(project_id)`,
 `build_assembly(project_dir="", output_dir="", version="")`,
 `inspect_assembly(file)` – parsing of a built archive (section 5.1; a local operation),
