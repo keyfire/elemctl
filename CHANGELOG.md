@@ -8,7 +8,7 @@ day are named in the heading. The format follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html). The VS Code debug companion in
 `editors/vscode` is released separately under the `vscode-v*` tags and is not tracked here.
 
-## Unreleased
+## 2026-07-25 – 0.14.0
 
 ### Added
 - Build: without an explicit version and a last build, the version suffix comes from the CI
