@@ -247,6 +247,8 @@ def test_report_to_dict_kebab_case(project_factory, tmp_path):
         "uri-status",
         "problems",
         "ok",
+        "dirty",
+        "dirty-files",
     }
     assert payload["ok"] is True
 
@@ -278,3 +280,60 @@ def test_verify_deploy_standalone_by_assembly_id():
     bad = verify_deploy(client, "app-1", expected_assembly_id="asm-10", since=since)
     assert bad.applied is False
     assert bad.ok is False
+
+
+def test_deploy_reports_dirty_tree(project_factory, tmp_path, monkeypatch):
+    """Незакоммиченные изменения каталога проекта видны в log и в отчёте.
+
+    Сборка снимает диск в момент запуска: при параллельных правках в архив
+    попадает полусырое состояние, и молчать об этом нельзя.
+    """
+    from elemctl import deploy as deploy_module
+
+    original = deploy_module.build_assembly
+
+    def dirty_build(*args, **kwargs):
+        result = original(*args, **kwargs)
+        result.dirty_files = ["acme/crm/Проект.xbsl", "acme/crm/Новый.yaml"]
+        return result
+
+    monkeypatch.setattr(deploy_module, "build_assembly", dirty_build)
+    client = FakeDeployClient(applied_version="1.0-1")
+    log_lines = []
+
+    report = deploy_from_sources(
+        client,
+        "app-1",
+        "proj-1",
+        project_dir=project_factory(),
+        output_dir=tmp_path / "dist",
+        version="1.0-1",
+        log=log_lines.append,
+    )
+
+    assert report.dirty_files == ["acme/crm/Проект.xbsl", "acme/crm/Новый.yaml"]
+    payload = report.to_dict()
+    assert payload["dirty"] is True
+    assert payload["dirty-files"] == ["acme/crm/Проект.xbsl", "acme/crm/Новый.yaml"]
+    warning = [line for line in log_lines if "незакоммиченные" in line]
+    assert warning and "Проект.xbsl" in warning[0]
+    # Чистота дерева – предупреждение, а не проблема применения.
+    assert report.problems == [] and report.ok is True
+
+
+def test_deploy_outside_repository_dirty_unknown(project_factory, tmp_path):
+    """Вне git-репозитория чистота неизвестна: dirty null, предупреждения нет."""
+    client = FakeDeployClient(applied_version="1.0-1")
+    log_lines = []
+    report = deploy_from_sources(
+        client,
+        "app-1",
+        "proj-1",
+        project_dir=project_factory(),
+        output_dir=tmp_path / "dist",
+        version="1.0-1",
+        log=log_lines.append,
+    )
+    assert report.dirty_files is None
+    assert report.to_dict()["dirty"] is None
+    assert not [line for line in log_lines if "незакоммиченные" in line]

@@ -26,7 +26,10 @@ class DeployReport:
 
     applied: True – версия совпала, False – не совпала (похоже на откат),
     None – фактическую версию определить не удалось. ok – итоговый вердикт:
-    нет проблем и нет доказанного отката.
+    нет проблем и нет доказанного отката. dirty_files – незакоммиченные
+    изменения каталога проекта на момент сборки (None – git недоступен или
+    сборка в этом запуске не выполнялась): сборка снимает диск как есть,
+    поэтому расхождение с HEAD должно быть видно в отчёте.
     """
 
     app_id: str = ""
@@ -40,6 +43,7 @@ class DeployReport:
     uri_status: int | None = None
     problems: list = field(default_factory=list)
     ok: bool = False
+    dirty_files: list | None = None
 
     def to_dict(self):
         """Представить отчёт словарём с ключами в kebab-case (для JSON-вывода)."""
@@ -55,6 +59,8 @@ class DeployReport:
             "uri-status": self.uri_status,
             "problems": list(self.problems),
             "ok": self.ok,
+            "dirty": None if self.dirty_files is None else bool(self.dirty_files),
+            "dirty-files": None if self.dirty_files is None else list(self.dirty_files),
         }
 
 
@@ -95,6 +101,12 @@ def deploy_from_sources(
         commit=commit,
     )
     log(i18n.t("deploy.built", file=result.file, version=result.version))
+    if result.dirty_files:
+        log(i18n.t(
+            "deploy.dirty-tree",
+            count=len(result.dirty_files),
+            files=_shorten_list(result.dirty_files),
+        ))
 
     response = client.upload_assembly(
         result.file.read_bytes(),
@@ -125,6 +137,7 @@ def deploy_from_sources(
         since=started_at,
     )
     report.assembly_id = assembly_id
+    report.dirty_files = result.dirty_files
     _log_outcome(report, log)
     return report
 
@@ -150,6 +163,15 @@ def verify_deploy(client, app_id, *, expected_version="", expected_assembly_id="
 
 
 # -- внутреннее ---------------------------------------------------------------
+
+
+def _shorten_list(items, limit=5):
+    """Первые limit элементов через запятую; хвост – счётчиком."""
+    shown = ", ".join(str(item) for item in items[:limit])
+    rest = len(items) - limit
+    if rest > 0:
+        shown += i18n.t("deploy.and-more", count=rest)
+    return shown
 
 
 def _verify(client, app_id, *, card, expected_version, since, expected_assembly_id=""):
