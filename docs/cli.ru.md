@@ -97,7 +97,7 @@ usage: elemctl apps [-h] действие ...
 ### `elemctl apps list`
 
 ```bash
-usage: elemctl apps list [-h] [--name NAME]
+usage: elemctl apps list [-h] [--name NAME] [--brief]
 ```
 
 **Параметры**
@@ -105,7 +105,8 @@ usage: elemctl apps list [-h] [--name NAME]
 | Параметр | Описание |
 |---|---|
 | `-h, --help` | показать эту справку и выйти |
-| `--name NAME` | фильтр по имени |
+| `--name NAME` | фильтр по подстроке имени без учёта регистра (выполняется на клиенте) |
+| `--brief` | краткие карточки: ид, имя, статус, uri, применённая версия |
 
 ### `elemctl apps get`
 
@@ -117,7 +118,7 @@ usage: elemctl apps get [-h] [APP_ID]
 
 | Параметр | Описание |
 |---|---|
-| `APP_ID` | ид приложения (по умолчанию ELEMENT_APP_ID) |
+| `APP_ID` | ид (UUID) либо точное имя приложения (по умолчанию ELEMENT_APP_ID) |
 
 **Параметры**
 
@@ -210,7 +211,7 @@ usage: elemctl apps delete [-h] APP_ID
 
 | Параметр | Описание |
 |---|---|
-| `APP_ID` | ид приложения |
+| `APP_ID` | ид (UUID) либо точное имя приложения |
 
 **Параметры**
 
@@ -228,7 +229,7 @@ usage: elemctl apps start [-h] [APP_ID]
 
 | Параметр | Описание |
 |---|---|
-| `APP_ID` | ид приложения (по умолчанию ELEMENT_APP_ID) |
+| `APP_ID` | ид (UUID) либо точное имя приложения (по умолчанию ELEMENT_APP_ID) |
 
 **Параметры**
 
@@ -246,7 +247,7 @@ usage: elemctl apps stop [-h] [APP_ID]
 
 | Параметр | Описание |
 |---|---|
-| `APP_ID` | ид приложения (по умолчанию ELEMENT_APP_ID) |
+| `APP_ID` | ид (UUID) либо точное имя приложения (по умолчанию ELEMENT_APP_ID) |
 
 **Параметры**
 
@@ -264,7 +265,7 @@ usage: elemctl apps debug [-h] [APP_ID]
 
 | Параметр | Описание |
 |---|---|
-| `APP_ID` | ид приложения (по умолчанию ELEMENT_APP_ID) |
+| `APP_ID` | ид (UUID) либо точное имя приложения (по умолчанию ELEMENT_APP_ID) |
 
 **Параметры**
 
@@ -473,7 +474,7 @@ usage: elemctl builds delete [-h] [--project-id PROJECT_ID] VERSION
 ```bash
 usage: elemctl build [-h] [--project-dir PROJECT_DIR] [--output OUTPUT]
                      [--build-version BUILD_VERSION] [--last-build LAST_BUILD] [--commit COMMIT]
-                     [--branch BRANCH] [--kind {application,library}]
+                     [--branch BRANCH] [--kind {application,library}] [--require-clean]
 ```
 
 **Параметры**
@@ -488,6 +489,7 @@ usage: elemctl build [-h] [--project-dir PROJECT_DIR] [--output OUTPUT]
 | `--commit COMMIT` | хэш коммита в манифест (по умолчанию из git) |
 | `--branch BRANCH` | имя ветки в манифест (по умолчанию из git) |
 | `--kind {application,library}` | вид проекта (по умолчанию из Проект.yaml) |
+| `--require-clean` | прервать сборку, если в каталоге проекта есть незакоммиченные изменения |
 
 ## `elemctl inspect`
 
@@ -513,6 +515,7 @@ usage: elemctl inspect [-h] FILE
 usage: elemctl deploy [-h] [--app-id APP_ID] [--project-id PROJECT_ID] [--project-dir PROJECT_DIR]
                       [--output OUTPUT] [--build-version BUILD_VERSION] [--branch BRANCH]
                       [--commit COMMIT] [--commit-message COMMIT_MESSAGE] [--dry-run]
+                      [--require-clean]
 ```
 
 **Параметры**
@@ -529,6 +532,7 @@ usage: elemctl deploy [-h] [--app-id APP_ID] [--project-id PROJECT_ID] [--projec
 | `--commit COMMIT` | хэш коммита в метаданные (по умолчанию из git) |
 | `--commit-message COMMIT_MESSAGE` | сообщение коммита (метаданные загрузки) |
 | `--dry-run` | только сборка, без загрузки |
+| `--require-clean` | прервать деплой, если в каталоге проекта есть незакоммиченные изменения |
 
 ## `elemctl branches`
 

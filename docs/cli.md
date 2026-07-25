@@ -97,7 +97,7 @@ usage: elemctl apps [-h] action ...
 ### `elemctl apps list`
 
 ```bash
-usage: elemctl apps list [-h] [--name NAME]
+usage: elemctl apps list [-h] [--name NAME] [--brief]
 ```
 
 **Options**
@@ -105,7 +105,8 @@ usage: elemctl apps list [-h] [--name NAME]
 | Option | Description |
 |---|---|
 | `-h, --help` | show this help message and exit |
-| `--name NAME` | filter by name |
+| `--name NAME` | case-insensitive name substring filter (applied client-side) |
+| `--brief` | brief cards: id, name, status, uri, applied version |
 
 ### `elemctl apps get`
 
@@ -117,7 +118,7 @@ usage: elemctl apps get [-h] [APP_ID]
 
 | Option | Description |
 |---|---|
-| `APP_ID` | the application id (default: ELEMENT_APP_ID) |
+| `APP_ID` | the application id (UUID) or its exact name (default: ELEMENT_APP_ID) |
 
 **Options**
 
@@ -210,7 +211,7 @@ usage: elemctl apps delete [-h] APP_ID
 
 | Option | Description |
 |---|---|
-| `APP_ID` | the application id |
+| `APP_ID` | the application id (UUID) or its exact name |
 
 **Options**
 
@@ -228,7 +229,7 @@ usage: elemctl apps start [-h] [APP_ID]
 
 | Option | Description |
 |---|---|
-| `APP_ID` | the application id (default: ELEMENT_APP_ID) |
+| `APP_ID` | the application id (UUID) or its exact name (default: ELEMENT_APP_ID) |
 
 **Options**
 
@@ -246,7 +247,7 @@ usage: elemctl apps stop [-h] [APP_ID]
 
 | Option | Description |
 |---|---|
-| `APP_ID` | the application id (default: ELEMENT_APP_ID) |
+| `APP_ID` | the application id (UUID) or its exact name (default: ELEMENT_APP_ID) |
 
 **Options**
 
@@ -264,7 +265,7 @@ usage: elemctl apps debug [-h] [APP_ID]
 
 | Option | Description |
 |---|---|
-| `APP_ID` | the application id (default: ELEMENT_APP_ID) |
+| `APP_ID` | the application id (UUID) or its exact name (default: ELEMENT_APP_ID) |
 
 **Options**
 
@@ -473,7 +474,7 @@ usage: elemctl builds delete [-h] [--project-id PROJECT_ID] VERSION
 ```bash
 usage: elemctl build [-h] [--project-dir PROJECT_DIR] [--output OUTPUT]
                      [--build-version BUILD_VERSION] [--last-build LAST_BUILD] [--commit COMMIT]
-                     [--branch BRANCH] [--kind {application,library}]
+                     [--branch BRANCH] [--kind {application,library}] [--require-clean]
 ```
 
 **Options**
@@ -488,6 +489,7 @@ usage: elemctl build [-h] [--project-dir PROJECT_DIR] [--output OUTPUT]
 | `--commit COMMIT` | commit hash for the manifest (default: from git) |
 | `--branch BRANCH` | branch name for the manifest (default: from git) |
 | `--kind {application,library}` | project kind (default: from Проект.yaml) |
+| `--require-clean` | abort the build if the project directory has uncommitted changes |
 
 ## `elemctl inspect`
 
@@ -513,6 +515,7 @@ usage: elemctl inspect [-h] FILE
 usage: elemctl deploy [-h] [--app-id APP_ID] [--project-id PROJECT_ID] [--project-dir PROJECT_DIR]
                       [--output OUTPUT] [--build-version BUILD_VERSION] [--branch BRANCH]
                       [--commit COMMIT] [--commit-message COMMIT_MESSAGE] [--dry-run]
+                      [--require-clean]
 ```
 
 **Options**
@@ -529,6 +532,7 @@ usage: elemctl deploy [-h] [--app-id APP_ID] [--project-id PROJECT_ID] [--projec
 | `--commit COMMIT` | commit hash for the metadata (default: from git) |
 | `--commit-message COMMIT_MESSAGE` | commit message (upload metadata) |
 | `--dry-run` | build only, no upload |
+| `--require-clean` | abort the deploy if the project directory has uncommitted changes |
 
 ## `elemctl branches`
 

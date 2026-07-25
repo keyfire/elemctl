@@ -13,8 +13,14 @@ import sys
 from pathlib import Path
 
 from . import __version__, i18n, plugins
-from .build import build_assembly, inspect_assembly, read_assembly_manifest
-from .client import ElementClient, extract_assembly_id
+from .build import (
+    build_assembly,
+    find_project_dir,
+    git_dirty_files,
+    inspect_assembly,
+    read_assembly_manifest,
+)
+from .client import ElementClient, brief_app, extract_assembly_id
 from .config import Config
 from .deploy import deploy_from_sources
 from .errors import ApiError, ConfigError, ElemctlError
@@ -73,6 +79,23 @@ def _require(explicit, fallback, what):
     return value
 
 
+def _ensure_clean_tree(project_dir):
+    """Прервать работу, когда в каталоге проекта есть незакоммиченные изменения.
+
+    Проверка идёт до сборки и тем более до загрузки: --require-clean обещает,
+    что в архив попадёт ровно состояние HEAD. Недоступный git – тоже отказ:
+    подтвердить чистоту дерева в этом случае нечем.
+    """
+    directory = find_project_dir(project_dir)
+    dirty = git_dirty_files(directory)
+    if dirty is None:
+        raise ElemctlError(i18n.t("cli.require-clean-no-git", dir=directory))
+    if dirty:
+        raise ElemctlError(
+            i18n.t("cli.require-clean-dirty", dir=directory, count=len(dirty))
+        )
+
+
 # -- обработчики команд -----------------------------------------------------------
 
 
@@ -84,7 +107,10 @@ def cmd_token(args):
 
 def cmd_apps_list(args):
     client = make_client(_config(args))
-    _emit(client.list_apps(name=args.name or ""))
+    apps = client.list_apps(name=args.name or "")
+    if args.brief:
+        apps = [brief_app(app) for app in apps if isinstance(app, dict)]
+    _emit(apps)
     return 0
 
 
@@ -92,7 +118,7 @@ def cmd_apps_get(args):
     config = _config(args)
     client = make_client(config)
     app_id = _require(args.app_id, config.app_id, i18n.t("cli.require.app-id-arg"))
-    _emit(client.get_app(app_id))
+    _emit(client.get_app(client.resolve_app_id(app_id)))
     return 0
 
 
@@ -190,8 +216,9 @@ def cmd_apps_ensure(args):
 
 def cmd_apps_delete(args):
     client = make_client(_config(args))
-    response = client.delete_app(args.app_id)
-    _emit(response if response is not None else {"deleted": True, "app-id": args.app_id})
+    app_id = client.resolve_app_id(args.app_id)
+    response = client.delete_app(app_id)
+    _emit(response if response is not None else {"deleted": True, "app-id": app_id})
     return 0
 
 
@@ -199,7 +226,7 @@ def cmd_apps_debug(args):
     config = _config(args)
     client = make_client(config)
     app_id = _require(args.app_id, config.app_id, i18n.t("cli.require.app-id-arg"))
-    _emit(client.get_debug_info(app_id) or {})
+    _emit(client.get_debug_info(client.resolve_app_id(app_id)) or {})
     return 0
 
 
@@ -207,6 +234,7 @@ def cmd_apps_start(args):
     config = _config(args)
     client = make_client(config)
     app_id = _require(args.app_id, config.app_id, i18n.t("cli.require.app-id-arg"))
+    app_id = client.resolve_app_id(app_id)
     response = client.start_app(app_id)
     _emit(response if response is not None else {"ok": True, "app-id": app_id})
     return 0
@@ -216,6 +244,7 @@ def cmd_apps_stop(args):
     config = _config(args)
     client = make_client(config)
     app_id = _require(args.app_id, config.app_id, i18n.t("cli.require.app-id-arg"))
+    app_id = client.resolve_app_id(app_id)
     response = client.stop_app(app_id)
     _emit(response if response is not None else {"ok": True, "app-id": app_id})
     return 0
@@ -354,7 +383,28 @@ def cmd_builds_delete(args):
     return 0
 
 
+def _build_result_dict(result):
+    """Словарь результата сборки для JSON-вывода.
+
+    Версия отдаётся отдельными полями, чтобы CI не выковыривал её из имени
+    файла; version-source отвечает на вопрос "откуда взялась".
+    """
+    return {
+        "file": str(result.file),
+        "name": result.name,
+        "vendor": result.vendor,
+        "version": result.version,
+        "version-source": result.version_source,
+        "kind": result.kind,
+        "branch": result.branch,
+        "commit": result.commit,
+        "dirty": None if result.dirty_files is None else bool(result.dirty_files),
+    }
+
+
 def cmd_build(args):
+    if args.require_clean:
+        _ensure_clean_tree(args.project_dir)
     result = build_assembly(
         args.project_dir,
         output_dir=args.output,
@@ -364,7 +414,7 @@ def cmd_build(args):
         commit=args.commit,
         kind=args.kind or "",
     )
-    _emit({"file": str(result.file)})
+    _emit(_build_result_dict(result))
     return 0
 
 
@@ -374,6 +424,8 @@ def cmd_inspect(args):
 
 
 def cmd_deploy(args):
+    if args.require_clean:
+        _ensure_clean_tree(args.project_dir)
     if args.dry_run:
         result = build_assembly(
             args.project_dir,
@@ -382,7 +434,7 @@ def cmd_deploy(args):
             branch=args.branch,
             commit=args.commit,
         )
-        _emit({"file": str(result.file)})
+        _emit(_build_result_dict(result))
         return 0
 
     config = _config(args)
@@ -588,10 +640,11 @@ def build_parser():
 
     p = apps_sub.add_parser("list", help=i18n.t("cli.help.apps-list"))
     p.add_argument("--name", help=i18n.t("cli.help.apps-list-name"))
+    p.add_argument("--brief", action="store_true", help=i18n.t("cli.help.apps-list-brief"))
     p.set_defaults(handler=cmd_apps_list)
 
     p = apps_sub.add_parser("get", help=i18n.t("cli.help.apps-get"))
-    p.add_argument("app_id", nargs="?", metavar="APP_ID", help=i18n.t("cli.help.arg.app-id"))
+    p.add_argument("app_id", nargs="?", metavar="APP_ID", help=i18n.t("cli.help.arg.app-ref"))
     p.set_defaults(handler=cmd_apps_get)
 
     p = apps_sub.add_parser("find", help=i18n.t("cli.help.apps-find"))
@@ -612,19 +665,19 @@ def build_parser():
     p.set_defaults(handler=cmd_apps_ensure)
 
     p = apps_sub.add_parser("delete", help=i18n.t("cli.help.apps-delete"))
-    p.add_argument("app_id", metavar="APP_ID", help=i18n.t("cli.help.arg.app-id-required"))
+    p.add_argument("app_id", metavar="APP_ID", help=i18n.t("cli.help.arg.app-ref-required"))
     p.set_defaults(handler=cmd_apps_delete)
 
     p = apps_sub.add_parser("start", help=i18n.t("cli.help.apps-start"))
-    p.add_argument("app_id", nargs="?", metavar="APP_ID", help=i18n.t("cli.help.arg.app-id"))
+    p.add_argument("app_id", nargs="?", metavar="APP_ID", help=i18n.t("cli.help.arg.app-ref"))
     p.set_defaults(handler=cmd_apps_start)
 
     p = apps_sub.add_parser("stop", help=i18n.t("cli.help.apps-stop"))
-    p.add_argument("app_id", nargs="?", metavar="APP_ID", help=i18n.t("cli.help.arg.app-id"))
+    p.add_argument("app_id", nargs="?", metavar="APP_ID", help=i18n.t("cli.help.arg.app-ref"))
     p.set_defaults(handler=cmd_apps_stop)
 
     p = apps_sub.add_parser("debug", help=i18n.t("cli.help.apps-debug"))
-    p.add_argument("app_id", nargs="?", metavar="APP_ID", help=i18n.t("cli.help.arg.app-id"))
+    p.add_argument("app_id", nargs="?", metavar="APP_ID", help=i18n.t("cli.help.arg.app-ref"))
     p.set_defaults(handler=cmd_apps_debug)
 
     # spaces ----------------------------------------------------------------
@@ -689,6 +742,11 @@ def build_parser():
     p.add_argument("--commit", help=i18n.t("cli.help.build-commit"))
     p.add_argument("--branch", help=i18n.t("cli.help.build-branch"))
     p.add_argument("--kind", choices=["application", "library"], help=i18n.t("cli.help.build-kind"))
+    p.add_argument(
+        "--require-clean",
+        action="store_true",
+        help=i18n.t("cli.help.build-require-clean"),
+    )
     p.set_defaults(handler=cmd_build)
 
     # inspect ---------------------------------------------------------------
@@ -707,6 +765,11 @@ def build_parser():
     p.add_argument("--commit", help=i18n.t("cli.help.deploy-commit"))
     p.add_argument("--commit-message", help=i18n.t("cli.help.deploy-commit-message"))
     p.add_argument("--dry-run", action="store_true", help=i18n.t("cli.help.deploy-dry-run"))
+    p.add_argument(
+        "--require-clean",
+        action="store_true",
+        help=i18n.t("cli.help.deploy-require-clean"),
+    )
     p.set_defaults(handler=cmd_deploy)
 
     # branches ----------------------------------------------------------------

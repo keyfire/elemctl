@@ -450,3 +450,154 @@ def test_mcp_command_forwards_env_file(monkeypatch, tmp_path):
     assert rc == 0
     assert captured["config"] is not None
     assert captured["config"].base_url == "https://example.test"
+
+
+def test_build_json_carries_version_and_source(project_factory, tmp_path, capsys):
+    """CI не должен выковыривать версию из имени файла: она в полях JSON."""
+    project_dir = project_factory()
+    rc = cli.main(
+        ["build", "--project-dir", str(project_dir), "--output", str(tmp_path / "dist")]
+    )
+    assert rc == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["version"] == "1.0-1"
+    assert payload["version-source"] == "default"
+    assert payload["name"] == "crm" and payload["vendor"] == "acme"
+    assert payload["kind"] == "Application"
+    # Синтетический проект вне git-репозитория: чистоту дерева определить нечем.
+    assert payload["dirty"] is None
+
+
+def test_build_version_from_ci_env_via_cli(project_factory, tmp_path, capsys, monkeypatch):
+    monkeypatch.setenv("GITHUB_RUN_NUMBER", "88")
+    rc = cli.main(
+        ["build", "--project-dir", str(project_factory()), "--output", str(tmp_path / "dist")]
+    )
+    assert rc == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["version"] == "1.0-88"
+    assert payload["version-source"] == "GITHUB_RUN_NUMBER"
+    assert Path(payload["file"]).name == "crm 1.0-88.xasm"
+
+
+def test_build_require_clean_dirty_tree_aborts(project_factory, tmp_path, capsys, monkeypatch):
+    """--require-clean: грязное дерево – отказ ДО сборки, архив не создаётся."""
+    monkeypatch.setattr(cli, "git_dirty_files", lambda directory: ["acme/crm/Проект.xbsl"])
+    out_dir = tmp_path / "dist"
+    rc = cli.main(
+        ["build", "--project-dir", str(project_factory()), "--output", str(out_dir),
+         "--require-clean"]
+    )
+    assert rc == 1
+    error = json.loads(capsys.readouterr().err)
+    assert "--require-clean" in error["error"]
+    assert not out_dir.exists()
+
+
+def test_build_require_clean_without_git_aborts(project_factory, tmp_path, capsys, monkeypatch):
+    """Недоступный git при --require-clean – тоже отказ: чистоту подтвердить нечем."""
+    monkeypatch.setattr(cli, "git_dirty_files", lambda directory: None)
+    rc = cli.main(
+        ["build", "--project-dir", str(project_factory()), "--output", str(tmp_path / "d"),
+         "--require-clean"]
+    )
+    assert rc == 1
+    assert "--require-clean" in json.loads(capsys.readouterr().err)["error"]
+
+
+def test_build_require_clean_clean_tree_builds(project_factory, tmp_path, capsys, monkeypatch):
+    monkeypatch.setattr(cli, "git_dirty_files", lambda directory: [])
+    rc = cli.main(
+        ["build", "--project-dir", str(project_factory()), "--output", str(tmp_path / "d"),
+         "--require-clean"]
+    )
+    assert rc == 0
+    assert Path(json.loads(capsys.readouterr().out)["file"]).exists()
+
+
+def test_deploy_require_clean_checked_before_any_work(
+    project_factory, tmp_path, capsys, monkeypatch
+):
+    """У deploy проверка чистоты идёт до сборки и тем более до загрузки."""
+    monkeypatch.setattr(cli, "git_dirty_files", lambda directory: ["правка"])
+
+    class MustNotBeCalled:
+        def __getattr__(self, name):
+            raise AssertionError("клиент не должен создаваться при грязном дереве")
+
+    monkeypatch.setattr(cli, "make_client", lambda config: MustNotBeCalled())
+    out_dir = tmp_path / "dist"
+    rc = cli.main(
+        ["deploy", "--project-dir", str(project_factory()), "--output", str(out_dir),
+         "--require-clean", "--app-id", "app-1", "--project-id", "proj-1"]
+    )
+    assert rc == 1
+    assert "--require-clean" in json.loads(capsys.readouterr().err)["error"]
+    assert not out_dir.exists()
+
+
+def test_apps_delete_accepts_application_name(monkeypatch, capsys):
+    """apps delete site-x: имя резолвится в UUID, платформе уходит ид."""
+    deleted = []
+
+    class FakeClient:
+        def resolve_app_id(self, value):
+            assert value == "crm-x"
+            return "6b3a2f00-0000-0000-0000-000000000001"
+
+        def delete_app(self, app_id):
+            deleted.append(app_id)
+            return None
+
+    monkeypatch.setattr(cli, "make_client", lambda config: FakeClient())
+    rc = cli.main(["apps", "delete", "crm-x"])
+    assert rc == 0
+    assert deleted == ["6b3a2f00-0000-0000-0000-000000000001"]
+    payload = json.loads(capsys.readouterr().out)
+    assert payload == {"deleted": True, "app-id": "6b3a2f00-0000-0000-0000-000000000001"}
+
+
+def test_apps_get_resolves_name(monkeypatch, capsys):
+    class FakeClient:
+        def resolve_app_id(self, value):
+            return "app-uuid"
+
+        def get_app(self, app_id):
+            assert app_id == "app-uuid"
+            return {"id": app_id, "status": "Running"}
+
+    monkeypatch.setattr(cli, "make_client", lambda config: FakeClient())
+    rc = cli.main(["apps", "get", "crm-x"])
+    assert rc == 0
+    assert json.loads(capsys.readouterr().out)["id"] == "app-uuid"
+
+
+def test_apps_list_brief_cards(monkeypatch, capsys):
+    class FakeClient:
+        def list_apps(self, name=""):
+            assert name == "crm"
+            return [
+                {
+                    "id": "1",
+                    "name": "crm-dev",
+                    "status": "Running",
+                    "uri": "https://x",
+                    "users": ["a", "b"],
+                    "source": {"project-version": "1.0-9", "project-version-id": "asm-9"},
+                }
+            ]
+
+    monkeypatch.setattr(cli, "make_client", lambda config: FakeClient())
+    rc = cli.main(["apps", "list", "--name", "crm", "--brief"])
+    assert rc == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload == [
+        {
+            "id": "1",
+            "name": "crm-dev",
+            "status": "Running",
+            "uri": "https://x",
+            "project-version": "1.0-9",
+            "project-version-id": "asm-9",
+        }
+    ]
