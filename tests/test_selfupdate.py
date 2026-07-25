@@ -1,4 +1,4 @@
-"""Тесты self-update: обновление распаковкой колеса без сети (urllib замокан)."""
+"""self-update tests: updating by unpacking the wheel with no network (urllib is mocked)."""
 
 from __future__ import annotations
 
@@ -35,7 +35,7 @@ class _FakeResp:
 
 
 def test_self_update_extracts_wheel(monkeypatch, tmp_path):
-    """Колесо распаковывается в site-packages, старый пакет и dist-info сносятся."""
+    """The wheel is unpacked into site-packages; the old package and dist-info are removed."""
     site = tmp_path / "site-packages"
     (site / "elemctl").mkdir(parents=True)
     (site / "elemctl" / "__init__.py").write_text('__version__ = "0.0.1"\n', encoding="utf-8")
@@ -48,12 +48,12 @@ def test_self_update_extracts_wheel(monkeypatch, tmp_path):
 
     assert new == "9.9.9" and old == elemctl.__version__
     assert '__version__ = "9.9.9"' in (site / "elemctl" / "__init__.py").read_text(encoding="utf-8")
-    assert not (site / "elemctl-0.0.1.dist-info").exists()  # старый dist-info снесён
+    assert not (site / "elemctl-0.0.1.dist-info").exists()  # the old dist-info is gone
     assert (site / "elemctl-9.9.9.dist-info").exists()
 
 
 def test_self_update_noop_when_current(monkeypatch, tmp_path):
-    """Если PyPI-версия совпадает с текущей и версия не задана – ничего не качаем."""
+    """When the PyPI version equals the current one and no version is asked for – nothing is downloaded."""
     monkeypatch.setattr(selfupdate, "_wheel_url", lambda v: ("http://pypi/x.whl", elemctl.__version__))
 
     def boom(*a, **k):
@@ -65,7 +65,7 @@ def test_self_update_noop_when_current(monkeypatch, tmp_path):
 
 
 def test_updates_pipx_metadata(monkeypatch, tmp_path):
-    """package_version в pipx_metadata.json обновляется, если venv – pipx."""
+    """package_version in pipx_metadata.json is updated when the venv is a pipx one."""
     site = tmp_path / "venv" / "Lib" / "site-packages"
     (site / "elemctl").mkdir(parents=True)
     (site / "elemctl" / "__init__.py").write_text("x\n", encoding="utf-8")

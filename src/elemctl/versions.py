@@ -1,17 +1,17 @@
-"""Версии сборок: числовое сравнение и автоинкремент.
+"""Build versions: numeric comparison and auto-increment.
 
-Версия сборки имеет вид "{база}-{счётчик}", например "1.0-42". Сравнивать
-версии нужно по числовому счётчику после последнего дефиса: "1.0-10" новее
-"1.0-9", хотя лексикографически порядок обратный.
+A build version has the form "{base}-{counter}", for example "1.0-42". Versions
+have to be compared by the numeric counter after the last hyphen: "1.0-10" is
+newer than "1.0-9", although lexicographically the order is the opposite.
 """
 
 from __future__ import annotations
 
 
 def version_counter(version):
-    """Числовой счётчик версии – суффикс после последнего дефиса.
+    """The numeric counter of a version – the suffix after the last hyphen.
 
-    Для версии без дефиса или с нечисловым суффиксом возвращается 0.
+    For a version without a hyphen or with a non-numeric suffix 0 is returned.
     """
     text = str(version or "")
     head, sep, tail = text.rpartition("-")
@@ -24,7 +24,7 @@ def version_counter(version):
 
 
 def next_version(base_version, last_version=None):
-    """Следующая версия сборки: "{база}-{N+1}" от последней, иначе "{база}-1"."""
+    """The next build version: "{base}-{N+1}" from the last one, otherwise "{base}-1"."""
     base = (base_version or "1.0").strip()
     if not last_version:
         return f"{base}-1"
@@ -32,7 +32,7 @@ def next_version(base_version, last_version=None):
 
 
 def pick_latest(assemblies, version_key="assembly-version"):
-    """Выбрать из списка сборок последнюю по числовому счётчику версии."""
+    """Pick the latest assembly from the list by the numeric version counter."""
     best = None
     best_counter = -1
     for item in assemblies or []:

@@ -1,7 +1,7 @@
-"""HTTP-транспорт поверх urllib – единственная точка сетевых вызовов.
+"""HTTP transport over urllib – the only place network calls are made.
 
-Транспорт выделен в отдельный объект, чтобы тесты могли подменить его
-заглушкой и работать без сети.
+The transport is a separate object so that the tests can replace it with a stub
+and run without a network.
 """
 
 from __future__ import annotations
@@ -15,7 +15,7 @@ from .errors import TransportError
 
 
 class HttpResponse:
-    """Ответ HTTP-запроса: статус, заголовки и тело в байтах."""
+    """An HTTP response: the status, the headers and the body in bytes."""
 
     def __init__(self, status, headers, body):
         self.status = int(status)
@@ -23,21 +23,22 @@ class HttpResponse:
         self.body = body or b""
 
     def text(self):
-        """Тело ответа строкой (UTF-8, нечитаемые байты заменяются)."""
+        """The body as a string (UTF-8, undecodable bytes are replaced)."""
         return self.body.decode("utf-8", errors="replace")
 
     def json(self):
-        """Тело ответа как JSON; для пустого тела – None."""
+        """The body as JSON; None for an empty body."""
         if not self.body:
             return None
         return json.loads(self.text())
 
 
 class UrllibTransport:
-    """Транспорт на urllib.request.
+    """A transport built on urllib.request.
 
-    Ответы с кодами не-2xx возвращаются как обычные ответы (решение об
-    ошибке принимает клиент); сетевые сбои превращаются в TransportError.
+    Responses with non-2xx codes are returned as ordinary responses (the client
+    is the one that decides whether that is an error); network failures turn
+    into TransportError.
     """
 
     def request(self, method, url, *, headers=None, data=None, timeout=60.0):
@@ -48,7 +49,7 @@ class UrllibTransport:
             with urllib.request.urlopen(request, timeout=timeout) as response:
                 return HttpResponse(response.status, response.headers, response.read())
         except urllib.error.HTTPError as error:
-            # HTTPError сам является ответом – возвращаем его тело и код.
+            # HTTPError is a response by itself – we return its body and code.
             return HttpResponse(error.code, error.headers, error.read())
         except OSError as error:
             raise TransportError(

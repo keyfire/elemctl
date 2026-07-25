@@ -1,4 +1,4 @@
-"""Тесты MCP-сервера: набор инструментов соответствует разделу 8 спецификации."""
+"""MCP server tests: the tool set matches section 8 of the specification."""
 
 from __future__ import annotations
 
@@ -61,7 +61,7 @@ def test_ensure_app_docstring_states_no_recreate():
     tools = asyncio.run(server.list_tools())
     ensure_tool = next(tool for tool in tools if tool.name == "ensure_app")
     description = ensure_tool.description or ""
-    assert "пересозда" in description  # существующее приложение НЕ пересоздаётся
+    assert "пересозда" in description  # an existing application is NOT re-created
     assert "created" in description
 
 
@@ -74,17 +74,17 @@ def test_find_app_exposes_include_deleted():
 
 
 def test_every_platform_tool_accepts_env_file():
-    """Окружение задаётся на вызов, а не только при запуске сервера.
+    """The environment is picked per call, not only when the server starts.
 
-    Иначе один сервер обслуживает лишь один стенд, и до второго (например,
-    локального) через MCP не добраться - приходится уходить в CLI.
+    Otherwise a single server serves a single stand only, and the second one (a local
+    stand, say) is out of reach through MCP – one has to fall back to the CLI.
     """
     server = create_server()
     tools = asyncio.run(server.list_tools())
     local_only = {"build_assembly", "inspect_assembly", "debug_adapter"}
     for tool in tools:
         if tool.name in local_only:
-            continue  # к платформе не обращаются
+            continue  # these never reach out to the platform
         properties = (tool.inputSchema or {}).get("properties") or {}
         assert "env_file" in properties, tool.name
     assert "env_file" in INSTRUCTIONS
@@ -156,10 +156,10 @@ def test_brief_app_keeps_only_the_identifying_fields():
 
 
 def test_app_tools_accept_name_in_docstring():
-    """Инструменты с параметром app_id принимают и точное имя приложения.
+    """Tools that take an app_id parameter also accept the exact application name.
 
-    Резолв делает client.resolve_app_id; здесь закрепляется, что описание
-    инструмента об этом говорит – иначе агент не узнает о возможности.
+    client.resolve_app_id does the resolving; what is pinned here is that the tool
+    description says so – otherwise an agent never learns the option is there.
     """
     server = create_server()
     tools = asyncio.run(server.list_tools())

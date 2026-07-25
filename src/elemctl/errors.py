@@ -1,37 +1,37 @@
-"""Исключения elemctl.
+"""elemctl exceptions.
 
-Иерархия простая: всё наследуется от ElemctlError, чтобы вызывающая сторона
-могла перехватить любую ошибку инструмента одним except.
+The hierarchy is simple: everything inherits from ElemctlError, so that a caller
+can intercept any error of the tool with a single except.
 """
 
 from __future__ import annotations
 
 
 class ElemctlError(Exception):
-    """Базовое исключение elemctl."""
+    """The base elemctl exception."""
 
 
 class ConfigError(ElemctlError):
-    """Ошибка конфигурации подключения: не хватает параметров или файла."""
+    """A connection configuration error: parameters or the file are missing."""
 
 
 class BuildError(ElemctlError):
-    """Ошибка локальной сборки архива .xasm/.xlib."""
+    """An error of the local .xasm/.xlib archive build."""
 
 
 class TransportError(ElemctlError):
-    """Сетевая ошибка: до сервера не удалось достучаться."""
+    """A network error: the server could not be reached."""
 
 
 class PluginError(ElemctlError):
-    """Ошибка обнаружения или загрузки плагина elemctl (точки расширения)."""
+    """An error of discovering or loading an elemctl plugin (extension points)."""
 
 
 class ApiError(ElemctlError):
-    """Ошибка Console API: HTTP-статус и тело ответа сервера.
+    """A Console API error: the HTTP status and the response body of the server.
 
-    Детали сериализуемы в JSON (метод to_dict) – так CLI выводит их
-    в stderr без потери информации.
+    The details are JSON-serializable (the to_dict method) – that is how the CLI
+    prints them to stderr without losing information.
     """
 
     def __init__(self, message, *, status=None, method=None, url=None, body=None, hint=None):
@@ -44,7 +44,7 @@ class ApiError(ElemctlError):
         self.hint = hint
 
     def to_dict(self):
-        """Представить ошибку JSON-сериализуемым словарём."""
+        """Represent the error as a JSON-serializable dictionary."""
         payload = {"error": self.message}
         for key, value in (
             ("status", self.status),

@@ -1,7 +1,7 @@
-"""Запуск пакета как модуля: python -m elemctl <аргументы>.
+"""Running the package as a module: python -m elemctl <arguments>.
 
-Нужен тем, кто вызывает elemctl текущим интерпретатором, не полагаясь на
-консольную точку входа в PATH (например, обёртки в чужих репозиториях).
+Needed by those who call elemctl with the current interpreter instead of relying
+on the console entry point being in PATH (wrappers in other repositories, say).
 """
 
 from __future__ import annotations

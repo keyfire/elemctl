@@ -1,8 +1,8 @@
-# Тесты на каждый коммит в main и на каждый pull request.
+# The test suite on every commit to main and on every pull request.
 #
-# Раньше набор гонялся только в публикующем workflow (по тегу v*), поэтому
-# сломанный main обнаруживался в момент релиза и срывал публикацию. Здесь тот
-# же прогон, но заранее и без публикации.
+# It used to run only in the publishing workflow (on a v* tag), so a broken main
+# surfaced at release time and took the publication down with it. Same run, just
+# earlier and without publishing.
 name: ci
 
 on:
@@ -17,8 +17,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Нижняя граница requires-python и актуальная версия: набор ходит в
-        # даты, пути и argparse, где различия версий как раз и всплывают.
+        # The lower bound of requires-python and a current version: the suite
+        # touches dates, paths and argparse, where version differences show up.
         python-version: ["3.10", "3.12"]
     steps:
       - uses: actions/checkout@v4

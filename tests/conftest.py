@@ -1,6 +1,6 @@
-"""Общие заготовки тестов: транспорт-заглушка и синтетический проект.
+"""Shared test scaffolding: a stub transport and a synthetic project.
 
-Все тесты работают без сети – сетевой слой подменяется FakeTransport.
+Every test runs without the network – the network layer is replaced by FakeTransport.
 """
 
 from __future__ import annotations
@@ -15,19 +15,21 @@ from elemctl.client import ElementClient
 from elemctl.config import Config
 from elemctl.transport import HttpResponse
 
-# Язык вывода закреплён за русским: проверки в остальных тестах сверяются с русским текстом
-# сообщений, и без закрепления результат зависел бы от локали системы разработчика.
+# The output language is pinned to Russian: the checks in the other tests compare against the
+# Russian message texts, and without pinning the result would depend on the locale of the
+# developer's system.
 i18n.set_lang("ru")
 
 
 @pytest.fixture(autouse=True)
 def _pinned_language(monkeypatch):
-    """Закрепить русский ПЕРЕД КАЖДЫМ тестом – однократного закрепления при импорте мало.
+    """Pin Russian BEFORE EVERY test – pinning once at import time is not enough.
 
-    Тест, зовущий cli.main без --lang, снимает закрепление (set_lang(None) возвращает порядок
-    env / локаль), и все последующие сверки с русским текстом падали бы на английской локали.
-    Закрепляем обоими путями: set_lang – явный выбор, ELEMCTL_LANG – фолбэк на случай снятия.
-    Тесты i18n, проверяющие env и локаль, сами переопределяют или удаляют эту переменную.
+    A test that calls cli.main without --lang drops the pin (set_lang(None) restores the
+    env / locale order), and every later comparison with Russian text would then fail on an
+    English locale. We pin both ways: set_lang is the explicit choice, ELEMCTL_LANG is the
+    fallback in case the pin is dropped. The i18n tests, which check env and the locale,
+    override or delete this variable themselves.
     """
     monkeypatch.setenv("ELEMCTL_LANG", "ru")
     i18n.set_lang("ru")
@@ -35,12 +37,13 @@ def _pinned_language(monkeypatch):
 
 @pytest.fixture(autouse=True)
 def _no_ci_build_number(monkeypatch):
-    """Вычистить CI-переменные с номером прогона ПЕРЕД КАЖДЫМ тестом.
+    """Clear the CI variables carrying the run number BEFORE EVERY test.
 
-    Версия сборки берёт суффикс из окружения CI, а сами тесты идут в GitHub
-    Actions, где GITHUB_RUN_NUMBER установлена всегда: без зачистки версии в
-    тестах сборки зависели бы от номера прогона – локально зелено, в CI нет.
-    Тесты CI-суффикса ставят переменные явно.
+    The build version takes its suffix from the CI environment, and the tests
+    themselves run in GitHub Actions, where GITHUB_RUN_NUMBER is always set:
+    without clearing it the versions in the build tests would depend on the run
+    number – green locally, failing in CI. The CI-suffix tests set the variables
+    explicitly.
     """
     from elemctl.build import CI_BUILD_NUMBER_VARS
 
@@ -49,10 +52,10 @@ def _no_ci_build_number(monkeypatch):
 
 
 class FakeTransport:
-    """Транспорт-заглушка: отвечает по таблице маршрутов и записывает вызовы.
+    """A stub transport: answers from a route table and records the calls.
 
-    На каждый маршрут можно добавить несколько ответов – они выдаются по
-    очереди, последний ответ повторяется.
+    Several responses can be added for a single route – they are handed out in
+    turn, and the last response repeats.
     """
 
     def __init__(self):
@@ -88,7 +91,7 @@ class FakeTransport:
 
 @pytest.fixture
 def api(tmp_path):
-    """Клиент с транспортом-заглушкой; маршрут токена уже настроен."""
+    """A client on the stub transport; the token route is already set up."""
     transport = FakeTransport()
     transport.add("POST", "/console/sys/token", {"id_token": "TOKEN"})
     config = Config(
@@ -101,7 +104,7 @@ def api(tmp_path):
 
 @pytest.fixture
 def project_factory(tmp_path):
-    """Фабрика синтетического проекта {repo}/{vendor}/{name}/Проект.yaml."""
+    """A factory of a synthetic {repo}/{vendor}/{name}/Проект.yaml project."""
 
     def make(vendor="acme", name="crm", *, kind=None, base_version="1.0", repo_name="repo"):
         project_dir = tmp_path / repo_name / vendor / name

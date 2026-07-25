@@ -1,8 +1,8 @@
-# Публикация пакета на PyPI по тегу вида v0.4.1 через Trusted Publishing (OIDC):
-# PyPI помечает ссылки проекта проверенными и прикладывает аттестации происхождения.
-# Требует одноразовой настройки на стороне PyPI: Manage project -> Publishing ->
+# Publishing the package to PyPI on a v0.4.1-style tag through Trusted Publishing (OIDC):
+# PyPI marks the project links as verified and attaches provenance attestations.
+# Requires a one-time setup on the PyPI side: Manage project -> Publishing ->
 # Add GitHub publisher (owner, repo, workflow pypi-publish.yml, environment pypi).
-# Теги расширения vscode-v* этот workflow не трогает.
+# This workflow does not touch the extension's vscode-v* tags.
 name: pypi-publish
 
 on:

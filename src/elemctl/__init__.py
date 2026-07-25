@@ -1,7 +1,7 @@
-"""elemctl – CLI, MCP-сервер и библиотека для Console API v2 платформы
-1С:Предприятие.Элемент (1cmycloud).
+"""elemctl – a CLI, an MCP server and a library for Console API v2 of the
+1C:Enterprise.Element platform (1cmycloud).
 
-Публичный API библиотеки:
+Public API of the library:
 
     from elemctl import Config, ElementClient
     from elemctl.deploy import deploy_from_sources

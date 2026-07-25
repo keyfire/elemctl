@@ -1,7 +1,7 @@
-"""Тесты системы плагинов: обнаружение debug-адаптера через точки расширения.
+"""Plugin system tests: discovering the debug adapter through entry points.
 
-Настоящий пакет-плагин не ставится – точки расширения подменяются стабами,
-каталоги адаптера собираются во временных папках.
+No real plugin package is installed – the entry points are replaced with stubs and the
+adapter directories are assembled in temporary folders.
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ def _clean_env(monkeypatch):
 
 
 def _make_adapter_dir(path: Path, jar="com.e1c.g5rt.debugger.adapter-9.2.8-1.jar") -> Path:
-    """Каталог адаптера: <path>/repo/<jar адаптера> плюс сторонний jar рядом."""
+    """An adapter directory: <path>/repo/<adapter jar> plus a third-party jar next to it."""
     repo = path / "repo"
     repo.mkdir(parents=True)
     (repo / jar).write_bytes(b"")
@@ -31,7 +31,7 @@ def _make_adapter_dir(path: Path, jar="com.e1c.g5rt.debugger.adapter-9.2.8-1.jar
 
 
 class _StubEP:
-    """Точка расширения с готовым объектом – без установки настоящего пакета."""
+    """An entry point with a ready-made object – no real package installed."""
 
     value = "стаб"
 
@@ -51,7 +51,7 @@ def _fake_entry_points(*eps):
     return fake
 
 
-# --- Обнаружение каталога адаптера ------------------------------------------------
+# --- Discovering the adapter directory --------------------------------------------
 
 def test_no_plugins_no_path(monkeypatch):
     monkeypatch.setattr(plugins, "entry_points", _fake_entry_points())
@@ -69,7 +69,7 @@ def test_path_and_callable_targets(tmp_path, monkeypatch):
 
 
 def test_first_dir_with_adapter_jars_wins(tmp_path, monkeypatch):
-    empty = tmp_path / "пустой"  # объявлен раньше по имени точки, но без jar
+    empty = tmp_path / "пустой"  # comes first by entry-point name, but holds no jar
     empty.mkdir()
     good = _make_adapter_dir(tmp_path / "с-адаптером")
     ep_empty = _StubEP("а-пустой", plugins.DEBUG_ADAPTER_GROUP, empty)
@@ -79,7 +79,7 @@ def test_first_dir_with_adapter_jars_wins(tmp_path, monkeypatch):
 
 
 def test_dir_without_repo_ignored(tmp_path, monkeypatch):
-    ep = _StubEP("адаптер", plugins.DEBUG_ADAPTER_GROUP, tmp_path)  # нет подкаталога repo/
+    ep = _StubEP("адаптер", plugins.DEBUG_ADAPTER_GROUP, tmp_path)  # no repo/ subdirectory
     monkeypatch.setattr(plugins, "entry_points", _fake_entry_points(ep))
     assert plugins.debug_adapter_path() is None
 
@@ -87,7 +87,7 @@ def test_dir_without_repo_ignored(tmp_path, monkeypatch):
 def test_repo_without_adapter_jar_ignored(tmp_path, monkeypatch):
     repo = tmp_path / "repo"
     repo.mkdir()
-    (repo / "netty-common-4.1.0.jar").write_bytes(b"")  # сторонние есть, адаптера нет
+    (repo / "netty-common-4.1.0.jar").write_bytes(b"")  # third-party jars are there, the adapter is not
     ep = _StubEP("адаптер", plugins.DEBUG_ADAPTER_GROUP, tmp_path)
     monkeypatch.setattr(plugins, "entry_points", _fake_entry_points(ep))
     assert plugins.debug_adapter_path() is None

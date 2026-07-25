@@ -1,22 +1,22 @@
 #!/usr/bin/env python3
-"""Извлечение Java-адаптера отладки платформы 1С:Предприятие.Элемент из дистрибутива.
+"""Extraction of the 1C:Enterprise.Element Java debug adapter from a distribution.
 
-Адаптер лежит внутри .car (это ZIP) сервера-с-IDE по пути
-data/ide/theia/plugins/@1c-appengine-plugin/bin/debugger/ (подкаталоги bin/ и
-repo/ с jar-файлами адаптера). Проприетарные компоненты 1С в состав elemctl не
-входят – их извлекает этот скрипт из дистрибутива, которым вы лицензированы.
+The adapter sits inside the .car (which is a ZIP) of the server-with-IDE, under
+data/ide/theia/plugins/@1c-appengine-plugin/bin/debugger/ (the bin/ and repo/
+subdirectories with the adapter jars). Proprietary 1C components are not part of
+elemctl – this script extracts them from the distribution you are licensed for.
 
-Результат – каталог <output>/<версия>/ с подкаталогом repo/: готовое значение
-настройки xbslDebug.adapterPath расширения VS Code keyfire.xbsl-debug. Скрипт также
-пишет <output>/index.json (доступные версии и версия по умолчанию) – его читает
-пакет-плагин elemctl (группа точек расширения elemctl.debug_adapter), когда адаптер
-поставляется через плагин.
+The result is an <output>/<version>/ directory with a repo/ subdirectory: a ready value
+for the xbslDebug.adapterPath setting of the keyfire.xbsl-debug VS Code extension. The
+script also writes <output>/index.json (the available versions and the default one) –
+that file is read by the elemctl plugin package (the elemctl.debug_adapter entry point
+group) when the adapter is shipped through a plugin.
 
-Использование:
-    # для ручной настройки adapterPath:
-    python tools/extract_adapter.py <путь к .car или к каталогу дистрибутива> --output C:/tools/xbsl-adapter
-    # для сборки пакета-плагина:
-    python tools/extract_adapter.py <дистрибутив> --output <elemctl-plugin>/elemctl_plugin/adapter
+Usage:
+    # to configure adapterPath by hand:
+    python tools/extract_adapter.py <path to the .car or to the distribution directory> --output C:/tools/xbsl-adapter
+    # to build the plugin package:
+    python tools/extract_adapter.py <distribution> --output <elemctl-plugin>/elemctl_plugin/adapter
 """
 
 from __future__ import annotations
@@ -33,7 +33,7 @@ VERSION_RE = re.compile(r"(\d+\.\d+\.\d+\+\d+)")
 
 
 def find_car(path: Path) -> Path:
-    """Путь к .car сервера-с-IDE: сам файл либо внутри каталога дистрибутива."""
+    """Path to the .car of the server-with-IDE: the file itself or one inside a distribution directory."""
     if path.is_file():
         return path
     if path.is_dir():
@@ -42,22 +42,22 @@ def find_car(path: Path) -> Path:
             cars = sorted(path.glob("*.car"))
         if cars:
             return cars[0]
-    raise SystemExit(f"не найден .car в {path}")
+    raise SystemExit(f"no .car found in {path}")
 
 
 def detect_version(car: Path) -> str:
-    """Версия платформы из имени .car (major.minor.patch+build)."""
+    """The platform version taken from the .car file name (major.minor.patch+build)."""
     match = VERSION_RE.search(car.name)
     if not match:
-        raise SystemExit(f"не удалось определить версию из имени {car.name}")
+        raise SystemExit(f"could not determine the version from the name {car.name}")
     return match.group(1)
 
 
 def extract(car: Path, version: str, output: Path) -> tuple[Path, int]:
-    """Извлечь каталог адаптера из .car в <output>/<версия>/; вернуть путь и число файлов."""
+    """Extract the adapter directory from the .car into <output>/<version>/; return the path and the file count."""
     target = output / version
     if target.exists():
-        raise SystemExit(f"каталог версии уже есть: {target} (удалите его для переизвлечения)")
+        raise SystemExit(f"the version directory already exists: {target} (remove it to re-extract)")
     count = 0
     with zipfile.ZipFile(car) as archive:
         members = [
@@ -66,7 +66,7 @@ def extract(car: Path, version: str, output: Path) -> tuple[Path, int]:
             if name.startswith(ADAPTER_PREFIX) and not name.endswith("/")
         ]
         if not members:
-            raise SystemExit(f"в {car.name} нет каталога {ADAPTER_PREFIX}")
+            raise SystemExit(f"{car.name} has no {ADAPTER_PREFIX} directory")
         for name in members:
             relative = name[len(ADAPTER_PREFIX):]
             dest = target / relative
@@ -77,7 +77,7 @@ def extract(car: Path, version: str, output: Path) -> tuple[Path, int]:
 
 
 def update_index(output: Path, version: str) -> None:
-    """Дописать версию в <output>/index.json и сделать её версией по умолчанию."""
+    """Append the version to <output>/index.json and make it the default one."""
     index = output / "index.json"
     data = {"available": [], "default": version}
     if index.exists():
@@ -93,13 +93,13 @@ def update_index(output: Path, version: str) -> None:
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(
-        description="извлечь debug-адаптер платформы 1С:Элемент из дистрибутива"
+        description="extract the 1C:Enterprise.Element platform debug adapter from a distribution"
     )
-    parser.add_argument("distro", help="путь к .car или к каталогу дистрибутива")
+    parser.add_argument("distro", help="the path to a .car file or to a distribution directory")
     parser.add_argument(
         "--output",
         default="adapter",
-        help="каталог для adapter/<версия>/ и index.json (по умолчанию ./adapter)",
+        help="the directory for adapter/<version>/ and index.json (default: ./adapter)",
     )
     args = parser.parse_args(argv)
 
@@ -108,8 +108,8 @@ def main(argv=None) -> int:
     output = Path(args.output)
     target, count = extract(car, version, output)
     update_index(output, version)
-    print(f"извлечено {count} файлов; adapterPath = {target}")
-    print(f"index.json обновлён в {output} (default={version})")
+    print(f"extracted {count} files; adapterPath = {target}")
+    print(f"index.json updated in {output} (default={version})")
     return 0
 
 

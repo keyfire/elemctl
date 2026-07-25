@@ -1,18 +1,18 @@
 #!/usr/bin/env python
-"""Генерация справочника команд (docs/cli.md и docs/cli.ru.md) из самого CLI.
+"""Generation of the command reference (docs/cli.md and docs/cli.ru.md) from the CLI itself.
 
-Источник истины – вывод `elemctl ... --help`, поэтому справочник не расходится с
-реализацией: добавили флаг – перегенерировали страницу. Запускать после изменения
-состава команд или их параметров:
+The source of truth is the output of `elemctl ... --help`, so the reference never drifts
+away from the implementation: a flag added – a page regenerated. Run it after the set of
+commands or their options changes:
 
     python scripts/gen-cli-docs.py
 
-Результат коммитится в репозиторий: сборке сайта Python не нужен.
+The result is committed to the repository: the site build does not need Python.
 
-Вывод --help не кладётся в страницу как есть: строка usage идёт блоком кода (там
-подсветка к месту), а перечни флагов и команд разбираются в таблицы. Сырой текст в
-блоке ```text выходит серой простынёй, а подсветка bash красит в нём случайные слова,
-включая русские описания.
+The --help output is not put into the page as is: the usage line goes as a code block
+(highlighting belongs there), while the lists of flags and commands are parsed into tables.
+Raw text inside a ```text block comes out as a grey sheet, and bash highlighting colours
+random words in it, the Russian descriptions included.
 """
 from __future__ import annotations
 
@@ -73,8 +73,9 @@ FLAG_RE = re.compile(r"(?<![\w`-])(--?[a-zA-Z][\w-]*)")
 
 def run(args: list[str], lang: str) -> str:
     env = dict(os.environ, PYTHONPATH=str(SRC), ELEMCTL_LANG=lang, COLUMNS="100")
-    # Таймаут обязателен: команда, которая не разбирает --help, вместо справки запускает
-    # сам сервер и ждёт ввода – без ограничения генерация документации зависает.
+    # The timeout is mandatory: a command that does not handle --help starts the server
+    # itself and waits for input instead of printing the help – without a limit the
+    # documentation generation hangs.
     try:
         out = subprocess.run(
             [sys.executable, "-m", "elemctl.cli", *args, "--help"],
@@ -82,12 +83,12 @@ def run(args: list[str], lang: str) -> str:
             timeout=30,
         )
     except subprocess.TimeoutExpired:
-        return ""          # справки нет – раздел такой команды просто не появится
+        return ""          # no help – the section of such a command simply does not appear
     return (out.stdout or out.stderr).rstrip()
 
 
 def parse(help_text: str) -> dict:
-    """Разбираем вывод argparse: строка usage, описание и секции с записями."""
+    """Parse the argparse output: the usage line, the description and the sections with entries."""
     lines = help_text.split("\n")
     usage, i = [], 0
     while i < len(lines) and (not usage or lines[i].startswith(" ")) and lines[i].strip():
@@ -106,27 +107,27 @@ def parse(help_text: str) -> dict:
                 sections.append((current, entries))
             current, entries = line.strip().rstrip(":"), []
         elif not line.strip():
-            # Пустая строка в эпилоге - граница абзаца; без неё перенос внутри абзаца
-            # превратил бы одно предложение в два.
+            # A blank line in the epilog is a paragraph boundary; without it a wrap inside
+            # a paragraph would turn one sentence into two.
             if epilog and epilog[-1]:
                 epilog.append("")
         elif current:
             m = ENTRY_RE.match(line)
             if m and not line.startswith(" " * 6):
-                # Отступ отличает метапеременную группы (2) от самих вложенных команд (4).
+                # The indent tells the group metavariable (2) from the nested commands (4).
                 indent = len(line) - len(line.lstrip(" "))
                 entries.append([m.group(1).strip(), (m.group(2) or "").strip(), indent])
             elif not line.startswith(" "):
-                # Текст с нулевым отступом – это уже эпилог парсера, а не перенос описания:
-                # иначе он приклеивается к последней записи таблицы.
+                # Text at zero indent is already the parser epilog and not a wrapped
+                # description: otherwise it gets glued to the last entry of the table.
                 if epilog and epilog[-1]:
                     epilog[-1] += " " + line.strip()
                 else:
                     epilog.append(line.strip())
-            elif entries:                                  # перенос описания предыдущей записи
+            elif entries:                                  # wrapped description of the previous entry
                 prev, tail = entries[-1][1], line.strip()
-                # argparse переносит длинное слово по дефису (`--write-\nbaseline`) –
-                # такой перенос склеиваем без пробела, иначе флаг в описании рвётся.
+                # argparse wraps a long word on a hyphen (`--write-\nbaseline`) – such a wrap
+                # is glued without a space, otherwise the flag inside the description breaks.
                 glue = "" if prev.endswith("-") and tail[:1].isalnum() else " "
                 entries[-1][1] = (prev + glue + tail).strip()
         i += 1
@@ -137,25 +138,25 @@ def parse(help_text: str) -> dict:
 
 
 def esc(s: str) -> str:
-    """Имя параметра – оно идёт внутри обратных кавычек, экранировать нужно только черту."""
+    """An option name – it goes inside backticks, so only the pipe has to be escaped."""
     return s.replace("|", "\\|")
 
 
 def esc_text(s: str) -> str:
-    """Обычный текст: угловые скобки Markdown принимает за тег и проглатывает вместе с
-    содержимым (`elemctl <команда>` превращается в `elemctl`), а типографика темы склеивает
-    двойной дефис в тире – упомянутый в описании флаг `--select` становится нерабочим
-    `–select`. Внутри обратных кавычек ни то, ни другое не происходит."""
+    """Plain text: Markdown takes angle brackets for a tag and swallows them together with
+    the contents (`elemctl <command>` turns into `elemctl`), while the theme typography glues
+    a double hyphen into a dash – the flag `--select` mentioned in a description becomes a
+    broken `–select`. Inside backticks neither of the two happens."""
     s = s.replace("|", "\\|").replace("<", "&lt;").replace(">", "&gt;")
     return FLAG_RE.sub(r"`\1`", s)
 
 
 def children(entries: list, i: int) -> list[int]:
-    """Индексы записей, вложенных под запись i: отступ больше, до конца группы.
+    """Indexes of the entries nested under entry i: a deeper indent, up to the end of the group.
 
-    argparse печатает группу вложенных команд в два уровня: сама метапеременная
-    (`{a,b}` или заданная через metavar `действие`) без описания и с меньшим отступом,
-    а под ней – подкоманды.
+    argparse prints a group of nested commands on two levels: the metavariable itself
+    (`{a,b}` or a name set through metavar) without a description and with a smaller
+    indent, and the subcommands under it.
     """
     out = []
     for j in range(i + 1, len(entries)):
@@ -166,10 +167,11 @@ def children(entries: list, i: int) -> list[int]:
 
 
 def stubs(entries: list) -> set[int]:
-    """Индексы служебных строк: метапеременная группы и безописательные строки под ней.
+    """Indexes of service rows: the group metavariable and the description-less rows under it.
 
-    Первое – заглушка argparse, второе – продолжение прозы (у xbsl под заголовком группы
-    идёт перечень команд через запятую, разбитый по строкам). В таблице лишние обе.
+    The first one is an argparse stub, the second is a continuation of prose (in xbsl the
+    group heading is followed by a comma-separated list of commands broken into lines).
+    Both are redundant in the table.
     """
     skip = set()
     for i, e in enumerate(entries):
@@ -208,14 +210,15 @@ def render(help_text: str, t: dict) -> str:
 
 
 def subcommands(help_text: str) -> list[str]:
-    """Имена вложенных команд: из именованной группы или из вложенности под метапеременной."""
+    """Names of the nested commands: from a named group or from nesting under a metavariable."""
     p = parse(help_text)
     named = [e for title, entries in p["sections"] if title.lower() in ("команды", "commands")
              for e in entries]
     if named:
         return [e[0].split()[0] for e in named if re.match(r"^[a-z][\w-]*$", e[0].split()[0])]
-    # Группа без своего заголовка: подкоманды стоят под метапеременной с бо́льшим отступом.
-    # Многоточие в usage отличает вложенные парсеры от позиционного с перечнем значений.
+    # A group without a heading of its own: the subcommands stand under the metavariable with
+    # a deeper indent. The ellipsis in usage tells nested parsers from a positional argument
+    # with a list of values.
     if "..." not in p["usage"]:
         return []
     for _, entries in p["sections"]:
@@ -241,9 +244,10 @@ def page(lang: str) -> str:
     out.write(f"## {t['common']}\n\n" + render(root_help, t))
     for name in subcommands(root_help):
         cmd_help = run([name], lang)
-        # У команды без своего парсера --help отдаёт общий текст: её раздел стал бы
-        # копией начала страницы, а разбор нашёл бы в нём весь список команд заново
-        # (отсюда брались разделы вида "elemctl lint lint").
+        # For a command without a parser of its own --help returns the common text: its
+        # section would become a copy of the beginning of the page, and the parsing would
+        # find the whole list of commands in it again (this is where sections like
+        # "elemctl lint lint" came from).
         first = cmd_help.splitlines()[0] if cmd_help.strip() else ""
         if "elemctl " + name not in first:
             continue
@@ -254,14 +258,14 @@ def page(lang: str) -> str:
 
 
 def generate() -> dict[str, str]:
-    """Имя файла -> содержимое страницы; сборка без записи на диск (нужно тестам)."""
+    """File name -> page contents; built without writing to disk (the tests need that)."""
     return {fname: page(lang) for lang, fname in (("en", "cli.md"), ("ru", "cli.ru.md"))}
 
 
 def main() -> None:
     for fname, text in generate().items():
         (ROOT / "docs" / fname).write_text(text, encoding="utf-8", newline="")
-        print(f"{fname}: {len(text.splitlines())} строк")
+        print(f"{fname}: {len(text.splitlines())} lines")
 
 
 if __name__ == "__main__":

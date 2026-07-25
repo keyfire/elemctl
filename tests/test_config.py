@@ -1,4 +1,4 @@
-"""Тесты конфигурации: разбор .env и приоритеты источников."""
+"""Configuration tests: .env parsing and the precedence of the sources."""
 
 from __future__ import annotations
 
@@ -54,7 +54,8 @@ def test_priority_explicit_over_env_over_file(tmp_path):
     config = Config.from_env(
         env_file=env_path, environ=environ, client_secret="explicit-secret"
     )
-    # base_url – только в файле, client_id перебит окружением, secret – аргументом.
+    # base_url is in the file only, client_id is overridden by the environment, the secret
+    # by the explicit argument.
     assert config.base_url == "https://file.test"
     assert config.client_id == "env-id"
     assert config.client_secret == "explicit-secret"
@@ -79,7 +80,7 @@ def test_missing_env_file_raises(tmp_path):
 
 
 def test_require_reports_missing_variables(tmp_path, monkeypatch):
-    monkeypatch.chdir(tmp_path)  # чтобы не подцепить чей-то .env
+    monkeypatch.chdir(tmp_path)  # so that no stray .env is picked up
     config = Config.from_env(environ={"ELEMENT_BASE_URL": "https://api.test"})
     with pytest.raises(ConfigError) as excinfo:
         config.require()

@@ -1,1 +1,1 @@
-"""Пакет тестов elemctl (нужен для импортов вида tests.conftest)."""
+"""The elemctl test package (needed for imports like tests.conftest)."""

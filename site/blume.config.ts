@@ -1,7 +1,7 @@
-// Конфигурация сайта документации (Blume, движок на Astro + Vite). Публикация на
-// GitHub Pages из .github/workflows/docs.yml. Контент лежит в docs/ парами
-// Имя.md + Имя.ru.md (суффиксный режим i18n parser: "dot"). Локальная проверка
-// сборки: npx blume build.
+// Configuration of the documentation site (Blume, an engine on top of Astro + Vite).
+// Published to GitHub Pages from .github/workflows/docs.yml. The content lies in docs/
+// as Name.md + Name.ru.md pairs (the suffix i18n mode, parser: "dot"). Local build
+// check: npx blume build.
 import { defineConfig } from "blume";
 
 export default defineConfig({
@@ -11,39 +11,41 @@ export default defineConfig({
     "builds from source and one-command deploys with an honest check that the " +
     "change actually landed.",
 
-  // Весь контент сайта – в docs/. Страницы changelog*.md зеркалят CHANGELOG из корня
-  // репозитория, их собирает scripts/sync-docs.mjs (npm run sync:docs).
-  // Контент – общий с репозиторием: страницы лежат в ../docs рядом с исходниками,
-  // чтобы правка доки и правка кода жили в одном месте.
+  // The whole content of the site is in docs/. The changelog*.md pages mirror the CHANGELOG
+  // from the repository root, they are assembled by scripts/sync-docs.mjs (npm run sync:docs).
+  // The content is shared with the repository: the pages lie in ../docs next to the sources,
+  // so that an edit of the docs and an edit of the code live in one place.
   content: {
     root: "../docs",
-    // BACKLOG – рабочая записка о найденных пробелах, ведётся для себя. SPEC – это
-    // задание на разработку ("требования к продукту", "реализация проектируется с
-    // нуля"), а не руководство: читателю сайта оно объясняет не инструмент, а то,
-    // каким его заказывали. Полезная часть спецификации – про саму платформу –
-    // вынесена в platform*.md. Оба файла остаются в репозитории.
+    // BACKLOG is a working note about the gaps found, kept for internal use. SPEC is a
+    // development assignment ("product requirements", "the implementation is designed
+    // from scratch") rather than a guide: to a reader of the site it explains not the
+    // tool but the way it was ordered. The useful part of the specification – the one
+    // about the platform itself – has been moved to platform*.md. Both files stay in
+    // the repository.
     exclude: ["**/_*", "**/.*", "BACKLOG*.md", "SPEC*.md"],
   },
 
-  // Сайт отдаётся с подпути /edt-bridge/ общего домена документации: base переносит
-  // туда весь сайт и переписывает внутренние ссылки и ассеты; site – origin для
-  // sitemap/canonical/OG. Домен держит репозиторий keyfire.github.io.
+  // The site is served from the /elemctl/ subpath of the common documentation domain: base
+  // moves the whole site there and rewrites internal links and assets; site is the origin
+  // for sitemap/canonical/OG. The domain is held by the keyfire.github.io repository.
   deployment: {
     base: "/elemctl",
     site: "https://docs.keyfire.ru",
   },
 
-  // Репозиторий: ссылки "Изменить на GitHub" под страницами и иконка в шапке.
+  // The repository: the "Edit on GitHub" links under the pages and the icon in the header.
   github: {
     owner: "keyfire",
     repo: "elemctl",
   },
 
-  // Дата "последнее изменение" из истории git (в CI нужен fetch-depth: 0).
+  // The "last modified" date taken from the git history (CI needs fetch-depth: 0).
   lastModified: true,
 
-  // Двуязычие: английский по умолчанию (файлы Имя.md), русский – суффикс .ru
-  // (файлы Имя.ru.md). Русский UI-пакет встроен в Blume, переводим только контент.
+  // Bilingual: English by default (the Name.md files), Russian – the .ru suffix
+  // (the Name.ru.md files). The Russian UI pack is built into Blume, only the content
+  // is translated.
   i18n: {
     defaultLocale: "en",
     locales: [
@@ -53,12 +55,13 @@ export default defineConfig({
     parser: "dot",
   },
 
-  // Гайды для контрибьюторов живут на GitHub, а не страницами сайта – закрепляем
-  // ссылками над сайдбаром.
+  // The contributor guides live on GitHub rather than as pages of the site – they are
+  // pinned as links above the sidebar.
   navigation: {
     featured: [
-    // Соседние инструменты: ссылка видна с любой страницы, а не только с главной.
-    // Ведут на русские версии – переключатель языка стоит в шапке принимающего сайта.
+    // Neighbouring tools: the link is visible from any page, not only from the home page.
+    // They lead to the Russian versions – the language switch sits in the header of the
+    // receiving site.
       {
         label: "XBSL",
         href: "https://docs.keyfire.ru/xbsl/ru/",
@@ -77,7 +80,7 @@ export default defineConfig({
     ],
   },
 
-  // Фиолетовый акцент – чтобы сайты проектов различались с первого взгляда.
+  // A violet accent – so that the sites of the projects differ at first glance.
   theme: {
     accent: "violet",
   },

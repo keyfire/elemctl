@@ -1,9 +1,9 @@
-"""Справочник команд (docs/cli*.md) и его генератор.
+"""The command reference (docs/cli*.md) and its generator.
 
-Дефекты, которые уже жили в справочнике одновременно и не ловились глазом:
-аргументы без help, английские описания в русской версии, разделы подкоманд,
-потерянные разбором, и молча устаревшая страница после правки флага.
-Каждый пункт держит свой тест.
+Defects that once lived in the reference all at the same time and escaped the eye:
+arguments with no help, English descriptions in the Russian version, subcommand
+sections lost by the parsing, and a page silently going stale after a flag was edited.
+Each item is held down by a test of its own.
 """
 
 from __future__ import annotations
@@ -24,7 +24,7 @@ CYRILLIC_RE = re.compile(r"[А-Яа-яЁё]")
 
 
 def walk(parser: argparse.ArgumentParser, path: str = "elemctl"):
-    """(путь команды, парсер) для всего дерева подкоманд."""
+    """(command path, parser) for the whole subcommand tree."""
     yield path, parser
     for action in parser._actions:
         if isinstance(action, argparse._SubParsersAction):
@@ -33,7 +33,7 @@ def walk(parser: argparse.ArgumentParser, path: str = "elemctl"):
 
 
 def actions_with_help(parser: argparse.ArgumentParser):
-    """Записи справки парсера: и аргументы, и пункты перечня подкоманд."""
+    """Help entries of a parser: both the arguments and the items of the subcommand list."""
     for action in parser._actions:
         if action.help == argparse.SUPPRESS:
             continue
@@ -45,15 +45,15 @@ def actions_with_help(parser: argparse.ArgumentParser):
 
 
 def test_every_argument_has_help():
-    # голое APP_ID без единого слова в таблице - ровно так выглядела пустая клетка
+    # a bare APP_ID without a single word in the table – exactly how the empty cell looked
     for path, parser in walk(cli.build_parser()):
         for dest, help_text in actions_with_help(parser):
             assert help_text and help_text.strip(), f"{path}: аргумент {dest} без help"
 
 
 def test_russian_help_is_russian():
-    # встроенные тексты argparse (-h, заголовки групп) приходят по-английски, если их
-    # не перевести; ловим по отсутствию кириллицы в любом описании русской сборки
+    # argparse's own texts (-h, group titles) come out in English unless they are
+    # translated; we catch that by the absence of Cyrillic in any description of the Russian build
     i18n.set_lang("ru")
     try:
         for path, parser in walk(cli.build_parser()):
@@ -66,7 +66,7 @@ def test_russian_help_is_russian():
 
 
 def test_parser_trees_match_between_languages():
-    # язык меняет тексты, но не состав: набор команд и аргументов обязан совпадать
+    # the language changes the texts but not the shape: the set of commands and arguments must match
     def shape(lang: str) -> dict[str, list[str]]:
         i18n.set_lang(lang)
         try:
@@ -86,13 +86,13 @@ def page_sections(fname: str) -> set[str]:
 
 
 def command_paths() -> set[str]:
-    # разделы страницы генерятся на команду и подкоманду; корень - раздел общих флагов
+    # page sections are generated per command and per subcommand; the root is the common-flags section
     return {path for path, _ in walk(cli.build_parser()) if path != "elemctl"}
 
 
 def test_pages_cover_every_subcommand():
-    # подкоманды групп (apps get, builds upload) выпадали из разбора целиком:
-    # 17 разделов вместо 46 - и ни одна страница об этом не сообщала
+    # group subcommands (apps get, builds upload) used to drop out of the parsing entirely:
+    # 17 sections instead of 46 – and not a single page said a word about it
     expected = command_paths()
     for fname in ("cli.md", "cli.ru.md"):
         missing = expected - page_sections(fname)
@@ -114,7 +114,8 @@ def generated() -> dict[str, str]:
 
 
 def test_committed_pages_are_current(generated):
-    # генератор - источник истины; разошлись - страница молча устарела после правки флага
+    # the generator is the source of truth; a divergence means the page went stale silently
+    # after a flag was edited
     for fname, text in generated.items():
         committed = (DOCS / fname).read_text(encoding="utf-8")
         assert committed == text, (

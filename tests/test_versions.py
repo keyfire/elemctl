@@ -1,4 +1,4 @@
-"""Тесты числового сравнения и автоинкремента версий сборок."""
+"""Tests of numeric comparison and auto-increment of assembly versions."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ def test_version_counter():
 
 
 def test_numeric_comparison_not_lexicographic():
-    # Лексикографически "1.0-9" > "1.0-10", числовое сравнение это исправляет.
+    # Lexicographically "1.0-9" > "1.0-10"; the numeric comparison puts that right.
     assemblies = [
         {"assembly-version": "1.0-9", "id": "old"},
         {"assembly-version": "1.0-10", "id": "new"},

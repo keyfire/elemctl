@@ -3,5 +3,5 @@ include ORIGIN.md
 include .env.example
 recursive-include docs *.md
 recursive-include tools *.py
-# Спутник-расширение VS Code (TS/Node) в питон-дистрибутив не входит.
+# The VS Code companion extension (TS/Node) is not part of the Python distribution.
 prune editors

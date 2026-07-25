@@ -1,4 +1,4 @@
-"""Тесты локальной сборки: отбор файлов, манифест, состав архива, разбор архива."""
+"""Local build tests: file selection, the manifest, the archive contents, archive inspection."""
 
 from __future__ import annotations
 
@@ -19,11 +19,11 @@ from elemctl.errors import BuildError
 
 
 def _fill_library(project_dir):
-    """Наполнить библиотеку: подсистема, пакет внутри неё, глобальные и локальные типы.
+    """Fill the library: a subsystem, a package inside it, global and local types.
 
-    Подсистема.yaml намеренно не создаётся: у подсистемы библиотеки его может не быть
-    (так устроены и реальные библиотеки поставщика платформы), поэтому состав
-    определяется раскладкой каталогов, а не файлом-описанием.
+    Подсистема.yaml is deliberately not created: a library subsystem may have none
+    (that is how the real libraries of the platform vendor are built), so the contents
+    are determined by the directory layout rather than by a descriptor file.
     """
     subsystem = project_dir / "ОчередьСообщений"
     (subsystem / "Структуры").mkdir(parents=True)
@@ -40,32 +40,32 @@ def _fill_library(project_dir):
         encoding="utf-8",
     )
     (subsystem / "Структуры" / "ОписаниеТокена.yaml").write_text(
-        # Без ОбластьВидимости – умолчание ВПодсистеме, наружу тип не виден.
+        # Without ОбластьВидимости – the default is ВПодсистеме, the type is not visible outside.
         "ВидЭлемента: Структура\nИмя: ОписаниеТокена\n",
         encoding="utf-8",
     )
 
 
 def _fill_project(project_dir):
-    """Наполнить проект типичными файлами, включая мусор для исключения."""
+    """Fill the project with typical files, including the junk that has to be excluded."""
     (project_dir / "Основная").mkdir()
     (project_dir / "Основная" / "Справочник.yaml").write_text("Имя: Товары\n", encoding="utf-8")
     (project_dir / "Основная" / "Справочник.xbsl").write_text("// код\n", encoding="utf-8")
     (project_dir / "Ресурсы").mkdir()
     (project_dir / "Ресурсы" / "logo.png").write_bytes(b"\x89PNG fake")
-    # Ресурс – произвольный файл: расширения вне белого списка тоже включаются.
+    # A resource is an arbitrary file: extensions outside the whitelist are included as well.
     (project_dir / "Ресурсы" / "Политика.pdf").write_bytes(b"%PDF fake")
     (project_dir / "Ресурсы" / "СчётНаОплату.mxl").write_bytes(b"MXL fake")
     (project_dir / "Ресурсы" / "Шаблоны").mkdir()
     (project_dir / "Ресурсы" / "Шаблоны" / "Письмо.htm").write_text(
         "<html/>", encoding="utf-8"
     )
-    # Каталог ресурсов бывает и на вложенных уровнях (у пакета).
+    # A resource directory also occurs at the nested levels (inside a package).
     (project_dir / "Основная" / "Ресурсы").mkdir()
     (project_dir / "Основная" / "Ресурсы" / "Шаблон.docx").write_bytes(b"DOCX fake")
-    # Мусор, который в архив попасть не должен:
+    # The junk that must not get into the archive:
     (project_dir / "заметка.tmp").write_text("temp", encoding="utf-8")
-    (project_dir / "протокол.pdf").write_bytes(b"%PDF fake")  # вне Ресурсы – белый список
+    (project_dir / "протокол.pdf").write_bytes(b"%PDF fake")  # outside Ресурсы – the whitelist
     (project_dir / "Ресурсы" / ".env").write_text("SECRET=1", encoding="utf-8")
     (project_dir / "Ресурсы" / "сборка 1.0-2.xasm").write_bytes(b"PK")
     (project_dir / ".env").write_text("SECRET=1", encoding="utf-8")
@@ -107,7 +107,7 @@ def test_archive_composition_and_manifest(project_factory, tmp_path):
         "acme/crm/Ресурсы/СчётНаОплату.mxl",
         "acme/crm/Ресурсы/Шаблоны/Письмо.htm",
     }
-    # Разделители путей – только прямые слэши.
+    # Path separators – forward slashes only.
     assert not any("\\" in name for name in names)
 
     assert "ManifestVersion: 1.0" in manifest
@@ -130,7 +130,7 @@ def test_library_gets_release_line_and_xlib_extension(project_factory, tmp_path)
     with zipfile.ZipFile(result.file) as archive:
         manifest = archive.read("Assembly.yaml").decode("utf-8")
     assert "ProjectKind: Library" in manifest
-    # Строка Release: (с пустым значением) – в конце манифеста.
+    # The Release: line (with an empty value) – at the end of the manifest.
     assert manifest.rstrip().splitlines()[-1] == "Release:"
 
 
@@ -171,7 +171,7 @@ def test_find_project_dir_walks_deep(project_factory, tmp_path):
     project_dir = project_factory()
     repo_root = project_dir.parent.parent
     assert find_project_dir(repo_root) == project_dir
-    # Каталог проекта сам по себе тоже находится.
+    # The project directory itself is found too.
     assert find_project_dir(project_dir) == project_dir
 
 
@@ -183,7 +183,7 @@ def test_missing_project_yaml_raises(tmp_path):
 
 
 def test_layout_scheme_enforced(tmp_path):
-    # Имя каталога не совпадает с полем "Имя" – это нарушение схемы.
+    # The directory name does not match the "Имя" field – that breaks the layout scheme.
     project_dir = tmp_path / "repo" / "acme" / "другое-имя"
     project_dir.mkdir(parents=True)
     (project_dir / "Проект.yaml").write_text(
@@ -191,7 +191,7 @@ def test_layout_scheme_enforced(tmp_path):
     )
     with pytest.raises(BuildError) as excinfo:
         read_project_meta(project_dir)
-    # Проверяются подстановки, а не строка схемы: текст локализуется.
+    # The substitutions are checked, not the message template: the text is localized.
     assert ".../acme/crm" in str(excinfo.value)
     assert "acme/другое-имя" in str(excinfo.value)
 
@@ -235,7 +235,7 @@ def test_inspect_library_archive(project_factory, tmp_path):
     assert report["kind"] == "Library"
     assert (report["vendor"], report["name"], report["version"]) == ("acme", "crm", "9.0.2")
     assert report["representation"] == "Библиотека очереди сообщений"
-    # Совместимость берётся из РежимСовместимости: свойства ВерсияТехнологии в Проект.yaml нет.
+    # Compatibility comes from РежимСовместимости: Проект.yaml has no ВерсияТехнологии property.
     assert report["compatibility"] == "9.0"
 
     assert report["subsystems"] == [
@@ -246,7 +246,7 @@ def test_inspect_library_archive(project_factory, tmp_path):
             "global_types": 2,
         }
     ]
-    # Наружу видны только Глобально, и полное имя включает сегмент пакета.
+    # Only the Глобально ones are visible outside, and the qualified name includes the package.
     assert [item["qualified"] for item in report["global_types"]] == [
         "acme::crm::ОчередьСообщений::ОчередьПрограммныйИнтерфейс",
         "acme::crm::ОчередьСообщений::Структуры::ОписаниеСообщения",
@@ -276,13 +276,13 @@ def test_inspect_missing_file(tmp_path):
         inspect_assembly(tmp_path / "нет-такого.xlib")
 
 
-# -- версия из окружения CI ------------------------------------------------------
+# -- the version from the CI environment -----------------------------------------
 
 
 def test_ci_build_number_order_and_digits_only():
     from elemctl.build import ci_build_number
 
-    # Порядок перебора фиксированный; нечисловые значения пропускаются.
+    # The probing order is fixed; non-numeric values are skipped.
     var, number = ci_build_number({"BUILD_NUMBER": "5", "CI_PIPELINE_IID": "9"})
     assert (var, number) == ("CI_PIPELINE_IID", "9")
     var, number = ci_build_number({"CI_PIPELINE_IID": "9a", "GITHUB_RUN_NUMBER": "12"})
@@ -292,7 +292,7 @@ def test_ci_build_number_order_and_digits_only():
 
 
 def test_build_version_from_ci_environment(project_factory, tmp_path, monkeypatch):
-    """Без явной версии и последней сборки суффикс берётся из номера прогона CI."""
+    """With no explicit version and no last build the suffix comes from the CI run number."""
     monkeypatch.setenv("CI_PIPELINE_IID", "137")
     result = build_assembly(project_factory(), output_dir=tmp_path / "out")
     assert result.version == "1.0-137"
@@ -302,7 +302,7 @@ def test_build_version_from_ci_environment(project_factory, tmp_path, monkeypatc
 def test_build_version_ci_environment_yields_to_flag_and_last_build(
     project_factory, tmp_path, monkeypatch
 ):
-    """Явная версия и автоинкремент от последней сборки старше номера прогона CI."""
+    """An explicit version and the auto-increment from the last build outrank the CI run number."""
     monkeypatch.setenv("CI_PIPELINE_IID", "137")
     project_dir = project_factory()
     explicit = build_assembly(project_dir, output_dir=tmp_path / "a", version="2.0-9")
@@ -319,7 +319,7 @@ def test_build_version_default_without_ci(project_factory, tmp_path):
     assert result.version_source == "default"
 
 
-# -- английские написания дескриптора ---------------------------------------------
+# -- the English spellings of the descriptor --------------------------------------
 
 
 def _english_project(tmp_path, *, version_line="Version: 3.1", kind_line=""):
@@ -334,10 +334,10 @@ def _english_project(tmp_path, *, version_line="Version: 3.1", kind_line=""):
 
 
 def test_project_meta_english_keys(tmp_path):
-    """Дескриптор с английскими ключами читается наравне с русским.
+    """A descriptor with English keys is read on a par with the Russian one.
 
-    Платформа применяет такой проект штатно, а сборка раньше отвечала
-    'должны быть заполнены поля "Имя" и "Поставщик"'.
+    The platform applies such a project normally, while the build used to reject
+    it, demanding that the "Имя" and "Поставщик" fields be filled in.
     """
     meta = read_project_meta(_english_project(tmp_path))
     assert (meta.name, meta.vendor, meta.base_version) == ("crm", "acme", "3.1")
@@ -352,10 +352,10 @@ def test_project_meta_english_library_kind(tmp_path):
 
 
 def test_project_meta_mixed_keys_version_not_lost(tmp_path):
-    """Русские Имя/Поставщик и английский Version: версия не подменяется умолчанием.
+    """Russian Имя/Поставщик and an English Version: the version is not replaced by the default.
 
-    Раньше сборка молча получала "1.0" вместо заявленной – имя артефакта и
-    версия разъезжались с проектом.
+    The build used to silently get "1.0" instead of the declared one – the artifact
+    name and the version drifted apart from the project.
     """
     project_dir = tmp_path / "repo-mixed" / "acme" / "crm"
     project_dir.mkdir(parents=True)
@@ -367,7 +367,7 @@ def test_project_meta_mixed_keys_version_not_lost(tmp_path):
 
 
 def test_build_english_project_end_to_end(tmp_path):
-    """Английский дескриптор собирается: манифест несёт Name/Vendor/Version проекта."""
+    """An English descriptor builds: the manifest carries the project's Name/Vendor/Version."""
     result = build_assembly(
         _english_project(tmp_path, kind_line="CompatibilityMode: 10.0"),
         output_dir=tmp_path / "out",
@@ -381,7 +381,7 @@ def test_build_english_project_end_to_end(tmp_path):
     assert report["compatibility"] == "10.0"
 
 
-# -- незакоммиченные изменения каталога проекта -----------------------------------
+# -- uncommitted changes of the project directory ---------------------------------
 
 
 def test_git_dirty_files_outside_repository_is_none(project_factory, tmp_path):

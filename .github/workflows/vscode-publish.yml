@@ -1,9 +1,9 @@
 name: VS Code extension
 
-# Публикация спутник-расширения отладки (editors/vscode). Срабатывает на теги вида
-# vscode-vX.Y.Z (отдельно от релизов elemctl). Версию берёт из editors/vscode/package.json –
-# тег должен ей соответствовать. Публикация в маркетплейсы идёт только если заданы
-# секреты-токены (VSCE_PAT, OVSX_PAT); без них остаётся GitHub Release с .vsix.
+# Publishing the debug companion extension (editors/vscode). Fires on vscode-vX.Y.Z tags
+# (separately from elemctl releases). The version is taken from editors/vscode/package.json –
+# the tag has to match it. Publishing to the marketplaces happens only when the token secrets
+# are set (VSCE_PAT, OVSX_PAT); without them a GitHub Release with the .vsix is all that is left.
 
 on:
   push:

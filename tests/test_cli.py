@@ -1,4 +1,4 @@
-"""Тесты CLI: локальные команды и коды возврата (без сети)."""
+"""CLI tests: the local commands and the exit codes (no network)."""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ from elemctl.errors import ApiError
 
 @pytest.fixture(autouse=True)
 def clean_environment(monkeypatch, tmp_path):
-    """Изолировать тесты от переменных окружения и .env разработчика."""
+    """Isolate the tests from the environment variables and from the developer's .env."""
     for key in (
         "ELEMENT_BASE_URL",
         "ELEMENT_CLIENT_ID",
@@ -38,9 +38,10 @@ def test_version_flag(capsys):
 
 
 def test_help_text_follows_lang_flag(capsys):
-    """--lang переводит и текст справки (--help), а не только рантайм-ошибки: язык
-    определяется до сборки парсера. Проверяем оба направления явным флагом – это не
-    зависит от локали машины. conftest закрепил ru; восстановим его после."""
+    """--lang translates the help text (--help) as well, not only the runtime errors: the
+    language is resolved before the parser is built. Both directions are checked with an
+    explicit flag – that does not depend on the machine locale. conftest pinned ru; restore
+    it afterwards."""
     from elemctl import i18n
 
     try:
@@ -57,7 +58,7 @@ def test_help_text_follows_lang_flag(capsys):
 
 
 def test_module_entry_point():
-    """python -m elemctl – запасной путь для вызывающих без консольной точки входа в PATH."""
+    """python -m elemctl – the fallback path for callers without the console entry point in PATH."""
     import_root = Path(elemctl.__file__).resolve().parent.parent
     env = {**os.environ, "PYTHONPATH": str(import_root)}
     result = subprocess.run([sys.executable, "-m", "elemctl", "--version"],
@@ -111,14 +112,14 @@ def test_apps_find_found_and_not_found(monkeypatch, capsys):
     assert rc == 0
     assert json.loads(capsys.readouterr().out) == {"id": "app-42", "found": True}
 
-    # Отсутствие приложения – штатный ответ: код возврата 0, признак несёт поле found.
+    # A missing application is a normal answer: exit code 0, the found field carries the flag.
     rc = cli.main(["apps", "find", "нет-такого"])
     assert rc == 0
     assert json.loads(capsys.readouterr().out) == {"id": None, "found": False}
 
 
 def test_apps_find_request_failure_is_an_error(monkeypatch, capsys):
-    """Сбой запроса отличим от "не найдено": ненулевой код и error в stderr."""
+    """A request failure differs from "not found": a non-zero code and error on stderr."""
 
     class FailingClient:
         def find_app(self, name, *, include_deleted=False):
@@ -134,11 +135,11 @@ def test_apps_find_request_failure_is_an_error(monkeypatch, capsys):
 
 
 def test_apps_find_skips_deleted_unless_flag(monkeypatch, capsys):
-    """По умолчанию удалённое приложение не находится; --include-deleted его возвращает."""
+    """By default a deleted application is not found; --include-deleted brings it back."""
 
     class FakeClient:
         def find_app(self, name, *, include_deleted=False):
-            # Приложение есть в списке платформы, но удалено: без флага его нет.
+            # The application is in the platform's list but deleted: without the flag it is absent.
             if name == "site-old" and include_deleted:
                 return {"id": "app-del", "display-name": "site-old", "status": "Deleted"}
             return None
@@ -155,7 +156,7 @@ def test_apps_find_skips_deleted_unless_flag(monkeypatch, capsys):
 
 
 def test_apps_ensure_existing_returns_created_false_without_creating(monkeypatch, capsys):
-    """Существующее приложение не пересоздаётся: created=false, create_app не вызывается."""
+    """An existing application is not re-created: created=false, create_app is not called."""
 
     class FakeClient:
         def find_app(self, name, *, include_deleted=False):
@@ -172,7 +173,7 @@ def test_apps_ensure_existing_returns_created_false_without_creating(monkeypatch
 
 
 def test_apps_ensure_missing_creates_and_returns_created_true(monkeypatch, capsys):
-    """Отсутствующее приложение создаётся: created=true, источником идёт указанная сборка."""
+    """A missing application is created: created=true, the given assembly acts as the source."""
 
     class FakeClient:
         def find_app(self, name, *, include_deleted=False):
@@ -201,7 +202,7 @@ def test_apps_ensure_missing_creates_and_returns_created_true(monkeypatch, capsy
 
 
 def test_apps_ensure_request_failure_is_an_error(monkeypatch, capsys):
-    """Сбой запроса в ensure: код возврата 1, пустой stdout, error в stderr."""
+    """A request failure in ensure: exit code 1, an empty stdout, error on stderr."""
 
     class FailingClient:
         def find_app(self, name, *, include_deleted=False):
@@ -217,7 +218,7 @@ def test_apps_ensure_request_failure_is_an_error(monkeypatch, capsys):
 
 
 def test_error_is_json_on_stderr(capsys):
-    # app-id не задан ни аргументом, ни конфигурацией.
+    # app-id is set neither by an argument nor by the configuration.
     rc = cli.main(["apps", "get"])
     assert rc == 1
     captured = capsys.readouterr()
@@ -227,11 +228,11 @@ def test_error_is_json_on_stderr(capsys):
 
 
 def test_app_source_error_explains_how_to_get_a_project(capsys):
-    """Без источника ошибка подсказывает путь к новому проекту.
+    """With no source the error hints at the way to a new project.
 
-    Пустого приложения в Console API нет, а команды создания проекта тоже нет:
-    новый проект заводится загрузкой сборки без --project-id. Пока это не было
-    написано в ошибке, способ приходилось искать перебором.
+    Console API has no empty application, and there is no create-a-project command
+    either: a new project is started by uploading an assembly without --project-id.
+    Until that was written in the error, the way had to be found by trial and error.
     """
     rc = cli.main(["apps", "create", "Имя"])
     assert rc == 1
@@ -241,7 +242,7 @@ def test_app_source_error_explains_how_to_get_a_project(capsys):
 
 
 class FakeUploadClient:
-    """Клиент для тестов builds upload: запоминает вызовы, отвечает карточкой проекта."""
+    """A client for the builds upload tests: records the calls, answers with a project card."""
 
     def __init__(self, project_name="crm", fail_get_project=False):
         self.upload_kwargs = None
@@ -261,7 +262,7 @@ class FakeUploadClient:
 
 
 def _built_archive(project_factory, tmp_path, capsys):
-    """Собрать синтетический проект в архив; вернуть путь к файлу сборки."""
+    """Build the synthetic project into an archive; return the path to the build file."""
     project_dir = project_factory()
     rc = cli.main(
         ["build", "--project-dir", str(project_dir), "--output", str(tmp_path / "dist"),
@@ -274,10 +275,11 @@ def _built_archive(project_factory, tmp_path, capsys):
 def test_builds_upload_reports_env_project_id_source(
     monkeypatch, capsys, project_factory, tmp_path
 ):
-    """Цель из ELEMENT_PROJECT_ID больше не молчаливая: источник в JSON, подсказка в stderr.
+    """The target from ELEMENT_PROJECT_ID is no longer silent: the source in JSON, a hint on stderr.
 
-    Сборка чужого проекта однажды легла в проект из env – рецепт "upload без
-    --project-id создаёт новый проект" не работал, и об этом ничто не сообщало.
+    An assembly of a foreign project once landed in the project from env – the recipe
+    "an upload without --project-id creates a new project" did not work, and nothing
+    reported it.
     """
     archive = _built_archive(project_factory, tmp_path, capsys)
     fake = FakeUploadClient()
@@ -295,12 +297,12 @@ def test_builds_upload_reports_env_project_id_source(
     assert fake.upload_kwargs["project_id"] == "proj-env"
     assert "ELEMENT_PROJECT_ID" in captured.err
     assert "--new-project" in captured.err
-    # Имя сборки (crm) совпало с именем проекта – предупреждения о несовпадении нет.
+    # The assembly name (crm) matched the project name – there is no mismatch warning.
     assert "внимание" not in captured.err
 
 
 def test_builds_upload_new_project_ignores_env(monkeypatch, capsys, project_factory, tmp_path):
-    """--new-project отключает env-привязку: платформа создаёт новый проект."""
+    """--new-project turns off the env binding: the platform creates a new project."""
     archive = _built_archive(project_factory, tmp_path, capsys)
     fake = FakeUploadClient()
     monkeypatch.setattr(cli, "make_client", lambda config: fake)
@@ -313,7 +315,7 @@ def test_builds_upload_new_project_ignores_env(monkeypatch, capsys, project_fact
     assert payload["project-id"] is None
     assert payload["project-id-source"] is None
     assert fake.upload_kwargs["project_id"] is None
-    # Проекта-цели нет – карточка проекта не запрашивается.
+    # There is no target project – the project card is not requested.
     assert fake.get_project_calls == []
 
 
@@ -335,10 +337,10 @@ def test_builds_upload_new_project_conflicts_with_project_id(
 def test_builds_upload_warns_when_assembly_name_differs(
     monkeypatch, capsys, project_factory, tmp_path
 ):
-    """Несовпадение имени сборки и проекта-цели – предупреждение, но не отказ.
+    """A mismatch between the assembly name and the target project – a warning, but not a refusal.
 
-    Панель показывает проект под именем последней залитой сборки: чужая сборка
-    молча переименовала проект, и это заметили только по панели.
+    The console shows the project under the name of the last uploaded assembly: a foreign
+    assembly silently renamed the project, and that was noticed only through the console.
     """
     archive = _built_archive(project_factory, tmp_path, capsys)
     fake = FakeUploadClient(project_name="Сайт")
@@ -353,14 +355,14 @@ def test_builds_upload_warns_when_assembly_name_differs(
     assert fake.get_project_calls == ["proj-1"]
     assert "'crm'" in captured.err
     assert "'Сайт'" in captured.err
-    # Цель задана флагом, а не окружением – env-подсказки нет.
+    # The target is set by a flag rather than by the environment – there is no env hint.
     assert "ELEMENT_PROJECT_ID" not in captured.err
 
 
 def test_builds_upload_name_check_failure_does_not_block(
     monkeypatch, capsys, project_factory, tmp_path
 ):
-    """Сверка имён вспомогательная: сбой карточки проекта не мешает загрузке."""
+    """The name check is auxiliary: a failure of the project card does not hinder the upload."""
     archive = _built_archive(project_factory, tmp_path, capsys)
     fake = FakeUploadClient(fail_get_project=True)
     monkeypatch.setattr(cli, "make_client", lambda config: fake)
@@ -376,7 +378,7 @@ def test_builds_upload_name_check_failure_does_not_block(
 def test_deploy_exit_code_reflects_ok(monkeypatch, capsys, project_factory, tmp_path):
     from tests.test_deploy import FakeDeployClient
 
-    # Успех: применённая версия совпала.
+    # Success: the applied version matched.
     monkeypatch.setattr(
         cli, "make_client", lambda config: FakeDeployClient(applied_version="1.0-1")
     )
@@ -399,7 +401,7 @@ def test_deploy_exit_code_reflects_ok(monkeypatch, capsys, project_factory, tmp_
     assert rc == 0
     assert json.loads(captured.out)["ok"] is True
 
-    # Откат: версия не совпала – код возврата 1.
+    # A rollback: the version did not match – exit code 1.
     monkeypatch.setattr(
         cli, "make_client", lambda config: FakeDeployClient(applied_version="1.0-0")
     )
@@ -426,7 +428,7 @@ def test_deploy_exit_code_reflects_ok(monkeypatch, capsys, project_factory, tmp_
 
 
 def test_mcp_command_forwards_env_file(monkeypatch, tmp_path):
-    """mcp учитывает глобальный --env-file: конфигурация передаётся серверу."""
+    """mcp honours the global --env-file: the configuration is passed to the server."""
     pytest.importorskip("mcp", reason="extra elemctl[mcp] не установлен")
     from elemctl import mcp_server
 
@@ -453,7 +455,7 @@ def test_mcp_command_forwards_env_file(monkeypatch, tmp_path):
 
 
 def test_build_json_carries_version_and_source(project_factory, tmp_path, capsys):
-    """CI не должен выковыривать версию из имени файла: она в полях JSON."""
+    """CI must not dig the version out of the file name: it is there in the JSON fields."""
     project_dir = project_factory()
     rc = cli.main(
         ["build", "--project-dir", str(project_dir), "--output", str(tmp_path / "dist")]
@@ -464,7 +466,7 @@ def test_build_json_carries_version_and_source(project_factory, tmp_path, capsys
     assert payload["version-source"] == "default"
     assert payload["name"] == "crm" and payload["vendor"] == "acme"
     assert payload["kind"] == "Application"
-    # Синтетический проект вне git-репозитория: чистоту дерева определить нечем.
+    # The synthetic project is outside a git repository: there is nothing to judge cleanliness by.
     assert payload["dirty"] is None
 
 
@@ -481,7 +483,7 @@ def test_build_version_from_ci_env_via_cli(project_factory, tmp_path, capsys, mo
 
 
 def test_build_require_clean_dirty_tree_aborts(project_factory, tmp_path, capsys, monkeypatch):
-    """--require-clean: грязное дерево – отказ ДО сборки, архив не создаётся."""
+    """--require-clean: a dirty tree – a refusal BEFORE the build, no archive is created."""
     monkeypatch.setattr(cli, "git_dirty_files", lambda directory: ["acme/crm/Проект.xbsl"])
     out_dir = tmp_path / "dist"
     rc = cli.main(
@@ -495,7 +497,7 @@ def test_build_require_clean_dirty_tree_aborts(project_factory, tmp_path, capsys
 
 
 def test_build_require_clean_without_git_aborts(project_factory, tmp_path, capsys, monkeypatch):
-    """Недоступный git при --require-clean – тоже отказ: чистоту подтвердить нечем."""
+    """An unavailable git with --require-clean is a refusal too: cleanliness cannot be confirmed."""
     monkeypatch.setattr(cli, "git_dirty_files", lambda directory: None)
     rc = cli.main(
         ["build", "--project-dir", str(project_factory()), "--output", str(tmp_path / "d"),
@@ -518,7 +520,7 @@ def test_build_require_clean_clean_tree_builds(project_factory, tmp_path, capsys
 def test_deploy_require_clean_checked_before_any_work(
     project_factory, tmp_path, capsys, monkeypatch
 ):
-    """У deploy проверка чистоты идёт до сборки и тем более до загрузки."""
+    """In deploy the cleanliness check runs before the build, let alone before the upload."""
     monkeypatch.setattr(cli, "git_dirty_files", lambda directory: ["правка"])
 
     class MustNotBeCalled:
@@ -537,7 +539,7 @@ def test_deploy_require_clean_checked_before_any_work(
 
 
 def test_apps_delete_accepts_application_name(monkeypatch, capsys):
-    """apps delete site-x: имя резолвится в UUID, платформе уходит ид."""
+    """apps delete site-x: the name is resolved into a UUID, the platform receives the id."""
     deleted = []
 
     class FakeClient:

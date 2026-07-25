@@ -1,8 +1,9 @@
-"""Локальная сборка файла .xasm/.xlib из исходников проекта.
+"""Local build of an .xasm/.xlib file from the project sources.
 
-Файл сборки – ZIP-архив (deflate): в корне манифест Assembly.yaml, далее
-файлы проекта путями {vendor}/{name}/... относительно корня репозитория
-(раздел 5 спецификации). Разделители путей в архиве – прямые слэши.
+A build file is a ZIP archive (deflate): the Assembly.yaml manifest at the root,
+then the project files under {vendor}/{name}/... paths relative to the repository
+root (section 5 of the specification). Path separators inside the archive are
+forward slashes.
 """
 
 from __future__ import annotations
@@ -22,57 +23,60 @@ PROJECT_FILE = "Проект.yaml"
 MANIFEST_FILE = "Assembly.yaml"
 SUBSYSTEM_FILE = "Подсистема.yaml"
 
-# Область видимости, при которой тип доступен подключившему библиотеку проекту.
+# The visibility scope at which a type is available to the project that plugged
+# the library in.
 GLOBAL_SCOPE = "Глобально"
 
-# Расширения, попадающие в архив вне каталогов ресурсов: исходники,
-# изображения, веб-ресурсы.
+# Extensions that go into the archive outside the resource directories: sources,
+# images, web resources.
 ALLOWED_EXTENSIONS = {
     ".yaml", ".xbsl", ".xbql", ".md", ".txt", ".json",
     ".png", ".svg", ".jpg", ".jpeg", ".gif", ".webp", ".ico",
     ".css", ".htm", ".html", ".js", ".woff", ".woff2", ".ttf", ".eot",
 }
 
-# Каталог ресурсов подсистемы или пакета. Ресурс по документации платформы -
-# произвольный файл, поэтому внутри таких каталогов отбора по расширению нет.
+# The resource directory of a subsystem or a package. By the platform documentation
+# a resource is an arbitrary file, so inside such directories there is no selection
+# by extension.
 RESOURCES_DIR = "Ресурсы"
 
-# Каталоги, исключаемые целиком (плюс все скрытые – с точки в начале).
+# Directories excluded entirely (plus every hidden one – starting with a dot).
 EXCLUDED_DIRS = {".git", ".claude", ".github", "__pycache__", "node_modules", ".venv"}
 
-# Файлы, исключаемые по точному имени.
+# Files excluded by exact name.
 EXCLUDED_FILES = {".gitignore", ".env", ".DS_Store"}
 
-# Файлы, исключаемые по расширению (готовые архивы сборок).
+# Files excluded by extension (prebuilt build archives).
 EXCLUDED_SUFFIXES = (".xasm", ".xlib")
 
-# Переменные окружения CI с номером прогона - источник суффикса версии сборки,
-# когда ни явная версия, ни последняя сборка не заданы: каждый прогон CI идёт
-# в чистом рабочем каталоге, и локальная нумерация всегда давала бы "-1".
+# The CI environment variables carrying the run number – the source of the build
+# version suffix when neither an explicit version nor a last build is given: every
+# CI run happens in a clean working directory, so local numbering would always
+# yield "-1".
 CI_BUILD_NUMBER_VARS = ("CI_PIPELINE_IID", "GITHUB_RUN_NUMBER", "BUILD_NUMBER")
 
 
 @dataclass
 class ProjectMeta:
-    """Метаданные проекта из Проект.yaml и раскладки каталогов."""
+    """The project metadata from Проект.yaml and from the directory layout."""
 
     name: str
     vendor: str
     base_version: str
-    kind: str  # "Application" или "Library"
+    kind: str  # "Application" or "Library"
     project_dir: Path
     repo_root: Path
 
 
 @dataclass
 class BuildResult:
-    """Результат локальной сборки архива.
+    """The result of a local archive build.
 
-    version_source – откуда взялась версия сборки: "flag" (задана явно),
-    "last-build" (автоинкремент от последней сборки), имя переменной CI
-    (номер прогона из окружения) либо "default". dirty_files – файлы с
-    незакоммиченными изменениями в каталоге проекта; None, когда git
-    недоступен или каталог не в репозитории.
+    version_source – where the build version came from: "flag" (set explicitly),
+    "last-build" (auto-increment from the last build), the name of a CI variable
+    (the run number from the environment) or "default". dirty_files – the files
+    with uncommitted changes in the project directory; None when git is
+    unavailable or the directory is not inside a repository.
     """
 
     file: Path
@@ -88,10 +92,10 @@ class BuildResult:
 
 
 def parse_flat_yaml(text):
-    """Разобрать плоские пары "ключ: значение" верхнего уровня YAML.
+    """Parse the flat top-level "key: value" pairs of a YAML text.
 
-    Вложенные строки (с отступом), пустые строки и комментарии пропускаются –
-    для Проект.yaml этого достаточно.
+    Nested lines (the indented ones), blank lines and comments are skipped –
+    for Проект.yaml that is enough.
     """
     values = {}
     for raw_line in text.splitlines():
@@ -112,11 +116,11 @@ def parse_flat_yaml(text):
 
 
 def descriptor_value(values, russian, english):
-    """Значение свойства дескриптора по русскому либо английскому написанию.
+    """The value of a descriptor property by its Russian or English spelling.
 
-    Двуязычие исходников - заявленная возможность платформы: дескриптор,
-    записанный английскими ключами (Name, Vendor, Version...), применяется
-    штатно, поэтому и читать его нужно в обоих написаниях.
+    Bilingual sources are a declared feature of the platform: a descriptor
+    written with English keys (Name, Vendor, Version...) is applied as usual,
+    so it has to be read in both spellings too.
     """
     for key in (russian, english):
         value = str(values.get(key, "") or "").strip()
@@ -126,10 +130,10 @@ def descriptor_value(values, russian, english):
 
 
 def ci_build_number(environ=None):
-    """Номер прогона CI из окружения: имя переменной и числовое значение.
+    """The CI run number from the environment: the variable name and its numeric value.
 
-    Переменные перебираются в порядке CI_BUILD_NUMBER_VARS; нечисловые
-    значения пропускаются. Без номера возвращается пара пустых строк.
+    The variables are tried in the CI_BUILD_NUMBER_VARS order; non-numeric
+    values are skipped. With no number a pair of empty strings is returned.
     """
     env = os.environ if environ is None else environ
     for var in CI_BUILD_NUMBER_VARS:
@@ -140,7 +144,7 @@ def ci_build_number(environ=None):
 
 
 def find_project_dir(start=None):
-    """Найти каталог проекта: первый каталог с Проект.yaml вглубь от start."""
+    """Find the project directory: the first one with Проект.yaml downward from start."""
     base = Path(start) if start else Path.cwd()
     if (base / PROJECT_FILE).is_file():
         return base
@@ -152,9 +156,9 @@ def find_project_dir(start=None):
 
 
 def read_project_meta(project_dir):
-    """Прочитать метаданные проекта и проверить раскладку каталогов.
+    """Read the project metadata and check the directory layout.
 
-    Каталог проекта обязан лежать по схеме {repo}/{vendor}/{name}/Проект.yaml.
+    The project directory must follow the {repo}/{vendor}/{name}/Проект.yaml layout.
     """
     project_dir = Path(project_dir).resolve()
     project_file = project_dir / PROJECT_FILE
@@ -189,11 +193,11 @@ def read_project_meta(project_dir):
 
 
 def collect_project_files(project_dir):
-    """Отобрать файлы проекта для архива по правилам раздела 5 спецификации.
+    """Select the project files for the archive by the rules of specification section 5.
 
-    Вне каталогов ресурсов действует белый список расширений; внутри каталога
-    `Ресурсы` (на любом уровне, включая его подкаталоги) включаются файлы любых
-    расширений - ресурсом может быть произвольный файл: .pdf, .htm, .mxl и т.д.
+    Outside the resource directories an allowlist of extensions applies; inside a
+    `Ресурсы` directory (at any level, including its subdirectories) files of any
+    extension are taken – a resource may be an arbitrary file: .pdf, .htm, .mxl etc.
     """
     project_dir = Path(project_dir)
     selected = []
@@ -210,9 +214,9 @@ def collect_project_files(project_dir):
 
 
 def git_metadata(project_dir):
-    """Хэш коммита и имя ветки git-репозитория с каталогом проекта.
+    """The commit hash and the branch name of the git repository holding the project.
 
-    При недоступности git (нет команды, не репозиторий) – пустые строки.
+    When git is unavailable (no command, not a repository) – empty strings.
     """
     commit = _git_output(project_dir, "rev-parse", "HEAD")
     branch = _git_output(project_dir, "rev-parse", "--abbrev-ref", "HEAD")
@@ -220,16 +224,17 @@ def git_metadata(project_dir):
 
 
 def git_dirty_files(project_dir):
-    """Файлы с незакоммиченными изменениями в каталоге проекта.
+    """The files with uncommitted changes in the project directory.
 
-    Сборка снимает диск в момент запуска, поэтому расхождение с HEAD должно
-    быть видно вызывающему. Возвращается список путей из git status
-    --porcelain, ограниченный каталогом; None – когда git недоступен или
-    каталог не в репозитории (отличие от пустого списка "чисто").
+    A build captures the disk as it is at the moment it starts, so a divergence
+    from HEAD has to be visible to the caller. Returned is the list of paths from
+    git status --porcelain limited to the directory; None – when git is unavailable
+    or the directory is not inside a repository (as opposed to an empty list,
+    meaning "clean").
     """
     try:
-        # core.quotepath=false: иначе не-ASCII пути приходят октальными
-        # escape-последовательностями в кавычках и предупреждение нечитаемо.
+        # core.quotepath=false: otherwise non-ASCII paths arrive as quoted octal
+        # escape sequences and the warning is unreadable.
         completed = subprocess.run(
             ["git", "-C", str(project_dir), "-c", "core.quotepath=false",
              "status", "--porcelain", "--", "."],
@@ -247,7 +252,7 @@ def git_dirty_files(project_dir):
 
 
 def build_manifest(*, kind, vendor, name, version, created, branch="", commit=""):
-    """Собрать текст манифеста Assembly.yaml."""
+    """Compose the text of the Assembly.yaml manifest."""
     lines = [
         "ManifestVersion: 1.0",
         f"ProjectKind: {kind}",
@@ -274,13 +279,13 @@ def build_assembly(
     kind="",
     now=None,
 ):
-    """Собрать архив сборки из исходников проекта; вернуть BuildResult.
+    """Build the assembly archive from the project sources; return a BuildResult.
 
-    Версия: явная version, иначе автоинкремент от last_build_version, иначе
-    суффикс из номера прогона CI (переменные CI_BUILD_NUMBER_VARS), а без
-    всего этого – "{базовая версия}-1". branch и commit переопределяют
-    git-метаданные (None – взять из git). kind переопределяет вид проекта
-    ("application"/"library").
+    The version: the explicit version, otherwise an auto-increment from
+    last_build_version, otherwise a suffix taken from the CI run number (the
+    CI_BUILD_NUMBER_VARS variables), and with none of that – "{base version}-1".
+    branch and commit override the git metadata (None – take it from git). kind
+    overrides the project kind ("application"/"library").
     """
     directory = find_project_dir(project_dir) if project_dir else find_project_dir()
     meta = read_project_meta(directory)
@@ -348,10 +353,10 @@ def build_assembly(
 
 
 def read_assembly_manifest(path):
-    """Манифест архива сборки (.xasm/.xlib) без разбора содержимого.
+    """The manifest of a build archive (.xasm/.xlib) without parsing its contents.
 
-    Лёгкая операция для проверок перед загрузкой: читается только
-    Assembly.yaml из корня архива.
+    A light operation for the checks made before an upload: only Assembly.yaml
+    is read from the archive root.
     """
     archive_path = Path(path)
     if not archive_path.is_file():
@@ -368,12 +373,13 @@ def read_assembly_manifest(path):
 
 
 def inspect_assembly(path):
-    """Разобрать готовый архив сборки (.xasm/.xlib) – обратная операция к build_assembly.
+    """Inspect a prebuilt assembly archive (.xasm/.xlib) – the inverse of build_assembly.
 
-    Возвращает манифест, свойства проекта, его подсистемы и типы, доступные
-    подключившему проекту (ОбластьВидимости: Глобально), – с полными именами.
-    Пространство имён типа – {vendor}::{name}::{подсистема}[::{пакет}], где пакет –
-    вложенный каталог подсистемы (файла-описания у пакета нет).
+    Returns the manifest, the project properties, its subsystems and the types
+    available to the project that plugged it in (ОбластьВидимости: Глобально) –
+    with their qualified names. The namespace of a type is
+    {vendor}::{name}::{subsystem}[::{package}], where a package is a nested
+    directory of a subsystem (a package has no descriptor file of its own).
     """
     archive_path = Path(path)
     if not archive_path.is_file():
@@ -406,8 +412,8 @@ def inspect_assembly(path):
         "vendor": vendor,
         "name": name,
         "version": manifest.get("Version", ""),
-        # ВерсияТехнологии в Проект.yaml не существует – совместимость задаёт
-        # РежимСовместимости, именно его и сверяют с целевым проектом.
+        # There is no ВерсияТехнологии in Проект.yaml – compatibility is set by
+        # РежимСовместимости, and it is exactly what is matched against the target project.
         "compatibility": descriptor_value(project, "РежимСовместимости", "CompatibilityMode"),
         "representation": descriptor_value(project, "Представление", "Presentation"),
         "project": project,
@@ -416,7 +422,7 @@ def inspect_assembly(path):
     }
 
 
-# -- внутреннее ---------------------------------------------------------------
+# -- internal -----------------------------------------------------------------
 
 
 def _read_entry(archive, entry):
@@ -424,7 +430,7 @@ def _read_entry(archive, entry):
 
 
 def _archive_elements(archive, names, prefix):
-    """Элементы проекта в архиве: имя, вид, область видимости, полное имя."""
+    """The project elements in the archive: name, kind, visibility scope, qualified name."""
     vendor_name = prefix.rstrip("/").split("/")
     elements = []
     for entry in sorted(names):
@@ -437,13 +443,15 @@ def _archive_elements(archive, names, prefix):
         kind = values.get("ВидЭлемента", "")
         if not kind:
             continue
-        # Каталоги между подсистемой и файлом – пакеты, каждый даёт сегмент имени.
+        # The directories between the subsystem and the file are packages, each
+        # one contributing a segment of the name.
         namespace = "::".join(vendor_name + parts[:-1])
         element_name = descriptor_value(values, "Имя", "Name") or parts[-1][: -len(".yaml")]
         elements.append({
             "name": element_name,
             "kind": kind,
-            # Область видимости по умолчанию – ВПодсистеме, глобальная пишется явно.
+            # The default visibility scope is ВПодсистеме, the global one is
+            # written explicitly.
             "scope": values.get("ОбластьВидимости", "ВПодсистеме"),
             "subsystem": parts[0],
             "namespace": namespace,
@@ -454,10 +462,10 @@ def _archive_elements(archive, names, prefix):
 
 
 def _subsystems(elements, vendor, name):
-    """Подсистемы проекта и их пакеты – по раскладке каталогов.
+    """The project's subsystems and their packages – from the directory layout.
 
-    Подсистема – каталог первого уровня; Подсистема.yaml необязателен (у библиотеки
-    его может не быть вовсе), поэтому опираться на него нельзя.
+    A subsystem is a first-level directory; Подсистема.yaml is optional (a library
+    may have none at all), so it cannot be relied upon.
     """
     found = {}
     for item in elements:

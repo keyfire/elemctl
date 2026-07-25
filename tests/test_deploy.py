@@ -1,4 +1,4 @@
-"""Тесты логики итога деплоя (ok/applied) на клиенте-заглушке."""
+"""Tests of the deploy verdict logic (ok/applied) on a stub client."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from elemctl.deploy import deploy_from_sources, verify_deploy
 
 
 class FakeDeployClient:
-    """Клиент-заглушка с публичными методами, которые использует deploy."""
+    """A stub client carrying the public methods that deploy uses."""
 
     def __init__(
         self,
@@ -37,7 +37,7 @@ class FakeDeployClient:
         return self._latest
 
     def upload_assembly(self, data, **kwargs):
-        assert data[:2] == b"PK"  # это должен быть настоящий zip
+        assert data[:2] == b"PK"  # it has to be a real zip
         self.upload_kwargs = kwargs
         return self._upload_response
 
@@ -86,7 +86,7 @@ def test_deploy_success(project_factory, tmp_path):
         log=log_lines.append,
     )
 
-    # Версия – автоинкремент от последней сборки проекта.
+    # The version is auto-incremented from the project's latest assembly.
     assert report.version == "1.0-5"
     assert report.assembly_id == "asm-777"
     assert report.applied is True
@@ -95,11 +95,11 @@ def test_deploy_success(project_factory, tmp_path):
     assert report.problems == []
     assert report.uri_status == 200
     assert client.apply_calls == [("app-1", {"image_id": "asm-777"})]
-    assert log_lines  # прогресс отдан через callback
+    assert log_lines  # progress was reported through the callback
 
 
 def test_deploy_detects_silent_rollback(project_factory, tmp_path):
-    # Платформа откатила: применённая версия осталась старой.
+    # The platform rolled back: the applied version stayed the old one.
     client = FakeDeployClient(
         latest={"assembly-version": "1.0-4", "id": "asm-4"}, applied_version="1.0-4"
     )
@@ -112,9 +112,9 @@ def test_deploy_detects_silent_rollback(project_factory, tmp_path):
 
 
 def test_deploy_trusts_assembly_id_over_renumbered_version(project_factory, tmp_path):
-    # Свежесозданное приложение нумерует версии заново (архив 1.0-1139 применяется
-    # как 1.0-3) - сверка по строке версии давала ложный откат. Совпадение id
-    # применённой сборки с загруженной подтверждает применение.
+    # A freshly created application numbers versions from scratch (archive 1.0-1139 is
+    # applied as 1.0-3) – matching by the version string reported a false rollback. What
+    # confirms the apply is the id of the applied assembly matching the uploaded one.
     client = FakeDeployClient(
         latest={"assembly-version": "1.0-1138", "id": "asm-old"},
         applied_version="1.0-3",
@@ -130,7 +130,7 @@ def test_deploy_trusts_assembly_id_over_renumbered_version(project_factory, tmp_
 
 
 def test_deploy_detects_rollback_by_assembly_id(project_factory, tmp_path):
-    # Откат при известном id: применённой осталась прежняя сборка.
+    # A rollback with the id known: the previously applied assembly stayed in place.
     client = FakeDeployClient(
         latest={"assembly-version": "1.0-4", "id": "asm-4"},
         applied_version="1.0-5",
@@ -170,7 +170,7 @@ def test_deploy_fails_on_fresh_error_task(project_factory, tmp_path):
 
 
 def test_deploy_ignores_old_error_tasks(project_factory, tmp_path):
-    # Старая ошибка из истории (до начала деплоя) не должна портить вердикт.
+    # An old error out of the history (from before the deploy started) must not spoil the verdict.
     client = FakeDeployClient(
         applied_version="1.0-1",
         tasks=[
@@ -195,7 +195,7 @@ def test_deploy_ignores_old_error_tasks(project_factory, tmp_path):
 
 
 def test_deploy_applied_none_when_version_unknown(project_factory, tmp_path):
-    # Карточка без source.project-version: применение не подтверждено и не опровергнуто.
+    # A card with no source.project-version: the apply is neither confirmed nor refuted.
     client = FakeDeployClient(applied_version=None)
     report = deploy_from_sources(
         client,
@@ -210,7 +210,7 @@ def test_deploy_applied_none_when_version_unknown(project_factory, tmp_path):
 
 
 def test_uri_status_401_is_not_a_problem(project_factory, tmp_path):
-    # Закрытое приложение отвечает 401 – это информация, а не проблема.
+    # A closed application answers 401 – that is information, not a problem.
     client = FakeDeployClient(applied_version="1.0-1", uri_status=401)
     report = deploy_from_sources(
         client,
@@ -267,7 +267,7 @@ def test_verify_deploy_standalone():
 
 
 def test_verify_deploy_standalone_by_assembly_id():
-    # id важнее строки версии: несовпадающая перенумерованная версия не портит вердикт.
+    # The id outweighs the version string: a renumbered version that does not match is harmless.
     client = FakeDeployClient(applied_version="1.0-3", applied_version_id="asm-9")
     since = datetime.now(timezone.utc) - timedelta(minutes=30)
 
@@ -283,10 +283,10 @@ def test_verify_deploy_standalone_by_assembly_id():
 
 
 def test_deploy_reports_dirty_tree(project_factory, tmp_path, monkeypatch):
-    """Незакоммиченные изменения каталога проекта видны в log и в отчёте.
+    """Uncommitted changes of the project directory show up in the log and in the report.
 
-    Сборка снимает диск в момент запуска: при параллельных правках в архив
-    попадает полусырое состояние, и молчать об этом нельзя.
+    The build captures the disk as of the moment it starts: with edits going on in
+    parallel a half-baked state lands in the archive, and that must not be kept quiet.
     """
     from elemctl import deploy as deploy_module
 
@@ -317,12 +317,12 @@ def test_deploy_reports_dirty_tree(project_factory, tmp_path, monkeypatch):
     assert payload["dirty-files"] == ["acme/crm/Проект.xbsl", "acme/crm/Новый.yaml"]
     warning = [line for line in log_lines if "незакоммиченные" in line]
     assert warning and "Проект.xbsl" in warning[0]
-    # Чистота дерева – предупреждение, а не проблема применения.
+    # Tree cleanliness is a warning, not a problem with the apply.
     assert report.problems == [] and report.ok is True
 
 
 def test_deploy_outside_repository_dirty_unknown(project_factory, tmp_path):
-    """Вне git-репозитория чистота неизвестна: dirty null, предупреждения нет."""
+    """Outside a git repository cleanliness is unknown: dirty is null and no warning is issued."""
     client = FakeDeployClient(applied_version="1.0-1")
     log_lines = []
     report = deploy_from_sources(

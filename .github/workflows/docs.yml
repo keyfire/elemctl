@@ -1,8 +1,9 @@
-# Публикация сайта документации (blume.config.ts) на GitHub Pages. Источник Pages в
-# настройках репозитория должен быть "GitHub Actions" (Settings -> Pages -> Source).
-# Сайт живёт отдельным подпроектом в site/ (свой package.json): корневой dist/ занят
-# сборками пакета, а blume собирает в dist рядом со своим конфигом – так они не спорят.
-# Сборка проверяется тем же `npx blume build`, что и локально; вывод — в site/dist/.
+# Publishing the documentation site (blume.config.ts) to GitHub Pages. The Pages source
+# in the repository settings has to be "GitHub Actions" (Settings -> Pages -> Source).
+# The site lives as a separate subproject in site/ (with its own package.json): the root
+# dist/ is taken by package builds, and blume builds into a dist next to its own config –
+# that way they do not clash. The build is checked with the same `npx blume build` as
+# locally; the output goes to site/dist/.
 name: Docs
 
 on:
@@ -12,7 +13,7 @@ on:
       - "docs/**"
       - "site/**"
       - ".github/workflows/docs.yml"
-      # Страница истории изменений – зеркало корневого CHANGELOG (см. scripts/sync-docs.mjs).
+      # The changelog page mirrors the root CHANGELOG (see scripts/sync-docs.mjs).
       - "CHANGELOG.md"
       - "CHANGELOG.ru.md"
       - "scripts/sync-docs.mjs"
@@ -23,7 +24,7 @@ permissions:
   pages: write
   id-token: write
 
-# Одновременно публикуется одна версия; новый push не отменяет уже идущий деплой.
+# One version is published at a time; a new push does not cancel a deploy in flight.
 concurrency:
   group: pages
   cancel-in-progress: false
@@ -34,7 +35,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          # Полная история нужна для дат "последнее изменение" (lastModified в blume.config.ts).
+          # The full history is needed for the "last modified" dates (lastModified in blume.config.ts).
           fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
@@ -44,8 +45,8 @@ jobs:
       - name: Install
         run: npm ci
         working-directory: site
-      # Зеркалим CHANGELOG в страницы сайта перед сборкой, чтобы задеплоенный сайт
-      # всегда совпадал с актуальным файлом в корне репозитория.
+      # Mirror the CHANGELOG into the site pages before building, so that the deployed
+      # site always matches the current file at the repository root.
       - name: Sync mirrored docs
         run: npm run sync:docs
         working-directory: site

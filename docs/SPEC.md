@@ -263,7 +263,11 @@ expected_version="", since_minutes=30)` – verification of the apply per sectio
   through entry points and debug-adapter path resolution (stubbed entry points,
   directories in temp folders), adapter extraction from a tiny .car, self-update
   by unpacking a wheel (urllib mocked, wheel and site-packages in temp folders).
-- Docstrings and comments – literary Russian; straight quotes `"` in text, dashes –
+- Docstrings, comments and identifiers – English, tests and tools included: the project is
+  public and international. Russian stays where it faces the user: the i18n message catalog,
+  argparse help, user-facing strings, MCP tool descriptions and the server instructions, plus
+  platform identifiers quoted as they are (`Проект.yaml`, `Ресурсы`, `Имя`, `Поставщик`) and
+  the Russian data of test fixtures. Straight quotes `"` in text, dashes –
   en dash `–` (not em dash), ellipsis – three dots `...`.
 - The library does not print to stdout/stderr itself – progress is delivered via a
   callback passed by the caller.

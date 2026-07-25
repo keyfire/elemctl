@@ -1,6 +1,6 @@
-"""Тест извлечения debug-адаптера: мини-.car во временном каталоге.
+"""Debug adapter extraction test: a miniature .car in a temporary directory.
 
-Экстрактор – скрипт в tools/ (не часть пакета), загружается по пути.
+The extractor is a script in tools/ (not part of the package), so it is loaded by path.
 """
 
 from __future__ import annotations
@@ -24,7 +24,7 @@ def _make_car(path: Path) -> Path:
         z.writestr(_PREFIX + "repo/com.e1c.g5rt.debugger.adapter-9.2.8-1.jar", b"JAR")
         z.writestr(_PREFIX + "repo/netty-common-4.1.0.jar", b"JAR")
         z.writestr(_PREFIX + "bin/g5rt.debugger.adapter", b"#!/bin/sh\n")
-        z.writestr("data/other/ignored.txt", b"nope")  # вне каталога адаптера
+        z.writestr("data/other/ignored.txt", b"nope")  # outside the adapter directory
     return car
 
 
@@ -36,7 +36,7 @@ def test_extract_places_adapter_and_index(tmp_path):
     version_dir = out / "9.2.8+11"
     assert (version_dir / "repo" / "com.e1c.g5rt.debugger.adapter-9.2.8-1.jar").exists()
     assert (version_dir / "bin" / "g5rt.debugger.adapter").exists()
-    assert not (version_dir / "ignored.txt").exists()  # взято только из debugger/
+    assert not (version_dir / "ignored.txt").exists()  # only what lies under debugger/ is taken
     index = json.loads((out / "index.json").read_text(encoding="utf-8"))
     assert index["default"] == "9.2.8+11"
     assert "9.2.8+11" in index["available"]
