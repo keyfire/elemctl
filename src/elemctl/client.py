@@ -1,7 +1,7 @@
-"""Клиент Console API v2 платформы 1С:Предприятие.Элемент.
+"""Console API v2 client of the 1C:Enterprise.Element platform.
 
-Клиент не печатает ничего сам: прогресс длительных операций отдаётся через
-callback log, который передаёт вызывающая сторона.
+The client prints nothing by itself: the progress of long operations is handed
+out through the log callback the caller passes in.
 """
 
 from __future__ import annotations
@@ -19,23 +19,23 @@ from .versions import pick_latest
 
 API_PREFIX = "/console/api/v2"
 
-# Стабильные статусы приложения; всё прочее (в т.ч. пустая строка) – переходное.
+# Stable application statuses; everything else (an empty string included) is transitional.
 STABLE_STATUSES = {"Running", "Stopped", "Error"}
 
-# Таймауты ожиданий (секунды) по разделу 6 спецификации.
+# Wait timeouts (seconds) as per section 6 of the specification.
 POLL_INTERVAL = 10.0
 STOP_TIMEOUT = 180.0
 START_TIMEOUT = 300.0
 READY_TIMEOUT = 600.0
 
-# Статусы задач приложения, означающие ошибку (сравнение без учёта регистра).
+# Application task statuses that mean a failure (compared case-insensitively).
 FAILED_TASK_STATUSES = {"error", "failed"}
 
 
 def extract_assembly_id(payload):
-    """Достать id сборки из ответа платформы.
+    """Extract the assembly id out of a platform response.
 
-    Проверяются поля image-id, assembly-id и id – именно в этом порядке.
+    The image-id, assembly-id and id fields are checked – in exactly that order.
     """
     if not isinstance(payload, dict):
         return None
@@ -56,10 +56,10 @@ def _looks_like_uuid(value):
 
 
 def _as_list(payload, *keys):
-    """Привести ответ-список к списку.
+    """Normalize a list response to a list.
 
-    Платформа может вернуть как массив, так и объект со списком в одном из
-    полей (например items или assemblies).
+    The platform may return either an array or an object carrying the list in
+    one of its fields (items or assemblies, for example).
     """
     if payload is None:
         return []
@@ -74,7 +74,7 @@ def _as_list(payload, *keys):
 
 
 def _collapse_reference(value):
-    """Свернуть ссылочный объект до {"id": ...} или {"name": ...}."""
+    """Collapse a reference object down to {"id": ...} or {"name": ...}."""
     if not isinstance(value, dict):
         return None
     if value.get("id"):
@@ -84,26 +84,27 @@ def _collapse_reference(value):
     return None
 
 
-# Статус удалённого приложения (сравнение без учёта регистра).
+# The status of a deleted application (compared case-insensitively).
 DELETED_STATUS = "Deleted"
 
-# Поля карточки приложения, по которым его узнают по имени.
+# The application card fields an application is recognized by name through.
 APP_NAME_KEYS = ("name", "display-name", "publication-context")
 
 
 def _is_deleted(app):
-    """Признак удалённого приложения.
+    """Whether the application is a deleted one.
 
-    Платформа не убирает удалённые приложения из списка, а помечает их
-    статусом Deleted, сохраняя прежний id. На таком id последующие get и
-    deploy отвечают 404, поэтому поиск по умолчанию их пропускает.
+    The platform does not drop deleted applications from the list, it marks
+    them with the Deleted status keeping their former id. A later get or
+    deploy on such an id answers 404, which is why the search skips them by
+    default.
     """
     status = app.get("status")
     return isinstance(status, str) and status.strip().lower() == DELETED_STATUS.lower()
 
 
 def _app_name_matches(app, target):
-    """Точное совпадение имени приложения без учёта регистра."""
+    """An exact, case-insensitive match of the application name."""
     for key in APP_NAME_KEYS:
         value = app.get(key)
         if isinstance(value, str) and value.strip().lower() == target:
@@ -112,7 +113,7 @@ def _app_name_matches(app, target):
 
 
 def _app_name_contains(app, needle):
-    """Вхождение подстроки в одно из имён приложения без учёта регистра."""
+    """A case-insensitive substring occurrence in one of the application names."""
     for key in APP_NAME_KEYS:
         value = app.get(key)
         if isinstance(value, str) and needle in value.lower():
@@ -121,12 +122,13 @@ def _app_name_contains(app, needle):
 
 
 def brief_app(app):
-    """Краткая карточка приложения: то, по чему его узнают и выбирают.
+    """A brief application card: what an application is recognized and picked by.
 
-    Полная карточка несёт списки пользователей, флаги среды разработки и
-    прочее, что в списке не нужно: пространство из полусотни приложений даёт
-    десятки тысяч символов ответа. Версия берётся из source – это фактически
-    применённая сборка, по ней сверяют деплой.
+    The full card carries user lists, development-environment flags and other
+    things a listing does not need: a space of some fifty applications makes
+    tens of thousands of characters of response. The version is taken from
+    source – that is the build actually applied, the one a deploy is verified
+    against.
     """
     source = app.get("source") or {}
     return {
@@ -140,23 +142,23 @@ def brief_app(app):
 
 
 class ElementClient:
-    """Программный клиент Console API v2."""
+    """A programmatic Console API v2 client."""
 
     def __init__(self, config, transport=None, token_cache_dir=None):
         self.config = config
         self._transport = transport or UrllibTransport()
         self._tokens = TokenManager(config, self._transport, cache_dir=token_cache_dir)
-        # Точка подмены для тестов: ожидания не должны реально спать.
+        # The override point for the tests: waits must not really sleep.
         self._sleep = time.sleep
 
-    # -- низкий уровень --------------------------------------------------
+    # -- low level -------------------------------------------------------
 
     def token(self):
-        """Получить действующий Bearer-токен."""
+        """Obtain a valid Bearer token."""
         return self._tokens.get_token()
 
     def _request(self, method, path, *, query=None, json_body=None, data=None, content_type=None):
-        """Выполнить запрос с Bearer-токеном; при 401 обновить токен и повторить один раз."""
+        """Perform a request with the Bearer token; on a 401 refresh the token and retry once."""
         config = self.config.require()
         url = config.base_url + path
         if query:
@@ -194,7 +196,7 @@ class ElementClient:
         raise self._api_error(method, url, response)
 
     def _api(self, method, path, **kwargs):
-        """Запрос к Console API v2 (общий префикс /console/api/v2)."""
+        """A Console API v2 request (the shared /console/api/v2 prefix)."""
         return self._request(method, API_PREFIX + path, **kwargs)
 
     @staticmethod
@@ -213,9 +215,9 @@ class ElementClient:
         return ApiError(message, status=response.status, method=method, url=url, body=body)
 
     def check_uri(self, uri, timeout=15.0):
-        """Контрольный GET по адресу приложения; вернуть HTTP-статус или None.
+        """A control GET on the application address; returns the HTTP status or None.
 
-        Проверка информационная: 401/403 нормальны для закрытых приложений.
+        The check is informational: 401/403 are normal for closed applications.
         """
         if not uri:
             return None
@@ -225,14 +227,14 @@ class ElementClient:
         except Exception:
             return None
 
-    # -- приложения --------------------------------------------------------
+    # -- applications ------------------------------------------------------
 
     def list_apps(self, name=""):
-        """Список приложений; name – необязательный фильтр по подстроке имени.
+        """The list of applications; name is an optional filter by a name substring.
 
-        Фильтр выполняется на клиенте без учёта регистра (по полям
-        APP_NAME_KEYS): query-параметр name платформа игнорирует и возвращает
-        полный список – проверено живым вызовом.
+        The filter runs on the client, case-insensitively (over the
+        APP_NAME_KEYS fields): the platform ignores the name query parameter
+        and returns the full list – verified by a live call.
         """
         payload = self._api("GET", "/applications")
         apps = _as_list(payload, "items", "applications")
@@ -245,17 +247,18 @@ class ElementClient:
         ]
 
     def get_app(self, app_id):
-        """Карточка приложения (статус, uri, source.project-version и др.)."""
+        """The application card (status, uri, source.project-version and so on)."""
         return self._api("GET", f"/applications/{app_id}")
 
     def find_app(self, name, *, include_deleted=False):
-        """Найти приложение по точному совпадению имени без учёта регистра.
+        """Find an application by an exact, case-insensitive name match.
 
-        Имя сверяется с полями name, display-name и publication-context.
-        Удалённые приложения (статус Deleted) по умолчанию пропускаются: на их
-        прежнем id последующие get и deploy отвечают 404. include_deleted=True
-        возвращает прежнее поведение – поиск среди всех приложений, включая
-        удалённые. Возвращается карточка из списка либо None.
+        The name is checked against the name, display-name and
+        publication-context fields. Deleted applications (the Deleted status)
+        are skipped by default: a later get or deploy on their former id
+        answers 404. include_deleted=True brings the former behaviour back –
+        the search covers all applications, deleted ones included. The card
+        from the list is returned, or None.
         """
         target = (name or "").strip().lower()
         if not target:
@@ -270,13 +273,13 @@ class ElementClient:
         return None
 
     def resolve_app_id(self, name_or_id, *, include_deleted=False):
-        """Ид приложения по его имени либо самому ид.
+        """The application id by its name or by the id itself.
 
-        UUID возвращается как есть, без запросов. Иное значение ищется по
-        точному совпадению имени без учёта регистра (поля APP_NAME_KEYS);
-        удалённые приложения по умолчанию пропускаются. Ничего не найдено –
-        ошибка; несколько совпадений – тоже ошибка с перечнем ид, потому что
-        разрушающие операции (delete) не должны угадывать.
+        A UUID is returned as is, without any requests. Any other value is
+        looked up by an exact, case-insensitive name match (the APP_NAME_KEYS
+        fields); deleted applications are skipped by default. Nothing found is
+        an error; several matches is an error as well, listing the ids, because
+        destructive operations (delete) must not guess.
         """
         if _looks_like_uuid(name_or_id):
             return str(name_or_id)
@@ -309,16 +312,14 @@ class ElementClient:
         space_id=None,
         technology_version=None,
     ):
-        """Создать приложение.
+        """Create an application.
 
-        Источник – ровно один из project_version_id (id сборки, надёжный
-        путь) либо image_id (id проекта; на части конфигураций платформы
-        даёт пустой каркас без данных).
+        The source is exactly one of project_version_id (the assembly id, the
+        reliable route) or image_id (the project id; on some platform
+        configurations it gives an empty skeleton with no data).
         """
         if bool(project_version_id) == bool(image_id):
-            raise ConfigError(
-                "источник приложения – ровно один из параметров: project_version_id либо image_id"
-            )
+            raise ConfigError(i18n.t("client.app-source-exclusive"))
         source = {"type": "repository"}
         if project_version_id:
             source["project-version-id"] = project_version_id
@@ -337,12 +338,11 @@ class ElementClient:
         return self._api("POST", "/applications", json_body=body)
 
     def delete_app(self, app_id):
-        """Удалить приложение.
+        """Delete an application.
 
-        Необратимо: пересозданное приложение получает другой URL. Если в
-        среде разработки есть неопубликованные правки, платформа отвечает
-        400 FAILED_PRECONDITION – в этом случае к ошибке добавляется
-        подсказка.
+        Irreversible: a re-created application gets a different URL. If the
+        development environment holds unpublished changes, the platform answers
+        400 FAILED_PRECONDITION – in that case a hint is added to the error.
         """
         try:
             return self._api("DELETE", f"/applications/{app_id}")
@@ -355,29 +355,29 @@ class ElementClient:
             raise
 
     def start_app(self, app_id):
-        """Запустить приложение."""
+        """Start the application."""
         return self._api("PUT", f"/applications/{app_id}/status/start")
 
     def stop_app(self, app_id):
-        """Остановить приложение."""
+        """Stop the application."""
         return self._api("PUT", f"/applications/{app_id}/status/stop")
 
     def get_debug_info(self, app_id):
-        """Данные для сессии отладки приложения: {debug-token, debug-address}.
+        """The data for an application debug session: {debug-token, debug-address}.
 
-        Обёртка над POST /applications/{app_id}/actions/debug (ApplicationDebugInfo).
-        Требует включённой отладки на сервере (config/debug.yml: enabled: true);
-        адрес указывает на debug-сервер платформы (протокол WebSocket), токен –
-        разовый ключ сессии. Управлением приложением не является – только чтение
-        параметров подключения отладчика.
+        A wrapper over POST /applications/{app_id}/actions/debug (ApplicationDebugInfo).
+        Requires debugging enabled on the server (config/debug.yml: enabled: true);
+        the address points at the platform debug server (the WebSocket protocol),
+        the token is a one-time session key. This is not application management –
+        only reading the debugger connection parameters.
         """
         return self._api("POST", f"/applications/{app_id}/actions/debug")
 
     def apply_build(self, app_id, *, image_id=None, project_id=None, assembly_version=None):
-        """Применить сборку к приложению (project/update).
+        """Apply a build to the application (project/update).
 
-        Источник – либо image_id (id сборки), либо project_id с
-        необязательной assembly_version.
+        The source is either image_id (the assembly id) or project_id with an
+        optional assembly_version.
         """
         if image_id:
             source = {"type": "repository", "image-id": image_id}
@@ -392,7 +392,7 @@ class ElementClient:
         )
 
     def create_dump(self, app_id, *, include_users=True, include_binary_data=True, description=""):
-        """Создать дамп приложения."""
+        """Create an application dump."""
         body = {
             "include-users": bool(include_users),
             "include-binary-data": bool(include_binary_data),
@@ -401,46 +401,46 @@ class ElementClient:
         return self._api("POST", f"/applications/{app_id}/dumps", json_body=body)
 
     def get_dump(self, app_id, dump_id):
-        """Статус дампа приложения."""
+        """The status of an application dump."""
         return self._api("GET", f"/applications/{app_id}/dumps/{dump_id}")
 
-    # -- версия технологии -------------------------------------------------
+    # -- technology version ------------------------------------------------
 
     def get_technology_version(self, app_id):
-        """Версия технологии – из карточки приложения."""
+        """The technology version – out of the application card."""
         card = self.get_app(app_id) or {}
         return card.get("technology-version")
 
     def set_technology_version(self, version, app_ids):
-        """Обновить версию технологии приложений; возвращает групповую задачу."""
+        """Update the technology version of the applications; returns a group task."""
         body = {"technology-version": version, "applications": list(app_ids)}
         return self._api(
             "POST", "/tasks/group-tasks/update-applications-technology", json_body=body
         )
 
     def get_group_task(self, task_id):
-        """Статус групповой задачи."""
+        """The status of a group task."""
         return self._api("GET", f"/tasks/group-tasks/{task_id}")
 
-    # -- пространства и проекты ---------------------------------------------
+    # -- spaces and projects ------------------------------------------------
 
     def list_spaces(self):
-        """Список пространств."""
+        """The list of spaces."""
         return _as_list(self._api("GET", "/spaces"), "items", "spaces")
 
     def list_projects(self):
-        """Список проектов."""
+        """The list of projects."""
         return _as_list(self._api("GET", "/projects"), "items", "projects")
 
     def get_project(self, project_id):
-        """Карточка проекта."""
+        """The project card."""
         return self._api("GET", f"/projects/{project_id}")
 
     def delete_project(self, project_id):
-        """Удалить проект."""
+        """Delete a project."""
         return self._api("DELETE", f"/projects/{project_id}")
 
-    # -- сборки проектов -----------------------------------------------------
+    # -- project assemblies --------------------------------------------------
 
     def upload_assembly(
         self,
@@ -452,11 +452,11 @@ class ElementClient:
         commit_id=None,
         commit_message=None,
     ):
-        """Загрузить файл сборки (.xasm/.xlib) на платформу.
+        """Upload an assembly file (.xasm/.xlib) to the platform.
 
-        С project_id сборка добавляется в существующий проект, без него
-        создаётся новый проект. Имена query-параметров у платформы – в
-        PascalCase.
+        With project_id the assembly is added to an existing project, without
+        it a new project is created. The platform spells its query parameter
+        names in PascalCase.
         """
         path = f"/projects/{project_id}/assemblies" if project_id else "/projects"
         query = {
@@ -474,16 +474,17 @@ class ElementClient:
         )
 
     def list_assemblies(self, project_id):
-        """Список сборок проекта (нормализован к списку)."""
+        """The list of the project's assemblies (normalized to a list)."""
         payload = self._api("GET", f"/projects/{project_id}/assemblies")
         return _as_list(payload, "items", "assemblies")
 
     def resolve_assembly_id(self, project_id, version_or_id):
-        """Ид сборки по её версии либо самому ид.
+        """The assembly id by its version or by the id itself.
 
-        API адресует сборку только UUID (на версию отвечает 400 "Version is not a valid
-        UUID"); версию, к тому же, платформа при загрузке перенумеровывает по-своему.
-        Не-UUID аргумент ищется в списке сборок по assembly-version / project-version.
+        The API addresses an assembly by UUID only (to a version it answers 400 "Version
+        is not a valid UUID"); the version, on top of that, is renumbered the platform's
+        own way on upload. A non-UUID argument is looked up in the list of assemblies by
+        assembly-version / project-version.
         """
         if _looks_like_uuid(version_or_id):
             return version_or_id
@@ -497,46 +498,46 @@ class ElementClient:
         ))
 
     def get_assembly(self, project_id, version):
-        """Карточка сборки по версии либо ид."""
+        """The assembly card by version or by id."""
         assembly_id = self.resolve_assembly_id(project_id, version)
         return self._api("GET", f"/projects/{project_id}/assemblies/{assembly_id}")
 
     def delete_assembly(self, project_id, version):
-        """Удалить сборку по версии либо ид."""
+        """Delete an assembly by version or by id."""
         assembly_id = self.resolve_assembly_id(project_id, version)
         return self._api("DELETE", f"/projects/{project_id}/assemblies/{assembly_id}")
 
     def latest_assembly(self, project_id):
-        """Последняя сборка проекта по числовому счётчику версии, либо None."""
+        """The project's latest assembly by the numeric version counter, or None."""
         return pick_latest(self.list_assemblies(project_id))
 
-    # -- ветки среды разработки ----------------------------------------------
+    # -- development-environment branches ------------------------------------
 
     def list_branches(self, project_id="", name=""):
-        """Список веток; фильтры project-id и name необязательны."""
+        """The list of branches; the project-id and name filters are optional."""
         payload = self._api(
             "GET", "/branches", query={"project-id": project_id, "name": name}
         )
         return _as_list(payload, "items", "branches")
 
     def get_branch(self, branch_id):
-        """Карточка ветки."""
+        """The branch card."""
         return self._api("GET", f"/branches/{branch_id}")
 
     def create_branch(self, name, project_id, app_id=None):
-        """Создать ветку среды разработки."""
+        """Create a development-environment branch."""
         body = {"name": name, "kind": "development", "project": {"id": project_id}}
         if app_id:
             body["application"] = {"id": app_id}
         return self._api("POST", "/branches", json_body=body)
 
     def update_branch(self, branch_id, *, app_id=None, merge=False):
-        """Изменить ветку с учётом оптимистической блокировки платформы.
+        """Change a branch, honouring the platform's optimistic locking.
 
-        Сначала читается карточка, затем отправляется тело из текущих
-        значений (version-stamp обязательно возвращается как есть);
-        app_id перепривязывает ветку к приложению, merge=True добавляет
-        write-parameters и означает принятие изменений ветки.
+        The card is read first, then a body made of the current values is sent
+        (version-stamp must be returned exactly as it came); app_id rebinds the
+        branch to an application, merge=True adds write-parameters and means
+        accepting the branch's changes.
         """
         card = self.get_branch(branch_id) or {}
         body = {
@@ -556,17 +557,17 @@ class ElementClient:
         return self._api("PUT", f"/branches/{branch_id}", json_body=body)
 
     def merge_branch(self, branch_id):
-        """Принять изменения ветки (merge)."""
+        """Accept the branch's changes (merge)."""
         return self.update_branch(branch_id, merge=True)
 
     def delete_branch(self, branch_id):
-        """Удалить ветку."""
+        """Delete a branch."""
         return self._api("DELETE", f"/branches/{branch_id}")
 
-    # -- задачи приложений ----------------------------------------------------
+    # -- application tasks ----------------------------------------------------
 
     def list_app_tasks(self, app_id=""):
-        """Задачи приложений; серверного фильтра нет – фильтруем на клиенте."""
+        """Application tasks; there is no server-side filter – we filter on the client."""
         payload = self._api("GET", "/tasks/application-tasks")
         tasks = _as_list(payload, "items", "tasks")
         if not app_id:
@@ -578,18 +579,19 @@ class ElementClient:
         ]
 
     def failed_task_messages(self, app_id):
-        """Тексты ошибок неуспешных задач приложения, свежие первыми.
+        """The error texts of the application's failed tasks, the freshest first.
 
-        Платформа кладёт в карточку приложения обобщённое "Неизвестная ошибка",
-        а подробности (для сборки – файл, строка и колонка каждой ошибки
-        компиляции) отдаёт в поле error-message задачи. Ради этого и метод:
-        без него причина ищется в логах сервера.
+        The platform puts a generic "unknown error" into the application card,
+        while the details (for a build – the file, the line and the column of
+        every compilation error) it gives away in the task's error-message
+        field. That is exactly what this method is for: without it the cause
+        has to be looked for in the server logs.
         """
         messages = []
         try:
             tasks = self.list_app_tasks(app_id)
         except ApiError:
-            return messages  # диагностика не должна подменять исходную ошибку
+            return messages  # diagnostics must not replace the original error
         for task in tasks:
             if not isinstance(task, dict):
                 continue
@@ -603,13 +605,14 @@ class ElementClient:
         messages.reverse()
         return messages
 
-    # -- ожидания состояний -----------------------------------------------------
+    # -- waiting for states -----------------------------------------------------
 
     def _status_error_text(self, app_id, card):
-        """Текст ошибки приложения, дополненный ошибками его задач.
+        """The application error text, extended with the errors of its tasks.
 
-        Карточка несёт обобщённое сообщение платформы, подробности (файл,
-        строка и колонка каждой ошибки компиляции) – в задачах приложения.
+        The card carries the platform's generic message, the details (the file,
+        the line and the column of every compilation error) are in the
+        application's tasks.
         """
         text = card.get("error") or i18n.t("client.no-error-text")
         details = self.failed_task_messages(app_id)
@@ -627,11 +630,11 @@ class ElementClient:
         log=None,
         error_is_fatal=True,
     ):
-        """Дождаться одного из целевых статусов приложения; вернуть карточку.
+        """Wait for one of the target application statuses; return the card.
 
-        Error – терминальный статус: при error_is_fatal (и если он не
-        целевой) ожидание прекращается сразу, с текстами ошибок задач;
-        по истечении таймаута тоже ошибка.
+        Error is a terminal status: with error_is_fatal (and when it is not a
+        target one) the wait stops right away, carrying the error texts of the
+        tasks; running out of the timeout is an error as well.
         """
         deadline = time.monotonic() + timeout
         while True:
@@ -662,15 +665,15 @@ class ElementClient:
             self._sleep(poll)
 
     def wait_app_stable(self, app_id, *, timeout=START_TIMEOUT, poll=POLL_INTERVAL, log=None):
-        """Дождаться выхода приложения из переходных статусов."""
+        """Wait until the application leaves the transitional statuses."""
         return self.wait_app_status(
             app_id, STABLE_STATUSES, timeout=timeout, poll=poll, log=log, error_is_fatal=False
         )
 
     def wait_app_ready(self, app_id, *, timeout=READY_TIMEOUT, poll=POLL_INTERVAL, log=None):
-        """Дождаться готовности нового приложения: стабильный статус и uri.
+        """Wait until a new application is ready: a stable status and a uri.
 
-        Статус Error во время ожидания – немедленная ошибка.
+        The Error status during the wait is an immediate error.
         """
         deadline = time.monotonic() + timeout
         while True:
@@ -700,14 +703,14 @@ class ElementClient:
             self._sleep(poll)
 
     def ensure_running(self, app_id, *, log=None):
-        """Довести приложение до статуса Running после применения сборки.
+        """Bring the application to the Running status after a build has been applied.
 
-        Применение может само перезапустить приложение: ждём стабилизации.
-        Стабильный Error – немедленная ошибка с текстами ошибок задач:
-        применение провалилось, перезапуск этого не лечит, а ожидание
-        Stopped из Error раньше просто съедало весь таймаут. Если итог не
-        Running – останавливаем (если нужно), дожидаемся Stopped, запускаем
-        и дожидаемся Running.
+        Applying may restart the application on its own: we wait for it to
+        stabilize. A stable Error is an immediate error carrying the error
+        texts of the tasks: the apply has failed, a restart does not cure that,
+        while waiting for Stopped out of Error used to simply eat the whole
+        timeout. When the outcome is not Running – we stop the application (if
+        needed), wait for Stopped, start it and wait for Running.
         """
         card = self.wait_app_stable(app_id, timeout=START_TIMEOUT, log=log)
         status = card.get("status")
@@ -726,8 +729,8 @@ class ElementClient:
             if log:
                 log(i18n.t("client.stopping", status=status))
             self.stop_app(app_id)
-            # Error здесь тоже терминален (error_is_fatal по умолчанию):
-            # свалившееся при остановке приложение в Stopped уже не перейдёт.
+            # Error is terminal here as well (error_is_fatal is on by default):
+            # an application that fell over while stopping will never reach Stopped.
             self.wait_app_status(app_id, {"Stopped"}, timeout=STOP_TIMEOUT, log=log)
         if log:
             log(i18n.t("client.starting"))

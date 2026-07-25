@@ -1,8 +1,9 @@
-"""Получение и кеширование токена Console API.
+"""Obtaining and caching the Console API token.
 
-Токен живёт около часа, поэтому кешируется в файле в системном каталоге
-временных файлов с TTL один час; ключ кеша различает пары base_url +
-client_id. При 401 клиент запрашивает токен принудительно (force=True).
+A token lives for about an hour, so it is cached in a file in the system
+temporary directory with a one-hour TTL; the cache key tells base_url +
+client_id pairs apart. On a 401 the client asks for a token forcibly
+(force=True).
 """
 
 from __future__ import annotations
@@ -18,16 +19,16 @@ from . import i18n
 from .errors import ApiError
 
 TOKEN_TTL = 3600.0
-# Запас до истечения: кеш считается годным, если жить осталось больше запаса.
+# Margin before expiry: the cache counts as good while more than the margin is left to live.
 EXPIRY_MARGIN = 30.0
 
 
 def extract_token(payload):
-    """Достать токен из ответа сервера.
+    """Extract the token out of the server response.
 
-    Токен лежит в первом непустом из полей id_token, token, value,
-    access_token. Особый случай: значение "Not implemented" токеном
-    не является и пропускается.
+    The token sits in the first non-empty of the id_token, token, value,
+    access_token fields. A special case: the value "Not implemented" is not
+    a token and is skipped.
     """
     if not isinstance(payload, dict):
         return None
@@ -43,7 +44,7 @@ def extract_token(payload):
 
 
 class TokenManager:
-    """Выдаёт действующий Bearer-токен, пряча кеширование и обновление."""
+    """Hands out a valid Bearer token, hiding caching and refreshing."""
 
     def __init__(self, config, transport, cache_dir=None):
         self._config = config
@@ -53,7 +54,7 @@ class TokenManager:
         self._expires_at = 0.0
 
     def get_token(self, force=False):
-        """Вернуть токен: из памяти, из файлового кеша или запросив новый."""
+        """Return a token: from memory, from the file cache, or by asking for a new one."""
         now = time.time()
         if not force:
             if self._token and now + EXPIRY_MARGIN < self._expires_at:
@@ -69,7 +70,7 @@ class TokenManager:
         self._write_cache()
         return token
 
-    # -- внутреннее -----------------------------------------------------
+    # -- internals -------------------------------------------------------
 
     def _cache_path(self):
         key = f"{self._config.base_url}|{self._config.client_id}"
@@ -93,7 +94,7 @@ class TokenManager:
                 json.dumps(payload), encoding="utf-8"
             )
         except OSError:
-            # Кеш – только ускорение; его недоступность не должна ломать работу.
+            # The cache is only a speedup; its unavailability must not break the work.
             pass
 
     def _request_token(self):
@@ -126,7 +127,7 @@ class TokenManager:
         token = extract_token(payload)
         if not token:
             raise ApiError(
-                "токен не найден в ответе сервера (ожидались поля id_token, token, value или access_token)",
+                i18n.t("auth.token-not-found"),
                 status=response.status,
                 method="POST",
                 url=url,
@@ -136,7 +137,7 @@ class TokenManager:
 
 
 def _safe_body(response):
-    """Тело ответа для деталей ошибки: JSON, а если не разбирается – текст."""
+    """The body for the error details: JSON, or the text when it does not parse."""
     try:
         return response.json()
     except ValueError:

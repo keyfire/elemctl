@@ -1,8 +1,8 @@
-"""Консольный интерфейс elemctl.
+"""The elemctl command-line interface.
 
-Соглашения вывода: результат – JSON в stdout (ensure_ascii=False, отступ 2);
-прогресс длительных операций – строки в stderr; ошибки – JSON с полем error
-в stderr и код возврата 1.
+Output conventions: the result is JSON on stdout (ensure_ascii=False, indent 2);
+the progress of long operations is lines on stderr; an error is JSON with an
+error field on stderr and exit code 1.
 """
 
 from __future__ import annotations
@@ -27,11 +27,11 @@ from .errors import ApiError, ConfigError, ElemctlError
 
 
 def make_client(config):
-    """Фабрика клиента; выделена, чтобы тесты могли её подменить."""
+    """The client factory; extracted so that the tests can substitute it."""
     return ElementClient(config)
 
 
-# -- вывод ---------------------------------------------------------------------
+# -- output --------------------------------------------------------------------
 
 
 def _emit(data):
@@ -48,7 +48,7 @@ def _fail(payload):
 
 
 def _reconfigure_streams():
-    """Перевести вывод консоли в UTF-8 – иначе на Windows ломается кириллица."""
+    """Switch the console output to UTF-8 – otherwise Cyrillic breaks on Windows."""
     for stream in (sys.stdout, sys.stderr):
         reconfigure = getattr(stream, "reconfigure", None)
         if reconfigure is not None:
@@ -58,7 +58,7 @@ def _reconfigure_streams():
                 pass
 
 
-# -- конфигурация и разрешение идентификаторов ------------------------------------
+# -- configuration and identifier resolution -----------------------------------
 
 
 def _config(args):
@@ -72,7 +72,7 @@ def _config(args):
 
 
 def _require(explicit, fallback, what):
-    """Взять явное значение либо значение из конфигурации; иначе ошибка."""
+    """Take the explicit value or the one from the configuration; otherwise an error."""
     value = explicit or fallback
     if not value:
         raise ConfigError(i18n.t("cli.not-set", what=what))
@@ -80,11 +80,12 @@ def _require(explicit, fallback, what):
 
 
 def _ensure_clean_tree(project_dir):
-    """Прервать работу, когда в каталоге проекта есть незакоммиченные изменения.
+    """Abort the work when the project directory has uncommitted changes.
 
-    Проверка идёт до сборки и тем более до загрузки: --require-clean обещает,
-    что в архив попадёт ровно состояние HEAD. Недоступный git – тоже отказ:
-    подтвердить чистоту дерева в этом случае нечем.
+    The check runs before the build and all the more before the upload:
+    --require-clean promises that exactly the state of HEAD goes into the archive.
+    An unavailable git is a refusal as well: in that case there is nothing to
+    confirm a clean tree with.
     """
     directory = find_project_dir(project_dir)
     dirty = git_dirty_files(directory)
@@ -96,7 +97,7 @@ def _ensure_clean_tree(project_dir):
         )
 
 
-# -- обработчики команд -----------------------------------------------------------
+# -- command handlers ----------------------------------------------------------
 
 
 def cmd_token(args):
@@ -123,14 +124,15 @@ def cmd_apps_get(args):
 
 
 def cmd_apps_find(args):
-    """Поиск приложения по имени. Отсутствие приложения – это ответ, а не ошибка.
+    """Look an application up by name. A missing application is an answer, not an error.
 
-    Код возврата 0 в обоих случаях: признак несёт поле found. Ненулевой код возврата
-    означает сбой запроса (нет доступа, сеть, конфигурация) и сопровождается JSON'ом
-    с полем error в stderr – иначе вызывающий не отличит "стенда нет" от "не смогли спросить".
+    The exit code is 0 in both cases: the found field carries the verdict. A non-zero exit
+    code means the request itself failed (no access, network, configuration) and comes with
+    JSON carrying an error field on stderr – otherwise the caller cannot tell "there is no
+    stand" from "we failed to ask".
 
-    Удалённые приложения (статус Deleted) по умолчанию пропускаются, чтобы найденный id
-    был пригоден для работы; флаг --include-deleted возвращает поиск среди всех приложений.
+    Deleted applications (status Deleted) are skipped by default, so that the id found is fit
+    for work; the --include-deleted flag brings the search back to all the applications.
     """
     client = make_client(_config(args))
     app = client.find_app(args.name, include_deleted=args.include_deleted)
@@ -142,12 +144,12 @@ def cmd_apps_find(args):
 
 
 def _create_app_from_args(client, config, args):
-    """Создать приложение по флагам создания; вернуть карточку.
+    """Create an application from the creation flags; return its card.
 
-    Общая логика apps create и apps ensure. Источник – указанная сборка
-    (--version-id), последняя сборка проекта (--latest-build) либо проект
-    целиком (--project-id, чревато пустым каркасом). При --wait дожидается
-    готовности приложения.
+    The logic shared by apps create and apps ensure. The source is the given
+    assembly (--version-id), the project's latest assembly (--latest-build) or
+    the project as a whole (--project-id, which risks an empty skeleton). With
+    --wait it waits until the application is ready.
     """
     project_id = args.project_id or config.project_id
     version_id = args.version_id
@@ -158,8 +160,7 @@ def _create_app_from_args(client, config, args):
         latest = client.latest_assembly(project_id)
         if latest is None:
             raise ElemctlError(
-                f"у проекта {project_id} нет сборок – загрузите сборку (builds upload) "
-                "или укажите --version-id"
+                i18n.t("cli.project-has-no-builds", project_id=project_id)
             )
         version_id = extract_assembly_id(latest)
 
@@ -171,10 +172,7 @@ def _create_app_from_args(client, config, args):
     if version_id:
         card = client.create_app(args.name, project_version_id=version_id, **kwargs)
     elif project_id:
-        _progress(
-            "внимание: источник – проект целиком; на части конфигураций платформы "
-            "это даёт пустой каркас (надёжнее --latest-build)"
-        )
+        _progress(i18n.t("cli.whole-project-source-warning"))
         card = client.create_app(args.name, image_id=project_id, **kwargs)
     else:
         raise ConfigError(i18n.t("cli.app-source-required"))
@@ -194,14 +192,15 @@ def cmd_apps_create(args):
 
 
 def cmd_apps_ensure(args):
-    """Идемпотентно привести приложение с данным именем в существование.
+    """Idempotently bring an application with the given name into existence.
 
-    Ищет приложение по правилам apps find (удалённые в статусе Deleted не в
-    счёт): если оно уже есть – ничего не делает и возвращает created: false;
-    если нет – создаёт по флагам создания и возвращает created: true.
-    Существующее приложение никогда не пересоздаётся: delete + create дают
-    новый URL и рвут внешние привязки к прежнему. Код возврата 0 в обоих
-    случаях; сбой запроса – JSON с полем error в stderr и код возврата 1.
+    It looks the application up by the rules of apps find (deleted ones, in
+    status Deleted, do not count): if it is already there – it does nothing and
+    returns created: false; if it is not – it creates one from the creation flags
+    and returns created: true. An existing application is never re-created:
+    delete + create give a new URL and break the external links to the previous
+    one. The exit code is 0 in both cases; a failed request is JSON with an error
+    field on stderr and exit code 1.
     """
     config = _config(args)
     client = make_client(config)
@@ -300,12 +299,13 @@ def cmd_builds_get(args):
 
 
 def _upload_target(args, config):
-    """Проект-цель загрузки и источник этого выбора.
+    """The target project of the upload and the source of that choice.
 
-    Источники: "flag" – флаг --project-id, "env" – ELEMENT_PROJECT_ID из
-    окружения или .env-файла, None – проект не задан, платформа создаст новый.
-    Флаг --new-project отключает привязку из окружения; вместе с --project-id
-    он противоречив, это ошибка вызова.
+    The sources: "flag" – the --project-id flag, "env" – ELEMENT_PROJECT_ID from
+    the environment or the .env file, None – no project is set, the platform will
+    create a new one. The --new-project flag switches the binding from the
+    environment off; together with --project-id it is contradictory, which is a
+    call error.
     """
     if args.new_project:
         if args.project_id:
@@ -319,11 +319,11 @@ def _upload_target(args, config):
 
 
 def _warn_upload_name_mismatch(client, project_id, file_path):
-    """Предупредить, когда имя заливаемой сборки не совпадает с именем проекта.
+    """Warn when the name of the uploaded assembly differs from the project name.
 
-    Панель показывает проект под именем последней залитой сборки, поэтому
-    чужая сборка молча переименует проект. Проверка вспомогательная: любой
-    её сбой не мешает загрузке.
+    The console shows the project under the name of the last uploaded assembly,
+    so a foreign assembly silently renames the project. The check is auxiliary:
+    any failure of it does not get in the way of the upload.
     """
     try:
         assembly_name = (read_assembly_manifest(file_path).get("Name") or "").strip()
@@ -384,10 +384,10 @@ def cmd_builds_delete(args):
 
 
 def _build_result_dict(result):
-    """Словарь результата сборки для JSON-вывода.
+    """The dictionary of the build result for the JSON output.
 
-    Версия отдаётся отдельными полями, чтобы CI не выковыривал её из имени
-    файла; version-source отвечает на вопрос "откуда взялась".
+    The version is given as separate fields, so that CI does not have to dig it
+    out of the file name; version-source answers the question "where it came from".
     """
     return {
         "file": str(result.file),
@@ -542,11 +542,12 @@ def cmd_tech_set(args):
 
 
 def cmd_debug_adapter(args):
-    """Путь к каталогу debug-адаптера платформы, принесённому плагином.
+    """The path to the platform debug adapter directory brought by the plugin.
 
-    Каталог содержит подкаталог repo/ с jar-файлами адаптера – это готовое значение
-    настройки xbslDebug.adapterPath для расширения VS Code. Отсутствие плагина – это
-    ответ (found: false, код 0), а не ошибка: ненулевой код означал бы сбой.
+    The directory holds a repo/ subdirectory with the jar files of the adapter – that is
+    the ready value of the xbslDebug.adapterPath setting for the VS Code extension. A
+    missing plugin is an answer (found: false, code 0), not an error: a non-zero code
+    would mean a failure.
     """
     path = plugins.debug_adapter_path()
     if path is None:
@@ -557,7 +558,7 @@ def cmd_debug_adapter(args):
 
 
 def cmd_plugins(args):
-    """Диагностика плагинов: объявленные каталоги debug-адаптера (в т.ч. без jar)."""
+    """Plugin diagnostics: the declared debug adapter directories (jar-less ones included)."""
     paths = plugins.debug_adapter_paths()
     _emit(
         {
@@ -570,7 +571,7 @@ def cmd_plugins(args):
 
 
 def cmd_self_update(args):
-    """Обновить установленный elemctl распаковкой колеса (безопасно при занятом exe)."""
+    """Update the installed elemctl by unpacking the wheel (safe while the exe is busy)."""
     from . import selfupdate
 
     old, new = selfupdate.self_update(version=args.version, log=_progress)
@@ -582,18 +583,16 @@ def cmd_mcp(args):
     try:
         from . import mcp_server
     except ImportError:
-        raise ElemctlError(
-            'MCP-зависимость не установлена – выполните: pip install "elemctl[mcp]"'
-        )
+        raise ElemctlError(i18n.t("cli.mcp-extra-required"))
     mcp_server.main(config=_config(args))
     return 0
 
 
-# -- парсер --------------------------------------------------------------------
+# -- parser --------------------------------------------------------------------
 
 
 def _add_create_flags(p):
-    """Добавить флаги источника и создания приложения (общие для apps create и apps ensure)."""
+    """Add the application source and creation flags (shared by apps create and apps ensure)."""
     p.add_argument("name", metavar="NAME", help=i18n.t("cli.help.arg.app-name"))
     p.add_argument("--project-id", help=i18n.t("cli.help.create-project-id"))
     p.add_argument("--version-id", help=i18n.t("cli.help.create-version-id"))
@@ -622,14 +621,14 @@ def build_parser():
     parser.add_argument("--version", action="version", help=i18n.t("cli.help.version"),
                         version=f"elemctl {__version__}")
 
-    # title= renders the list under "команды:" instead of argparse's default
-    # "positional arguments: команда" - the same heading the sibling tools use.
+    # title= renders the list under a "commands:" heading instead of argparse's default
+    # "positional arguments: command" – the same heading the sibling tools use.
     sub = parser.add_subparsers(
         dest="command",
         metavar=i18n.t("cli.help.command-metavar"),
         title=i18n.t("cli.help.commands-title"),
     )
-    action = i18n.t("cli.help.action-metavar")  # metavar подкоманд каждой группы
+    action = i18n.t("cli.help.action-metavar")  # the metavar for every group's subcommands
 
     p = sub.add_parser("token", help=i18n.t("cli.help.token"))
     p.set_defaults(handler=cmd_token)
@@ -864,18 +863,20 @@ def build_parser():
 
 
 def main(argv=None):
-    """Точка входа CLI; возвращает код завершения процесса."""
+    """The CLI entry point; returns the exit code of the process."""
     _reconfigure_streams()
     if argv is None:
         argv = sys.argv[1:]
-    # Язык нужен ДО build_parser: справка (help=) собирается на выбранном языке. Предсканируем
-    # argv на --lang; env и локаль t() учтёт сам через current_lang() при сборке парсера.
+    # The language is needed BEFORE build_parser: the help (help=) is assembled in the chosen
+    # language. So argv is prescanned for --lang; env and the locale are taken into account by
+    # t() itself through current_lang() while the parser is being built.
     i18n.set_lang(i18n.lang_from_argv(argv))
     parser = build_parser()
     args = parser.parse_args(argv)
-    # Повторно закрепляем язык уже из разобранных аргументов: argparse принимает и сокращения
-    # (--lan en), которых предскан не ловит; для рантайма это авторитетный источник.
-    i18n.set_lang(args.lang)  # None сохраняет порядок env / локаль / ru
+    # Pin the language again, now out of the parsed arguments: argparse also accepts
+    # abbreviations (--lan en), which the prescan does not catch; for the runtime this is the
+    # authoritative source.
+    i18n.set_lang(args.lang)  # None keeps the env / locale / ru order
     handler = getattr(args, "handler", None)
     if handler is None:
         parser.print_help(sys.stderr)

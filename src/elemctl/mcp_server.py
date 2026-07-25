@@ -1,8 +1,8 @@
-"""MCP-сервер elemctl: операции платформы как инструменты для AI-агентов.
+"""The elemctl MCP server: platform operations as tools for AI agents.
 
-Транспорт – stdio; реквизиты подключения – из переменных окружения
-ELEMENT_* или .env-файла в текущем каталоге. Требует optional extra
-"elemctl[mcp]" (пакет mcp>=1.2, используется FastMCP).
+The transport is stdio; the connection credentials come from the ELEMENT_*
+environment variables or from the .env file in the current directory. Requires
+the optional extra "elemctl[mcp]" (the mcp>=1.2 package, FastMCP is used).
 """
 
 from __future__ import annotations
@@ -11,9 +11,9 @@ from datetime import datetime, timedelta, timezone
 
 try:
     from mcp.server.fastmcp import FastMCP
-except ImportError as error:  # pragma: no cover - ветка без extra
+except ImportError as error:  # pragma: no cover - the branch without the extra
     raise ImportError(
-        'для MCP-сервера нужен extra: pip install "elemctl[mcp]"'
+        'the MCP server needs the extra: pip install "elemctl[mcp]"'
     ) from error
 
 from . import i18n, plugins
@@ -46,11 +46,11 @@ INSTRUCTIONS = (
 
 
 def _brief_project(project):
-    """Краткая карточка проекта: то, по чему его узнают и выбирают.
+    """A brief project card: what the project is recognized and picked by.
 
-    Полная карточка несёт группу, default-image, код артефакта и даты – в
-    списке это лишнее. Счётчик приложений оставлен: по нему видно, какие
-    проекты реально применяются.
+    The full card carries the group, the default image, the artifact code and the
+    dates – all of it redundant in a listing. The application counter is kept: it
+    shows which projects are actually in use.
     """
     return {
         "id": project.get("id"),
@@ -63,21 +63,21 @@ def _brief_project(project):
 
 
 def create_server(config=None):
-    """Создать MCP-сервер elemctl со всеми инструментами.
+    """Create the elemctl MCP server with all of its tools.
 
-    config – готовая конфигурация; без неё она собирается из переменных
-    окружения и .env при первом обращении к платформе.
+    config – a ready configuration; without it the configuration is assembled
+    from the environment variables and .env on the first call to the platform.
     """
     server = FastMCP("elemctl", instructions=INSTRUCTIONS)
     state = {"clients": {}, "config": config}
 
     def client(env_file: str = ""):
-        """Клиент платформы для нужного окружения.
+        """A platform client for the requested environment.
 
-        Без env_file – конфигурация, с которой запущен сервер; с ним –
-        отдельный клиент по указанному .env, он кэшируется по пути. Так один
-        сервер обслуживает и облако, и локальный стенд: раньше окружение
-        задавалось только при запуске, и второй стенд оставался недоступен.
+        Without env_file – the configuration the server was started with; with it –
+        a separate client for the given .env, cached by that path. This way a single
+        server serves both the cloud and a local installation: previously the
+        environment was set only at startup, and the second one stayed out of reach.
         """
         key = env_file or ""
         if key not in state["clients"]:
@@ -122,10 +122,10 @@ def create_server(config=None):
         return {"id": app.get("id"), "found": True, "application": app}
 
     def _create_app(name, project_id, version_id, space_id, development_mode, env_file=""):
-        """Создать приложение (общая логика create_app и ensure_app).
+        """Create an application (the logic shared by create_app and ensure_app).
 
-        Источник – version_id (id сборки) либо последняя сборка project_id
-        (создание из проекта целиком может дать пустой каркас).
+        The source is version_id (an assembly id) or the latest assembly of
+        project_id (creating from a whole project can yield an empty skeleton).
         """
         source_version_id = version_id
         if not source_version_id:
@@ -134,7 +134,7 @@ def create_server(config=None):
             latest = client(env_file).latest_assembly(project_id)
             if latest is None:
                 raise ElemctlError(
-                    f"у проекта {project_id} нет сборок – загрузите сборку или укажите version_id"
+                    i18n.t("mcp.project-has-no-builds", project_id=project_id)
                 )
             source_version_id = extract_assembly_id(latest)
         return client(env_file).create_app(
@@ -247,8 +247,8 @@ def create_server(config=None):
         """Список сборок проекта."""
         return client(env_file).list_assemblies(project_id)
 
-    # Имя функции отличается от имени инструмента, чтобы не затенять
-    # импортированный build_assembly из модуля build.
+    # The function name differs from the tool name so that it does not shadow
+    # build_assembly imported from the build module.
     @server.tool(name="build_assembly")
     def build_assembly_tool(project_dir: str = "", output_dir: str = "", version: str = "") -> dict:
         """Локально собрать архив .xasm/.xlib из исходников проекта."""
@@ -257,7 +257,7 @@ def create_server(config=None):
         )
         return {"file": str(result.file), "version": result.version, "kind": result.kind}
 
-    # Имя функции отличается от имени инструмента по той же причине, что и у build_assembly.
+    # The function name differs from the tool name for the same reason as build_assembly.
     @server.tool(name="inspect_assembly")
     def inspect_assembly_tool(file: str) -> dict:
         """Разобрать архив сборки (.xasm/.xlib): манифест, свойства проекта, подсистемы и глобальные типы с полными именами."""
@@ -333,11 +333,12 @@ def create_server(config=None):
 
 
 def main(config=None):
-    """Запустить MCP-сервер на stdio.
+    """Start the MCP server on stdio.
 
-    config – готовая конфигурация (например, собранная CLI из --env-file
-    и остальных глобальных аргументов); без неё она собирается из
-    переменных окружения и .env при первом обращении к платформе.
+    config – a ready configuration (the one the CLI assembled from --env-file
+    and the rest of the global arguments, for instance); without it the
+    configuration is assembled from the environment variables and .env on the
+    first call to the platform.
     """
     create_server(config).run()
 

@@ -46,6 +46,14 @@ day are named in the heading. The format follows
   with the tasks' compilation errors instead of polling for `Stopped` through the whole
   180-second timeout (an application in `Error` never reaches `Stopped`).
 
+### Fixed
+- `--lang en` is now English everywhere. About forty user-facing strings were built into
+  the modules as Russian literals and bypassed the message catalog, so an English-speaking
+  user still got Russian out of `deploy` (the problems of the report), `self-update` (all of
+  its progress), the configuration errors, the plugin loader and several `apps` errors. They
+  are keys of the catalog now, and a test walks the modules to keep new literals from
+  creeping back in.
+
 ## 2026-07-24 – 0.13.1
 
 ### Fixed

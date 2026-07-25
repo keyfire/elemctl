@@ -23,7 +23,7 @@ Scope: runtime output AND the argparse --help text are translated. Help strings 
 through t() as well, so the parser has to be built after the language is resolved – cli.main
 reads --lang out of argv with lang_from_argv() before build_parser(), because argparse itself
 learns --lang only when it parses, which is too late to pick the help language. Docstrings and
-code comments stay in Russian.
+code comments are source text rather than runtime output and stay outside this scope.
 """
 
 from __future__ import annotations
@@ -137,6 +137,22 @@ MESSAGES = {
         "ru": "файл сборки не найден: {path}",
         "en": "build file not found: {path}",
     },
+    "cli.project-has-no-builds": {
+        "ru": "у проекта {project_id} нет сборок – загрузите сборку (builds upload) "
+              "или укажите --version-id",
+        "en": "project {project_id} has no builds – upload one (builds upload) or "
+              "pass --version-id",
+    },
+    "cli.whole-project-source-warning": {
+        "ru": "внимание: источник – проект целиком; на части конфигураций платформы "
+              "это даёт пустой каркас (надёжнее --latest-build)",
+        "en": "warning: the source is the whole project; on some platform configurations "
+              "this yields an empty skeleton (--latest-build is safer)",
+    },
+    "cli.mcp-extra-required": {
+        "ru": 'MCP-зависимость не установлена – выполните: pip install "elemctl[mcp]"',
+        "en": 'the MCP dependency is not installed – run: pip install "elemctl[mcp]"',
+    },
     "cli.require-clean-no-git": {
         "ru": "--require-clean: git недоступен или {dir} не в репозитории – "
               "подтвердить чистоту дерева нечем",
@@ -153,6 +169,12 @@ MESSAGES = {
     "client.assembly-not-found": {
         "ru": "сборка '{version}' не найдена в проекте {project} (ни по версии, ни по ид)",
         "en": "assembly '{version}' not found in project {project} (neither by version nor by id)",
+    },
+    "client.app-source-exclusive": {
+        "ru": "источник приложения – ровно один из параметров: project_version_id "
+              "либо image_id",
+        "en": "the application source is exactly one of the parameters: "
+              "project_version_id or image_id",
     },
     "client.app-not-found": {
         "ru": "приложение '{name}' не найдено (ни по ид, ни по точному имени)",
@@ -236,10 +258,78 @@ MESSAGES = {
         "ru": "неизвестные параметры конфигурации: {unknown}",
         "en": "unknown configuration parameters: {unknown}",
     },
+    "config.env-file-not-found": {
+        "ru": ".env-файл не найден: {path}",
+        "en": ".env file not found: {path}",
+    },
+    "config.connection-not-set": {
+        "ru": "не заданы параметры подключения: {missing} (переменные окружения, "
+              ".env-файл или флаги CLI)",
+        "en": "connection parameters are not set: {missing} (environment variables, "
+              "the .env file or CLI flags)",
+    },
     # -- mcp_server.py ------------------------------------------------------------
     "mcp.project-or-version-required": {
         "ru": "нужен project_id или version_id",
         "en": "project_id or version_id is required",
+    },
+    "mcp.project-has-no-builds": {
+        "ru": "у проекта {project_id} нет сборок – загрузите сборку или укажите version_id",
+        "en": "project {project_id} has no builds – upload one or pass version_id",
+    },
+    "mcp.extra-required": {
+        "ru": 'для MCP-сервера нужен extra: pip install "elemctl[mcp]"',
+        "en": 'the MCP server needs the extra: pip install "elemctl[mcp]"',
+    },
+    # -- plugins.py ---------------------------------------------------------------
+    "plugins.entry-point-failed": {
+        "ru": "точка расширения '{name}' группы {group} не загрузилась ({value}): {error}",
+        "en": "the entry point '{name}' of the group {group} failed to load ({value}): {error}",
+    },
+    # -- selfupdate.py ------------------------------------------------------------
+    "selfupdate.version-not-found": {
+        "ru": "версия не найдена на PyPI",
+        "en": "the version was not found on PyPI",
+    },
+    "selfupdate.pypi-http-error": {
+        "ru": "PyPI ответил {status}",
+        "en": "PyPI responded {status}",
+    },
+    "selfupdate.pypi-unreachable": {
+        "ru": "не удалось обратиться к PyPI: {error}",
+        "en": "could not reach PyPI: {error}",
+    },
+    "selfupdate.no-wheel": {
+        "ru": "на PyPI нет wheel для elemctl {version}",
+        "en": "PyPI has no wheel for elemctl {version}",
+    },
+    "selfupdate.already-current": {
+        "ru": "уже актуально: elemctl {version}",
+        "en": "already current: elemctl {version}",
+    },
+    "selfupdate.downloading": {
+        "ru": "скачиваю elemctl {version} с PyPI...",
+        "en": "downloading elemctl {version} from PyPI...",
+    },
+    "selfupdate.download-failed": {
+        "ru": "не удалось скачать колесо: {error}",
+        "en": "could not download the wheel: {error}",
+    },
+    "selfupdate.download-failed": {
+        "ru": "не удалось скачать колесо: {error}",
+        "en": "could not download the wheel: {error}",
+    },
+    "selfupdate.unpacking": {
+        "ru": "распаковываю в {path}...",
+        "en": "unpacking into {path}...",
+    },
+    "selfupdate.done": {
+        "ru": "готово: elemctl {before} -> {after}. Перезапустите MCP-сессии (elemctl mcp).",
+        "en": "done: elemctl {before} -> {after}. Restart the MCP sessions (elemctl mcp).",
+    },
+    "selfupdate.metadata-updated": {
+        "ru": "обновлён pipx_metadata.json",
+        "en": "pipx_metadata.json updated",
     },
     # -- transport.py -------------------------------------------------------------
     "transport.network-error": {
@@ -250,6 +340,12 @@ MESSAGES = {
     "auth.token-http-error": {
         "ru": "не удалось получить токен: HTTP {status}",
         "en": "failed to obtain a token: HTTP {status}",
+    },
+    "auth.token-not-found": {
+        "ru": "токен не найден в ответе сервера (ожидались поля id_token, token, "
+              "value или access_token)",
+        "en": "no token in the server response (the id_token, token, value or "
+              "access_token fields were expected)",
     },
     # -- deploy.py ----------------------------------------------------------------
     "deploy.built": {
@@ -286,6 +382,26 @@ MESSAGES = {
         "ru": "без текста ошибки",
         "en": "no error text",
     },
+    "deploy.task": {
+        "ru": "задача",
+        "en": "task",
+    },
+    "deploy.task-failed": {
+        "ru": "задача {label} завершилась со статусом {status}: {message}",
+        "en": "task {label} finished with status {status}: {message}",
+    },
+    "deploy.assembly-mismatch": {
+        "ru": "применённая сборка {applied} не совпадает с загруженной {expected} – "
+              "похоже, платформа откатила применение",
+        "en": "the applied build {applied} does not match the uploaded one {expected} – "
+              "the platform seems to have rolled the apply back",
+    },
+    "deploy.version-mismatch": {
+        "ru": "применённая версия {applied} не совпадает с загруженной {expected} – "
+              "похоже, платформа откатила применение",
+        "en": "the applied version {applied} does not match the uploaded one {expected} – "
+              "the platform seems to have rolled the apply back",
+    },
     "deploy.verify-passed": {
         "ru": "проверка пройдена: сборка применена",
         "en": "verification passed: the build is applied",
@@ -317,7 +433,7 @@ MESSAGES = {
         "ru": "Client-Secret к этому Client-Id (ELEMENT_CLIENT_SECRET)",
         "en": "the Client-Secret for that Client-Id (ELEMENT_CLIENT_SECRET)",
     },
-    # argparse печатает свои -h/--help по-английски всегда (см. i18n.ArgumentParser).
+    # argparse always prints its own -h/--help in English (see i18n.ArgumentParser).
     "cli.help.group.positional": {
         "ru": "аргументы",
         "en": "positional arguments",
@@ -334,7 +450,7 @@ MESSAGES = {
         "ru": "показать версию и выйти",
         "en": "show the version and exit",
     },
-    # -- аргументы-идентификаторы, общие для нескольких команд --
+    # -- identifier arguments shared by several commands --
     "cli.help.arg.app-id": {
         "ru": "ид приложения (по умолчанию ELEMENT_APP_ID)",
         "en": "the application id (default: ELEMENT_APP_ID)",
@@ -847,12 +963,12 @@ def t(key: str, /, **fields) -> str:
 
 
 class ArgumentParser(_argparse.ArgumentParser):
-    """ArgumentParser с локализованным `-h/--help`.
+    """ArgumentParser with a localized `-h/--help`.
 
-    Свои встроенные строки argparse берёт из каталога gettext, то есть по-английски
-    всегда: в русской справке каждой команды строка `-h, --help` оставалась на чужом
-    языке. Вложенные парсеры наследуют класс родителя (`add_subparsers` подставляет
-    `parser_class=type(self)`), поэтому достаточно создать этим классом корневой.
+    argparse takes its own built-in strings from the gettext catalog, that is, always in
+    English: in the Russian help of every command the `-h, --help` line stayed in a foreign
+    language. Nested parsers inherit the class of their parent (`add_subparsers` passes
+    `parser_class=type(self)`), so it is enough to create the root one with this class.
     """
 
     def __init__(self, *args, add_help: bool = True, **kwargs) -> None:

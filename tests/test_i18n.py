@@ -1,12 +1,14 @@
-"""Двуязычный вывод: целостность каталога и выбор языка.
+"""Bilingual output: catalog integrity and language selection.
 
-Каталог собирается из словаря MESSAGES при импорте модуля i18n, поэтому проверки
-покрывают каждое пользовательское сообщение elemctl.
+The catalog is assembled out of the MESSAGES dictionary when the i18n module is imported,
+so these checks cover every user-facing message of elemctl.
 """
 
 from __future__ import annotations
 
+import re
 import string
+from pathlib import Path
 
 import pytest
 
@@ -16,18 +18,18 @@ _FORMATTER = string.Formatter()
 
 
 def _fields(template: str) -> list[str]:
-    """Имена полей шаблона. Удвоенная скобка – литерал и полей не даёт."""
+    """Field names of a template. A doubled brace is a literal and yields no field."""
     return sorted({name for _, name, _, _ in _FORMATTER.parse(template) if name})
 
 
 @pytest.fixture(autouse=True)
 def _restore_lang():
-    """Эти тесты двигают язык; остальная сюита ожидает русский."""
+    """These tests move the language around; the rest of the suite expects Russian."""
     yield
     i18n.set_lang("ru")
 
 
-# --- Целостность каталога -------------------------------------------------------------
+# --- Catalog integrity ------------------------------------------------------------------
 
 def test_catalog_is_not_empty():
     assert i18n.registered_keys()
@@ -41,7 +43,7 @@ def test_every_key_carries_every_language():
 
 
 def test_placeholders_are_the_same_in_every_language():
-    """Поле, которое есть в одном языке и отсутствует в другом, – это KeyError в рантайме."""
+    """A field present in one language and missing in another is a KeyError at runtime."""
     for key in i18n.registered_keys():
         entry = i18n.translations(key)
         fields = {lang: _fields(entry[lang]) for lang in i18n.LANGS}
@@ -50,7 +52,7 @@ def test_placeholders_are_the_same_in_every_language():
 
 
 def test_every_template_can_be_formatted():
-    """Ловит лишнюю скобку: t() всегда форматирует, поэтому литеральная скобка удваивается."""
+    """Catches a stray brace: t() always formats, so a literal brace has to be doubled."""
     for key in i18n.registered_keys():
         entry = i18n.translations(key)
         for lang in i18n.LANGS:
@@ -63,7 +65,7 @@ def test_every_template_can_be_formatted():
 
 
 def test_field_names_are_plain_ascii_identifiers():
-    """Все поля – ASCII-идентификаторы; кириллическое 'поле' обычно означает неудвоенную скобку."""
+    """Every field is an ASCII identifier; a Cyrillic 'field' usually means an undoubled brace."""
     for key in i18n.registered_keys():
         for lang in i18n.LANGS:
             for name in _fields(i18n.translations(key)[lang]):
@@ -71,17 +73,17 @@ def test_field_names_are_plain_ascii_identifiers():
 
 
 def test_translations_actually_differ_between_languages():
-    """Защита от 'en', скопированного из 'ru': большинство сообщений должно различаться."""
+    """Guards against an 'en' copied over from 'ru': most messages have to differ."""
     same = [
         key
         for key in i18n.registered_keys()
         if i18n.translations(key)["ru"] == i18n.translations(key)["en"]
     ]
-    # Единичные совпадения возможны (например, короткие технические строки), но не массово.
+    # A one-off match is possible (a short technical string, say), but not en masse.
     assert len(same) <= 1, f"слишком много одинаковых в обоих языках: {same}"
 
 
-# --- Поиск ----------------------------------------------------------------------------
+# --- Lookup ---------------------------------------------------------------------------
 
 def test_unknown_key_is_returned_as_is():
     assert i18n.t("нет.такого.ключа") == "нет.такого.ключа"
@@ -106,12 +108,12 @@ def test_register_rejects_a_missing_language():
 
 def test_register_rejects_a_conflicting_redefinition():
     i18n.register({"тест.повтор": {"ru": "текст", "en": "text"}})
-    i18n.register({"тест.повтор": {"ru": "текст", "en": "text"}})  # идентичное – можно
+    i18n.register({"тест.повтор": {"ru": "текст", "en": "text"}})  # identical – allowed
     with pytest.raises(i18n.MessageError, match="already registered"):
         i18n.register({"тест.повтор": {"ru": "другое", "en": "other"}})
 
 
-# --- Выбор языка ----------------------------------------------------------------------
+# --- Language selection -----------------------------------------------------------------
 
 def test_set_lang_rejects_an_unknown_language():
     with pytest.raises(i18n.MessageError, match="Unknown language"):
@@ -146,7 +148,7 @@ def test_system_locale_is_recognised(monkeypatch):
     assert i18n.current_lang() == "en"
 
 
-# --- Предскан --lang в argv (справка собирается до разбора) ----------------------------
+# --- Prescan of --lang in argv (the help is built before parsing) -----------------------
 
 def test_lang_from_argv_reads_separate_value():
     assert i18n.lang_from_argv(["--lang", "en", "apps", "list"]) == "en"
@@ -161,9 +163,54 @@ def test_lang_from_argv_is_none_without_flag():
 
 
 def test_lang_from_argv_rejects_unknown_value():
-    # Неизвестный язык не закрепляется – argparse потом отвергнет его своим сообщением.
+    # An unknown language is not pinned – argparse rejects it later with its own message.
     assert i18n.lang_from_argv(["--lang", "de"]) is None
 
 
 def test_lang_from_argv_ignores_dangling_flag():
     assert i18n.lang_from_argv(["apps", "--lang"]) is None
+
+
+def test_no_russian_string_literals_outside_the_catalog():
+    """User-facing strings live in the catalog, not as literals in the modules.
+
+    A Russian literal built into a module bypasses the catalog, so `--lang en`
+    keeps printing Russian to an English-speaking user. The check walks the AST
+    of every module and looks for Cyrillic in string constants that are neither
+    docstrings nor platform identifiers.
+
+    The exceptions are deliberate: the catalog itself holds the translations,
+    and mcp_server keeps the Russian tool descriptions and the INSTRUCTIONS
+    literal the agent reads.
+    """
+    import ast
+
+    # Platform keys, file names and property values quoted as they are.
+    platform_literals = {
+        "Проект.yaml", "Assembly.yaml", "Подсистема.yaml", "Ресурсы", "Глобально",
+        "ВПодсистеме", "Имя", "Поставщик", "Версия", "ВидПроекта", "Библиотека",
+        "ВидЭлемента", "ОбластьВидимости", "РежимСовместимости", "Представление",
+        "библиотека", "приложение",
+    }
+    package = Path(i18n.__file__).parent
+    offenders = []
+    for module in sorted(package.glob("*.py")):
+        if module.name in ("i18n.py", "mcp_server.py"):
+            continue
+        tree = ast.parse(module.read_text(encoding="utf-8"))
+        docstrings = {
+            id(node.body[0].value)
+            for node in ast.walk(tree)
+            if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef))
+            and node.body
+            and isinstance(node.body[0], ast.Expr)
+            and isinstance(node.body[0].value, ast.Constant)
+        }
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Constant) or not isinstance(node.value, str):
+                continue
+            if id(node) in docstrings or node.value.strip() in platform_literals:
+                continue
+            if re.search(r"[А-Яа-яЁё]", node.value):
+                offenders.append(f"{module.name}:{node.lineno}: {node.value[:60]}")
+    assert not offenders, "Russian literals outside the catalog:\n" + "\n".join(offenders)

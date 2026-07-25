@@ -1,7 +1,8 @@
-"""Конфигурация подключения к платформе.
+"""Configuration of the connection to the platform.
 
-Параметры собираются из трёх источников по убыванию приоритета:
-явные аргументы, переменные окружения, .env-файл (раздел 2 спецификации).
+The parameters are collected from three sources, in decreasing priority:
+explicit arguments, environment variables, the .env file (section 2 of the
+specification).
 """
 
 from __future__ import annotations
@@ -13,7 +14,7 @@ from pathlib import Path
 from . import i18n
 from .errors import ConfigError
 
-# Соответствие полей конфигурации переменным окружения.
+# Which environment variable each configuration field corresponds to.
 ENV_KEYS = {
     "base_url": "ELEMENT_BASE_URL",
     "client_id": "ELEMENT_CLIENT_ID",
@@ -27,11 +28,11 @@ DEFAULT_TIMEOUT = 60.0
 
 
 def parse_env_file(path):
-    """Разобрать .env-файл в словарь KEY -> VALUE.
+    """Parse a .env file into a KEY -> VALUE dictionary.
 
-    Правила: пустые строки и строки с "#" в начале пропускаются, допускается
-    префикс "export " и одинарные или двойные кавычки вокруг значения;
-    кодировка UTF-8, возможен BOM.
+    The rules: empty lines and lines starting with "#" are skipped, an "export "
+    prefix as well as single or double quotes around the value are allowed;
+    the encoding is UTF-8, a BOM is possible.
     """
     values = {}
     text = Path(path).read_text(encoding="utf-8-sig")
@@ -55,7 +56,7 @@ def parse_env_file(path):
 
 @dataclass
 class Config:
-    """Параметры подключения к Console API."""
+    """The parameters of the connection to the Console API."""
 
     base_url: str = ""
     client_id: str = ""
@@ -66,16 +67,16 @@ class Config:
     timeout: float = field(default=DEFAULT_TIMEOUT)
 
     def __post_init__(self):
-        # Хвостовой слэш базового URL всегда обрезается.
+        # The trailing slash of the base URL is always stripped.
         self.base_url = (self.base_url or "").rstrip("/")
 
     @classmethod
     def from_env(cls, env_file=None, environ=None, **overrides):
-        """Собрать конфигурацию: явные аргументы > окружение > .env-файл.
+        """Collect the configuration: explicit arguments > environment > .env file.
 
-        env_file – путь к .env; без него берётся файл .env в текущем
-        каталоге, если существует. environ – источник переменных окружения
-        (по умолчанию os.environ; параметр нужен тестам).
+        env_file – the path to the .env; without it the .env file in the current
+        directory is taken, if it exists. environ – the source of the environment
+        variables (os.environ by default; the parameter is there for the tests).
         """
         env = os.environ if environ is None else environ
 
@@ -83,7 +84,7 @@ class Config:
         if env_file:
             path = Path(env_file)
             if not path.is_file():
-                raise ConfigError(f".env-файл не найден: {path}")
+                raise ConfigError(i18n.t("config.env-file-not-found", path=path))
             file_values = parse_env_file(path)
         else:
             default_path = Path(".env")
@@ -111,14 +112,13 @@ class Config:
         return cls(**values)
 
     def require(self):
-        """Проверить обязательные параметры подключения; вернуть self."""
+        """Check the mandatory connection parameters; return self."""
         missing = []
         for field_name in ("base_url", "client_id", "client_secret"):
             if not getattr(self, field_name):
                 missing.append(ENV_KEYS[field_name])
         if missing:
             raise ConfigError(
-                "не заданы параметры подключения: " + ", ".join(missing)
-                + " (переменные окружения, .env-файл или флаги CLI)"
+                i18n.t("config.connection-not-set", missing=", ".join(missing))
             )
         return self

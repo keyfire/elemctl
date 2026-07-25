@@ -1,10 +1,10 @@
-"""Деплой: сборка -> загрузка -> применение -> перезапуск -> проверка.
+"""Deploy: build -> upload -> apply -> restart -> verify.
 
-Главная особенность платформы: при ошибке применения она молча откатывает
-приложение на предыдущую сборку и запускает его – статус Running ничего не
-говорит об успехе. Поэтому отчёт деплоя строится по трём проверкам:
-задачи приложения с ошибками после начала деплоя, сверка фактически
-применённой версии и информационный HTTP-запрос по uri приложения.
+The defining trait of the platform: when an apply fails, it silently rolls the
+application back to the previous build and starts it – the Running status says
+nothing about success. That is why the deploy report rests on three checks:
+application tasks that failed after the deploy started, a comparison of the
+version actually applied and an informational HTTP request to the application uri.
 """
 
 from __future__ import annotations
@@ -17,19 +17,19 @@ from . import i18n
 from .build import build_assembly
 from .client import FAILED_TASK_STATUSES, extract_assembly_id
 
-__all__ = ["FAILED_TASK_STATUSES"]  # имя осталось на прежнем месте для импортирующих
+__all__ = ["FAILED_TASK_STATUSES"]  # the name stays where importers already expect it
 
 
 @dataclass
 class DeployReport:
-    """Отчёт деплоя.
+    """Deploy report.
 
-    applied: True – версия совпала, False – не совпала (похоже на откат),
-    None – фактическую версию определить не удалось. ok – итоговый вердикт:
-    нет проблем и нет доказанного отката. dirty_files – незакоммиченные
-    изменения каталога проекта на момент сборки (None – git недоступен или
-    сборка в этом запуске не выполнялась): сборка снимает диск как есть,
-    поэтому расхождение с HEAD должно быть видно в отчёте.
+    applied: True – the version matched, False – it did not (this looks like a
+    rollback), None – the actual version could not be determined. ok – the final
+    verdict: no problems and no proven rollback. dirty_files – the uncommitted
+    changes of the project directory at build time (None – git is unavailable or
+    no build ran in this invocation): a build captures the disk as it is, so any
+    divergence from HEAD has to be visible in the report.
     """
 
     app_id: str = ""
@@ -46,7 +46,7 @@ class DeployReport:
     dirty_files: list | None = None
 
     def to_dict(self):
-        """Представить отчёт словарём с ключами в kebab-case (для JSON-вывода)."""
+        """Render the report as a dict with kebab-case keys (for JSON output)."""
         return {
             "app-id": self.app_id,
             "uri": self.uri,
@@ -77,15 +77,15 @@ def deploy_from_sources(
     commit_message="",
     log=None,
 ):
-    """Полный цикл деплоя из исходников с проверкой фактического применения.
+    """The full deploy cycle from sources, verifying that the build really applied.
 
-    log – callback для строк прогресса (например print); библиотека сама
-    ничего не печатает.
+    log – a callback for progress lines (print, for instance); the library itself
+    prints nothing.
     """
     log = log or (lambda message: None)
     started_at = datetime.now(timezone.utc)
 
-    # Версия сборки: явная либо автоинкремент от последней сборки проекта.
+    # The build version: either explicit or auto-incremented from the project's last build.
     last_version = ""
     if not version:
         latest = client.latest_assembly(project_id)
@@ -121,7 +121,7 @@ def deploy_from_sources(
     if assembly_id:
         client.apply_build(app_id, image_id=assembly_id)
     else:
-        # Ответ без id сборки: применяем по проекту и версии.
+        # The response carries no assembly id: apply by project and version.
         client.apply_build(app_id, project_id=project_id, assembly_version=result.version)
     log(i18n.t("deploy.apply-started"))
 
@@ -143,11 +143,11 @@ def deploy_from_sources(
 
 
 def verify_deploy(client, app_id, *, expected_version="", expected_assembly_id="", since=None, log=None):
-    """Самостоятельная проверка применения (без деплоя).
+    """A standalone check that the build applied (without deploying).
 
-    since – момент, раньше которого ошибки задач не учитываются (старые
-    ошибки из истории не должны портить вердикт). expected_assembly_id –
-    id загруженной сборки: сверка по нему надёжна, в отличие от строки версии.
+    since – the moment before which task failures are ignored (old failures from
+    the history must not spoil the verdict). expected_assembly_id – the id of the
+    uploaded build: comparing by it is reliable, unlike the version string.
     """
     log = log or (lambda message: None)
     report = _verify(
@@ -162,11 +162,11 @@ def verify_deploy(client, app_id, *, expected_version="", expected_assembly_id="
     return report
 
 
-# -- внутреннее ---------------------------------------------------------------
+# -- internals ----------------------------------------------------------------
 
 
 def _shorten_list(items, limit=5):
-    """Первые limit элементов через запятую; хвост – счётчиком."""
+    """The first limit items joined by commas; the tail as a counter."""
     shown = ", ".join(str(item) for item in items[:limit])
     rest = len(items) - limit
     if rest > 0:
@@ -177,7 +177,7 @@ def _shorten_list(items, limit=5):
 def _verify(client, app_id, *, card, expected_version, since, expected_assembly_id=""):
     problems = []
 
-    # 1. Задачи приложения со статусами Error/Failed после начала деплоя.
+    # 1. Application tasks in status Error/Failed raised after the deploy started.
     for task in client.list_app_tasks(app_id):
         if not isinstance(task, dict):
             continue
@@ -187,15 +187,18 @@ def _verify(client, app_id, *, card, expected_version, since, expected_assembly_
         task_started = _parse_datetime(task.get("start-date"))
         if since is not None and task_started is not None and task_started < since:
             continue
-        label = task.get("operation-type") or task.get("id") or "задача"
+        label = task.get("operation-type") or task.get("id") or i18n.t("deploy.task")
         message = task.get("error-message") or i18n.t("deploy.no-error-text")
-        problems.append(f"задача {label} завершилась со статусом {status}: {message}")
+        problems.append(i18n.t(
+            "deploy.task-failed", label=label, status=status, message=message
+        ))
 
-    # 2. Сверка фактически применённой сборки с загруженной. Надёжный признак –
-    # равенство source.project-version-id и id загруженной сборки: строка версии
-    # не годится, потому что свежесозданное приложение нумерует версии заново
-    # (архив 1.0-1139 применяется как 1.0-3) и сравнение строк давало ложный откат.
-    # Строка версии остаётся запасной проверкой, когда id сборки неизвестен.
+    # 2. Compare the build actually applied with the uploaded one. The reliable
+    # signal is source.project-version-id being equal to the id of the uploaded
+    # build: the version string will not do, because a freshly created application
+    # numbers its versions from scratch (archive 1.0-1139 is applied as 1.0-3) and
+    # comparing the strings used to report a false rollback. The version string
+    # stays as a fallback check for when the build id is unknown.
     if card is None:
         card = client.get_app(app_id) or {}
     source = card.get("source") or {}
@@ -205,19 +208,21 @@ def _verify(client, app_id, *, card, expected_version, since, expected_assembly_
     if expected_assembly_id and applied_version_id:
         applied = applied_version_id == expected_assembly_id
         if not applied:
-            problems.append(
-                f"применённая сборка {applied_version_id} не совпадает с загруженной "
-                f"{expected_assembly_id} – похоже, платформа откатила применение"
-            )
+            problems.append(i18n.t(
+                "deploy.assembly-mismatch",
+                applied=applied_version_id,
+                expected=expected_assembly_id,
+            ))
     elif expected_version and applied_version:
         applied = applied_version == expected_version
         if not applied:
-            problems.append(
-                f"применённая версия {applied_version} не совпадает с загруженной "
-                f"{expected_version} – похоже, платформа откатила применение"
-            )
+            problems.append(i18n.t(
+                "deploy.version-mismatch",
+                applied=applied_version,
+                expected=expected_version,
+            ))
 
-    # 3. Информационный GET по uri приложения (401/403 нормальны).
+    # 3. An informational GET to the application uri (401/403 are fine).
     uri = str(card.get("uri") or "")
     uri_status = client.check_uri(uri) if uri else None
 
@@ -246,7 +251,7 @@ def _log_outcome(report, log):
 
 
 def _parse_datetime(value):
-    """Разобрать дату ISO 8601 (допускается суффикс Z); наивную считать UTC."""
+    """Parse an ISO 8601 date (a Z suffix is allowed); treat a naive one as UTC."""
     if not value or not isinstance(value, str):
         return None
     text = value.strip()

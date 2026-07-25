@@ -1,23 +1,23 @@
-"""Точки расширения elemctl: внешние пакеты приносят debug-адаптер платформы.
+"""elemctl extension points: external packages bring in the platform debug adapter.
 
-Публичный elemctl не несёт проприетарные jar debug-адаптера 1С:Элемент. Внешний
-пакет-плагин объявляет каталог адаптера через группу entry points
-"elemctl.debug_adapter" – значение указывает либо на путь (Path/str), либо на
-функцию без аргументов, возвращающую путь. Путь – это каталог, содержащий
-подкаталог repo/ с jar-файлами адаптера (готовое значение xbslDebug.adapterPath
-для расширения VS Code keyfire.xbsl-debug).
+The public elemctl does not ship the proprietary jar files of the 1C:Element debug
+adapter. An external plugin package declares the adapter directory through the
+"elemctl.debug_adapter" entry point group – the value points either to a path
+(Path/str) or to a function without arguments that returns a path. The path is a
+directory containing a repo/ subdirectory with the adapter jar files (the ready-made
+value of xbslDebug.adapterPath for the keyfire.xbsl-debug VS Code extension).
 
-Объявление в pyproject.toml пакета-плагина:
+The declaration in the pyproject.toml of the plugin package:
 
     [project.entry-points."elemctl.debug_adapter"]
-    имя-пакета = "мой_пакет:adapter_root"
+    package-name = "my_package:adapter_root"
 
-Переменная окружения ELEMCTL_NO_PLUGINS=1 отключает обнаружение плагинов –
-прогон только со штатными возможностями ядра.
+The ELEMCTL_NO_PLUGINS=1 environment variable turns plugin discovery off – a run
+with the regular capabilities of the core only.
 
-Сбой загрузки точки расширения – это ошибка (PluginError), а не тихий пропуск:
-инструмент, молча потерявший плагин, оставил бы пользователя без отладки и без
-объяснения причины.
+A failure to load an entry point is an error (PluginError), not a silent skip: a
+tool that quietly lost a plugin would leave the user without debugging and without
+an explanation of the reason.
 """
 
 from __future__ import annotations
@@ -26,20 +26,21 @@ import os
 from importlib.metadata import EntryPoint, entry_points
 from pathlib import Path
 
+from . import i18n
 from .errors import PluginError
 
 DEBUG_ADAPTER_GROUP = "elemctl.debug_adapter"
 ENV_DISABLE = "ELEMCTL_NO_PLUGINS"
 
-# Главный класс Java-адаптера отладки платформы; расширение VS Code запускает его
-# как stdio-DAP по classpath из каталога адаптера.
+# The main class of the platform's Java debug adapter; the VS Code extension runs it
+# as a stdio DAP over the classpath from the adapter directory.
 ADAPTER_MAIN_CLASS = "com.e1c.g5rt.debugger.adapter.App"
 
 _FALSY = {"", "0", "false", "no"}
 
 
 def disabled() -> bool:
-    """Отключено ли обнаружение плагинов (ELEMCTL_NO_PLUGINS)."""
+    """Whether plugin discovery is turned off (ELEMCTL_NO_PLUGINS)."""
     return os.environ.get(ENV_DISABLE, "").strip().lower() not in _FALSY
 
 
@@ -53,18 +54,19 @@ def _load(ep: EntryPoint):
     try:
         return ep.load()
     except Exception as exc:
-        raise PluginError(
-            f"точка расширения '{ep.name}' группы {ep.group} не загрузилась "
-            f"({ep.value}): {exc}"
-        ) from exc
+        raise PluginError(i18n.t(
+            "plugins.entry-point-failed",
+            name=ep.name, group=ep.group, value=ep.value, error=exc,
+        )) from exc
 
 
 def debug_adapter_paths() -> list[Path]:
-    """Каталоги debug-адаптера, объявленные внешними пакетами (в порядке имени точки).
+    """Debug adapter directories declared by external packages (ordered by entry point name).
 
-    Значение точки расширения – путь либо функция без аргументов, возвращающая путь.
-    Валидность каталога (наличие jar адаптера) здесь не проверяется – это делает
-    debug_adapter_path; полный список нужен для диагностики (команда plugins).
+    The value of an entry point is a path or a function without arguments that returns
+    a path. The directory is not validated here (whether the adapter jars are in place) –
+    that is what debug_adapter_path does; the full list is needed for diagnostics (the
+    plugins command).
     """
     paths: list[Path] = []
     for ep in _points(DEBUG_ADAPTER_GROUP):
@@ -76,7 +78,7 @@ def debug_adapter_paths() -> list[Path]:
 
 
 def has_adapter_jars(path: Path) -> bool:
-    """Есть ли в каталоге подкаталог repo/ с jar debug-адаптера платформы."""
+    """Whether the directory has a repo/ subdirectory with the platform debug adapter jars."""
     repo = path / "repo"
     if not repo.is_dir():
         return False
@@ -84,10 +86,10 @@ def has_adapter_jars(path: Path) -> bool:
 
 
 def debug_adapter_path() -> Path | None:
-    """Первый объявленный каталог адаптера с jar внутри; None, если плагина нет.
+    """The first declared adapter directory with jars inside; None when there is no plugin.
 
-    Возвращаемый путь – готовое значение adapterPath для расширения VS Code:
-    каталог, содержащий подкаталог repo/ с jar-файлами адаптера.
+    The returned path is the ready-made adapterPath value for the VS Code extension:
+    a directory containing a repo/ subdirectory with the adapter jar files.
     """
     for path in debug_adapter_paths():
         if has_adapter_jars(path):
