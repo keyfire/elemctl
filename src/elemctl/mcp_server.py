@@ -18,7 +18,7 @@ except ImportError as error:  # pragma: no cover - ветка без extra
 
 from . import i18n, plugins
 from .build import build_assembly, inspect_assembly
-from .client import ElementClient, extract_assembly_id
+from .client import ElementClient, brief_app, extract_assembly_id
 from .config import Config
 from .deploy import (
     deploy_from_sources,
@@ -43,25 +43,6 @@ INSTRUCTIONS = (
     "обратиться к другому стенду (например, к локальному вместо облачного), "
     "передайте его .env параметром env_file – он есть у каждого инструмента."
 )
-
-
-def _brief_app(app):
-    """Краткая карточка приложения: то, по чему его узнают и выбирают.
-
-    Полная карточка несёт списки пользователей, флаги среды разработки и прочее,
-    что в списке не нужно: пространство из полусотни приложений даёт десятки
-    тысяч символов ответа. Версия берётся из source – это фактически применённая
-    сборка, по ней сверяют деплой.
-    """
-    source = app.get("source") or {}
-    return {
-        "id": app.get("id"),
-        "name": app.get("name") or app.get("display-name"),
-        "status": app.get("status"),
-        "uri": app.get("uri"),
-        "project-version": source.get("project-version"),
-        "project-version-id": source.get("project-version-id"),
-    }
 
 
 def _brief_project(project):
@@ -109,7 +90,7 @@ def create_server(config=None):
 
     @server.tool()
     def list_apps(name: str = "", brief: bool = True, env_file: str = "") -> list:
-        """Список приложений платформы; name – необязательный фильтр по имени.
+        """Список приложений платформы; name – фильтр по подстроке имени без учёта регистра (выполняется на клиенте: платформа query-параметр игнорирует).
 
         brief (по умолчанию) оставляет от карточки только id, имя, статус, uri и
         применённую версию: полные карточки всего пространства – это десятки тысяч
@@ -119,12 +100,13 @@ def create_server(config=None):
         apps = client(env_file).list_apps(name=name)
         if not brief:
             return apps
-        return [_brief_app(app) for app in apps if isinstance(app, dict)]
+        return [brief_app(app) for app in apps if isinstance(app, dict)]
 
     @server.tool()
     def get_app(app_id: str, env_file: str = "") -> dict:
-        """Карточка приложения: статус, uri, фактическая версия проекта (source.project-version)."""
-        return client(env_file).get_app(app_id)
+        """Карточка приложения: статус, uri, фактическая версия проекта (source.project-version). app_id – ид (UUID) либо точное имя приложения."""
+        target = client(env_file)
+        return target.get_app(target.resolve_app_id(app_id))
 
     @server.tool()
     def find_app(name: str, include_deleted: bool = False, env_file: str = "") -> dict:
@@ -199,21 +181,28 @@ def create_server(config=None):
 
     @server.tool()
     def start_app(app_id: str, env_file: str = "") -> dict:
-        """Запустить приложение."""
-        return client(env_file).start_app(app_id) or {"ok": True, "app-id": app_id}
+        """Запустить приложение. app_id – ид (UUID) либо точное имя приложения."""
+        target = client(env_file)
+        resolved = target.resolve_app_id(app_id)
+        return target.start_app(resolved) or {"ok": True, "app-id": resolved}
 
     @server.tool()
     def stop_app(app_id: str, env_file: str = "") -> dict:
-        """Остановить приложение."""
-        return client(env_file).stop_app(app_id) or {"ok": True, "app-id": app_id}
+        """Остановить приложение. app_id – ид (UUID) либо точное имя приложения."""
+        target = client(env_file)
+        resolved = target.resolve_app_id(app_id)
+        return target.stop_app(resolved) or {"ok": True, "app-id": resolved}
 
     @server.tool()
     def debug_info(app_id: str, env_file: str = "") -> dict:
         """Данные для сессии отладки приложения: debug-token и debug-address.
 
-        Требует включённой отладки на сервере (config/debug.yml: enabled: true).
+        app_id – ид (UUID) либо точное имя приложения. Требует включённой
+        отладки на сервере (config/debug.yml: enabled: true).
         """
-        return client(env_file).get_debug_info(app_id) or {"app-id": app_id}
+        target = client(env_file)
+        resolved = target.resolve_app_id(app_id)
+        return target.get_debug_info(resolved) or {"app-id": resolved}
 
     @server.tool()
     def debug_adapter() -> dict:
@@ -230,8 +219,10 @@ def create_server(config=None):
 
     @server.tool()
     def delete_app(app_id: str, env_file: str = "") -> dict:
-        """Удалить приложение. НЕОБРАТИМО: данные теряются, а пересозданное приложение получит другой URL – внешние настройки (OIDC redirect и т.п.) придётся обновлять."""
-        return client(env_file).delete_app(app_id) or {"deleted": True, "app-id": app_id}
+        """Удалить приложение. app_id – ид (UUID) либо точное имя (несколько совпадений – ошибка). НЕОБРАТИМО: данные теряются, а пересозданное приложение получит другой URL – внешние настройки (OIDC redirect и т.п.) придётся обновлять."""
+        target = client(env_file)
+        resolved = target.resolve_app_id(app_id)
+        return target.delete_app(resolved) or {"deleted": True, "app-id": resolved}
 
     @server.tool()
     def list_spaces(env_file: str = "") -> list:

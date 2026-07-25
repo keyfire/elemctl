@@ -338,3 +338,128 @@ def test_token_cached_in_file(tmp_path):
     second = ElementClient(config, transport=second_transport, token_cache_dir=cache_dir)
     assert second.token() == "T1"
     assert second_transport.calls == []
+
+
+# -- фильтр списка приложений ------------------------------------------------------
+
+
+def test_list_apps_filters_by_substring_on_the_client(api):
+    """name – подстрока без учёта регистра; фильтр клиентский.
+
+    Платформа query-параметр name игнорирует и возвращает полный список
+    (проверено живым вызовом), поэтому запрос уходит без query.
+    """
+    client, transport = api
+    transport.add(
+        "GET",
+        f"{API}/applications",
+        [
+            {"id": "1", "name": "crm-dev"},
+            {"id": "2", "display-name": "Crm-Portal"},
+            {"id": "3", "name": "warehouse-dev"},
+            {"id": "4", "publication-context": "apps/crm-demo"},
+        ],
+    )
+    assert [app["id"] for app in client.list_apps(name="CRM")] == ["1", "2", "4"]
+    assert transport.calls_to("GET", f"{API}/applications")[0]["query"] == ""
+
+
+def test_list_apps_without_name_returns_everything(api):
+    client, transport = api
+    transport.add("GET", f"{API}/applications", [{"id": "1"}, {"id": "2"}])
+    assert len(client.list_apps()) == 2
+
+
+# -- резолв приложения по имени -----------------------------------------------------
+
+
+def test_resolve_app_id_uuid_passes_through_without_requests(api):
+    client, transport = api
+    uuid = "12345678-1234-1234-1234-123456789abc"
+    # Транспорт без маршрута /applications: любой запрос упал бы AssertionError.
+    assert client.resolve_app_id(uuid) == uuid
+    assert transport.calls_to("GET", f"{API}/applications") == []
+
+
+def test_resolve_app_id_by_exact_name(api):
+    client, transport = api
+    transport.add(
+        "GET",
+        f"{API}/applications",
+        [
+            {"id": "old", "display-name": "site-x", "status": "Deleted"},
+            {"id": "live", "display-name": "Site-X", "status": "Running"},
+        ],
+    )
+    # Точное имя без учёта регистра; удалённое приложение с тем же именем не мешает.
+    assert client.resolve_app_id("site-x") == "live"
+
+
+def test_resolve_app_id_unknown_name_is_config_error(api):
+    client, transport = api
+    transport.add("GET", f"{API}/applications", [{"id": "1", "name": "crm"}])
+    with pytest.raises(ConfigError) as excinfo:
+        client.resolve_app_id("nope")
+    assert "nope" in str(excinfo.value)
+
+
+def test_resolve_app_id_ambiguous_name_is_config_error(api):
+    """Несколько совпадений – ошибка с перечнем ид: delete не должен угадывать."""
+    client, transport = api
+    transport.add(
+        "GET",
+        f"{API}/applications",
+        [
+            {"id": "a1", "name": "site", "status": "Running"},
+            {"id": "a2", "display-name": "site", "status": "Stopped"},
+        ],
+    )
+    with pytest.raises(ConfigError) as excinfo:
+        client.resolve_app_id("site")
+    message = str(excinfo.value)
+    assert "a1" in message and "a2" in message
+
+
+# -- Error как терминальный статус ожиданий ------------------------------------------
+
+
+def _failed_compile_task(app_id="app-1"):
+    return {
+        "application-id": app_id,
+        "status": "Failed",
+        "operation-type": "UpdateApplication",
+        "error-message": "acme/crm/Форма.yaml [10:5]: Тип \"Х\" не виден",
+    }
+
+
+def test_ensure_running_stops_immediately_on_error_status(api):
+    """Стабильный Error после применения – немедленная ошибка с текстами задач.
+
+    Раньше ensure_running пытался остановить такое приложение и ждал Stopped
+    до полного таймаута (180 с), хотя из Error оно в Stopped не переходит.
+    """
+    client, transport = api
+    transport.add("GET", f"{API}/applications/app-1", _error_card())
+    transport.add("GET", f"{API}/tasks/application-tasks", [_failed_compile_task()])
+    client._sleep = lambda seconds: pytest.fail("ожиданий быть не должно: Error стабилен")
+
+    with pytest.raises(ApiError) as excinfo:
+        client.ensure_running("app-1")
+
+    message = str(excinfo.value)
+    assert "Error" in message and "[10:5]" in message
+    # До остановки и запуска дело не дошло.
+    assert transport.calls_to("PUT", f"{API}/applications/app-1/status/stop") == []
+    assert transport.calls_to("PUT", f"{API}/applications/app-1/status/start") == []
+
+
+def test_wait_app_status_error_carries_task_details(api):
+    client, transport = api
+    transport.add("GET", f"{API}/applications/app-1", _error_card())
+    transport.add("GET", f"{API}/tasks/application-tasks", [_failed_compile_task()])
+
+    with pytest.raises(ApiError) as excinfo:
+        client.wait_app_status("app-1", {"Stopped"}, timeout=30)
+
+    message = str(excinfo.value)
+    assert "Error" in message and "[10:5]" in message

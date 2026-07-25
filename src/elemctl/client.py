@@ -87,6 +87,9 @@ def _collapse_reference(value):
 # Статус удалённого приложения (сравнение без учёта регистра).
 DELETED_STATUS = "Deleted"
 
+# Поля карточки приложения, по которым его узнают по имени.
+APP_NAME_KEYS = ("name", "display-name", "publication-context")
+
 
 def _is_deleted(app):
     """Признак удалённого приложения.
@@ -97,6 +100,43 @@ def _is_deleted(app):
     """
     status = app.get("status")
     return isinstance(status, str) and status.strip().lower() == DELETED_STATUS.lower()
+
+
+def _app_name_matches(app, target):
+    """Точное совпадение имени приложения без учёта регистра."""
+    for key in APP_NAME_KEYS:
+        value = app.get(key)
+        if isinstance(value, str) and value.strip().lower() == target:
+            return True
+    return False
+
+
+def _app_name_contains(app, needle):
+    """Вхождение подстроки в одно из имён приложения без учёта регистра."""
+    for key in APP_NAME_KEYS:
+        value = app.get(key)
+        if isinstance(value, str) and needle in value.lower():
+            return True
+    return False
+
+
+def brief_app(app):
+    """Краткая карточка приложения: то, по чему его узнают и выбирают.
+
+    Полная карточка несёт списки пользователей, флаги среды разработки и
+    прочее, что в списке не нужно: пространство из полусотни приложений даёт
+    десятки тысяч символов ответа. Версия берётся из source – это фактически
+    применённая сборка, по ней сверяют деплой.
+    """
+    source = app.get("source") or {}
+    return {
+        "id": app.get("id"),
+        "name": app.get("name") or app.get("display-name"),
+        "status": app.get("status"),
+        "uri": app.get("uri"),
+        "project-version": source.get("project-version"),
+        "project-version-id": source.get("project-version-id"),
+    }
 
 
 class ElementClient:
@@ -188,9 +228,21 @@ class ElementClient:
     # -- приложения --------------------------------------------------------
 
     def list_apps(self, name=""):
-        """Список приложений; name – необязательный фильтр платформы."""
-        payload = self._api("GET", "/applications", query={"name": name})
-        return _as_list(payload, "items", "applications")
+        """Список приложений; name – необязательный фильтр по подстроке имени.
+
+        Фильтр выполняется на клиенте без учёта регистра (по полям
+        APP_NAME_KEYS): query-параметр name платформа игнорирует и возвращает
+        полный список – проверено живым вызовом.
+        """
+        payload = self._api("GET", "/applications")
+        apps = _as_list(payload, "items", "applications")
+        needle = (name or "").strip().lower()
+        if not needle:
+            return apps
+        return [
+            app for app in apps
+            if isinstance(app, dict) and _app_name_contains(app, needle)
+        ]
 
     def get_app(self, app_id):
         """Карточка приложения (статус, uri, source.project-version и др.)."""
@@ -213,11 +265,38 @@ class ElementClient:
                 continue
             if not include_deleted and _is_deleted(app):
                 continue
-            for key in ("name", "display-name", "publication-context"):
-                value = app.get(key)
-                if isinstance(value, str) and value.strip().lower() == target:
-                    return app
+            if _app_name_matches(app, target):
+                return app
         return None
+
+    def resolve_app_id(self, name_or_id, *, include_deleted=False):
+        """Ид приложения по его имени либо самому ид.
+
+        UUID возвращается как есть, без запросов. Иное значение ищется по
+        точному совпадению имени без учёта регистра (поля APP_NAME_KEYS);
+        удалённые приложения по умолчанию пропускаются. Ничего не найдено –
+        ошибка; несколько совпадений – тоже ошибка с перечнем ид, потому что
+        разрушающие операции (delete) не должны угадывать.
+        """
+        if _looks_like_uuid(name_or_id):
+            return str(name_or_id)
+        target = str(name_or_id or "").strip().lower()
+        if not target:
+            raise ConfigError(i18n.t("client.app-not-found", name=name_or_id))
+        matches = [
+            app for app in self.list_apps()
+            if isinstance(app, dict)
+            and (include_deleted or not _is_deleted(app))
+            and _app_name_matches(app, target)
+        ]
+        if not matches:
+            raise ConfigError(i18n.t("client.app-not-found", name=name_or_id))
+        if len(matches) > 1:
+            ids = ", ".join(str(app.get("id")) for app in matches)
+            raise ConfigError(
+                i18n.t("client.app-name-ambiguous", name=name_or_id, ids=ids)
+            )
+        return matches[0].get("id")
 
     def create_app(
         self,
@@ -526,6 +605,18 @@ class ElementClient:
 
     # -- ожидания состояний -----------------------------------------------------
 
+    def _status_error_text(self, app_id, card):
+        """Текст ошибки приложения, дополненный ошибками его задач.
+
+        Карточка несёт обобщённое сообщение платформы, подробности (файл,
+        строка и колонка каждой ошибки компиляции) – в задачах приложения.
+        """
+        text = card.get("error") or i18n.t("client.no-error-text")
+        details = self.failed_task_messages(app_id)
+        if details:
+            text += "\n" + "\n".join(details)
+        return text
+
     def wait_app_status(
         self,
         app_id,
@@ -538,8 +629,9 @@ class ElementClient:
     ):
         """Дождаться одного из целевых статусов приложения; вернуть карточку.
 
-        При error_is_fatal статус Error (если он не целевой) – немедленная
-        ошибка; по истечении таймаута тоже ошибка.
+        Error – терминальный статус: при error_is_fatal (и если он не
+        целевой) ожидание прекращается сразу, с текстами ошибок задач;
+        по истечении таймаута тоже ошибка.
         """
         deadline = time.monotonic() + timeout
         while True:
@@ -549,15 +641,22 @@ class ElementClient:
                 return card
             if error_is_fatal and status == "Error":
                 raise ApiError(
-                    f"приложение {app_id} в статусе Error: {card.get('error') or 'без текста ошибки'}",
+                    i18n.t(
+                        "client.app-error-status",
+                        app=app_id,
+                        error=self._status_error_text(app_id, card),
+                    ),
                     body=card,
                 )
             if time.monotonic() >= deadline:
                 expected = "/".join(sorted(target_statuses))
-                raise ApiError(
-                    f"не дождались статуса {expected} приложения {app_id} "
-                    f"за {int(timeout)} с (текущий: {status or 'переходный'})"
-                )
+                raise ApiError(i18n.t(
+                    "client.wait-status-timeout",
+                    expected=expected,
+                    app=app_id,
+                    timeout=int(timeout),
+                    status=status or i18n.t("client.transitional-status"),
+                ))
             if log:
                 log(i18n.t("client.waiting-status", status=status or i18n.t("client.transitional")))
             self._sleep(poll)
@@ -578,21 +677,24 @@ class ElementClient:
             card = self.get_app(app_id) or {}
             status = (card.get("status") or "").strip()
             if status == "Error":
-                text = card.get("error") or i18n.t("client.no-error-text")
-                details = self.failed_task_messages(app_id)
-                if details:
-                    text += "\n" + "\n".join(details)
                 raise ApiError(
-                    i18n.t("client.app-created-with-error", app=app_id, error=text),
+                    i18n.t(
+                        "client.app-created-with-error",
+                        app=app_id,
+                        error=self._status_error_text(app_id, card),
+                    ),
                     body=card,
                 )
             if status in ("Running", "Stopped") and card.get("uri"):
                 return card
             if time.monotonic() >= deadline:
-                raise ApiError(
-                    f"приложение {app_id} не стало готовым за {int(timeout)} с "
-                    f"(статус: {status or 'переходный'}, uri: {card.get('uri') or 'нет'})"
-                )
+                raise ApiError(i18n.t(
+                    "client.wait-ready-timeout",
+                    app=app_id,
+                    timeout=int(timeout),
+                    status=status or i18n.t("client.transitional-status"),
+                    uri=card.get("uri") or i18n.t("client.no-uri"),
+                ))
             if log:
                 log(i18n.t("client.waiting-ready", status=status or i18n.t("client.transitional")))
             self._sleep(poll)
@@ -600,21 +702,33 @@ class ElementClient:
     def ensure_running(self, app_id, *, log=None):
         """Довести приложение до статуса Running после применения сборки.
 
-        Применение может само перезапустить приложение: ждём стабилизации;
-        если итог не Running – останавливаем (если нужно), дожидаемся
-        Stopped, запускаем и дожидаемся Running.
+        Применение может само перезапустить приложение: ждём стабилизации.
+        Стабильный Error – немедленная ошибка с текстами ошибок задач:
+        применение провалилось, перезапуск этого не лечит, а ожидание
+        Stopped из Error раньше просто съедало весь таймаут. Если итог не
+        Running – останавливаем (если нужно), дожидаемся Stopped, запускаем
+        и дожидаемся Running.
         """
         card = self.wait_app_stable(app_id, timeout=START_TIMEOUT, log=log)
         status = card.get("status")
         if status == "Running":
             return card
+        if status == "Error":
+            raise ApiError(
+                i18n.t(
+                    "client.app-error-status",
+                    app=app_id,
+                    error=self._status_error_text(app_id, card),
+                ),
+                body=card,
+            )
         if status != "Stopped":
             if log:
                 log(i18n.t("client.stopping", status=status))
             self.stop_app(app_id)
-            self.wait_app_status(
-                app_id, {"Stopped"}, timeout=STOP_TIMEOUT, log=log, error_is_fatal=False
-            )
+            # Error здесь тоже терминален (error_is_fatal по умолчанию):
+            # свалившееся при остановке приложение в Stopped уже не перейдёт.
+            self.wait_app_status(app_id, {"Stopped"}, timeout=STOP_TIMEOUT, log=log)
         if log:
             log(i18n.t("client.starting"))
         self.start_app(app_id)

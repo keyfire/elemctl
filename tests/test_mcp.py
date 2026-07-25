@@ -8,7 +8,8 @@ import pytest
 
 pytest.importorskip("mcp", reason="extra elemctl[mcp] не установлен")
 
-from elemctl.mcp_server import INSTRUCTIONS, _brief_app, _brief_project, create_server
+from elemctl.client import brief_app
+from elemctl.mcp_server import INSTRUCTIONS, _brief_project, create_server
 
 EXPECTED_TOOLS = {
     "list_apps",
@@ -143,7 +144,7 @@ def test_brief_app_keeps_only_the_identifying_fields():
         "description": "",
         "source": {"project-version": "1.0.0-3", "project-version-id": "asm-1", "type": "image"},
     }
-    brief = _brief_app(card)
+    brief = brief_app(card)
     assert brief == {
         "id": "app-1",
         "name": "site",
@@ -152,3 +153,17 @@ def test_brief_app_keeps_only_the_identifying_fields():
         "project-version": "1.0.0-3",
         "project-version-id": "asm-1",
     }
+
+
+def test_app_tools_accept_name_in_docstring():
+    """Инструменты с параметром app_id принимают и точное имя приложения.
+
+    Резолв делает client.resolve_app_id; здесь закрепляется, что описание
+    инструмента об этом говорит – иначе агент не узнает о возможности.
+    """
+    server = create_server()
+    tools = asyncio.run(server.list_tools())
+    by_name = {tool.name: tool for tool in tools}
+    for name in ("get_app", "delete_app", "start_app", "stop_app", "debug_info"):
+        description = by_name[name].description or ""
+        assert "имя" in description, name
