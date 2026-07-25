@@ -1,4 +1,4 @@
-"""Тесты клиента Console API на транспорте-заглушке (без сети)."""
+"""Console API client tests on a stub transport (no network)."""
 
 from __future__ import annotations
 
@@ -42,7 +42,7 @@ def test_retry_once_on_401(api):
     apps = client.list_apps()
 
     assert apps == [{"id": "app-1"}]
-    # Токен запрошен дважды: первично и принудительно после 401.
+    # The token was requested twice: initially and forcibly after the 401.
     assert len(transport.calls_to("POST", "/console/sys/token")) == 2
     assert len(transport.calls_to("GET", f"{API}/applications")) == 2
 
@@ -60,7 +60,7 @@ def test_get_debug_info_posts_to_actions_debug(api):
     assert info == {"debug-token": "T0KEN", "debug-address": "wss://dbg.test:8080"}
     calls = transport.calls_to("POST", f"{API}/applications/app-1/actions/debug")
     assert len(calls) == 1
-    # Экшен без тела запроса.
+    # The action carries no request body.
     assert calls[0]["data"] in (None, b"")
 
 
@@ -76,7 +76,7 @@ def test_find_app_exact_case_insensitive(api):
     )
     assert client.find_app("SITE DEV")["id"] == "1"
     assert client.find_app("APPS/CRM")["id"] == "2"
-    assert client.find_app("site") is None  # частичное совпадение не считается
+    assert client.find_app("site") is None  # a partial match does not count
     assert client.find_app("nope") is None
 
 
@@ -90,21 +90,21 @@ def test_find_app_skips_deleted(api):
             {"id": "live", "display-name": "site", "status": "Running"},
         ],
     )
-    # Удалённая карточка пропускается – находится живое приложение с тем же именем.
+    # The deleted card is skipped – the live application with the same name is found.
     assert client.find_app("site")["id"] == "live"
 
 
 def test_find_app_include_deleted_returns_deleted(api):
     client, transport = api
-    # Единственный ответ повторяется на оба вызова find_app.
+    # The single response is replayed for both find_app calls.
     transport.add(
         "GET",
         f"{API}/applications",
         [{"id": "old", "display-name": "site-old", "status": "DELETED"}],
     )
-    # По умолчанию удалённое не находится...
+    # By default a deleted application is not found...
     assert client.find_app("site-old") is None
-    # ...а с include_deleted=True возвращается прежнее поведение (сравнение статуса без учёта регистра).
+    # ...and with include_deleted=True the former behaviour is back (status compared case-insensitively).
     assert client.find_app("site-old", include_deleted=True)["id"] == "old"
 
 
@@ -137,17 +137,18 @@ def test_assemblies_list_normalization(api):
 
 
 def test_assembly_resolved_by_version(api):
-    """get/delete сборки принимают версию: API адресует сборку только UUID, поэтому
-    не-UUID аргумент резолвится в id по списку сборок (версию платформа перенумеровывает)."""
+    """Assembly get/delete accept a version: the API addresses an assembly by UUID only, so a
+    non-UUID argument is resolved to an id through the assembly list (the platform renumbers
+    versions)."""
     client, transport = api
-    assembly_id = "019f6d02-8606-7e4a-afc6-971f921eade5"
+    assembly_id = "0a1b2c3d-4e5f-4a6b-8c9d-0e1f2a3b4c5d"
     transport.add(
         "GET", f"{API}/projects/p1/assemblies",
         [{"assembly-version": "1.0-39", "project-version": "1.0-39", "id": assembly_id}],
     )
     transport.add("DELETE", f"{API}/projects/p1/assemblies/{assembly_id}", {"deleted": True})
     assert client.delete_assembly("p1", "1.0-39") == {"deleted": True}
-    # UUID проходит без похода за списком.
+    # A UUID goes straight through, without fetching the list.
     transport.add("DELETE", f"{API}/projects/p1/assemblies/{assembly_id}", {"deleted": True})
     assert client.delete_assembly("p1", assembly_id) == {"deleted": True}
     assert len(transport.calls_to("GET", f"{API}/projects/p1/assemblies")) == 1
@@ -236,11 +237,11 @@ def test_update_branch_optimistic_locking_and_merge(api):
     assert body["name"] == "dev"
     assert body["kind"] == "development"
     assert body["deletion-mark"] is False
-    # Ссылки свёрнуты до {"id": ...}.
+    # References are collapsed down to {"id": ...}.
     assert body["source-branch"] == {"id": "b0"}
     assert body["application"] == {"id": "app-1"}
     assert body["write-parameters"] == {"merge": True}
-    # Поле project в тело PUT не входит.
+    # The project field is not part of the PUT body.
     assert "project" not in body
 
 
@@ -264,7 +265,7 @@ def test_api_error_details_serializable(api):
     with pytest.raises(ApiError) as excinfo:
         client.get_app("x")
     payload = excinfo.value.to_dict()
-    json.dumps(payload, ensure_ascii=False)  # не должно упасть
+    json.dumps(payload, ensure_ascii=False)  # must not raise
     assert payload["status"] == 404
     assert "нет такого" in payload["error"]
 
@@ -274,10 +275,10 @@ def _error_card(app_id="app-1"):
 
 
 def test_wait_app_ready_reports_task_errors(api):
-    """Статус Error: к обобщённому тексту платформы добавляются ошибки задач.
+    """Status Error: the platform's generic text is enriched with the task errors.
 
-    Ради этого метод и заведён – подробности компиляции лежат только в задаче,
-    и без них причину приходится искать в логах сервера.
+    That is the very reason the method exists – the compilation details live in the task
+    alone, and without them the cause has to be dug out of the server logs.
     """
     client, transport = api
     transport.add("GET", f"{API}/applications/app-1", _error_card())
@@ -302,7 +303,7 @@ def test_wait_app_ready_reports_task_errors(api):
 
 
 def test_wait_app_ready_survives_unavailable_tasks(api):
-    """Диагностика необязательна: сбой запроса задач не подменяет исходную ошибку."""
+    """Diagnostics are optional: a failing task request does not replace the original error."""
     client, transport = api
     transport.add("GET", f"{API}/applications/app-1", _error_card())
     transport.add("GET", f"{API}/tasks/application-tasks", {"message": "нет доступа"}, status=403)
@@ -320,12 +321,12 @@ def test_failed_task_messages_skips_empty_and_successful(api):
         {"application-id": "app-1", "status": "Error", "error-message": "первая"},
         {"application-id": "app-1", "status": "Failed", "error-message": "вторая", "operation-type": "Op"},
     ])
-    # Свежие первыми: платформа отдаёт задачи в порядке появления.
+    # Freshest first: the platform returns tasks in the order they appeared.
     assert client.failed_task_messages("app-1") == ["Op: вторая", "первая"]
 
 
 def test_token_cached_in_file(tmp_path):
-    """Второй клиент с тем же кешем не ходит за токеном повторно."""
+    """A second client sharing the cache does not fetch the token again."""
     cache_dir = tmp_path / "cache"
     config = Config(base_url="https://api.test", client_id="cid", client_secret="s", timeout=5.0)
 
@@ -334,20 +335,20 @@ def test_token_cached_in_file(tmp_path):
     first = ElementClient(config, transport=first_transport, token_cache_dir=cache_dir)
     assert first.token() == "T1"
 
-    second_transport = FakeTransport()  # маршрута токена нет: запрос был бы ошибкой
+    second_transport = FakeTransport()  # no token route: a request would be an error
     second = ElementClient(config, transport=second_transport, token_cache_dir=cache_dir)
     assert second.token() == "T1"
     assert second_transport.calls == []
 
 
-# -- фильтр списка приложений ------------------------------------------------------
+# -- application list filter -------------------------------------------------------
 
 
 def test_list_apps_filters_by_substring_on_the_client(api):
-    """name – подстрока без учёта регистра; фильтр клиентский.
+    """name is a case-insensitive substring; the filter is applied client-side.
 
-    Платформа query-параметр name игнорирует и возвращает полный список
-    (проверено живым вызовом), поэтому запрос уходит без query.
+    The platform ignores the name query parameter and returns the full list
+    (verified with a live call), so the request goes out with no query at all.
     """
     client, transport = api
     transport.add(
@@ -370,13 +371,13 @@ def test_list_apps_without_name_returns_everything(api):
     assert len(client.list_apps()) == 2
 
 
-# -- резолв приложения по имени -----------------------------------------------------
+# -- resolving an application by name -----------------------------------------------
 
 
 def test_resolve_app_id_uuid_passes_through_without_requests(api):
     client, transport = api
     uuid = "12345678-1234-1234-1234-123456789abc"
-    # Транспорт без маршрута /applications: любой запрос упал бы AssertionError.
+    # The transport has no /applications route: any request would raise AssertionError.
     assert client.resolve_app_id(uuid) == uuid
     assert transport.calls_to("GET", f"{API}/applications") == []
 
@@ -391,7 +392,7 @@ def test_resolve_app_id_by_exact_name(api):
             {"id": "live", "display-name": "Site-X", "status": "Running"},
         ],
     )
-    # Точное имя без учёта регистра; удалённое приложение с тем же именем не мешает.
+    # An exact, case-insensitive name; a deleted application with the same name is no obstacle.
     assert client.resolve_app_id("site-x") == "live"
 
 
@@ -404,7 +405,7 @@ def test_resolve_app_id_unknown_name_is_config_error(api):
 
 
 def test_resolve_app_id_ambiguous_name_is_config_error(api):
-    """Несколько совпадений – ошибка с перечнем ид: delete не должен угадывать."""
+    """Several matches – an error listing the ids: delete must never guess which one is meant."""
     client, transport = api
     transport.add(
         "GET",
@@ -420,7 +421,7 @@ def test_resolve_app_id_ambiguous_name_is_config_error(api):
     assert "a1" in message and "a2" in message
 
 
-# -- Error как терминальный статус ожиданий ------------------------------------------
+# -- Error as a terminal status for the waits ----------------------------------------
 
 
 def _failed_compile_task(app_id="app-1"):
@@ -433,10 +434,10 @@ def _failed_compile_task(app_id="app-1"):
 
 
 def test_ensure_running_stops_immediately_on_error_status(api):
-    """Стабильный Error после применения – немедленная ошибка с текстами задач.
+    """A steady Error after the apply – an immediate error carrying the task texts.
 
-    Раньше ensure_running пытался остановить такое приложение и ждал Stopped
-    до полного таймаута (180 с), хотя из Error оно в Stopped не переходит.
+    ensure_running used to try to stop such an application and waited for Stopped
+    until the full timeout (180 s), even though Error never turns into Stopped.
     """
     client, transport = api
     transport.add("GET", f"{API}/applications/app-1", _error_card())
@@ -448,7 +449,7 @@ def test_ensure_running_stops_immediately_on_error_status(api):
 
     message = str(excinfo.value)
     assert "Error" in message and "[10:5]" in message
-    # До остановки и запуска дело не дошло.
+    # Neither the stop nor the start was ever reached.
     assert transport.calls_to("PUT", f"{API}/applications/app-1/status/stop") == []
     assert transport.calls_to("PUT", f"{API}/applications/app-1/status/start") == []
 
