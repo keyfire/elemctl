@@ -82,6 +82,36 @@ def _looks_like_uuid(value):
     return bool(_UUID_RE.match(str(value)))
 
 
+# The words by which a 400 is recognized as "the token you hold is no good".
+_STALE_TOKEN_MARKERS = ("jwt", "signature", "token", "expired")
+
+
+def _is_stale_token(response):
+    """Is this refusal about the token we hold rather than about the request?
+
+    A rejected token does NOT come back as 401 from this server: it answers 400
+    with error_code=invalid_request, and the reason sits in error_description
+    ("JWT strings must contain exactly 2 period characters", "Unable to verify RSA
+    signature ..."). Both were reproduced against a live stand by planting a
+    deliberately bad token into the cache. That is why the refresh-and-retry, which
+    watched only for 401, never fired and the cure was written down as deleting the
+    cache file by hand. The description is required to name the token, so an
+    ordinary invalid request does not send us for a new token.
+    """
+    if response.status != 400:
+        return False
+    try:
+        body = response.json()
+    except ValueError:
+        return False
+    if not isinstance(body, dict):
+        return False
+    if str(body.get("error_code") or "").lower() != "invalid_request":
+        return False
+    description = str(body.get("error_description") or "").lower()
+    return any(marker in description for marker in _STALE_TOKEN_MARKERS)
+
+
 def _as_list(payload, *keys):
     """Normalize a list response to a list.
 
@@ -208,7 +238,8 @@ class ElementClient:
             response = self._transport.request(
                 method, url, headers=headers, data=body, timeout=config.timeout
             )
-            if response.status == 401 and attempt == 1:
+            if attempt == 1 and (response.status == 401 or _is_stale_token(response)):
+                self._tokens.invalidate()
                 token = self._tokens.get_token(force=True)
                 continue
             break

@@ -70,6 +70,22 @@ class TokenManager:
         self._write_cache()
         return token
 
+    def invalidate(self):
+        """Forget the token in memory and drop the cache file.
+
+        Called when the server has refused the token we hold. Dropping the FILE
+        matters: without it a token rejected by the server survives its whole TTL
+        and every next invocation of the tool picks it up again - which is why the
+        cure used to be written down as "delete <TEMP>/elemctl-token-*.json by hand".
+        """
+        self._token = None
+        self._expires_at = 0.0
+        try:
+            self._cache_path().unlink(missing_ok=True)
+        except OSError:
+            # The cache is only a speedup; its unavailability must not break the work.
+            pass
+
     # -- internals -------------------------------------------------------
 
     def _cache_path(self):

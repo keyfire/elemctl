@@ -603,3 +603,30 @@ def test_apps_list_brief_cards(monkeypatch, capsys):
             "project-version-id": "asm-9",
         }
     ]
+
+
+def test_global_option_is_accepted_after_the_subcommand(tmp_path, capsys):
+    """--env-file after the subcommand used to die with "unrecognized arguments"."""
+    from elemctl.cli import _hoist_global_options
+
+    assert _hoist_global_options(["deploy", "--env-file", ".env", "--app-id", "a"]) == [
+        "--env-file", ".env", "deploy", "--app-id", "a",
+    ]
+    assert _hoist_global_options(["apps", "get", "--lang=en", "--app-id", "a"]) == [
+        "--lang=en", "apps", "get", "--app-id", "a",
+    ]
+
+
+def test_hoisting_leaves_the_order_alone_when_it_is_already_right():
+    from elemctl.cli import _hoist_global_options
+
+    argv = ["--env-file", ".env", "deploy", "--app-id", "a"]
+    assert _hoist_global_options(argv) == argv
+
+
+def test_hoisting_does_not_touch_tokens_after_a_double_dash():
+    """After "--" the tokens belong to the command, not to the parser."""
+    from elemctl.cli import _hoist_global_options
+
+    argv = ["probe", "--", "--env-file", "not-ours"]
+    assert _hoist_global_options(argv) == argv

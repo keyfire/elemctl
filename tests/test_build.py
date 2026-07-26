@@ -11,6 +11,7 @@ import pytest
 from elemctl.build import (
     build_assembly,
     build_manifest,
+    collect_with_skipped,
     find_project_dir,
     inspect_assembly,
     read_project_meta,
@@ -416,3 +417,45 @@ def test_build_result_dirty_files_in_repository(project_factory, tmp_path):
 
     result = build_assembly(project_dir, output_dir=tmp_path / "out", version="1.0-1")
     assert result.dirty_files == dirty
+
+
+def test_a_resource_outside_the_resources_directory_is_reported_as_skipped(project_factory):
+    """The "Неизвестный ресурс" failure seen from the build side.
+
+    A file with an extension outside the allowlist only gets into the archive when
+    it lies in a `Ресурсы` directory. Kept anywhere else it silently misses the
+    archive, and the platform says so only when applying - so the build names it.
+    """
+    project_dir = project_factory()
+    (project_dir / "Ресурсы").mkdir()
+    (project_dir / "Ресурсы" / "договор.pdf").write_bytes(b"%PDF-1.4")
+    (project_dir / "Документы").mkdir()
+    (project_dir / "Документы" / "прайс.pdf").write_bytes(b"%PDF-1.4")
+
+    selected, skipped = collect_with_skipped(project_dir)
+
+    names = {path.name for path in selected}
+    assert "договор.pdf" in names  # inside Ресурсы any extension is taken
+    assert [path.name for path in skipped] == ["прайс.pdf"]
+
+
+def test_deliberately_excluded_files_are_not_reported_as_skipped(project_factory):
+    """.gitignore, .env and prebuilt archives are meant to stay out - they are not a loss."""
+    project_dir = project_factory()
+    (project_dir / ".gitignore").write_text("dist\n", encoding="utf-8")
+    (project_dir / ".env").write_text("SECRET=1\n", encoding="utf-8")
+    (project_dir / "crm 1.0-1.xasm").write_bytes(b"PK\x03\x04")
+
+    _, skipped = collect_with_skipped(project_dir)
+
+    assert skipped == []
+
+
+def test_build_result_carries_the_skipped_files(project_factory, tmp_path):
+    project_dir = project_factory()
+    (project_dir / "Документы").mkdir()
+    (project_dir / "Документы" / "прайс.pdf").write_bytes(b"%PDF-1.4")
+
+    result = build_assembly(project_dir, output_dir=tmp_path / "dist", version="1.0-1")
+
+    assert result.skipped_files == ["Документы/прайс.pdf"]

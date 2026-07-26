@@ -30,9 +30,19 @@ class DeployReport:
     changes of the project directory at build time (None – git is unavailable or
     no build ran in this invocation): a build captures the disk as it is, so any
     divergence from HEAD has to be visible in the report.
+
+    app_id_source / project_id_source – where the target came from: "flag" – an
+    explicit --app-id / --project-id, "env" – ELEMENT_APP_ID / ELEMENT_PROJECT_ID
+    of the environment or the .env file. A deploy to the wrong application is the
+    cheapest mistake to make and the most expensive to notice, so the report names
+    the target and the reason it was chosen rather than the id alone.
     """
 
     app_id: str = ""
+    app_name: str = ""
+    app_id_source: str = ""
+    project_id: str = ""
+    project_id_source: str = ""
     uri: str = ""
     status: str = ""
     version: str = ""
@@ -49,6 +59,10 @@ class DeployReport:
         """Render the report as a dict with kebab-case keys (for JSON output)."""
         return {
             "app-id": self.app_id,
+            "app-name": self.app_name,
+            "app-id-source": self.app_id_source,
+            "project-id": self.project_id,
+            "project-id-source": self.project_id_source,
             "uri": self.uri,
             "status": self.status,
             "version": self.version,
@@ -75,15 +89,28 @@ def deploy_from_sources(
     branch=None,
     commit=None,
     commit_message="",
+    app_id_source="",
+    project_id_source="",
     log=None,
 ):
     """The full deploy cycle from sources, verifying that the build really applied.
 
     log – a callback for progress lines (print, for instance); the library itself
-    prints nothing.
+    prints nothing. app_id_source / project_id_source are carried through to the
+    report and named in the very first progress line: the target is announced
+    BEFORE the build, while there is still time to interrupt a deploy aimed at the
+    wrong application.
     """
     log = log or (lambda message: None)
     started_at = datetime.now(timezone.utc)
+
+    log(i18n.t(
+        "deploy.target",
+        app_id=app_id,
+        app_source=_source_label(app_id_source),
+        project_id=project_id,
+        project_source=_source_label(project_id_source),
+    ))
 
     # The build version: either explicit or auto-incremented from the project's last build.
     last_version = ""
@@ -106,6 +133,14 @@ def deploy_from_sources(
             "deploy.dirty-tree",
             count=len(result.dirty_files),
             files=_shorten_list(result.dirty_files),
+        ))
+    if result.skipped_files:
+        # Said BEFORE the apply: the platform reports the same thing as
+        # "Неизвестный ресурс", but only after the upload and with no file named.
+        log(i18n.t(
+            "deploy.skipped-files",
+            count=len(result.skipped_files),
+            files=_shorten_list(result.skipped_files),
         ))
 
     response = client.upload_assembly(
@@ -138,6 +173,9 @@ def deploy_from_sources(
     )
     report.assembly_id = assembly_id
     report.dirty_files = result.dirty_files
+    report.app_id_source = app_id_source or ""
+    report.project_id = str(project_id or "")
+    report.project_id_source = project_id_source or ""
     _log_outcome(report, log)
     return report
 
@@ -163,6 +201,15 @@ def verify_deploy(client, app_id, *, expected_version="", expected_assembly_id="
 
 
 # -- internals ----------------------------------------------------------------
+
+
+def _source_label(source):
+    """The human label of where a target id came from ("" – it was not tracked)."""
+    if source == "flag":
+        return i18n.t("deploy.source-flag")
+    if source == "env":
+        return i18n.t("deploy.source-env")
+    return i18n.t("deploy.unknown")
 
 
 def _shorten_list(items, limit=5):
@@ -228,6 +275,7 @@ def _verify(client, app_id, *, card, expected_version, since, expected_assembly_
 
     report = DeployReport(
         app_id=str(app_id),
+        app_name=str(card.get("name") or ""),
         uri=uri,
         status=str(card.get("status") or ""),
         version=expected_version or "",

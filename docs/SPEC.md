@@ -194,7 +194,7 @@ Compatibility is checked against the `РежимСовместимости` prop
 
 ## 7. CLI requirements
 
-Common flags (before the subcommand): `--base-url`, `--client-id`, `--client-secret`, `--env-file`, `--timeout` (seconds, default 60), `--version`.
+Common flags (in any position – they are accepted after the subcommand too): `--base-url`, `--client-id`, `--client-secret`, `--env-file`, `--timeout` (seconds, default 60), `--version`.
 
 Output: the result is JSON on stdout (`ensure_ascii=False`, indent 2); progress of long operations – lines on stderr; errors – JSON with an `error` field on stderr and return code 1.
 

@@ -285,6 +285,9 @@ def create_server(config=None):
             version=version,
             branch=branch or None,
             commit_message=commit_message,
+            # Both ids are required parameters of the tool, so they are always explicit.
+            app_id_source="flag",
+            project_id_source="flag",
             log=lines.append,
         )
         payload = report.to_dict()

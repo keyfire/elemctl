@@ -447,6 +447,26 @@ MESSAGES = {
         "ru": " и ещё {count}",
         "en": " and {count} more",
     },
+    "deploy.skipped-files": {
+        "ru": "внимание: в архив НЕ вошли файлы ({count}): {files} – расширение вне списка "
+              "разрешённых, а файл лежит не в каталоге Ресурсы; на применении это даёт "
+              "\"Неизвестный ресурс\"",
+        "en": "warning: files did NOT make it into the archive ({count}): {files} – the extension "
+              "is not on the allowlist and the file lies outside a Ресурсы directory; on apply "
+              "this shows up as \"Неизвестный ресурс\"",
+    },
+    "deploy.target": {
+        "ru": "цель: приложение {app_id} ({app_source}), проект {project_id} ({project_source})",
+        "en": "target: application {app_id} ({app_source}), project {project_id} ({project_source})",
+    },
+    "deploy.source-flag": {
+        "ru": "указан флагом",
+        "en": "given by a flag",
+    },
+    "deploy.source-env": {
+        "ru": "из окружения/.env",
+        "en": "from the environment/.env",
+    },
     "deploy.uploaded": {
         "ru": "сборка загружена (id: {id})",
         "en": "build uploaded (id: {id})",

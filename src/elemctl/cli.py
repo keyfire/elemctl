@@ -80,6 +80,20 @@ def _require(explicit, fallback, what):
     return value
 
 
+def _require_with_source(explicit, fallback, what):
+    """The same value plus where it came from: "flag" or "env".
+
+    The source matters for the deploy report: a target taken from the environment
+    is exactly the case in which one deploys to the wrong application without
+    noticing, so it must not look the same as an explicitly given one.
+    """
+    if explicit:
+        return explicit, "flag"
+    if fallback:
+        return fallback, "env"
+    raise ConfigError(i18n.t("cli.not-set", what=what))
+
+
 def _ensure_clean_tree(project_dir):
     """Abort the work when the project directory has uncommitted changes.
 
@@ -400,6 +414,7 @@ def _build_result_dict(result):
         "branch": result.branch,
         "commit": result.commit,
         "dirty": None if result.dirty_files is None else bool(result.dirty_files),
+        "skipped-files": list(result.skipped_files),
     }
 
 
@@ -415,6 +430,14 @@ def cmd_build(args):
         commit=args.commit,
         kind=args.kind or "",
     )
+    if result.skipped_files:
+        # The JSON carries the list; the warning goes to the progress stream, where
+        # a person actually sees it.
+        _progress(i18n.t(
+            "deploy.skipped-files",
+            count=len(result.skipped_files),
+            files=", ".join(result.skipped_files[:5]),
+        ))
     _emit(_build_result_dict(result))
     return 0
 
@@ -422,6 +445,27 @@ def cmd_build(args):
 def cmd_inspect(args):
     _emit(inspect_assembly(args.file))
     return 0
+
+
+def _dry_run_target(args):
+    """The target a real deploy would take, for the --dry-run report.
+
+    Softly: --dry-run only builds an archive and must keep working without any
+    configuration at all, so an unreadable .env leaves the target fields empty
+    instead of failing the build.
+    """
+    try:
+        config = _config(args)
+    except ConfigError:
+        return {}
+    app_id = args.app_id or config.app_id or ""
+    project_id = args.project_id or config.project_id or ""
+    return {
+        "app-id": app_id,
+        "app-id-source": ("flag" if args.app_id else "env" if app_id else ""),
+        "project-id": project_id,
+        "project-id-source": ("flag" if args.project_id else "env" if project_id else ""),
+    }
 
 
 def cmd_deploy(args):
@@ -435,13 +479,17 @@ def cmd_deploy(args):
             branch=args.branch,
             commit=args.commit,
         )
-        _emit(_build_result_dict(result))
+        report = _build_result_dict(result)
+        report.update(_dry_run_target(args))
+        _emit(report)
         return 0
 
     config = _config(args)
     client = make_client(config)
-    app_id = _require(args.app_id, config.app_id, i18n.t("cli.require.app-id-flag"))
-    project_id = _require(
+    app_id, app_id_source = _require_with_source(
+        args.app_id, config.app_id, i18n.t("cli.require.app-id-flag")
+    )
+    project_id, project_id_source = _require_with_source(
         args.project_id, config.project_id, i18n.t("cli.require.project-id-flag")
     )
     report = deploy_from_sources(
@@ -454,6 +502,8 @@ def cmd_deploy(args):
         branch=args.branch,
         commit=args.commit,
         commit_message=args.commit_message or "",
+        app_id_source=app_id_source,
+        project_id_source=project_id_source,
         log=_progress,
     )
     _emit(report.to_dict())
@@ -781,6 +831,49 @@ def _add_create_flags(p):
     p.add_argument("--wait", action="store_true", help=i18n.t("cli.help.create-wait"))
 
 
+# The global options are declared on the root parser, so argparse only accepts them
+# BEFORE the subcommand: "elemctl deploy --env-file .env" used to die with
+# "unrecognized arguments". They are hoisted to the front of argv instead, which keeps
+# the order rule out of the checklists and out of the skills.
+_GLOBAL_OPTIONS = (
+    "--base-url",
+    "--client-id",
+    "--client-secret",
+    "--env-file",
+    "--timeout",
+    "--lang",
+)
+
+
+def _hoist_global_options(argv):
+    """Move the global options standing after the subcommand to the front of argv.
+
+    Both spellings are handled ("--env-file path" and "--env-file=path"). Everything
+    after a bare "--" is left untouched: there the tokens belong to the command, not
+    to the parser. An option without a value is left in place as well - let argparse
+    report it in its own words.
+    """
+    argv = list(argv)
+    hoisted, rest = [], []
+    index = 0
+    while index < len(argv):
+        arg = argv[index]
+        if arg == "--":
+            rest.extend(argv[index:])
+            break
+        if arg in _GLOBAL_OPTIONS and index + 1 < len(argv):
+            hoisted.extend([arg, argv[index + 1]])
+            index += 2
+            continue
+        if any(arg.startswith(option + "=") for option in _GLOBAL_OPTIONS):
+            hoisted.append(arg)
+            index += 1
+            continue
+        rest.append(arg)
+        index += 1
+    return hoisted + rest
+
+
 def build_parser():
     parser = i18n.ArgumentParser(
         prog="elemctl",
@@ -1100,6 +1193,7 @@ def main(argv=None):
     _reconfigure_streams()
     if argv is None:
         argv = sys.argv[1:]
+    argv = _hoist_global_options(argv)
     # The language is needed BEFORE build_parser: the help (help=) is assembled in the chosen
     # language. So argv is prescanned for --lang; env and the locale are taken into account by
     # t() itself through current_lang() while the parser is being built.

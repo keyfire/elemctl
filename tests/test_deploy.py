@@ -57,7 +57,7 @@ class FakeDeployClient:
         return self._uri_status
 
     def _card(self):
-        card = {"id": "app-1", "status": self._status, "uri": self._uri}
+        card = {"id": "app-1", "name": "site-dev", "status": self._status, "uri": self._uri}
         source = {}
         if self._applied_version is not None:
             source["project-version"] = self._applied_version
@@ -237,6 +237,10 @@ def test_report_to_dict_kebab_case(project_factory, tmp_path):
     payload = report.to_dict()
     assert set(payload) == {
         "app-id",
+        "app-name",
+        "app-id-source",
+        "project-id",
+        "project-id-source",
         "uri",
         "status",
         "version",
@@ -337,3 +341,45 @@ def test_deploy_outside_repository_dirty_unknown(project_factory, tmp_path):
     assert report.dirty_files is None
     assert report.to_dict()["dirty"] is None
     assert not [line for line in log_lines if "незакоммиченные" in line]
+
+
+def test_report_names_the_target_and_where_it_came_from(project_factory, tmp_path):
+    """The report names the application, its name and the origin of each id.
+
+    A deploy to the wrong application is the mistake this closes: an id taken from
+    the environment must not look the same as one given explicitly.
+    """
+    client = FakeDeployClient(applied_version="1.0-1")
+    report = deploy_from_sources(
+        client,
+        "app-1",
+        "proj-1",
+        project_dir=project_factory(),
+        output_dir=tmp_path / "dist",
+        version="1.0-1",
+        app_id_source="env",
+        project_id_source="flag",
+    )
+    payload = report.to_dict()
+    assert payload["app-id"] == "app-1" and payload["app-name"] == "site-dev"
+    assert payload["app-id-source"] == "env"
+    assert payload["project-id"] == "proj-1" and payload["project-id-source"] == "flag"
+
+
+def test_target_is_announced_before_the_build(project_factory, tmp_path):
+    """The target line comes FIRST - while there is still time to interrupt."""
+    client = FakeDeployClient(applied_version="1.0-1")
+    log_lines = []
+    deploy_from_sources(
+        client,
+        "app-1",
+        "proj-1",
+        project_dir=project_factory(),
+        output_dir=tmp_path / "dist",
+        version="1.0-1",
+        app_id_source="env",
+        project_id_source="env",
+        log=log_lines.append,
+    )
+    assert "app-1" in log_lines[0] and "proj-1" in log_lines[0]
+    assert "окружения" in log_lines[0]

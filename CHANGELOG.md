@@ -8,6 +8,34 @@ day are named in the heading. The format follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html). The VS Code debug companion in
 `editors/vscode` is released separately under the `vscode-v*` tags and is not tracked here.
 
+## Unreleased
+
+### Added
+- **`deploy` names the target and where it came from.** The report carries `app-name`,
+  `app-id-source` and `project-id-source` next to the ids, and the target is announced by the
+  FIRST progress line – before the build, while a deploy aimed at the wrong application can still
+  be interrupted. `--dry-run` shows the same target, softly: it must keep building without any
+  configuration, so an unreadable `.env` leaves the fields empty instead of failing.
+- **The build names the files it left behind** (`skipped-files` in the report plus a warning).
+  A file with an extension outside the allowlist only gets into the archive when it lies in a
+  `Ресурсы` directory; kept anywhere else it silently misses the archive and the platform says so
+  only on apply, as "Неизвестный ресурс". Deliberately excluded files (`.gitignore`, `.env`,
+  prebuilt `.xasm`/`.xlib`) are not counted as a loss.
+
+### Fixed
+- **A global option is accepted after the subcommand too.** `--env-file`, `--lang`, `--base-url`,
+  `--client-id`, `--client-secret` and `--timeout` are declared on the root parser, so
+  `elemctl deploy --env-file .env` used to die with argparse's "unrecognized arguments" and the
+  order rule had to live in a checklist and in three skills. The options are hoisted to the front
+  of argv instead; both spellings work and the tokens after a bare `--` are left alone.
+- **A token the server has rejected no longer survives in the cache.** The refresh-and-retry
+  watched for a 401, but this server refuses a bad token with **400 `invalid_request`**, naming the
+  reason in `error_description` ("JWT strings must contain exactly 2 period characters", "Unable to
+  verify RSA signature ..."). Both answers were reproduced against a live stand by planting a bad
+  token into the cache, which is why the cure used to be written down as deleting
+  `<TEMP>/elemctl-token-*.json` by hand. Such a refusal now drops the cache FILE and retries once;
+  an ordinary bad request, whose description says nothing about a token, is not retried.
+
 ## 2026-07-26 – 0.17.0
 
 ### Added

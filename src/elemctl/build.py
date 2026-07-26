@@ -89,6 +89,7 @@ class BuildResult:
     files: list = field(default_factory=list)
     version_source: str = ""
     dirty_files: list | None = None
+    skipped_files: list = field(default_factory=list)
 
 
 def parse_flat_yaml(text):
@@ -199,18 +200,33 @@ def collect_project_files(project_dir):
     `Ресурсы` directory (at any level, including its subdirectories) files of any
     extension are taken – a resource may be an arbitrary file: .pdf, .htm, .mxl etc.
     """
+    return collect_with_skipped(project_dir)[0]
+
+
+def collect_with_skipped(project_dir):
+    """The same selection plus what it left behind: (selected, skipped).
+
+    skipped holds the files that lie in the project tree and did NOT get into the
+    archive because of their extension - deliberately excluded ones (.gitignore,
+    .env, prebuilt .xasm/.xlib) are not counted, they are meant to stay out. This
+    is the "Неизвестный ресурс" failure seen from the build side: a resource kept
+    OUTSIDE a `Ресурсы` directory with an extension nobody put on the allowlist
+    silently misses the archive, and the platform only says so when applying.
+    """
     project_dir = Path(project_dir)
-    selected = []
+    selected, skipped = [], []
     for root, dirs, files in os.walk(project_dir):
         dirs[:] = sorted(d for d in dirs if not _is_excluded_dir(d))
         in_resources = RESOURCES_DIR in Path(root).relative_to(project_dir).parts
         for file_name in sorted(files):
+            path = Path(root) / file_name
             if _is_excluded_file(file_name):
                 continue
             if not in_resources and Path(file_name).suffix.lower() not in ALLOWED_EXTENSIONS:
+                skipped.append(path)
                 continue
-            selected.append(Path(root) / file_name)
-    return selected
+            selected.append(path)
+    return selected, skipped
 
 
 def git_metadata(project_dir):
@@ -328,7 +344,7 @@ def build_assembly(
     target_dir.mkdir(parents=True, exist_ok=True)
     archive_path = target_dir / f"{meta.name} {build_version}{extension}"
 
-    files = collect_project_files(meta.project_dir)
+    files, skipped = collect_with_skipped(meta.project_dir)
     archive_names = []
     with zipfile.ZipFile(archive_path, "w", zipfile.ZIP_DEFLATED) as archive:
         archive.writestr("Assembly.yaml", manifest)
@@ -349,6 +365,9 @@ def build_assembly(
         files=archive_names,
         version_source=version_source,
         dirty_files=git_dirty_files(meta.project_dir),
+        skipped_files=[
+            str(path.relative_to(meta.project_dir)).replace("\\", "/") for path in skipped
+        ],
     )
 
 

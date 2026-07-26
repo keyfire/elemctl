@@ -464,3 +464,47 @@ def test_wait_app_status_error_carries_task_details(api):
 
     message = str(excinfo.value)
     assert "Error" in message and "[10:5]" in message
+
+
+def test_retry_once_on_a_400_that_rejects_the_token(api):
+    """A rejected token comes back as 400, not 401 - reproduced against a live stand.
+
+    The server answers error_code=invalid_request with the reason in
+    error_description ("JWT strings must contain exactly 2 period characters",
+    "Unable to verify RSA signature ..."). The refresh-and-retry used to watch only
+    for 401, so a token the server had rejected survived its whole TTL in the cache
+    file and the cure was written down as deleting that file by hand.
+    """
+    client, transport = api
+    transport.add(
+        "GET",
+        f"{API}/applications",
+        {
+            "error_code": "invalid_request",
+            "error_description": "JWT strings must contain exactly 2 period characters. Found: 0",
+        },
+        status=400,
+    )
+    transport.add("GET", f"{API}/applications", [{"id": "app-1"}])
+
+    apps = client.list_apps()
+
+    assert apps == [{"id": "app-1"}]
+    assert len(transport.calls_to("POST", "/console/sys/token")) == 2
+
+
+def test_an_ordinary_400_is_not_retried(api):
+    """A bad request must not send us after a new token: the description says nothing about a token."""
+    client, transport = api
+    transport.add(
+        "GET",
+        f"{API}/applications",
+        {"error_code": "invalid_request", "error_description": "name must not be empty"},
+        status=400,
+    )
+
+    with pytest.raises(ApiError):
+        client.list_apps()
+
+    assert len(transport.calls_to("POST", "/console/sys/token")) == 1
+    assert len(transport.calls_to("GET", f"{API}/applications")) == 1
