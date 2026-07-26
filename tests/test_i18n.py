@@ -191,6 +191,8 @@ def test_no_russian_string_literals_outside_the_catalog():
         "ВПодсистеме", "Имя", "Поставщик", "Версия", "ВидПроекта", "Библиотека",
         "ВидЭлемента", "ОбластьВидимости", "РежимСовместимости", "Представление",
         "библиотека", "приложение",
+        # The keys of an attribute description, read by the schema guard.
+        "Реквизиты", "Ид", "Тип", "Длина", "МаксимальнаяДлина",
     }
     package = Path(i18n.__file__).parent
     offenders = []
