@@ -40,10 +40,9 @@ day are named in the heading. The format follows
   archive-to-archive comparison is impossible and the check rests on the `commit-id` of the
   assembly card. With no commit, or no such commit in the local repository, the guard says it
   cannot judge and does NOT stand in the way: being unable to compare is not evidence of danger.
-  Measured on a live stand (server 10.0.1): the platform IGNORES the `CommitId`/`BranchName`
-  parameters on upload – even an explicitly passed value comes back empty, while assemblies
-  uploaded in July do carry a commit. While that holds, on such a server the guard will more often
-  stay silent than judge.
+  Measured on a live stand: the platform may IGNORE the `CommitId`/`BranchName` parameters on
+  upload – even an explicitly passed value comes back empty, while assemblies uploaded earlier do
+  carry a commit. Where that holds, the guard will more often stay silent than judge.
 
 ### Fixed
 - **A global option is accepted after the subcommand too.** `--env-file`, `--lang`, `--base-url`,
