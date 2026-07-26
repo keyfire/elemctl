@@ -9,6 +9,7 @@ version actually applied and an informational HTTP request to the application ur
 
 from __future__ import annotations
 
+import subprocess
 import tempfile
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -16,6 +17,8 @@ from datetime import datetime, timezone
 from . import i18n
 from .build import build_assembly
 from .client import FAILED_TASK_STATUSES, extract_assembly_id
+from .errors import ElemctlError
+from .schema import narrowing_in_tree
 
 __all__ = ["FAILED_TASK_STATUSES"]  # the name stays where importers already expect it
 
@@ -91,6 +94,7 @@ def deploy_from_sources(
     commit_message="",
     app_id_source="",
     project_id_source="",
+    allow_data_loss=False,
     log=None,
 ):
     """The full deploy cycle from sources, verifying that the build really applied.
@@ -111,6 +115,23 @@ def deploy_from_sources(
         project_id=project_id,
         project_source=_source_label(project_id_source),
     ))
+
+    # The schema guard runs BEFORE the build: a narrowing recreates the data of the
+    # object, and refusing here means nothing was built and nothing uploaded.
+    changes, blocked_reason = check_destructive_changes(
+        client, app_id, project_id, project_dir, log=log
+    )
+    if changes and not allow_data_loss:
+        raise ElemctlError(i18n.t(
+            "deploy.destructive-changes",
+            count=len(changes),
+            changes="; ".join(changes),
+        ))
+    if changes:
+        log(i18n.t("deploy.destructive-allowed", count=len(changes),
+                   changes="; ".join(changes)))
+    elif blocked_reason:
+        log(i18n.t("deploy.schema-check-skipped", reason=blocked_reason))
 
     # The build version: either explicit or auto-incremented from the project's last build.
     last_version = ""
@@ -201,6 +222,67 @@ def verify_deploy(client, app_id, *, expected_version="", expected_assembly_id="
 
 
 # -- internals ----------------------------------------------------------------
+
+
+def _applied_commit(client, app_id, project_id):
+    """The commit the currently applied build was made from ("" when unknown).
+
+    The Console API does NOT hand out the contents of an assembly - there is no
+    download method - so an archive-to-archive comparison is impossible. What the
+    assembly card does carry is commit-id, which makes the sources of that commit
+    the thing to compare against.
+    """
+    try:
+        card = client.get_app(app_id) or {}
+        applied_id = str((card.get("source") or {}).get("project-version-id") or "")
+        if not applied_id:
+            return ""
+        for assembly in client.list_assemblies(project_id):
+            if isinstance(assembly, dict) and str(assembly.get("id") or "") == applied_id:
+                return str(assembly.get("commit-id") or "")
+    except Exception:
+        # The guard is auxiliary: no failure of it may get in the way of a deploy.
+        return ""
+    return ""
+
+
+def _git_show(project_dir, commit, relative_path):
+    """The text of a file at a commit, or None when git cannot produce it."""
+    try:
+        completed = subprocess.run(
+            ["git", "-C", str(project_dir), "show", f"{commit}:./{relative_path}"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=15,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return completed.stdout if completed.returncode == 0 else None
+
+
+def check_destructive_changes(client, app_id, project_id, project_dir, log=None):
+    """The narrowings between the sources on disk and the applied build's commit.
+
+    Returns (changes, blocked_reason). blocked_reason is filled when there is
+    nothing to compare against - no commit-id on the card, or the commit is not in
+    the local repository. That case must NOT block a deploy: the guard says it
+    cannot judge and steps aside, because being unable to compare is not evidence
+    of danger.
+    """
+    log = log or (lambda message: None)
+    if not project_dir:
+        return [], "no-project-dir"
+    commit = _applied_commit(client, app_id, project_id)
+    if not commit:
+        return [], "no-commit-id"
+    if _git_show(project_dir, commit, "Проект.yaml") is None:
+        return [], "commit-unavailable"
+    changes = narrowing_in_tree(
+        project_dir, lambda relative: _git_show(project_dir, commit, relative)
+    )
+    return changes, ""
 
 
 def _source_label(source):

@@ -98,6 +98,33 @@ def narrowing_changes(before_text, after_text, *, where=""):
     return changes
 
 
+def narrowing_in_tree(project_dir, read_before):
+    """Every narrowing between the sources on disk and their earlier state.
+
+    read_before(relative_path) returns the earlier text of the file or None when
+    it is unknown (a new file, or the earlier state cannot be read). The caller
+    supplies it: for a deploy that is `git show <commit>:<path>` of the commit the
+    applied build was made from - the Console API does not hand out the contents
+    of an assembly, so the sources of that commit are the only thing there is to
+    compare against.
+    """
+    from pathlib import Path
+
+    project_dir = Path(project_dir)
+    changes = []
+    for path in sorted(project_dir.rglob("*.yaml")):
+        relative = path.relative_to(project_dir).as_posix()
+        before = read_before(relative)
+        if before is None:
+            continue
+        try:
+            after = path.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        changes.extend(narrowing_changes(before, after, where=relative))
+    return changes
+
+
 # -- internals ----------------------------------------------------------------
 
 

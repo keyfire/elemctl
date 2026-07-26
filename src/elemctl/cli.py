@@ -357,6 +357,17 @@ def _warn_upload_name_mismatch(client, project_id, file_path):
         )
 
 
+def _manifest_of(file_path):
+    """The manifest of an archive, or an empty dict when it cannot be read.
+
+    Auxiliary: a manifest that fails to parse must not stand in the way of an upload.
+    """
+    try:
+        return read_assembly_manifest(file_path)
+    except Exception:
+        return {}
+
+
 def cmd_builds_upload(args):
     config = _config(args)
     client = make_client(config)
@@ -368,12 +379,20 @@ def cmd_builds_upload(args):
         _progress(i18n.t("cli.upload-target-from-env", project_id=project_id))
     if project_id:
         _warn_upload_name_mismatch(client, project_id, file_path)
+    # The archive already knows its commit - the build wrote it into the manifest - so
+    # the two-step route (build, then upload) no longer has to be told it twice.
+    # CAVEAT, measured on a live stand (server 10.0.1): the platform IGNORES the
+    # CommitId and BranchName query parameters - even an explicitly passed value comes
+    # back null, while assemblies uploaded in July still carry a commit. So this fills
+    # the gap only where the server does accept them; the schema guard must keep
+    # working when the card has no commit at all.
+    manifest = _manifest_of(file_path)
     response = client.upload_assembly(
         file_path.read_bytes(),
         project_id=project_id,
         space_id=args.space_id or config.space_id or None,
-        branch_name=args.branch or None,
-        commit_id=args.commit or None,
+        branch_name=args.branch or manifest.get("BranchName") or None,
+        commit_id=args.commit or manifest.get("CommitId") or None,
         commit_message=args.commit_message or None,
     )
     _emit(
@@ -504,6 +523,7 @@ def cmd_deploy(args):
         commit_message=args.commit_message or "",
         app_id_source=app_id_source,
         project_id_source=project_id_source,
+        allow_data_loss=args.allow_data_loss,
         log=_progress,
     )
     _emit(report.to_dict())
@@ -1039,6 +1059,11 @@ def build_parser():
         "--require-clean",
         action="store_true",
         help=i18n.t("cli.help.deploy-require-clean"),
+    )
+    p.add_argument(
+        "--allow-data-loss",
+        action="store_true",
+        help=i18n.t("cli.help.deploy-allow-data-loss"),
     )
     p.set_defaults(handler=cmd_deploy)
 

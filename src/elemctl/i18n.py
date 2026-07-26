@@ -447,6 +447,26 @@ MESSAGES = {
         "ru": " и ещё {count}",
         "en": " and {count} more",
     },
+    "deploy.destructive-changes": {
+        "ru": "ОТКАЗ: применение пересоздаст данные объектов – сужений найдено {count}: {changes}. "
+              "Расширение длин данные сохраняет, сужение и смена типа – нет. Если потеря данных "
+              "допустима, повторите с флагом --allow-data-loss",
+        "en": "REFUSED: the apply would recreate the data of the objects – {count} narrowing(s) "
+              "found: {changes}. Widening keeps the data, narrowing and a type change do not. If "
+              "losing the data is acceptable, repeat with --allow-data-loss",
+    },
+    "deploy.destructive-allowed": {
+        "ru": "внимание: сужений найдено {count}, данные объектов будут пересозданы "
+              "(--allow-data-loss): {changes}",
+        "en": "warning: {count} narrowing(s) found, the data of the objects will be recreated "
+              "(--allow-data-loss): {changes}",
+    },
+    "deploy.schema-check-skipped": {
+        "ru": "сверка схемы не выполнена ({reason}) – сравнить не с чем, это НЕ значит, что "
+              "применение безопасно",
+        "en": "the schema check did not run ({reason}) – there is nothing to compare against, "
+              "which does NOT mean the apply is safe",
+    },
     # -- schema.py ----------------------------------------------------------------
     "schema.length-narrowed": {
         "ru": "{where}: реквизит {name} – длина сужена с {before} до {after}",
@@ -937,6 +957,12 @@ MESSAGES = {
     "cli.help.deploy-require-clean": {
         "ru": "прервать деплой, если в каталоге проекта есть незакоммиченные изменения",
         "en": "abort the deploy if the project directory has uncommitted changes",
+    },
+    "cli.help.deploy-allow-data-loss": {
+        "ru": "разрешить применение, пересоздающее данные объектов (сужение длины, смена типа "
+              "реквизита); без флага такой деплой отклоняется до сборки",
+        "en": "allow an apply that recreates the data of the objects (a narrowed length, a changed "
+              "attribute type); without the flag such a deploy is refused before the build",
     },
     "cli.help.user-lists": {
         "ru": "списки пользователей и их настройки входа",

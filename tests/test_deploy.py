@@ -4,7 +4,10 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
+import pytest
+
 from elemctl.deploy import deploy_from_sources, verify_deploy
+from elemctl.errors import ElemctlError
 
 
 class FakeDeployClient:
@@ -383,3 +386,93 @@ def test_target_is_announced_before_the_build(project_factory, tmp_path):
     )
     assert "app-1" in log_lines[0] and "proj-1" in log_lines[0]
     assert "окружения" in log_lines[0]
+
+
+class SchemaGuardClient(FakeDeployClient):
+    """A client whose applied build points at a known commit.
+
+    Before the apply the card names the previously applied assembly (that is what
+    the guard reads); after it, the one just uploaded - otherwise the verdict would
+    see a rollback that never happened.
+    """
+
+    def __init__(self, *, commit_id="c0ffee", **kwargs):
+        super().__init__(applied_version="1.0-1", applied_version_id="asm-applied", **kwargs)
+        self._commit_id = commit_id
+
+    def list_assemblies(self, project_id):
+        return [{"id": "asm-applied", "commit-id": self._commit_id}]
+
+    def apply_build(self, app_id, **kwargs):
+        super().apply_build(app_id, **kwargs)
+        self._applied_version_id = kwargs.get("image_id") or self._applied_version_id
+
+
+def test_a_narrowing_refuses_the_deploy_before_anything_is_built(project_factory, tmp_path, monkeypatch):
+    """The refusal comes before the build - nothing is built and nothing uploaded."""
+    from elemctl import deploy as deploy_module
+
+    project_dir = project_factory()
+    (project_dir / "Справочник.yaml").write_text(
+        "Реквизиты:\n    -\n        Ид: a1\n        Имя: Код\n        Тип: Строка\n"
+        "        МаксимальнаяДлина: 50\n",
+        encoding="utf-8",
+    )
+    before = (
+        "Реквизиты:\n    -\n        Ид: a1\n        Имя: Код\n        Тип: Строка\n"
+        "        МаксимальнаяДлина: 200\n"
+    )
+    monkeypatch.setattr(
+        deploy_module, "_git_show",
+        lambda project_dir, commit, relative: before if relative == "Справочник.yaml" else "",
+    )
+    client = SchemaGuardClient()
+
+    with pytest.raises(ElemctlError) as error:
+        deploy_from_sources(
+            client, "app-1", "proj-1", project_dir=project_dir, output_dir=tmp_path / "d",
+        )
+
+    assert "Код" in str(error.value) and "--allow-data-loss" in str(error.value)
+    assert client.upload_kwargs is None  # nothing was uploaded
+    assert client.apply_calls == []
+
+
+def test_allow_data_loss_lets_the_narrowing_through(project_factory, tmp_path, monkeypatch):
+    from elemctl import deploy as deploy_module
+
+    project_dir = project_factory()
+    (project_dir / "Справочник.yaml").write_text(
+        "Реквизиты:\n    -\n        Ид: a1\n        Имя: Код\n        Тип: Строка\n"
+        "        МаксимальнаяДлина: 50\n",
+        encoding="utf-8",
+    )
+    before = (
+        "Реквизиты:\n    -\n        Ид: a1\n        Имя: Код\n        Тип: Строка\n"
+        "        МаксимальнаяДлина: 200\n"
+    )
+    monkeypatch.setattr(
+        deploy_module, "_git_show",
+        lambda project_dir, commit, relative: before if relative == "Справочник.yaml" else "",
+    )
+    log_lines = []
+
+    report = deploy_from_sources(
+        SchemaGuardClient(), "app-1", "proj-1", project_dir=project_dir,
+        output_dir=tmp_path / "d", version="1.0-1", allow_data_loss=True, log=log_lines.append,
+    )
+
+    assert report.ok is True
+    assert any("пересозданы" in line for line in log_lines)
+
+
+def test_without_a_commit_id_the_guard_steps_aside(project_factory, tmp_path):
+    """Being unable to compare is not evidence of danger - the deploy goes on, saying so."""
+    log_lines = []
+    report = deploy_from_sources(
+        SchemaGuardClient(commit_id=""), "app-1", "proj-1",
+        project_dir=project_factory(), output_dir=tmp_path / "d", version="1.0-1",
+        log=log_lines.append,
+    )
+    assert report.ok is True
+    assert any("no-commit-id" in line for line in log_lines)

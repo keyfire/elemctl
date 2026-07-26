@@ -28,6 +28,23 @@ day are named in the heading. The format follows
   only on apply, as "Неизвестный ресурс". Deliberately excluded files (`.gitignore`, `.env`,
   prebuilt `.xasm`/`.xlib`) are not counted as a loss.
 
+- **A guard against the schema changes that destroy data.** A narrowed length or a changed type
+  makes an apply RECREATE the data of the object – widening keeps it, so the dangerous class is
+  narrow. `deploy` compares the sources on disk with their state at the commit the applied build
+  was made from and, on a finding, refuses BEFORE the build: nothing is built and nothing uploaded.
+  `--allow-data-loss` lets it through. Attributes are matched by `Ид`, the way the platform matches
+  them, so a rename under the same `Ид` stays silent. The reading pulls in no dependencies – the
+  tool has none at all – it reads the `Реквизиты` block and says nothing about what it does not
+  recognize: the guard may fail to judge, but it must never invent a change.
+  **What it cannot do:** the Console API does not hand out the contents of an assembly, so an
+  archive-to-archive comparison is impossible and the check rests on the `commit-id` of the
+  assembly card. With no commit, or no such commit in the local repository, the guard says it
+  cannot judge and does NOT stand in the way: being unable to compare is not evidence of danger.
+  Measured on a live stand (server 10.0.1): the platform IGNORES the `CommitId`/`BranchName`
+  parameters on upload – even an explicitly passed value comes back empty, while assemblies
+  uploaded in July do carry a commit. While that holds, on such a server the guard will more often
+  stay silent than judge.
+
 ### Fixed
 - **A global option is accepted after the subcommand too.** `--env-file`, `--lang`, `--base-url`,
   `--client-id`, `--client-secret` and `--timeout` are declared on the root parser, so

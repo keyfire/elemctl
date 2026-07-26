@@ -517,7 +517,7 @@ usage: elemctl inspect [-h] FILE
 usage: elemctl deploy [-h] [--app-id APP_ID] [--project-id PROJECT_ID] [--project-dir PROJECT_DIR]
                       [--output OUTPUT] [--build-version BUILD_VERSION] [--branch BRANCH]
                       [--commit COMMIT] [--commit-message COMMIT_MESSAGE] [--dry-run]
-                      [--require-clean]
+                      [--require-clean] [--allow-data-loss]
 ```
 
 **Параметры**
@@ -535,6 +535,7 @@ usage: elemctl deploy [-h] [--app-id APP_ID] [--project-id PROJECT_ID] [--projec
 | `--commit-message COMMIT_MESSAGE` | сообщение коммита (метаданные загрузки) |
 | `--dry-run` | только сборка, без загрузки |
 | `--require-clean` | прервать деплой, если в каталоге проекта есть незакоммиченные изменения |
+| `--allow-data-loss` | разрешить применение, пересоздающее данные объектов (сужение длины, смена типа реквизита); без флага такой деплой отклоняется до сборки |
 
 ## `elemctl user-lists`
 

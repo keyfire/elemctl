@@ -517,7 +517,7 @@ usage: elemctl inspect [-h] FILE
 usage: elemctl deploy [-h] [--app-id APP_ID] [--project-id PROJECT_ID] [--project-dir PROJECT_DIR]
                       [--output OUTPUT] [--build-version BUILD_VERSION] [--branch BRANCH]
                       [--commit COMMIT] [--commit-message COMMIT_MESSAGE] [--dry-run]
-                      [--require-clean]
+                      [--require-clean] [--allow-data-loss]
 ```
 
 **Options**
@@ -535,6 +535,7 @@ usage: elemctl deploy [-h] [--app-id APP_ID] [--project-id PROJECT_ID] [--projec
 | `--commit-message COMMIT_MESSAGE` | commit message (upload metadata) |
 | `--dry-run` | build only, no upload |
 | `--require-clean` | abort the deploy if the project directory has uncommitted changes |
+| `--allow-data-loss` | allow an apply that recreates the data of the objects (a narrowed length, a changed attribute type); without the flag such a deploy is refused before the build |
 
 ## `elemctl user-lists`
 
