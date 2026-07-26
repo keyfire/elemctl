@@ -8,7 +8,7 @@ day are named in the heading. The format follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html). The VS Code debug companion in
 `editors/vscode` is released separately under the `vscode-v*` tags and is not tracked here.
 
-## Unreleased
+## 2026-07-26 – 0.18.0
 
 ### Added
 - **`deploy` names the target and where it came from.** The report carries `app-name`,
