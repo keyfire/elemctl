@@ -381,7 +381,7 @@ def cmd_builds_upload(args):
         _warn_upload_name_mismatch(client, project_id, file_path)
     # The archive already knows its commit - the build wrote it into the manifest - so
     # the two-step route (build, then upload) no longer has to be told it twice.
-    # CAVEAT, measured on a live stand: the platform may IGNORE the CommitId and
+    # CAVEAT: the platform may IGNORE the CommitId and
     # BranchName query parameters - even an explicitly passed value comes back null,
     # while assemblies uploaded earlier still carry a commit. So this fills the gap only
     # where the server does accept them; the schema guard must keep working when the

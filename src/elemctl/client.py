@@ -92,8 +92,8 @@ def _is_stale_token(response):
     A rejected token does NOT come back as 401 from this server: it answers 400
     with error_code=invalid_request, and the reason sits in error_description
     ("JWT strings must contain exactly 2 period characters", "Unable to verify RSA
-    signature ..."). Both were reproduced against a live stand by planting a
-    deliberately bad token into the cache. That is why the refresh-and-retry, which
+    signature ..."). Both are reproducible by planting a deliberately bad token
+    into the cache. That is why the refresh-and-retry, which
     watched only for 401, never fired and the cure was written down as deleting the
     cache file by hand. The description is required to name the token, so an
     ordinary invalid request does not send us for a new token.

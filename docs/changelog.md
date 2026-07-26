@@ -40,7 +40,7 @@ day are named in the heading. The format follows
   archive-to-archive comparison is impossible and the check rests on the `commit-id` of the
   assembly card. With no commit, or no such commit in the local repository, the guard says it
   cannot judge and does NOT stand in the way: being unable to compare is not evidence of danger.
-  Measured on a live stand: the platform may IGNORE the `CommitId`/`BranchName` parameters on
+  The platform may IGNORE the `CommitId`/`BranchName` parameters on
   upload – even an explicitly passed value comes back empty, while assemblies uploaded earlier do
   carry a commit. Where that holds, the guard will more often stay silent than judge.
 
@@ -53,7 +53,7 @@ day are named in the heading. The format follows
 - **A token the server has rejected no longer survives in the cache.** The refresh-and-retry
   watched for a 401, but this server refuses a bad token with **400 `invalid_request`**, naming the
   reason in `error_description` ("JWT strings must contain exactly 2 period characters", "Unable to
-  verify RSA signature ..."). Both answers were reproduced against a live stand by planting a bad
+  verify RSA signature ..."). Both answers are reproducible by planting a bad
   token into the cache, which is why the cure used to be written down as deleting
   `<TEMP>/elemctl-token-*.json` by hand. Such a refusal now drops the cache FILE and retries once;
   an ordinary bad request, whose description says nothing about a token, is not retried.
@@ -77,7 +77,7 @@ day are named in the heading. The format follows
   the meaning of the `Local` account service, and the fact that the link between an
   application and a list carries no settings of its own. Also written down: the composition
   of the authentication FORMS and the "connect users automatically" setting are not in the
-  API at all (verified on a live stand); the rules for parsing an account service response
+  API at all; the rules for parsing an account service response
   are accepted under `userPropertiesCalculationRules` while the reference's own schema calls
   them `calculation-rules` and the platform answers 400 to that spelling – and a GET never
   returns them, so the setting is write-only; `POST /user-lists` wants the whole card and

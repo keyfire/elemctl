@@ -467,7 +467,7 @@ def test_wait_app_status_error_carries_task_details(api):
 
 
 def test_retry_once_on_a_400_that_rejects_the_token(api):
-    """A rejected token comes back as 400, not 401 - reproduced against a live stand.
+    """A rejected token comes back as 400, not 401.
 
     The server answers error_code=invalid_request with the reason in
     error_description ("JWT strings must contain exactly 2 period characters",

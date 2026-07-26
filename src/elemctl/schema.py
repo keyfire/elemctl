@@ -1,8 +1,8 @@
 """Detecting the schema changes that destroy data.
 
-The platform recreates the data of an object when an apply NARROWS a field:
-observed on a live stand, where a catalog came out empty after a "repair" build
-put the lengths back within the limits. Widening keeps the data, so the dangerous
+The platform recreates the data of an object when an apply NARROWS a field: a
+catalog comes out empty after a "repair" build that puts the lengths back within
+the limits. Widening keeps the data, so the dangerous
 class is narrow: a smaller length or a changed type.
 
 There is no full YAML parser here on purpose - elemctl has no dependencies at all.
