@@ -447,6 +447,15 @@ MESSAGES = {
         "ru": " и ещё {count}",
         "en": " and {count} more",
     },
+    # -- schema.py ----------------------------------------------------------------
+    "schema.length-narrowed": {
+        "ru": "{where}: реквизит {name} – длина сужена с {before} до {after}",
+        "en": "{where}: attribute {name} – the length narrowed from {before} to {after}",
+    },
+    "schema.type-changed": {
+        "ru": "{where}: реквизит {name} – тип изменён с {before} на {after}",
+        "en": "{where}: attribute {name} – the type changed from {before} to {after}",
+    },
     "deploy.skipped-files": {
         "ru": "внимание: в архив НЕ вошли файлы ({count}): {files} – расширение вне списка "
               "разрешённых, а файл лежит не в каталоге Ресурсы; на применении это даёт "
