@@ -8,6 +8,19 @@ day are named in the heading. The format follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html). The VS Code debug companion in
 `editors/vscode` is released separately under the `vscode-v*` tags and is not tracked here.
 
+## 2026-07-27 – 0.18.1
+
+### Fixed
+- **A build made on a CI runner recorded `HEAD` as its branch.** The runner checks out the
+  commit rather than the branch, so `git rev-parse --abbrev-ref HEAD` answers the literal
+  `HEAD` – and that word went into `BranchName` of every assembly the pipeline shipped. The
+  manifest field exists to answer "where is this build from", and it answered nothing exactly
+  where it was needed most. A detached checkout now takes the name from the CI environment
+  (`CI_COMMIT_BRANCH`, `CI_COMMIT_REF_NAME`, `GITHUB_REF_NAME`), and when nothing names a
+  branch the field is left EMPTY: an honest blank beats a word that looks like a branch name.
+  The commit hash was always recorded correctly and is unchanged, and `--require-clean` still
+  judges the tree by `git status`.
+
 ## 2026-07-26 – 0.18.0
 
 ### Added

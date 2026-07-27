@@ -229,13 +229,37 @@ def collect_with_skipped(project_dir):
     return selected, skipped
 
 
-def git_metadata(project_dir):
+# Where the branch name comes from when the checkout is detached. A CI runner checks out
+# the commit, not the branch, so git itself has nothing to answer - but the CI knows.
+# GitLab fills CI_COMMIT_BRANCH on a branch pipeline only, and CI_COMMIT_REF_NAME on any.
+_CI_BRANCH_VARIABLES = ("CI_COMMIT_BRANCH", "CI_COMMIT_REF_NAME", "GITHUB_REF_NAME")
+
+
+def _detached_branch(environ=None):
+    """The branch name from the CI environment, or "" when nothing names it."""
+    source = os.environ if environ is None else environ
+    for name in _CI_BRANCH_VARIABLES:
+        value = (source.get(name) or "").strip()
+        if value and value != "HEAD":
+            return value
+    return ""
+
+
+def git_metadata(project_dir, environ=None):
     """The commit hash and the branch name of the git repository holding the project.
 
     When git is unavailable (no command, not a repository) – empty strings.
+
+    A detached checkout is answered by the CI, not by git: `rev-parse --abbrev-ref HEAD`
+    says the literal `HEAD` there, and that is what every assembly built on a runner used
+    to record as its branch - the manifest field exists to answer "where is this build
+    from", and `HEAD` answers nothing. When the environment does not name a branch either,
+    the field is left EMPTY: an honest blank beats a word that looks like a branch name.
     """
     commit = _git_output(project_dir, "rev-parse", "HEAD")
     branch = _git_output(project_dir, "rev-parse", "--abbrev-ref", "HEAD")
+    if branch == "HEAD":
+        branch = _detached_branch(environ)
     return commit, branch
 
 

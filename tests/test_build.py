@@ -13,6 +13,7 @@ from elemctl.build import (
     build_manifest,
     collect_with_skipped,
     find_project_dir,
+    git_metadata,
     inspect_assembly,
     read_project_meta,
 )
@@ -459,3 +460,84 @@ def test_build_result_carries_the_skipped_files(project_factory, tmp_path):
     result = build_assembly(project_dir, output_dir=tmp_path / "dist", version="1.0-1")
 
     assert result.skipped_files == ["Документы/прайс.pdf"]
+
+
+# --- the branch of a detached checkout (a CI runner) ---------------------------------------
+
+
+def _repository(project_dir, *, detach=False):
+    """A real git repository around the project - the metadata is read from git itself."""
+    import subprocess
+
+    root = project_dir.parents[1]
+    run = lambda *args: subprocess.run(  # noqa: E731 - a local shorthand, three lines below
+        ["git", "-C", str(root), *args], capture_output=True, text=True, check=True
+    )
+    run("init", "-b", "master")
+    run("config", "user.email", "build@example.test")
+    run("config", "user.name", "Build")
+    run("add", "-A")
+    run("commit", "-m", "project")
+    if detach:
+        head = run("rev-parse", "HEAD").stdout.strip()
+        run("checkout", "--detach", head)
+    return root
+
+
+def test_branch_of_a_normal_checkout_is_the_branch(project_factory):
+    project_dir = project_factory()
+    _repository(project_dir)
+    commit, branch = git_metadata(project_dir, environ={})
+    assert branch == "master" and len(commit) == 40
+
+
+def test_detached_checkout_takes_the_branch_from_the_ci(project_factory):
+    """A runner checks out the commit, so git answers the literal `HEAD` - useless in a manifest."""
+    project_dir = project_factory()
+    _repository(project_dir, detach=True)
+
+    _, branch = git_metadata(project_dir, environ={"CI_COMMIT_BRANCH": "master"})
+    assert branch == "master"
+    # A tag pipeline fills only CI_COMMIT_REF_NAME.
+    _, branch = git_metadata(project_dir, environ={"CI_COMMIT_REF_NAME": "v1.2.3"})
+    assert branch == "v1.2.3"
+    _, branch = git_metadata(project_dir, environ={"GITHUB_REF_NAME": "main"})
+    assert branch == "main"
+
+
+def test_a_ci_variable_saying_head_is_not_a_branch_name(project_factory):
+    """`HEAD` is the very word this fix removes - taking it from the environment repeats it."""
+    project_dir = project_factory()
+    _repository(project_dir, detach=True)
+
+    _, branch = git_metadata(project_dir, environ={"CI_COMMIT_REF_NAME": "HEAD"})
+    assert branch == ""
+
+
+def test_detached_checkout_without_a_ci_leaves_the_branch_empty(project_factory):
+    """Пустое поле честнее слова, похожего на имя ветки."""
+    project_dir = project_factory()
+    _repository(project_dir, detach=True)
+
+    commit, branch = git_metadata(project_dir, environ={})
+    assert branch == "" and len(commit) == 40
+
+
+def test_manifest_of_a_detached_build_carries_no_head(project_factory, tmp_path):
+    """Сквозь сборку: в Assembly.yaml не должно быть строки `Branch: HEAD`."""
+    project_dir = project_factory()
+    _repository(project_dir, detach=True)
+
+    result = build_assembly(project_dir, output_dir=tmp_path / "dist", version="1.0-1")
+
+    with zipfile.ZipFile(result.file) as archive:
+        manifest = archive.read("Assembly.yaml").decode("utf-8")
+    assert "BranchName: HEAD" not in manifest
+    assert "BranchName:" in manifest  # поле на месте, просто пустое
+    # Отрицательный контроль: имя ветки из окружения CI в манифест доходит.
+    with_ci = build_assembly(
+        project_dir, output_dir=tmp_path / "ci", version="1.0-2",
+        **dict(zip(("commit", "branch"), git_metadata(project_dir, environ={"CI_COMMIT_BRANCH": "master"}))),
+    )
+    with zipfile.ZipFile(with_ci.file) as archive:
+        assert "BranchName: master" in archive.read("Assembly.yaml").decode("utf-8")
