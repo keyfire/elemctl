@@ -20,7 +20,13 @@ from .build import (
     inspect_assembly,
     read_assembly_manifest,
 )
-from .client import ElementClient, brief_app, extract_assembly_id
+from .client import (
+    CALCULATION_RULE_FIELDS,
+    OIDC_SERVICE,
+    ElementClient,
+    brief_app,
+    extract_assembly_id,
+)
 from .config import Config
 from .deploy import deploy_from_sources
 from .errors import ApiError, ConfigError, ElemctlError, PluginError
@@ -575,6 +581,75 @@ def cmd_user_lists_self_registration(args):
     return 0
 
 
+
+def _calculation_rules(args):
+    """The rules from a file and the per-key flags; an unknown key is refused here.
+
+    Refused rather than passed through: the platform answers 400 to a key it does not
+    know (the schema of the same catalog spells one of them differently), and a rejected
+    request says far less than a message naming the four keys that exist.
+    """
+    rules = {}
+    if getattr(args, "rules_file", ""):
+        data = json.loads(Path(args.rules_file).read_text(encoding="utf-8-sig"))
+        if not isinstance(data, dict):
+            raise ConfigError(i18n.t("cli.rules-file-not-object"))
+        rules.update(data)
+    for flag, key in (
+        ("response_kind", "response-kind"),
+        ("presentation_rule", "presentation-rule"),
+        ("phone_rule", "phone-rule"),
+        ("email_rule", "email-rule"),
+    ):
+        value = getattr(args, flag, "") or ""
+        if value:
+            rules[key] = value
+    unknown = sorted(set(rules) - set(CALCULATION_RULE_FIELDS))
+    if unknown:
+        raise ConfigError(i18n.t(
+            "cli.rules-unknown-keys",
+            keys=", ".join(unknown), known=", ".join(CALCULATION_RULE_FIELDS),
+        ))
+    return rules
+
+
+def cmd_user_lists_calculation_rules(args):
+    """The rules that build a user from the provider's answer: show the target or write them.
+
+    Without values the command does not pretend to show the rules – the platform does not
+    return them – it names the service they would go to and says why there is nothing to
+    show. Writing reports honestly what was confirmed and what could not be.
+    """
+    client = make_client(_config(args))
+    list_id = _user_list_id(client, args)
+    service_type = args.service_type or OIDC_SERVICE
+    rules = _calculation_rules(args)
+    if not rules:
+        service = client.find_account_service(
+            list_id, service_id=args.service or "", service_type=service_type
+        ) or {}
+        _emit({
+            "list-id": list_id,
+            "service-id": service.get("account-service-id"),
+            "service-type": service.get("account-service-type"),
+            "rules": None,
+            "note": i18n.t("cli.rules-not-returned"),
+        })
+        return 0
+    report = client.set_calculation_rules(
+        list_id, rules, service_id=args.service or "", service_type=service_type
+    )
+    if not report.get("written"):
+        raise ElemctlError(i18n.t("cli.rules-no-service", list=list_id, service=service_type))
+    _emit({
+        "list-id": list_id,
+        **report,
+        "note": i18n.t("cli.rules-not-verified"),
+        "next": i18n.t("cli.rules-next"),
+    })
+    return 0
+
+
 def cmd_user_lists_password_login(args):
     """Signing in with a login and a password – the account service of type Local.
 
@@ -1101,6 +1176,19 @@ def build_parser():
     p.add_argument("--enable", action="store_true", help=i18n.t("cli.help.user-lists-enable"))
     p.add_argument("--disable", action="store_true", help=i18n.t("cli.help.user-lists-disable"))
     p.set_defaults(handler=cmd_user_lists_password_login)
+
+    p = user_lists_sub.add_parser(
+        "calculation-rules", help=i18n.t("cli.help.user-lists-calculation-rules")
+    )
+    add_target(p)
+    p.add_argument("--rules-file", help=i18n.t("cli.help.rules-file"))
+    p.add_argument("--response-kind", help=i18n.t("cli.help.rule-response-kind"))
+    p.add_argument("--presentation-rule", help=i18n.t("cli.help.rule-presentation"))
+    p.add_argument("--phone-rule", help=i18n.t("cli.help.rule-phone"))
+    p.add_argument("--email-rule", help=i18n.t("cli.help.rule-email"))
+    p.add_argument("--service", help=i18n.t("cli.help.rules-service"))
+    p.add_argument("--service-type", help=i18n.t("cli.help.rules-service-type"))
+    p.set_defaults(handler=cmd_user_lists_calculation_rules)
 
     # probe -----------------------------------------------------------------
     p = sub.add_parser("probe", help=i18n.t("cli.help.probe"))

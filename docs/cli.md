@@ -551,6 +551,7 @@ usage: elemctl user-lists [-h] action ...
 | `get` | the list card: registration, password policy, account services |
 | `self-registration` | self-registration of users: show or switch |
 | `password-login` | signing in with a login and a password (the Local account service): show or switch |
+| `calculation-rules` | the rules that parse the account service's answer: show the target or write them |
 
 **Options**
 
@@ -631,6 +632,37 @@ usage: elemctl user-lists password-login [-h] [--app APP] [--enable] [--disable]
 | `--app APP` | take the application's own list (its id or exact name) |
 | `--enable` | turn on |
 | `--disable` | turn off |
+
+### `elemctl user-lists calculation-rules`
+
+```bash
+usage: elemctl user-lists calculation-rules [-h] [--app APP] [--rules-file RULES_FILE]
+                                            [--response-kind RESPONSE_KIND]
+                                            [--presentation-rule PRESENTATION_RULE]
+                                            [--phone-rule PHONE_RULE] [--email-rule EMAIL_RULE]
+                                            [--service SERVICE] [--service-type SERVICE_TYPE]
+                                            [LIST]
+```
+
+**Arguments**
+
+| Option | Description |
+|---|---|
+| `LIST` | the user list id or its exact presentation |
+
+**Options**
+
+| Option | Description |
+|---|---|
+| `-h, --help` | show this help message and exit |
+| `--app APP` | take the application's own list (its id or exact name) |
+| `--rules-file RULES_FILE` | a JSON file with the whole set of rules |
+| `--response-kind RESPONSE_KIND` | the kind of answer being parsed |
+| `--presentation-rule PRESENTATION_RULE` | the rule that builds the user's presentation |
+| `--phone-rule PHONE_RULE` | the phone rule |
+| `--email-rule EMAIL_RULE` | the email rule |
+| `--service SERVICE` | the account service by id (default: the first service of type Oidc) |
+| `--service-type SERVICE_TYPE` | the type of the account service when no id is given |
 
 ## `elemctl probe`
 

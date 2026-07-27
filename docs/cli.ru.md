@@ -551,6 +551,7 @@ usage: elemctl user-lists [-h] действие ...
 | `get` | карточка списка: регистрация, политика паролей, сервисы учётных записей |
 | `self-registration` | самостоятельная регистрация пользователей: показать или переключить |
 | `password-login` | вход по логину и паролю (сервис учётных записей Local): показать или переключить |
+| `calculation-rules` | правила разбора ответа сервиса учётных записей: показать цель или записать правила |
 
 **Параметры**
 
@@ -631,6 +632,37 @@ usage: elemctl user-lists password-login [-h] [--app APP] [--enable] [--disable]
 | `--app APP` | взять собственный список приложения (ид либо точное имя приложения) |
 | `--enable` | включить |
 | `--disable` | выключить |
+
+### `elemctl user-lists calculation-rules`
+
+```bash
+usage: elemctl user-lists calculation-rules [-h] [--app APP] [--rules-file RULES_FILE]
+                                            [--response-kind RESPONSE_KIND]
+                                            [--presentation-rule PRESENTATION_RULE]
+                                            [--phone-rule PHONE_RULE] [--email-rule EMAIL_RULE]
+                                            [--service SERVICE] [--service-type SERVICE_TYPE]
+                                            [LIST]
+```
+
+**Аргументы**
+
+| Параметр | Описание |
+|---|---|
+| `LIST` | ид списка пользователей либо его точное представление |
+
+**Параметры**
+
+| Параметр | Описание |
+|---|---|
+| `-h, --help` | показать эту справку и выйти |
+| `--app APP` | взять собственный список приложения (ид либо точное имя приложения) |
+| `--rules-file RULES_FILE` | файл JSON с правилами целиком |
+| `--response-kind RESPONSE_KIND` | вид ответа, который разбирается |
+| `--presentation-rule PRESENTATION_RULE` | правило представления пользователя |
+| `--phone-rule PHONE_RULE` | правило телефона |
+| `--email-rule EMAIL_RULE` | правило почты |
+| `--service SERVICE` | сервис учётных записей: идентификатор (по умолчанию – первый сервис типа Oidc) |
+| `--service-type SERVICE_TYPE` | тип сервиса учётных записей, если идентификатор не задан |
 
 ## `elemctl probe`
 

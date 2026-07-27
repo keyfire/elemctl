@@ -8,7 +8,19 @@ day are named in the heading. The format follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html). The VS Code debug companion in
 `editors/vscode` is released separately under the `vscode-v*` tags and is not tracked here.
 
-## 2026-07-27 – 0.18.1
+## 2026-07-27 – 0.19.0
+
+### Added
+- **`user-lists calculation-rules` – re-apply the rules that build a user from the provider's
+  answer.** Recreating the sign-in service resets them, and the only way back is to write them
+  again; the platform takes them in the body of the account service under a key that differs
+  from the one in the schema of the same catalog (it answers 400 to that one, so the command
+  refuses an unknown key by name instead of forwarding it). Reading the service does NOT return
+  these rules, and the report says exactly that: what was sent, that the request was accepted,
+  and that the value itself cannot be confirmed through the API - the control panel or a live
+  sign-in answers that. What IS checked is that the rest of the service card came back
+  unchanged: the write carries the whole entry, so a mistake would quietly drop a neighbouring
+  field.
 
 ### Fixed
 - **A build made on a CI runner recorded `HEAD` as its branch.** The runner checks out the

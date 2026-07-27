@@ -36,6 +36,14 @@ FAILED_TASK_STATUSES = {"error", "failed"}
 # what the control panel calls "signing in with a login and a password" is this
 # service being enabled in the user list.
 LOCAL_SERVICE = "Local"
+#: The account service that signs in through an external provider.
+OIDC_SERVICE = "Oidc"
+#: The key the platform accepts for the rules that build a user from the provider's
+#: answer. The name differs from the one in the schema of the same catalog
+#: (`calculation-rules`), and the platform rejects that one with 400.
+CALCULATION_RULES_KEY = "userPropertiesCalculationRules"
+#: The rules themselves: what kind of answer is parsed and how the fields are taken from it.
+CALCULATION_RULE_FIELDS = ("response-kind", "presentation-rule", "phone-rule", "email-rule")
 
 
 def extract_assembly_id(payload):
@@ -581,6 +589,59 @@ class ElementClient:
             f"/user-lists/{list_id}/settings/account-services-settings/{service_id}",
             json_body=service,
         )
+
+    def find_account_service(self, list_id, *, service_id="", service_type=OIDC_SERVICE):
+        """One account service of the list: by its id, otherwise the first of the type."""
+        for service in self.list_account_services(list_id):
+            if not isinstance(service, dict):
+                continue
+            if service_id:
+                if str(service.get("account-service-id")) == str(service_id):
+                    return service
+                continue
+            if str(service.get("account-service-type") or "").lower() == service_type.lower():
+                return service
+        return None
+
+    def set_calculation_rules(self, list_id, rules, *, service_id="", service_type=OIDC_SERVICE):
+        """Write the rules that build a user out of the provider's answer.
+
+        The report is deliberately blunt about what was and was NOT confirmed. The
+        platform does not return these rules in a GET of the service, so "the rules are
+        in place" cannot be asserted through the API by anyone – this method included.
+        What IS checked: the request was accepted, and re-reading the service shows the
+        REST of its card unchanged. A PUT carries the whole entry, so a mistake here
+        would quietly drop a neighbouring field – that is what the comparison catches.
+
+        The rules are applied blind on purpose: recreating the sign-in service resets
+        them, and the only way back is to write them again. Whether they took effect is
+        answered by the control panel or by a live sign-in, and the report says so.
+        """
+        service = self.find_account_service(
+            list_id, service_id=service_id, service_type=service_type
+        )
+        if service is None:
+            return {"service": None, "sent": rules, "written": False, "rules-verified": False}
+        before = dict(service)
+        self.update_account_service(list_id, {**before, CALCULATION_RULES_KEY: dict(rules)})
+        after = self.find_account_service(
+            list_id, service_id=before.get("account-service-id"), service_type=service_type
+        )
+        untouched = None
+        if isinstance(after, dict):
+            keys = (set(before) | set(after)) - {CALCULATION_RULES_KEY}
+            untouched = sorted(k for k in keys if before.get(k) != after.get(k))
+        return {
+            "service-id": before.get("account-service-id"),
+            "service-type": before.get("account-service-type"),
+            "sent": dict(rules),
+            "written": True,
+            # The platform answers a GET without this key – so nothing can confirm the
+            # value itself, and saying "verified" here would be a lie.
+            "rules-verified": False,
+            "returned": (after or {}).get(CALCULATION_RULES_KEY),
+            "other-fields-changed": untouched,
+        }
 
     def set_password_login(self, list_id, enabled):
         """Allow or forbid signing in with a login and a password.

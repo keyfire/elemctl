@@ -158,8 +158,9 @@ def test_set_password_login_without_a_local_service_is_an_answer(api):
 class FakeListClient:
     """A stub client with the user-list methods of the real one."""
 
-    def __init__(self, *, local="по умолчанию", self_registration=None):
+    def __init__(self, *, local="по умолчанию", self_registration=None, oidc=True):
         self.local = dict(LOCAL) if local == "по умолчанию" else local
+        self.oidc = oidc
         self.self_registration = self_registration or {
             "enabled": True, "phone-required": False, "email-required": False
         }
@@ -179,6 +180,20 @@ class FakeListClient:
 
     def get_user_list(self, list_id):
         return {"id": list_id, "presentation": SITE["presentation"]}
+
+    def find_account_service(self, list_id, *, service_id="", service_type="Oidc"):
+        self.calls.append(("find-service", service_id or service_type))
+        return dict(OIDC) if self.oidc else None
+
+    def set_calculation_rules(self, list_id, rules, *, service_id="", service_type="Oidc"):
+        self.calls.append(("set-rules", tuple(sorted(rules.items()))))
+        if not self.oidc:
+            return {"service": None, "sent": dict(rules), "written": False, "rules-verified": False}
+        return {
+            "service-id": "svc-oidc", "service-type": "OIDC", "sent": dict(rules),
+            "written": True, "rules-verified": False, "returned": None,
+            "other-fields-changed": [],
+        }
 
     def get_self_registration(self, list_id):
         return dict(self.self_registration)
@@ -263,3 +278,109 @@ def test_cli_without_a_target_is_an_error(monkeypatch, capsys):
     _install(monkeypatch, FakeListClient())
     assert cli.main(["user-lists", "get"]) == 1
     assert "LIST" in json.loads(capsys.readouterr().err)["error"]
+
+
+# --- the rules that parse the provider's answer -------------------------------------------
+#
+# The platform takes these rules in the body of the account service, but does NOT give them
+# back when the service is read. So the honest report is the point of the whole command:
+# it must say what was accepted and refuse to call it verified.
+
+RULES = {
+    "response-kind": "Jwt",
+    "presentation-rule": "name",
+    "phone-rule": "phone_number",
+    "email-rule": "email",
+}
+SERVICES = f"{API}/user-lists/list-site/settings/account-services-settings"
+
+
+def test_calculation_rules_are_sent_under_the_key_the_platform_accepts(api):
+    client, transport = api
+    transport.add("GET", SERVICES, [LOCAL, OIDC])
+    transport.add("PUT", f"{SERVICES}/svc-oidc", OIDC)
+    transport.add("GET", SERVICES, [LOCAL, OIDC])
+
+    report = client.set_calculation_rules("list-site", RULES)
+
+    sent = json.loads(transport.calls_to("PUT", f"{SERVICES}/svc-oidc")[0]["data"])
+    assert sent["userPropertiesCalculationRules"] == RULES
+    # The whole card goes back, not just the rules: the platform replaces the entry.
+    assert sent["account-service-id"] == "svc-oidc" and sent["additional-settings"]
+    assert report["written"] is True
+
+
+def test_calculation_rules_are_never_reported_as_verified(api):
+    """Чтение сервиса правил не возвращает – значит подтвердить их значение нечем."""
+    client, transport = api
+    transport.add("GET", SERVICES, [OIDC])
+    transport.add("PUT", f"{SERVICES}/svc-oidc", OIDC)
+    transport.add("GET", SERVICES, [OIDC])
+
+    report = client.set_calculation_rules("list-site", RULES)
+
+    assert report["rules-verified"] is False and report["returned"] is None
+    assert report["other-fields-changed"] == []
+
+
+def test_calculation_rules_notice_a_field_lost_by_the_write(api):
+    """PUT несёт карточку целиком – если поле потерялось, это должно быть видно."""
+    client, transport = api
+    transport.add("GET", SERVICES, [OIDC])
+    transport.add("PUT", f"{SERVICES}/svc-oidc", OIDC)
+    transport.add("GET", SERVICES, [{**OIDC, "additional-settings": {}}])
+
+    report = client.set_calculation_rules("list-site", RULES)
+
+    assert report["other-fields-changed"] == ["additional-settings"]
+
+
+def test_calculation_rules_without_such_a_service(api):
+    client, transport = api
+    transport.add("GET", SERVICES, [LOCAL])
+    report = client.set_calculation_rules("list-site", RULES)
+    assert report["written"] is False
+    assert transport.calls_to("PUT", f"{SERVICES}/svc-local") == []
+
+
+def test_cli_calculation_rules_writes_and_says_what_is_unverified(monkeypatch, capsys):
+    client = _install(monkeypatch, FakeListClient())
+    code = cli.main([
+        "user-lists", "calculation-rules", "--app", "site",
+        "--response-kind", "Jwt", "--email-rule", "email",
+    ])
+    assert code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["sent"] == {"response-kind": "Jwt", "email-rule": "email"}
+    assert payload["rules-verified"] is False
+    assert "нельзя" in payload["note"] and payload["next"]
+    assert any(call[0] == "set-rules" for call in client.calls)
+
+
+def test_cli_calculation_rules_without_values_writes_nothing(monkeypatch, capsys):
+    """Показывать нечего – платформа правил не отдаёт; команда об этом и говорит."""
+    client = _install(monkeypatch, FakeListClient())
+    assert cli.main(["user-lists", "calculation-rules", "--app", "site"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["rules"] is None and "не возвращает" in payload["note"]
+    assert not any(call[0] == "set-rules" for call in client.calls)
+
+
+def test_cli_calculation_rules_refuse_unknown_key(monkeypatch, capsys, tmp_path):
+    """Ключ из СХЕМЫ справочника платформа отвергает с 400 – отказ здесь понятнее."""
+    _install(monkeypatch, FakeListClient())
+    rules = tmp_path / "rules.json"
+    rules.write_text('{"calculation-rules": {"a": 1}}', encoding="utf-8")
+    assert cli.main([
+        "user-lists", "calculation-rules", "--app", "site", "--rules-file", str(rules)
+    ]) == 1
+    message = capsys.readouterr().err
+    assert "calculation-rules" in message and "response-kind" in message
+
+
+def test_cli_calculation_rules_without_a_service_fails_loudly(monkeypatch, capsys):
+    _install(monkeypatch, FakeListClient(oidc=False))
+    assert cli.main([
+        "user-lists", "calculation-rules", "--app", "site", "--response-kind", "Jwt"
+    ]) == 1
+    assert "Oidc" in capsys.readouterr().err
