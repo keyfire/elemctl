@@ -371,6 +371,12 @@ MESSAGES = {
         "ru": "команде плагина не с чем обратиться к платформе: клиент не передан",
         "en": "a command of a plugin has nothing to reach the platform with: no client was given",
     },
+    "cli.help.selfupdate-stop": {
+        "ru": "снять процессы, держащие установку (MCP-сессии elemctl), и обновиться; "
+              "без флага команда только назовёт их",
+        "en": "stop the processes holding the installation (elemctl MCP sessions) and update; "
+              "without the flag the command only names them",
+    },
     # -- selfupdate.py ------------------------------------------------------------
     "selfupdate.version-not-found": {
         "ru": "версия не найдена на PyPI",
@@ -400,17 +406,54 @@ MESSAGES = {
         "ru": "не удалось скачать колесо: {error}",
         "en": "could not download the wheel: {error}",
     },
-    "selfupdate.download-failed": {
-        "ru": "не удалось скачать колесо: {error}",
-        "en": "could not download the wheel: {error}",
-    },
     "selfupdate.unpacking": {
         "ru": "распаковываю в {path}...",
         "en": "unpacking into {path}...",
     },
     "selfupdate.done": {
-        "ru": "готово: elemctl {before} -> {after}. Перезапустите MCP-сессии (elemctl mcp).",
-        "en": "done: elemctl {before} -> {after}. Restart the MCP sessions (elemctl mcp).",
+        "ru": "готово: elemctl {before} -> {after}, импорт проверен отдельным процессом. "
+              "Перезапустите MCP-сессии (elemctl mcp).",
+        "en": "done: elemctl {before} -> {after}, the import verified in a separate process. "
+              "Restart the MCP sessions (elemctl mcp).",
+    },
+    "selfupdate.busy": {
+        "ru": "установку сейчас не заменить – файлы заняты ({error}). {holders}. "
+              "Закройте их и повторите, либо запустите с --stop-holders. "
+              "Прежняя установка НЕ ТРОНУТА и работает",
+        "en": "the installation cannot be replaced right now – files are held ({error}). "
+              "{holders}. Close them and repeat, or run with --stop-holders. The previous "
+              "installation is UNTOUCHED and working",
+    },
+    "selfupdate.holders": {
+        "ru": "держат установку: {list}",
+        "en": "holding the installation: {list}",
+    },
+    "selfupdate.holders-unknown": {
+        "ru": "определить держателей не удалось; обычно это MCP-сессии агента (elemctl mcp)",
+        "en": "could not tell which processes hold it; usually the agent's MCP sessions "
+              "(elemctl mcp)",
+    },
+    "selfupdate.holder-stopped": {
+        "ru": "снят держатель {name} (pid {pid})",
+        "en": "stopped the holder {name} (pid {pid})",
+    },
+    "selfupdate.process": {"ru": "процесс", "en": "process"},
+    "selfupdate.unpack-failed": {
+        "ru": "распаковка не удалась ({error}); прежняя установка возвращена на место",
+        "en": "extraction failed ({error}); the previous installation is back in place",
+    },
+    "selfupdate.unverified": {
+        "ru": "новая установка не проверилась ({reason}); возвращена прежняя версия {version}",
+        "en": "the new installation did not verify ({reason}); the previous version {version} "
+              "is back",
+    },
+    "selfupdate.reason-version": {
+        "ru": "импорт отдал {version}",
+        "en": "the import answered {version}",
+    },
+    "selfupdate.reason-no-import": {
+        "ru": "пакет не импортируется",
+        "en": "the package does not import",
     },
     "selfupdate.metadata-updated": {
         "ru": "обновлён pipx_metadata.json",

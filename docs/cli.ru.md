@@ -1005,7 +1005,7 @@ usage: elemctl plugins [-h]
 ## `elemctl self-update`
 
 ```bash
-usage: elemctl self-update [-h] [--version VERSION]
+usage: elemctl self-update [-h] [--version VERSION] [--stop-holders]
 ```
 
 **Параметры**
@@ -1014,6 +1014,7 @@ usage: elemctl self-update [-h] [--version VERSION]
 |---|---|
 | `-h, --help` | показать эту справку и выйти |
 | `--version VERSION` | целевая версия (по умолчанию – последняя с PyPI) |
+| `--stop-holders` | снять процессы, держащие установку (MCP-сессии elemctl), и обновиться; без флага команда только назовёт их |
 
 ## `elemctl mcp`
 

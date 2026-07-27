@@ -842,7 +842,9 @@ def cmd_self_update(args):
     """Update the installed elemctl by unpacking the wheel (safe while the exe is busy)."""
     from . import selfupdate
 
-    old, new = selfupdate.self_update(version=args.version, log=_progress)
+    old, new = selfupdate.self_update(
+        version=args.version, log=_progress, stop_busy=getattr(args, "stop_holders", False)
+    )
     _emit({"updated": old != new, "from": old, "to": new})
     return 0
 
@@ -1287,6 +1289,8 @@ def build_parser():
     # self-update ---------------------------------------------------------
     p = sub.add_parser("self-update", help=i18n.t("cli.help.self-update"))
     p.add_argument("--version", help=i18n.t("cli.help.self-update-version"))
+    p.add_argument("--stop-holders", action="store_true",
+                   help=i18n.t("cli.help.selfupdate-stop"))
     p.set_defaults(handler=cmd_self_update)
 
     # mcp ----------------------------------------------------------------

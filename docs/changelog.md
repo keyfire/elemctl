@@ -14,6 +14,22 @@ day are named in the heading. The format follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html). The VS Code debug companion in
 `editors/vscode` is released separately under the `vscode-v*` tags and is not tracked here.
 
+## 2026-07-28 – 0.20.0
+
+### Changed
+- **`self-update` no longer trades a working installation for an empty directory.** It happened
+  during the previous release, on the machine that publishes the package: `pip install
+  --upgrade` hit an `elemctl.exe` held by a live MCP session, removed the package, failed to
+  unpack the new one and said nothing - the next `elemctl --version` answered
+  `ModuleNotFoundError`. The command now renames the installed package aside FIRST (a rename
+  fails while a file inside is open, and nothing has been removed at that point), names the
+  holding processes by name and pid (`--stop-holders` ends them), and keeps the previous
+  installation until the new one has been PROVEN to import in a separate process - a broken
+  archive, a failed extraction or a package that does not import puts the old one back. A
+  process counts as a holder by our own executable name or by an interpreter running our
+  modules: a client that merely carries `elemctl mcp` in its own command line is never offered
+  for stopping. The order is the one proven in the toolkit engine first.
+
 ## 2026-07-27 – 0.19.0
 
 ### Added
