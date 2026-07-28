@@ -70,7 +70,8 @@ elemctl apps list
 # application details (status, uri, actual project version)
 elemctl apps get <app-id>
 
-# create the application only if it does not exist yet: {"id": ..., "created": true|false}
+# create the application only if it does not exist yet:
+# {"id": ..., "created": true|false, "sign-in": ...} - the last field is the way in
 elemctl apps ensure acme-crm-dev --project-id <project-id> --latest-build --wait
 
 # full deploy cycle from sources with apply verification
@@ -196,6 +197,7 @@ The project directory must follow the `{repo}/{vendor}/{name}/Проект.yaml`
 - An application created with an `Error` status is described by the platform only as "Неизвестная ошибка. Обратитесь к администратору"; the details - files, lines and columns of the compilation errors - live in the application's task. `apps create --wait` and `apps ensure` print them after the generic text, the way `deploy` and `verify` have long done, so there is no need to dig through the server log.
 - There is no way to compile the sources without creating something on the platform: compilation is the server's and it happens when a build is applied. That is what `probe` is for – it takes the hit on a throwaway application instead of the working one. A probe run costs as long as creating an application does (minutes), so it belongs before a deploy or in CI, not in a per-keystroke loop.
 - A platform project is identified by the `Vendor` + `Name` pair of the manifest, not by the `Ид` of `Проект.yaml`: a build upload without a project id lands in the project that already owns the pair, and a second project for the same pair is refused with a 409.
+- A freshly created application is signed in to with a CONTROL PANEL account: it gets its OWN, empty user list, password sign-in is off and no account service is attached, so the accounts used to sign in to other applications do not work here – and neither connecting another application's user list nor enabling the local sign-in changes it. `apps create` and `apps ensure` say so themselves: the `sign-in` field of the answer plus the same on stderr.
 - Deleted applications remain in the platform's list with a `Deleted` status and their former `id`, on which `apps get` and `deploy` return 404. `apps find` and `apps ensure` skip them; to restore the previous search behavior, use `apps find --include-deleted`.
 - The platform will not let you delete an application that has unpublished changes in the development environment (HTTP 400 `FAILED_PRECONDITION`), and there is no forced deletion in the Console API – only through the control panel; elemctl points this out in the error message.
 - Recreating an application (delete + create) changes its URL – external settings tied to the address (OIDC redirect, etc.) will need to be updated. There is no "soft" wipe of application data in the Console API; it is done in the management console.

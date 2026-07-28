@@ -7,7 +7,7 @@ import json
 import pytest
 
 from elemctl.auth import extract_token
-from elemctl.client import ElementClient, extract_assembly_id
+from elemctl.client import ElementClient, extract_assembly_id, sign_in_hint
 from elemctl.config import Config
 from elemctl.errors import ApiError, ConfigError
 from tests.conftest import FakeTransport
@@ -508,3 +508,37 @@ def test_an_ordinary_400_is_not_retried(api):
 
     assert len(transport.calls_to("POST", "/console/sys/token")) == 1
     assert len(transport.calls_to("GET", f"{API}/applications")) == 1
+
+
+# --- The way into a freshly created application ---------------------------------
+
+
+def test_sign_in_hint_names_the_address_and_the_account():
+    """The hint answers both questions of a fresh stand: where and as whom."""
+    hint = sign_in_hint({"id": "app-1", "uri": "https://host/apps/crm-dev"})
+
+    assert hint["url"] == "https://host/apps/crm-dev"
+    assert hint["account"] == "control-panel"
+    assert "https://host/apps/crm-dev" in hint["hint"]
+
+
+def test_sign_in_hint_warns_that_accounts_used_elsewhere_do_not_work_here():
+    """The note is the part that saves the hours: accounts used elsewhere do not work.
+
+    Connecting the user list of another application and enabling the local
+    sign-in look like a fix and are not one - a new application has no
+    account service of its own.
+    """
+    note = sign_in_hint({"uri": "https://host/apps/crm-dev"})["note"]
+
+    assert "другие приложения" in note
+    assert "https://host/apps/crm-dev" not in note  # the note is about the accounts, not the address
+
+
+def test_sign_in_hint_does_not_invent_an_address():
+    """An application that is still starting has no uri: the address is None, not a guess."""
+    for card in ({"id": "app-1"}, {"id": "app-1", "uri": ""}, {"id": "app-1", "uri": "   "}, None):
+        hint = sign_in_hint(card)
+        assert hint["url"] is None, card
+        assert hint["account"] == "control-panel", card
+        assert "apps get" in hint["hint"], card  # where the address comes from later

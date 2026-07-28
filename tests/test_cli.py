@@ -160,7 +160,7 @@ def test_apps_ensure_existing_returns_created_false_without_creating(monkeypatch
 
     class FakeClient:
         def find_app(self, name, *, include_deleted=False):
-            return {"id": "app-7", "display-name": name}
+            return {"id": "app-7", "display-name": name, "uri": "https://host/apps/demo-app"}
 
         def create_app(self, *args, **kwargs):
             raise AssertionError("создание не должно вызываться для существующего приложения")
@@ -169,7 +169,10 @@ def test_apps_ensure_existing_returns_created_false_without_creating(monkeypatch
 
     rc = cli.main(["apps", "ensure", "demo-app", "--version-id", "asm-1"])
     assert rc == 0
-    assert json.loads(capsys.readouterr().out) == {"id": "app-7", "created": False}
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["id"] == "app-7"
+    assert payload["created"] is False
+    assert payload["sign-in"]["url"] == "https://host/apps/demo-app"
 
 
 def test_apps_ensure_missing_creates_and_returns_created_true(monkeypatch, capsys):
@@ -192,13 +195,86 @@ def test_apps_ensure_missing_creates_and_returns_created_true(monkeypatch, capsy
             assert display_name == "site-new"
             assert project_version_id == "asm-9"
             assert image_id is None
-            return {"id": "app-new", "display-name": display_name}
+            return {"id": "app-new", "display-name": display_name, "uri": "https://host/site-new"}
 
     monkeypatch.setattr(cli, "make_client", lambda config: FakeClient())
 
     rc = cli.main(["apps", "ensure", "site-new", "--version-id", "asm-9"])
     assert rc == 0
-    assert json.loads(capsys.readouterr().out) == {"id": "app-new", "created": True}
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["id"] == "app-new"
+    assert payload["created"] is True
+    assert payload["sign-in"]["url"] == "https://host/site-new"
+
+
+def test_apps_ensure_says_how_to_sign_in(monkeypatch, capsys):
+    """A stand nobody can get into is not raised: ensure ends with the way in.
+
+    Both surfaces are checked, because they serve different callers: the human
+    reads stderr, and a script (or an agent) reads only the JSON on stdout.
+    """
+
+    class FakeClient:
+        def find_app(self, name, *, include_deleted=False):
+            return {"id": "app-7", "display-name": name, "uri": "https://host/apps/demo-app"}
+
+    monkeypatch.setattr(cli, "make_client", lambda config: FakeClient())
+
+    rc = cli.main(["apps", "ensure", "demo-app"])
+    assert rc == 0
+    captured = capsys.readouterr()
+    assert "https://host/apps/demo-app" in captured.err
+    assert "ПАНЕЛИ УПРАВЛЕНИЯ" in captured.err  # which account signs in
+    assert "другие приложения" in captured.err  # and why accounts used elsewhere do not
+
+    sign_in = json.loads(captured.out)["sign-in"]
+    assert sign_in["account"] == "control-panel"
+    assert "https://host/apps/demo-app" in sign_in["hint"]
+    assert "другие приложения" in sign_in["note"]
+
+
+def test_apps_create_adds_the_way_in_without_losing_the_card(monkeypatch, capsys):
+    """create prints the card of the platform as before – the hint is an ADDITION to it."""
+
+    class FakeClient:
+        def create_app(self, display_name, **kwargs):
+            return {
+                "id": "app-new",
+                "display-name": display_name,
+                "status": "Running",
+                "uri": "https://host/apps/crm-dev",
+            }
+
+    monkeypatch.setattr(cli, "make_client", lambda config: FakeClient())
+
+    rc = cli.main(["apps", "create", "crm-dev", "--version-id", "asm-9"])
+    assert rc == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["id"] == "app-new"
+    assert payload["status"] == "Running"
+    assert payload["uri"] == "https://host/apps/crm-dev"
+    assert payload["sign-in"]["url"] == "https://host/apps/crm-dev"
+
+
+def test_sign_in_address_is_not_invented_before_the_application_has_one(monkeypatch, capsys):
+    """Without --wait the card has no uri yet: the address is missing, not made up.
+
+    The hint then says where to get it, so the answer stays usable.
+    """
+
+    class FakeClient:
+        def create_app(self, display_name, **kwargs):
+            return {"id": "app-new", "display-name": display_name, "status": "Creating"}
+
+    monkeypatch.setattr(cli, "make_client", lambda config: FakeClient())
+
+    rc = cli.main(["apps", "create", "crm-dev", "--version-id", "asm-9"])
+    assert rc == 0
+    captured = capsys.readouterr()
+    sign_in = json.loads(captured.out)["sign-in"]
+    assert sign_in["url"] is None
+    assert "apps get" in sign_in["hint"]
+    assert "ПАНЕЛИ УПРАВЛЕНИЯ" in captured.err
 
 
 def test_apps_ensure_request_failure_is_an_error(monkeypatch, capsys):
