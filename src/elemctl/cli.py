@@ -26,6 +26,7 @@ from .client import (
     ElementClient,
     brief_app,
     extract_assembly_id,
+    sign_in_hint,
 )
 from .config import Config
 from .deploy import deploy_from_sources
@@ -205,10 +206,27 @@ def _create_app_from_args(client, config, args):
     return card
 
 
+def _report_sign_in(card):
+    """Say out loud how to sign in to the application; return the same as a field.
+
+    A stand nobody can get into is not a ready stand, and the way in is not
+    guessable: the accounts used elsewhere do not work in a fresh application
+    (client.sign_in_hint). The text goes to stderr, where the rest
+    of the progress goes, and the machine-readable twin goes into the JSON – an
+    agent reading only stdout must learn it too.
+    """
+    hint = sign_in_hint(card)
+    _progress(hint["hint"])
+    _progress(hint["note"])
+    return hint
+
+
 def cmd_apps_create(args):
     config = _config(args)
     client = make_client(config)
-    _emit(_create_app_from_args(client, config, args))
+    card = _create_app_from_args(client, config, args)
+    hint = _report_sign_in(card)
+    _emit({**card, "sign-in": hint} if isinstance(card, dict) else card)
     return 0
 
 
@@ -222,15 +240,27 @@ def cmd_apps_ensure(args):
     delete + create give a new URL and break the external links to the previous
     one. The exit code is 0 in both cases; a failed request is JSON with an error
     field on stderr and exit code 1.
+
+    Both answers end with the way into the application (the sign-in field and
+    the same on stderr): the caller of ensure is usually raising a stand, and a
+    stand nobody can sign in to is not raised yet.
     """
     config = _config(args)
     client = make_client(config)
     existing = client.find_app(args.name)
     if existing is not None:
-        _emit({"id": existing.get("id"), "created": False})
+        _emit({
+            "id": existing.get("id"),
+            "created": False,
+            "sign-in": _report_sign_in(existing),
+        })
         return 0
     card = _create_app_from_args(client, config, args)
-    _emit({"id": (card or {}).get("id"), "created": True})
+    _emit({
+        "id": (card or {}).get("id"),
+        "created": True,
+        "sign-in": _report_sign_in(card),
+    })
     return 0
 
 

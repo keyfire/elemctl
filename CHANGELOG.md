@@ -8,6 +8,22 @@ day are named in the heading. The format follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html). The VS Code debug companion in
 `editors/vscode` is released separately under the `vscode-v*` tags and is not tracked here.
 
+## Unreleased
+
+### Added
+- **Creating an application ends with the way into it.** `apps create` and `apps ensure`
+  (and their MCP twins) now add a `sign-in` field to the answer – the address, the account
+  code `control-panel` and two sentences of explanation – and the CLI prints the same on
+  stderr. The reason it is worth saying out loud: a fresh application gets its OWN, empty
+  user list, password sign-in in it is off and no account service is attached, so
+  the accounts used to sign in to other applications do
+  not work here – and connecting another application's user list together with enabling the
+  local sign-in does not change it. A CONTROL PANEL account does work: the platform
+  connects its users to the application itself. Until now that had to be found by trying,
+  which is the one thing not to do – a user has a failed-attempt counter. While the
+  application is still starting and has no address, `url` is `null` rather than a guess,
+  and the hint says where to take the address from.
+
 ## 2026-07-28 – 0.20.0
 
 ### Changed

@@ -178,6 +178,36 @@ MESSAGES = {
               "the operation is cancelled",
     },
     # -- client.py ----------------------------------------------------------------
+    "client.sign-in-hint": {
+        "ru": "как войти в приложение: {url} – учётной записью ПАНЕЛИ УПРАВЛЕНИЯ "
+              "платформы (её пользователи подключаются к новому приложению сами и "
+              "входят сразу); собственные страницы администрирования приложения "
+              "открываются тем же входом",
+        "en": "how to sign in: {url} – with a CONTROL PANEL account (its users are "
+              "connected to a new application by the platform itself and sign in "
+              "right away); the application's own admin pages open under the same "
+              "sign-in",
+    },
+    "client.sign-in-hint-no-uri": {
+        "ru": "как войти в приложение: учётной записью ПАНЕЛИ УПРАВЛЕНИЯ платформы "
+              "(её пользователи подключаются к новому приложению сами); адрес "
+              "появится, когда приложение запустится – apps get (или создавайте "
+              "с --wait)",
+        "en": "how to sign in: with a CONTROL PANEL account (its users are connected "
+              "to a new application by the platform itself); the address appears once "
+              "the application starts – apps get (or create it with --wait)",
+    },
+    "client.sign-in-note": {
+        "ru": "у нового приложения свой пустой список пользователей, вход по логину "
+              "и паролю выключен, а сервис учётных записей не подключён – поэтому "
+              "учётные записи, которыми входят в другие приложения, здесь НЕ "
+              "работают: подключение чужого списка пользователей и включение "
+              "локального входа этого не меняют",
+        "en": "a new application gets its own empty user list, password sign-in is "
+              "off and no account service is attached – so the accounts used to sign "
+              "in to other applications do NOT work here: connecting someone else's "
+              "user list and enabling the local sign-in do not change that",
+    },
     "client.assembly-not-found": {
         "ru": "сборка '{version}' не найдена в проекте {project} (ни по версии, ни по ид)",
         "en": "assembly '{version}' not found in project {project} (neither by version nor by id)",

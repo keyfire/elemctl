@@ -19,7 +19,7 @@ except ImportError as error:  # pragma: no cover - the branch without the extra
 
 from . import i18n, plugins
 from .build import build_assembly, inspect_assembly
-from .client import ElementClient, brief_app, extract_assembly_id
+from .client import ElementClient, brief_app, extract_assembly_id, sign_in_hint
 from .config import Config
 from .deploy import (
     deploy_from_sources,
@@ -155,8 +155,16 @@ def create_server(config=None):
         development_mode: bool = True,
         env_file: str = "",
     ) -> dict:
-        """Создать приложение. При задании только project_id источником берётся последняя сборка проекта (создание из проекта целиком может дать пустой каркас)."""
-        return _create_app(name, project_id, version_id, space_id, development_mode, env_file)
+        """Создать приложение. При задании только project_id источником берётся последняя сборка проекта (создание из проекта целиком может дать пустой каркас).
+
+        К карточке добавляется поле sign-in – способ войти в новое приложение:
+        адрес и учётная запись ПАНЕЛИ УПРАВЛЕНИЯ (учётные записи, которыми
+        входят в другие приложения, в новом не работают).
+        """
+        card = _create_app(name, project_id, version_id, space_id, development_mode, env_file)
+        if not isinstance(card, dict):
+            return card
+        return {**card, "sign-in": sign_in_hint(card)}
 
     @server.tool()
     def ensure_app(
@@ -174,12 +182,24 @@ def create_server(config=None):
         новый URL и порвали внешние привязки – OIDC redirect и т.п.). Удалённые
         приложения (статус Deleted) не в счёт. Параметры создания – как у
         create_app; они действуют, только когда создание происходит.
+
+        Поле sign-in обоих ответов говорит, как войти в приложение: адрес и
+        учётная запись ПАНЕЛИ УПРАВЛЕНИЯ (учётные записи, которыми входят в
+        другие приложения, в новом не работают).
         """
         existing = client(env_file).find_app(name)
         if existing is not None:
-            return {"id": existing.get("id"), "created": False}
+            return {
+                "id": existing.get("id"),
+                "created": False,
+                "sign-in": sign_in_hint(existing),
+            }
         card = _create_app(name, project_id, version_id, space_id, development_mode, env_file)
-        return {"id": (card or {}).get("id"), "created": True}
+        return {
+            "id": (card or {}).get("id"),
+            "created": True,
+            "sign-in": sign_in_hint(card),
+        }
 
     @server.tool()
     def start_app(app_id: str, env_file: str = "") -> dict:

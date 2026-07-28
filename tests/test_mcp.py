@@ -173,6 +173,59 @@ def test_app_tools_accept_name_in_docstring():
         assert "имя" in description, name
 
 
+def _server_on(monkeypatch, fake_client):
+    """A server whose every environment answers with the given stand-in client."""
+    from elemctl import mcp_server
+    from elemctl.config import Config
+
+    monkeypatch.setattr(mcp_server, "ElementClient", lambda config: fake_client)
+    return create_server(
+        Config(base_url="https://api.test", client_id="cid", client_secret="secret")
+    )
+
+
+def test_ensure_app_returns_the_way_in(monkeypatch):
+    """An agent sees only the JSON, so the way into the stand has to be inside it.
+
+    Both answers of ensure carry it – the application already existed just as
+    often as it is created.
+    """
+
+    class FakeClient:
+        def find_app(self, name, *, include_deleted=False):
+            return {"id": "app-7", "display-name": name, "uri": "https://host/apps/crm-dev"}
+
+    server = _server_on(monkeypatch, FakeClient())
+
+    payload = json.loads(asyncio.run(server.call_tool("ensure_app", {"name": "crm-dev"}))[0].text)
+
+    assert payload["id"] == "app-7"
+    assert payload["created"] is False
+    assert payload["sign-in"]["url"] == "https://host/apps/crm-dev"
+    assert payload["sign-in"]["account"] == "control-panel"
+    assert "другие приложения" in payload["sign-in"]["note"]
+
+
+def test_create_app_adds_the_way_in_to_the_card(monkeypatch):
+    """create_app keeps answering with the platform card; the hint is an addition."""
+
+    class FakeClient:
+        def create_app(self, display_name, **kwargs):
+            return {"id": "app-new", "display-name": display_name, "uri": "https://host/apps/new"}
+
+    server = _server_on(monkeypatch, FakeClient())
+
+    payload = json.loads(
+        asyncio.run(
+            server.call_tool("create_app", {"name": "crm-dev", "version_id": "asm-1"})
+        )[0].text
+    )
+
+    assert payload["id"] == "app-new"
+    assert payload["display-name"] == "crm-dev"
+    assert payload["sign-in"]["url"] == "https://host/apps/new"
+
+
 # --- Tools brought by a plugin -----------------------------------------------------
 
 def _plugin_command(**overrides):

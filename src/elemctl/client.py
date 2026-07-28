@@ -206,6 +206,41 @@ def brief_app(app):
     }
 
 
+#: The account a freshly created application can be signed in with. It is a code,
+#: not a text: the human wording lives in the message catalog.
+CONTROL_PANEL_ACCOUNT = "control-panel"
+
+
+def sign_in_hint(app):
+    """How to sign in to an application that has just been created.
+
+    A new application gets its OWN, EMPTY user list, password sign-in off and
+    no account service attached, so the accounts used to sign in to other
+    applications do not work here – neither connecting another application's
+    user list (`POST /applications/{id}/userlists`) nor enabling the local
+    sign-in changes it. What does work is a CONTROL PANEL
+    account: its users are connected to the application by the platform itself
+    and sign in right away. Creating an application therefore ends with saying
+    so out loud instead of leaving the caller to guess (section 6.11 of the
+    specification).
+
+    The card of an application that is still starting has no `uri` yet – then
+    the address is missing rather than invented, and the hint says where to get
+    it. Shared by the CLI and the MCP server.
+    """
+    card = app if isinstance(app, dict) else {}
+    url = (card.get("uri") or "").strip() or None
+    return {
+        "url": url,
+        "account": CONTROL_PANEL_ACCOUNT,
+        "hint": (
+            i18n.t("client.sign-in-hint", url=url) if url
+            else i18n.t("client.sign-in-hint-no-uri")
+        ),
+        "note": i18n.t("client.sign-in-note"),
+    }
+
+
 class ElementClient:
     """A programmatic Console API v2 client."""
 
