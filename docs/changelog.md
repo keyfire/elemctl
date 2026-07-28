@@ -14,7 +14,7 @@ day are named in the heading. The format follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html). The VS Code debug companion in
 `editors/vscode` is released separately under the `vscode-v*` tags and is not tracked here.
 
-## Unreleased
+## 2026-07-28 – 0.21.0
 
 ### Added
 - **Creating an application ends with the way into it.** `apps create` and `apps ensure`
