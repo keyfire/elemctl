@@ -60,7 +60,7 @@ class FakeDeployClient:
         return self._uri_status
 
     def _card(self):
-        card = {"id": "app-1", "name": "site-dev", "status": self._status, "uri": self._uri}
+        card = {"id": "app-1", "name": "demo-app", "status": self._status, "uri": self._uri}
         source = {}
         if self._applied_version is not None:
             source["project-version"] = self._applied_version
@@ -364,7 +364,7 @@ def test_report_names_the_target_and_where_it_came_from(project_factory, tmp_pat
         project_id_source="flag",
     )
     payload = report.to_dict()
-    assert payload["app-id"] == "app-1" and payload["app-name"] == "site-dev"
+    assert payload["app-id"] == "app-1" and payload["app-name"] == "demo-app"
     assert payload["app-id-source"] == "env"
     assert payload["project-id"] == "proj-1" and payload["project-id-source"] == "flag"
 
