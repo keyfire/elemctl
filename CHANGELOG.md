@@ -8,6 +8,17 @@ day are named in the heading. The format follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html). The VS Code debug companion in
 `editors/vscode` is released separately under the `vscode-v*` tags and is not tracked here.
 
+## Unreleased
+
+### Fixed
+- **`self-update --stop-holders` no longer stops its own process tree.** Started via the
+  installed shim, the command runs as a python child of an `elemctl.exe` launcher – by name
+  that launcher looks exactly like a holder, so the command offered itself for stopping and
+  the stop cut the update short (the rollback insurance kept the old installation intact, but
+  the update never happened). Holders now exclude the command's own process: its ancestors –
+  the shim and whatever started it – and its descendants. Other live `elemctl` processes, the
+  actual holders, are still named and stopped.
+
 ## 2026-07-28 – 0.21.1
 
 ### Added

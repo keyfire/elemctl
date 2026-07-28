@@ -101,16 +101,16 @@ def is_holder(name: str, command_line: str) -> bool:
     return any(marker in lowered for marker in _HOLDER_MODULES)
 
 
-def _process_listing() -> list[tuple[int, str, str]]:
-    """(pid, name, command line) from the system tools; an empty list when they are unavailable."""
+def _process_listing() -> list[tuple[int, int, str, str]]:
+    """(pid, ppid, name, command line) from the system tools; an empty list when they are unavailable."""
     if sys.platform == "win32":
         command = [
             "powershell", "-NoProfile", "-Command",
             "Get-CimInstance Win32_Process | "
-            "Select-Object ProcessId,Name,CommandLine | ConvertTo-Json -Compress",
+            "Select-Object ProcessId,ParentProcessId,Name,CommandLine | ConvertTo-Json -Compress",
         ]
     else:
-        command = ["ps", "-eo", "pid=,comm=,args="]
+        command = ["ps", "-eo", "pid=,ppid=,comm=,args="]
     try:
         out = subprocess.run(
             command, capture_output=True, text=True, timeout=30, encoding="utf-8", errors="replace"
@@ -120,9 +120,9 @@ def _process_listing() -> list[tuple[int, str, str]]:
     if sys.platform != "win32":
         rows = []
         for line in out.splitlines():
-            parts = line.strip().split(None, 2)
-            if len(parts) == 3 and parts[0].isdigit():
-                rows.append((int(parts[0]), parts[1], parts[2]))
+            parts = line.strip().split(None, 3)
+            if len(parts) == 4 and parts[0].isdigit() and parts[1].isdigit():
+                rows.append((int(parts[0]), int(parts[1]), parts[2], parts[3]))
         return rows
     try:
         data = json.loads(out or "[]")
@@ -131,23 +131,56 @@ def _process_listing() -> list[tuple[int, str, str]]:
     if isinstance(data, dict):
         data = [data]
     return [
-        (int(item.get("ProcessId") or 0), str(item.get("Name") or ""),
-         str(item.get("CommandLine") or ""))
+        (int(item.get("ProcessId") or 0), int(item.get("ParentProcessId") or 0),
+         str(item.get("Name") or ""), str(item.get("CommandLine") or ""))
         for item in data
     ]
+
+
+def _family_pids(rows: list[tuple[int, int, str, str]]) -> set[int]:
+    """Pids of our own process tree: self, ancestors and descendants.
+
+    The command started via the pipx shim runs as a python child of an `elemctl.exe`
+    launcher - by name that launcher looks exactly like a holder, but stopping it kills
+    the running command itself (the launcher's job object takes the child down with it).
+    Ancestors and descendants are excluded wholesale; a reused pid can only put an extra
+    process into the set, which errs on the safe side - a skipped holder, never a killed
+    stranger.
+    """
+    own = os.getpid()
+    parent_of = {pid: ppid for pid, ppid, _name, _line in rows}
+    children_of: dict[int, list[int]] = {}
+    for pid, ppid, _name, _line in rows:
+        children_of.setdefault(ppid, []).append(pid)
+    family = {own}
+    cursor = own
+    for _hop in range(64):  # bounded walk: a broken listing must not loop forever
+        cursor = parent_of.get(cursor, 0)
+        if cursor <= 0 or cursor in family:
+            break
+        family.add(cursor)
+    queue = [own]
+    while queue:
+        for child in children_of.get(queue.pop(), ()):
+            if child not in family:
+                family.add(child)
+                queue.append(child)
+    return family
 
 
 def holders() -> list[dict]:
     """Live processes that look like holders of the installation: {"pid", "name"}.
 
     Best effort by design: the answer only makes the message useful ("close these"), it is
-    never a precondition - the gate is the rename below.
+    never a precondition - the gate is the rename below. Our own process tree is excluded:
+    offering the shim that started this very command would end the update midway.
     """
-    own = os.getpid()
+    rows = _process_listing()
+    family = _family_pids(rows)
     return [
         {"pid": pid, "name": name}
-        for pid, name, line in _process_listing()
-        if pid != own and is_holder(name, line)
+        for pid, _ppid, name, line in rows
+        if pid not in family and is_holder(name, line)
     ]
 
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import json
+import os
 import zipfile
 
 import pytest
@@ -158,12 +159,45 @@ def test_holders_are_our_own_processes_only(monkeypatch):
     monkeypatch.setattr(
         selfupdate, "_process_listing",
         lambda: [
-            (11, "elemctl.exe", "elemctl mcp"),
-            (12, "python.exe", "python.exe -m elemctl mcp"),
-            (13, "python.exe", "python.exe -m http.server"),
+            (11, 1, "elemctl.exe", "elemctl mcp"),
+            (12, 1, "python.exe", "python.exe -m elemctl mcp"),
+            (13, 1, "python.exe", "python.exe -m http.server"),
             # Клиент агента несёт команду сервера в своей строке запуска – но держателем
             # не является: снять его было бы худшей из ошибок.
-            (14, "claude.exe", "claude.exe --mcp-server elemctl mcp"),
+            (14, 1, "claude.exe", "claude.exe --mcp-server elemctl mcp"),
         ],
     )
     assert {item["pid"] for item in selfupdate.holders()} == {11, 12}
+
+
+def test_holders_exclude_own_process_tree(monkeypatch):
+    """Обёртка pipx, запустившая команду, и её дерево – не держатели.
+
+    Живой отказ 28.07: `--stop-holders` снял собственный родительский `elemctl.exe`,
+    Job Object лаунчера утянул за ним и сам обновляющий процесс – обновление оборвалось
+    на полпути. Свои: предки (обёртка и её родитель) и потомки; чужая сессия с тем же
+    именем остаётся держателем.
+    """
+    own = os.getpid()
+    monkeypatch.setattr(
+        selfupdate, "_process_listing",
+        lambda: [
+            (70, 1, "explorer.exe", "explorer.exe"),          # предок-не-держатель
+            (77, 70, "elemctl.exe", "elemctl self-update"),   # наша обёртка pipx
+            (own, 77, "python.exe", "python -m elemctl self-update"),
+            (88, own, "elemctl.exe", "elemctl helper"),       # наш потомок
+            (11, 1, "elemctl.exe", "elemctl mcp"),            # чужая сессия MCP
+        ],
+    )
+    assert {item["pid"] for item in selfupdate.holders()} == {11}
+
+
+def test_family_pids_survives_a_parent_loop(monkeypatch):
+    """Кольцо в ppid (битый листинг или переиспользованный pid) не должно зациклить обход."""
+    own = os.getpid()
+    rows = [
+        (own, 50, "python.exe", "python -m elemctl self-update"),
+        (50, 51, "elemctl.exe", "elemctl self-update"),
+        (51, 50, "cmd.exe", "cmd"),  # кольцо 50 <-> 51
+    ]
+    assert selfupdate._family_pids(rows) == {own, 50, 51}
