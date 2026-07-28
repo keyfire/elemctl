@@ -7,7 +7,7 @@ import json
 
 import pytest
 
-pytest.importorskip("mcp", reason="extra elemctl[mcp] не установлен")
+pytest.importorskip("mcp.server.fastmcp", reason="extra elemctl[mcp] не установлен")
 
 from elemctl.client import brief_app
 from elemctl.mcp_server import INSTRUCTIONS, _brief_project, create_server
