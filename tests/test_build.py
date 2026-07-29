@@ -15,6 +15,7 @@ from elemctl.build import (
     find_project_dir,
     git_metadata,
     inspect_assembly,
+    parse_project_libraries,
     read_project_meta,
 )
 from elemctl.errors import BuildError
@@ -121,6 +122,109 @@ def test_archive_composition_and_manifest(project_factory, tmp_path):
     assert "CommitId: abc123" in manifest
     assert re.search(r"Created: \d{4}\.\d{2}\.\d{2} \d{2}:\d{2}:\d{2}", manifest)
     assert "Release:" not in manifest
+
+
+def test_application_includes_declared_local_libraries(project_factory, tmp_path):
+    app = project_factory()
+    app_yaml = app / "Проект.yaml"
+    app_yaml.write_text(
+        app_yaml.read_text(encoding="utf-8")
+        + "Библиотеки:\n"
+        + "    -\n"
+        + "        Имя: standard-tools\n"
+        + "        Поставщик: acme\n"
+        + "        Версия: 1.0\n",
+        encoding="utf-8",
+    )
+    library = project_factory(name="standard-tools", kind="Библиотека")
+    (library / "Инструменты").mkdir()
+    (library / "Инструменты" / "Сервис.yaml").write_text(
+        "ВидЭлемента: ОбщийМодуль\nИмя: Сервис\n", encoding="utf-8"
+    )
+    (library / "Инструменты" / "НеизвестныйРесурс.pdf").write_bytes(b"%PDF")
+    project_factory(name="unrelated", kind="Библиотека")
+
+    result = build_assembly(app, output_dir=tmp_path / "dist", branch="", commit="")
+
+    with zipfile.ZipFile(result.file) as archive:
+        names = set(archive.namelist())
+    assert "acme/crm/Проект.yaml" in names
+    assert "acme/standard-tools/Проект.yaml" in names
+    assert "acme/standard-tools/Инструменты/Сервис.yaml" in names
+    assert "acme/unrelated/Проект.yaml" not in names
+    assert result.skipped_files == [
+        "acme/standard-tools/Инструменты/НеизвестныйРесурс.pdf"
+    ]
+
+
+def test_application_includes_transitive_local_library(project_factory, tmp_path):
+    app = project_factory()
+    app_yaml = app / "Проект.yaml"
+    app_yaml.write_text(
+        app_yaml.read_text(encoding="utf-8")
+        + "Libraries:\n"
+        + "  - Name: standard-tools\n"
+        + "    Vendor: acme\n"
+        + "    Version: 1.0\n",
+        encoding="utf-8",
+    )
+    library = project_factory(name="standard-tools", kind="Библиотека")
+    library_yaml = library / "Проект.yaml"
+    library_yaml.write_text(
+        library_yaml.read_text(encoding="utf-8")
+        + "Библиотеки:\n"
+        + "  - Имя: shared-kernel\n"
+        + "    Поставщик: globex\n"
+        + "    Версия: 1.0\n",
+        encoding="utf-8",
+    )
+    project_factory(vendor="globex", name="shared-kernel", kind="Библиотека")
+
+    result = build_assembly(app, output_dir=tmp_path / "dist", branch="", commit="")
+
+    with zipfile.ZipFile(result.file) as archive:
+        names = set(archive.namelist())
+    assert "acme/standard-tools/Проект.yaml" in names
+    assert "globex/shared-kernel/Проект.yaml" in names
+
+
+def test_missing_local_library_is_left_for_the_platform(project_factory, tmp_path):
+    app = project_factory()
+    app_yaml = app / "Проект.yaml"
+    app_yaml.write_text(
+        app_yaml.read_text(encoding="utf-8")
+        + "Библиотеки:\n"
+        + "  - Имя: published-library\n"
+        + "    Поставщик: globex\n"
+        + "    Версия: 2.0\n",
+        encoding="utf-8",
+    )
+
+    result = build_assembly(app, output_dir=tmp_path / "dist", branch="", commit="")
+
+    with zipfile.ZipFile(result.file) as archive:
+        names = set(archive.namelist())
+    assert "acme/crm/Проект.yaml" in names
+    assert not any(name.startswith("globex/published-library/") for name in names)
+
+
+def test_parse_project_libraries_supports_both_descriptor_languages():
+    libraries = parse_project_libraries(
+        "Имя: crm\n"
+        "Библиотеки:\n"
+        "    -\n"
+        "        Имя: tools\n"
+        "        Поставщик: acme\n"
+        "    - Name: mail\n"
+        "      Vendor: globex\n"
+        "Подсистемы:\n"
+        "    - Main\n"
+    )
+
+    assert [(item.vendor, item.name) for item in libraries] == [
+        ("acme", "tools"),
+        ("globex", "mail"),
+    ]
 
 
 def test_library_gets_release_line_and_xlib_extension(project_factory, tmp_path):

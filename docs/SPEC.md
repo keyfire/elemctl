@@ -145,7 +145,7 @@ A build file is a ZIP archive (deflate):
 
   For a library (`ProjectKind: Library`), a `Release:` line (empty value) is added at the end; the file extension is `.xlib`, for an application – `.xasm`.
 
-- then the project files at paths `{vendor}/{name}/...` – relative to the repository root. The project directory must follow the scheme `{repo}/{vendor}/{name}/Проект.yaml`. Path separators in the archive are forward slashes (including on Windows).
+- then the project files at paths `{vendor}/{name}/...` – relative to the repository root. The project directory must follow the scheme `{repo}/{vendor}/{name}/Проект.yaml`. For an application, locally available libraries declared in `Библиотеки`/`Libraries` are included recursively; a declared library without a project under the same repository root stays an external platform dependency. Unreferenced sibling projects are not included. Path separators in the archive are forward slashes (including on Windows).
 
 Build file name: `{Имя} {Version}.xasm` (with a space).
 

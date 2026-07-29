@@ -189,6 +189,7 @@ def test_no_russian_string_literals_outside_the_catalog():
     platform_literals = {
         "Проект.yaml", "Assembly.yaml", "Подсистема.yaml", "Ресурсы", "Глобально",
         "ВПодсистеме", "Имя", "Поставщик", "Версия", "ВидПроекта", "Библиотека",
+        "Библиотеки",
         "ВидЭлемента", "ОбластьВидимости", "РежимСовместимости", "Представление",
         "библиотека", "приложение",
         # The keys of an attribute description, read by the schema guard.

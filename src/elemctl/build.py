@@ -68,6 +68,14 @@ class ProjectMeta:
     repo_root: Path
 
 
+@dataclass(frozen=True)
+class LibraryRef:
+    """A library referenced by a project's Библиотеки/Libraries section."""
+
+    name: str
+    vendor: str
+
+
 @dataclass
 class BuildResult:
     """The result of a local archive build.
@@ -116,6 +124,63 @@ def parse_flat_yaml(text):
     return values
 
 
+def parse_project_libraries(text):
+    """Parse library references from Библиотеки/Libraries in Проект.yaml.
+
+    elemctl deliberately has no YAML dependency. Project descriptors use a small,
+    regular subset here: a top-level list whose items have Имя/Name and
+    Поставщик/Vendor fields. Other nested sections and fields are ignored.
+    """
+    entries = []
+    current = None
+    section_indent = None
+
+    for raw_line in text.splitlines():
+        if not raw_line.strip() or raw_line.lstrip().startswith("#"):
+            continue
+        indent = len(raw_line) - len(raw_line.lstrip(" \t"))
+        stripped = raw_line.strip()
+
+        if section_indent is None:
+            if indent != 0:
+                continue
+            key, value = _yaml_pair(stripped)
+            if key not in ("Библиотеки", "Libraries"):
+                continue
+            if value and value != "[]":
+                return []
+            section_indent = indent
+            continue
+
+        if indent <= section_indent:
+            break
+
+        if stripped.startswith("-"):
+            if current is not None:
+                entries.append(current)
+            current = {}
+            stripped = stripped[1:].strip()
+            if not stripped:
+                continue
+
+        if current is None:
+            continue
+        key, value = _yaml_pair(stripped)
+        if key:
+            current[key] = value
+
+    if current is not None:
+        entries.append(current)
+
+    libraries = []
+    for entry in entries:
+        name = descriptor_value(entry, "Имя", "Name")
+        vendor = descriptor_value(entry, "Поставщик", "Vendor")
+        if name and vendor:
+            libraries.append(LibraryRef(name=name, vendor=vendor))
+    return libraries
+
+
 def descriptor_value(values, russian, english):
     """The value of a descriptor property by its Russian or English spelling.
 
@@ -128,6 +193,33 @@ def descriptor_value(values, russian, english):
         if value:
             return value
     return ""
+
+
+def local_project_dependencies(meta):
+    """The root project and its locally available library dependencies.
+
+    A missing local directory means the library is supplied externally by the
+    platform and is therefore not an error. Dependencies of local libraries are
+    followed too, so an application build is self-contained for the whole local
+    dependency graph.
+    """
+    projects = [meta]
+    seen = {(meta.vendor, meta.name)}
+    index = 0
+    while index < len(projects):
+        project = projects[index]
+        index += 1
+        text = (project.project_dir / PROJECT_FILE).read_text(encoding="utf-8-sig")
+        for library in parse_project_libraries(text):
+            key = (library.vendor, library.name)
+            if key in seen:
+                continue
+            candidate = meta.repo_root / library.vendor / library.name
+            if not (candidate / PROJECT_FILE).is_file():
+                continue
+            projects.append(read_project_meta(candidate))
+            seen.add(key)
+    return projects
 
 
 def ci_build_number(environ=None):
@@ -368,15 +460,21 @@ def build_assembly(
     target_dir.mkdir(parents=True, exist_ok=True)
     archive_path = target_dir / f"{meta.name} {build_version}{extension}"
 
-    files, skipped = collect_with_skipped(meta.project_dir)
+    projects = local_project_dependencies(meta) if project_kind == "Application" else [meta]
     archive_names = []
+    skipped_names = []
     with zipfile.ZipFile(archive_path, "w", zipfile.ZIP_DEFLATED) as archive:
         archive.writestr("Assembly.yaml", manifest)
-        for file_path in files:
-            relative = file_path.relative_to(meta.project_dir)
-            arc_name = "/".join((meta.vendor, meta.name) + relative.parts)
-            archive.write(file_path, arcname=arc_name)
-            archive_names.append(arc_name)
+        for project in projects:
+            files, skipped = collect_with_skipped(project.project_dir)
+            for file_path in files:
+                relative = file_path.relative_to(project.project_dir)
+                arc_name = "/".join((project.vendor, project.name) + relative.parts)
+                archive.write(file_path, arcname=arc_name)
+                archive_names.append(arc_name)
+            skipped_names.extend(
+                _result_path(project, meta, path) for path in skipped
+            )
 
     return BuildResult(
         file=archive_path,
@@ -389,9 +487,7 @@ def build_assembly(
         files=archive_names,
         version_source=version_source,
         dirty_files=git_dirty_files(meta.project_dir),
-        skipped_files=[
-            str(path.relative_to(meta.project_dir)).replace("\\", "/") for path in skipped
-        ],
+        skipped_files=skipped_names,
     )
 
 
@@ -466,6 +562,26 @@ def inspect_assembly(path):
 
 
 # -- internal -----------------------------------------------------------------
+
+
+def _yaml_pair(text):
+    """A key and an unquoted scalar value from one simple YAML line."""
+    if ":" not in text:
+        return "", ""
+    key, _, value = text.partition(":")
+    key = key.strip()
+    value = value.strip()
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in ("'", '"'):
+        value = value[1:-1]
+    return key, value
+
+
+def _result_path(project, root, path):
+    """A diagnostic path, preserving the old root-project spelling."""
+    relative = path.relative_to(project.project_dir).as_posix()
+    if project.vendor == root.vendor and project.name == root.name:
+        return relative
+    return "/".join((project.vendor, project.name, relative))
 
 
 def _read_entry(archive, entry):
