@@ -2,7 +2,7 @@
 
 The transport is stdio; the connection credentials come from the ELEMENT_*
 environment variables or from the .env file in the current directory. Requires
-the optional extra "elemctl[mcp]" (the mcp>=1.2 package, FastMCP is used).
+the optional extra "elemctl[mcp]" (the mcp package, either major version).
 """
 
 from __future__ import annotations
@@ -10,14 +10,36 @@ from __future__ import annotations
 import inspect
 from datetime import datetime, timedelta, timezone
 
+# The whole difference between the two majors of the mcp package lives here.
+#
+# mcp 2.0 renamed the ergonomic server class and moved it: FastMCP from
+# mcp.server.fastmcp became MCPServer in mcp.server.mcpserver, and the old
+# module is gone rather than aliased – an untouched server meets the rename as
+# a ModuleNotFoundError the moment the environment resolves mcp to 2.x. What
+# the server itself uses of the class did not change: the constructor keyword
+# "instructions", the @tool()/add_tool() registration with the same arguments,
+# and run() over stdio. The one constructor trap is positional – 2.x inserts
+# title and description before instructions – and it is avoided by passing
+# instructions by keyword, which create_server does.
+#
+# The reading side did change, and that is what tool_input_schema and
+# call_result_content below are for: in 2.x the wire types come from the
+# mcp-types package with snake_case fields (inputSchema -> input_schema), and
+# call_tool answers with a CallToolResult instead of a bare list of content
+# blocks. Anything that reads a listing or a call result – the tests, an
+# embedder driving the server in process – goes through those two helpers
+# instead of forking on the version again.
 try:
-    from mcp.server.fastmcp import FastMCP
-except ImportError as error:  # pragma: no cover - the branch without the extra
-    raise ImportError(
-        'the MCP server needs the extra: pip install "elemctl[mcp]"'
-    ) from error
+    from mcp.server.mcpserver import MCPServer as McpServer  # mcp 2.x
+except ImportError:
+    try:
+        from mcp.server.fastmcp import FastMCP as McpServer  # mcp 1.x
+    except ImportError as error:  # neither home – the extra is not installed
+        raise ImportError(
+            'the MCP server needs the extra: pip install "elemctl[mcp]"'
+        ) from error
 
-from . import i18n, plugins
+from . import __version__, i18n, plugins
 from .build import build_assembly, inspect_assembly
 from .client import ElementClient, brief_app, extract_assembly_id, sign_in_hint
 from .config import Config
@@ -47,6 +69,31 @@ INSTRUCTIONS = (
 )
 
 
+def tool_input_schema(tool):
+    """The JSON schema of a tool taken from a list_tools() listing.
+
+    mcp 1.x spells the field inputSchema, mcp 2.x spells it input_schema (the
+    JSON on the wire stays camelCase either way – only the Python attribute
+    changed). An absent schema comes back as an empty dictionary.
+    """
+    schema = getattr(tool, "input_schema", None)
+    if schema is None:
+        schema = getattr(tool, "inputSchema", None)
+    return schema or {}
+
+
+def call_result_content(result):
+    """The content blocks of a call_tool() answer, as a list.
+
+    mcp 1.x hands back the blocks themselves, mcp 2.x wraps them into a
+    CallToolResult whose .content holds them.
+    """
+    content = getattr(result, "content", None)
+    if content is None:
+        return list(result)
+    return list(content)
+
+
 def _brief_project(project):
     """A brief project card: what the project is recognized and picked by.
 
@@ -70,7 +117,15 @@ def create_server(config=None):
     config – a ready configuration; without it the configuration is assembled
     from the environment variables and .env on the first call to the platform.
     """
-    server = FastMCP("elemctl", instructions=INSTRUCTIONS)
+    # instructions goes by keyword on purpose: mcp 2.x inserted title and
+    # description before it in the positional order. The version parameter is
+    # 2.x only, and without it serverInfo comes out with an empty version there
+    # (1.x had no such parameter and stamped the version of the mcp package
+    # itself) – so it is passed wherever the class accepts it.
+    options = {"instructions": INSTRUCTIONS}
+    if "version" in inspect.signature(McpServer).parameters:
+        options["version"] = __version__
+    server = McpServer("elemctl", **options)
     state = {"clients": {}, "config": config}
 
     def client(env_file: str = ""):
@@ -454,11 +509,12 @@ def create_server(config=None):
 def _plugin_tool(command, client_for_env):
     """Build the MCP tool function of a plugin command.
 
-    FastMCP derives the schema of a tool from the signature of the function, and
-    the signature here is only known at runtime – so it is assembled by hand out
-    of the declared arguments (checked against a live FastMCP: the schema comes
-    out with the types and the defaults in place). env_file is added by the core
-    to every such tool, exactly like the tools of the core have it.
+    The server derives the schema of a tool from the signature of the function,
+    and the signature here is only known at runtime – so it is assembled by hand
+    out of the declared arguments (checked against a live server of either major
+    version: the schema comes out with the types and the defaults in place).
+    env_file is added by the core to every such tool, exactly like the tools of
+    the core have it.
     """
     parameters = [
         inspect.Parameter(
@@ -493,10 +549,10 @@ def _plugin_tool(command, client_for_env):
 def _registered_tool_names(server):
     """The names of the tools already registered on the server.
 
-    FastMCP has no synchronous public listing (its list_tools is a coroutine), so
-    the tool manager is asked directly. A version that renames it must not break
-    the server – hence the fallback to an empty set: a clash would then be left
-    to FastMCP itself.
+    Neither major version has a synchronous public listing (list_tools is a
+    coroutine in both), so the tool manager is asked directly. A version that
+    renames it must not break the server – hence the fallback to an empty set:
+    a clash would then be left to the server class itself.
     """
     lister = getattr(getattr(server, "_tool_manager", None), "list_tools", None)
     if lister is None:

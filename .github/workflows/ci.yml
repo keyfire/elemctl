@@ -20,10 +20,19 @@ jobs:
         # The lower bound of requires-python and a current version: the suite
         # touches dates, paths and argparse, where version differences show up.
         python-version: ["3.10", "3.12"]
+        # The MCP server works with both majors of the mcp package, but a plain
+        # install always resolves to the newer one – so one job downgrades and
+        # keeps the older branch of the compatibility import covered as well.
+        mcp-major: ["2", "1"]
+        exclude:
+          - python-version: "3.10"
+            mcp-major: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
       - run: python -m pip install -e ".[dev,mcp]"
+      - if: matrix.mcp-major == '1'
+        run: python -m pip install "mcp<2"
       - run: python -m pytest -q

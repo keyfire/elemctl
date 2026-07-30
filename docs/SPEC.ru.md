@@ -16,8 +16,9 @@ Python-пакет `elemctl` из трёх слоёв поверх общего �
 2. **CLI** - консольная команда `elemctl` (entry point `elemctl` в
    `[project.scripts]`).
 3. **MCP-сервер** - те же операции как инструменты для AI-агентов; транспорт
-   stdio; зависимость `mcp>=1.2` подключается как optional extra
-   `elemctl[mcp]` (используется FastMCP из пакета `mcp`).
+   stdio; зависимость `mcp>=1.2,<3` подключается как optional extra
+   `elemctl[mcp]` (используется эргономичный класс сервера пакета `mcp`:
+   `FastMCP` в mcp 1.x, `MCPServer` в mcp 2.x).
 
 Требования пакета: имя `elemctl`, версия 0.1.0, Python >= 3.10, лицензия MIT,
 автор KeyFire, layout `src/elemctl/`, extra `dev` с pytest. Файлы LICENSE,

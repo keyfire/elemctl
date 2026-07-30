@@ -8,6 +8,26 @@ day are named in the heading. The format follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html). The VS Code debug companion in
 `editors/vscode` is released separately under the `vscode-v*` tags and is not tracked here.
 
+## Unreleased
+
+### Changed
+- **The MCP server works with both majors of the `mcp` package, and the pin is lifted.**
+  `mcp 2.0.0` moved the ergonomic server class – `FastMCP` from `mcp.server.fastmcp` became
+  `MCPServer` in `mcp.server.mcpserver`, and the old module is gone rather than kept as an
+  alias – so a fresh install of `elemctl[mcp]` picked up the new major and the server did not
+  start at all. The answer at the time was the pin `mcp>=1.2,<2`: it kept installations working
+  but froze them on 1.x. The import now tries the new home first and falls back to the old one,
+  and the extra allows `mcp>=1.2,<3`. Everything the server uses of the class is the same in
+  both majors – the `instructions` keyword, `@tool()` / `add_tool()`, `run()` over stdio – so
+  the tool set, the schemas and the descriptions come out identical, checked over the wire with
+  `initialize`, `tools/list` and `tools/call`. What differs is reading the answers: `inputSchema`
+  became `input_schema` and `call_tool` now returns a `CallToolResult` instead of a bare list of
+  content blocks. `tool_input_schema()` and `call_result_content()` hide exactly that, and CI
+  runs the suite against both majors.
+- **`serverInfo` now names the version of elemctl.** mcp 2.x asks the server for its version and
+  stamps an empty string when it is not given; mcp 1.x had no such parameter and stamped the
+  version of the `mcp` package instead, which was never the version of the tool.
+
 ## 2026-07-30 – 0.22.0
 
 ### Added

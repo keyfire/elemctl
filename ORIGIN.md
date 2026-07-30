@@ -49,4 +49,5 @@ issues to its own users in its management console. elemctl ships no credentials 
 redistributes nothing belonging to the platform.
 
 At runtime the library depends only on the Python standard library. The MCP server is an
-optional extra (`elemctl[mcp]`) and uses the `mcp` package (FastMCP).
+optional extra (`elemctl[mcp]`) and uses the `mcp` package (its ergonomic server class:
+`FastMCP` in mcp 1.x, `MCPServer` in mcp 2.x).

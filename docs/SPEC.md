@@ -10,7 +10,7 @@ The `elemctl` Python package consists of three layers on top of a shared core:
 
 1. **Library** – a programmatic client for Console API v2 and high-level operations (build, deploy). Python standard library only.
 2. **CLI** – the `elemctl` console command (entry point `elemctl` in `[project.scripts]`).
-3. **MCP server** – the same operations exposed as tools for AI agents; stdio transport; the `mcp>=1.2` dependency is included as the optional extra `elemctl[mcp]` (uses FastMCP from the `mcp` package).
+3. **MCP server** – the same operations exposed as tools for AI agents; stdio transport; the `mcp>=1.2,<3` dependency is included as the optional extra `elemctl[mcp]` (uses the ergonomic server class of the `mcp` package: `FastMCP` in mcp 1.x, `MCPServer` in mcp 2.x).
 
 Package requirements: name `elemctl`, version 0.1.0, Python >= 3.10, MIT license, author KeyFire, `src/elemctl/` layout, `dev` extra with pytest. The LICENSE, README.md, .env.example, and .gitignore files are provided by the customer and are not modified.
 
