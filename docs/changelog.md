@@ -14,7 +14,7 @@ day are named in the heading. The format follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html). The VS Code debug companion in
 `editors/vscode` is released separately under the `vscode-v*` tags and is not tracked here.
 
-## Unreleased
+## 2026-07-31 – 0.23.0
 
 ### Changed
 - **The MCP server works with both majors of the `mcp` package, and the pin is lifted.**
