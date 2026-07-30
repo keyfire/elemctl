@@ -11,6 +11,14 @@ day are named in the heading. The format follows
 ## Unreleased
 
 ### Fixed
+- **A proxy in the environment no longer makes a live stand look dead.** With an `HTTPS_PROXY`
+  set, every call died as a bare connection reset on `/console/sys/token`: urllib honours the
+  proxy, correctly, and a proxy that cannot reach the stand fails exactly like a stand that is
+  down - two runs were lost before the proxy was suspected. Now a proxy that cannot possibly help
+  is bypassed (loopback, private and link-local addresses, `localhost`, `.local`/`.lan` and the
+  like), `ELEMCTL_NO_PROXY=1` bypasses it everywhere, and a failed call that did go through a
+  proxy says so and names it. A stand that is reachable only through a corporate proxy keeps
+  working as before - the default is unchanged.
 - **`self-update --stop-holders` no longer stops its own process tree.** Started via the
   installed shim, the command runs as a python child of an `elemctl.exe` launcher – by name
   that launcher looks exactly like a holder, so the command offered itself for stopping and

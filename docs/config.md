@@ -20,6 +20,8 @@ Connection credentials are taken from environment variables or from a `.env` fil
 | `ELEMENT_PROJECT_ID` | default project (optional) |
 | `ELEMENT_SPACE_ID` | default space (optional) |
 
+| `ELEMCTL_NO_PROXY` | set it to bypass the environment's proxy for every call (loopback and private addresses are bypassed anyway) |
+
 Client-Id/Client-Secret are issued in the 1cmycloud control panel (the Console API integrations section). A file template is [.env.example](.env.example).
 
 ## Language
