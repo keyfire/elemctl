@@ -8,7 +8,14 @@ day are named in the heading. The format follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html). The VS Code debug companion in
 `editors/vscode` is released separately under the `vscode-v*` tags and is not tracked here.
 
-## Unreleased
+## 2026-07-30 – 0.22.0
+
+### Added
+- **An application build now carries the library projects that live next to it.** When the
+  application declares libraries whose sources sit under the same repository root, their files
+  go into the archive with it, transitive dependencies included; a declared library with no
+  local project stays an external dependency of the platform, and unrelated neighbouring
+  projects are not swept in. Contributed by @dvkuchin (pull request #3).
 
 ### Fixed
 - **A proxy in the environment no longer makes a live stand look dead.** With an `HTTPS_PROXY`
