@@ -201,3 +201,102 @@ def test_family_pids_survives_a_parent_loop(monkeypatch):
         (51, 50, "cmd.exe", "cmd"),  # кольцо 50 <-> 51
     ]
     assert selfupdate._family_pids(rows) == {own, 50, 51}
+
+
+# -- the file list comes from the simple index ---------------------------------------------
+#
+# Ported from the toolkit engine, where the failure was caught live on 31.07.2026: right
+# after a release the JSON metadata of PyPI still answered with the previous version, so
+# `self-update` said "already current" - and with an explicit version, "no wheel", because
+# the file list was read from that same lagging document.
+
+
+def _simple_payload(*names: str, yanked: tuple[str, ...] = ()) -> bytes:
+    """A PEP 691 answer of the simple index for the given file names."""
+    return json.dumps({
+        "meta": {"api-version": "1.1"},
+        "files": [
+            {"filename": name, "url": f"http://pypi/{name}", "yanked": name in yanked}
+            for name in names
+        ],
+    }).encode("utf-8")
+
+
+def _serve(monkeypatch, index: bytes | None, meta: dict | None = None) -> list[str]:
+    """Answer the index and the JSON metadata separately; returns the list of asked urls."""
+    asked: list[str] = []
+
+    def urlopen(target, timeout=0):
+        url = getattr(target, "full_url", target)
+        asked.append(url)
+        if url == selfupdate.PYPI_SIMPLE:
+            accept = getattr(target, "headers", {}).get("Accept")
+            assert accept == selfupdate.SIMPLE_ACCEPT, "without the header the index answers HTML"
+            if index is None:
+                raise OSError("index unreachable")
+            return _FakeResp(index)
+        assert meta is not None, "the JSON metadata must not be asked at all"
+        return _FakeResp(json.dumps(meta).encode("utf-8"))
+
+    monkeypatch.setattr(selfupdate.urllib.request, "urlopen", urlopen)
+    return asked
+
+
+def test_wheel_url_reads_the_simple_index(monkeypatch):
+    asked = _serve(monkeypatch, _simple_payload(
+        "elemctl-0.22.0-py3-none-any.whl",
+        "elemctl-0.23.0-py3-none-any.whl",
+        "elemctl-0.23.0.tar.gz",
+    ))
+
+    url, version = selfupdate._wheel_url(None)
+
+    assert version == "0.23.0" and url.endswith("elemctl-0.23.0-py3-none-any.whl")
+    assert asked == [selfupdate.PYPI_SIMPLE]
+
+
+def test_a_fresh_release_is_installable_while_the_json_still_lags(monkeypatch):
+    """The very failure this port exists for: the index has 0.23.0, the JSON still says 0.22.0."""
+    lagging = {"info": {"version": "0.22.0"},
+               "urls": [{"filename": "elemctl-0.22.0-py3-none-any.whl", "url": "http://pypi/old.whl"}]}
+    asked = _serve(monkeypatch, _simple_payload("elemctl-0.23.0-py3-none-any.whl"), meta=lagging)
+
+    url, version = selfupdate._wheel_url("0.23.0")
+
+    assert version == "0.23.0" and url.endswith("elemctl-0.23.0-py3-none-any.whl")
+    assert asked == [selfupdate.PYPI_SIMPLE]
+
+
+def test_yanked_and_pre_release_files_never_win_the_latest_race(monkeypatch):
+    _serve(monkeypatch, _simple_payload(
+        "elemctl-0.22.0-py3-none-any.whl",
+        "elemctl-0.23.0-py3-none-any.whl",
+        "elemctl-0.24.0rc1-py3-none-any.whl",
+        yanked=("elemctl-0.23.0-py3-none-any.whl",),
+    ))
+    assert selfupdate._wheel_url(None)[1] == "0.22.0"
+
+
+def test_release_ranking_is_numeric_not_lexicographic():
+    files = [{"filename": f"elemctl-{v}-py3-none-any.whl", "version": v}
+             for v in ("0.9.0", "0.23.0", "0.23.0.post1")]
+    assert selfupdate._latest_release(files) == "0.23.0.post1"
+    assert selfupdate._release_key("0.24.0rc1") is None
+    assert selfupdate._version_of("elemctl-0.23.0.tar.gz") == "0.23.0"
+
+
+def test_an_index_without_pep691_falls_back_to_the_json(monkeypatch):
+    """A mirror that answers HTML (or is unreachable) must not break the update."""
+    meta = {"info": {"version": "0.22.0"},
+            "urls": [{"filename": "elemctl-0.22.0-py3-none-any.whl", "url": "http://pypi/pure.whl"}]}
+    asked = _serve(monkeypatch, None, meta=meta)
+
+    assert selfupdate._wheel_url(None) == ("http://pypi/pure.whl", "0.22.0")
+    assert asked == [selfupdate.PYPI_SIMPLE, selfupdate.PYPI_LATEST]
+
+
+def test_a_version_the_index_does_not_carry_is_named_as_such(monkeypatch):
+    """A readable index is the answer: no second guess at the lagging JSON."""
+    _serve(monkeypatch, _simple_payload("elemctl-0.23.0-py3-none-any.whl"))
+    with pytest.raises(Exception, match="версия"):
+        selfupdate._wheel_url("9.9.9")

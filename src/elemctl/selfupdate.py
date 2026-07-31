@@ -40,8 +40,14 @@ from pathlib import Path
 from . import __version__, i18n
 from .errors import ElemctlError
 
+#: Where the files come from. The simple index (PEP 691) is served straight from the upload,
+#: while the JSON metadata below is a cache that lags behind a release by minutes - see
+#: `_wheel_url`. The JSON is kept as the fallback for an index that does not speak PEP 691.
+PYPI_SIMPLE = "https://pypi.org/simple/elemctl/"
 PYPI_VERSION = "https://pypi.org/pypi/elemctl/{version}/json"
 PYPI_LATEST = "https://pypi.org/pypi/elemctl/json"
+#: The same URL answers an HTML page unless JSON is asked for by name.
+SIMPLE_ACCEPT = "application/vnd.pypi.simple.v1+json"
 
 #: What belongs to the elemctl wheel in site-packages.
 _OWNED_PATTERNS = ("elemctl", "elemctl-*.dist-info")
@@ -73,8 +79,86 @@ def _fetch_json(url: str) -> dict:
         raise ElemctlError(i18n.t("selfupdate.pypi-unreachable", error=error)) from error
 
 
+def _simple_files() -> list[dict]:
+    """Files of the project from the simple index: `{"filename", "url", "version"}` each.
+
+    Empty list when the index cannot be read as JSON (a mirror that answers HTML, a network
+    failure) - the caller then falls back to the JSON metadata, which reports the outage in
+    its own words. Yanked files are dropped here: a yanked release must not win the "latest"
+    race nor be installed by name.
+    """
+    request = urllib.request.Request(PYPI_SIMPLE, headers={"Accept": SIMPLE_ACCEPT})
+    try:
+        with urllib.request.urlopen(request, timeout=30) as resp:
+            data = json.load(resp)
+    except (OSError, ValueError):
+        return []
+    files = []
+    for item in data.get("files") or []:
+        name, url = str(item.get("filename") or ""), str(item.get("url") or "")
+        if not name or not url or item.get("yanked"):
+            continue
+        version = _version_of(name)
+        if version:
+            files.append({"filename": name, "url": url, "version": version})
+    return files
+
+
+def _version_of(filename: str) -> str:
+    """Version segment of a distribution file name; "" when the name is not one of ours."""
+    for suffix in (".whl", ".tar.gz", ".zip"):
+        if filename.lower().endswith(suffix):
+            parts = filename[: -len(suffix)].split("-")
+            return parts[1] if len(parts) > 1 else ""
+    return ""
+
+
+def _release_key(version: str) -> tuple[tuple[int, ...], int] | None:
+    """Sort key of a plain release (`0.23.0` -> `((0, 23, 0), 0)`); None for anything else.
+
+    Deliberately narrow: only digits and an optional `.postN` are ranked, so a pre-release or
+    a dev build can never be picked as the latest version by accident.
+    """
+    head, _, post = version.partition(".post")
+    if post and not post.isdigit():
+        return None
+    parts = head.split(".")
+    if not all(part.isdigit() for part in parts):
+        return None
+    return tuple(int(part) for part in parts), int(post or 0)
+
+
+def _latest_release(files: list[dict]) -> str:
+    """The newest plain release among the files; "" when none of them ranks."""
+    ranked = []
+    for version in {item["version"] for item in files if item["filename"].lower().endswith(".whl")}:
+        key = _release_key(version)
+        if key is not None:
+            ranked.append((key, version))
+    return max(ranked)[1] if ranked else ""
+
+
 def _wheel_url(version: str | None) -> tuple[str, str]:
-    """The URL and the exact version of the py3-none-any wheel on PyPI (latest or the given one)."""
+    """The URL and the exact version of the py3-none-any wheel (latest, or the given one).
+
+    The file list is taken from the SIMPLE index, not from the JSON metadata. Caught on the
+    engine of the toolkit on 31.07.2026 and true here for the same reason: the JSON is a
+    cache that catches up minutes after an upload, so right after a release the command
+    answers "already current" - or, with an explicit version, "no wheel", because the files
+    are read from that same lagging document. The JSON stays as the fallback for an index
+    that does not answer PEP 691 (and it is the one that reports an outage in words).
+    """
+    files = _simple_files()
+    if files:
+        target = version or _latest_release(files)
+        entries = [
+            item for item in files
+            if item["version"] == target and item["filename"].endswith("-py3-none-any.whl")
+        ]
+        if target and entries:
+            return entries[0]["url"], target
+        if version:  # the index is readable and simply does not carry this version
+            raise ElemctlError(i18n.t("selfupdate.version-not-found"))
     data = _fetch_json(PYPI_VERSION.format(version=version) if version else PYPI_LATEST)
     resolved = data["info"]["version"]
     for entry in data["urls"]:
