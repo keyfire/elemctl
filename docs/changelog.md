@@ -17,20 +17,16 @@ day are named in the heading. The format follows
 ## Unreleased
 
 ### Changed
-- **A build whose name differs from the target project is refused, not just warned about.**
-  The console shows a project under the name of the LAST uploaded build, so uploading a foreign
-  build renames the target project and its group – and deleting the build does not bring the
-  name back (only uploading a build with the former name does). Until now the mismatch was
-  printed a moment before the irreversible act, which in the flow reads as a hint rather than as
-  a fork. `builds upload` now stops with exit code 1 and names the price, the alternatives being
-  spelled out in the message: `--force-rename` for the deliberate case, `--new-project` for a
-  build that belongs elsewhere. The check stays best effort – when the names cannot be compared
-  (an unreadable manifest, an unreachable project card) the upload proceeds exactly as before,
-  because not being able to compare is no proof of danger.
-
-## 2026-07-31 – 0.24.0
+- **A build whose name differs from the target project is refused, not just warned about.** The
+  console shows a project under the name of the LAST uploaded build, so a foreign build renames
+  the project and its group - and deleting the build does not bring the name back. `builds upload`
+  now stops with exit code 1 and names the price; the message spells out both ways on:
+  `--force-rename` when that is intended, `--new-project` when the build belongs elsewhere. The
+  check stays best effort - when the names cannot be compared the upload proceeds as before.
+## 2026-07-31 – 0.23.0, 0.24.0
 
 ### Fixed
+
 - **`self-update` right after a release no longer misses it.** The file list came from the JSON
   metadata of PyPI, a cache that catches up minutes after an upload: within that window the
   command answered "already current", and with an explicit version - "no wheel", because the
@@ -40,9 +36,8 @@ day are named in the heading. The format follows
   PEP 691. Proven on the toolkit engine first, in the live lag window: the JSON still answered
   with the previous version while the index already served the new wheel.
 
-## 2026-07-31 – 0.23.0
-
 ### Changed
+
 - **The MCP server works with both majors of the `mcp` package, and the pin is lifted.**
   `mcp 2.0.0` moved the ergonomic server class – `FastMCP` from `mcp.server.fastmcp` became
   `MCPServer` in `mcp.server.mcpserver`, and the old module is gone rather than kept as an
@@ -63,6 +58,7 @@ day are named in the heading. The format follows
 ## 2026-07-30 – 0.22.0
 
 ### Added
+
 - **An application build now carries the library projects that live next to it.** When the
   application declares libraries whose sources sit under the same repository root, their files
   go into the archive with it, transitive dependencies included; a declared library with no
@@ -70,6 +66,7 @@ day are named in the heading. The format follows
   projects are not swept in. Contributed by @dvkuchin (pull request #3).
 
 ### Fixed
+
 - **A proxy in the environment no longer makes a live stand look dead.** With an `HTTPS_PROXY`
   set, every call died as a bare connection reset on `/console/sys/token`: urllib honours the
   proxy, correctly, and a proxy that cannot reach the stand fails exactly like a stand that is
@@ -86,9 +83,10 @@ day are named in the heading. The format follows
   the shim and whatever started it – and its descendants. Other live `elemctl` processes, the
   actual holders, are still named and stopped.
 
-## 2026-07-28 – 0.21.1
+## 2026-07-28 – 0.20.0, 0.21.1
 
 ### Added
+
 - **Creating an application ends with the way into it.** `apps create` and `apps ensure`
   (and their MCP twins) now add a `sign-in` field to the answer – the address, the account
   code `control-panel` and two sentences of explanation – and the CLI prints the same on
@@ -102,9 +100,8 @@ day are named in the heading. The format follows
   application is still starting and has no address, `url` is `null` rather than a guess,
   and the hint says where to take the address from.
 
-## 2026-07-28 – 0.20.0
-
 ### Changed
+
 - **`self-update` no longer trades a working installation for an empty directory.** It happened
   during the previous release, on the machine that publishes the package: `pip install
   --upgrade` hit an `elemctl.exe` held by a live MCP session, removed the package, failed to
@@ -121,6 +118,7 @@ day are named in the heading. The format follows
 ## 2026-07-27 – 0.19.0
 
 ### Added
+
 - **`user-lists calculation-rules` – re-apply the rules that build a user from the provider's
   answer.** Recreating the sign-in service resets them, and the only way back is to write them
   again; the platform takes them in the body of the account service under a key that differs
@@ -133,6 +131,7 @@ day are named in the heading. The format follows
   field.
 
 ### Fixed
+
 - **A build made on a CI runner recorded `HEAD` as its branch.** The runner checks out the
   commit rather than the branch, so `git rev-parse --abbrev-ref HEAD` answers the literal
   `HEAD` – and that word went into `BranchName` of every assembly the pipeline shipped. The
@@ -143,9 +142,10 @@ day are named in the heading. The format follows
   The commit hash was always recorded correctly and is unchanged, and `--require-clean` still
   judges the tree by `git status`.
 
-## 2026-07-26 – 0.18.0
+## 2026-07-26 – 0.15.0, 0.16.0, 0.17.0, 0.18.0
 
 ### Added
+
 - **`deploy` names the target and where it came from.** The report carries `app-name`,
   `app-id-source` and `project-id-source` next to the ids, and the target is announced by the
   FIRST progress line – before the build, while a deploy aimed at the wrong application can still
@@ -173,23 +173,6 @@ day are named in the heading. The format follows
   upload – even an explicitly passed value comes back empty, while assemblies uploaded earlier do
   carry a commit. Where that holds, the guard will more often stay silent than judge.
 
-### Fixed
-- **A global option is accepted after the subcommand too.** `--env-file`, `--lang`, `--base-url`,
-  `--client-id`, `--client-secret` and `--timeout` are declared on the root parser, so
-  `elemctl deploy --env-file .env` used to die with argparse's "unrecognized arguments" and the
-  order rule had to live in a checklist and in three skills. The options are hoisted to the front
-  of argv instead; both spellings work and the tokens after a bare `--` are left alone.
-- **A token the server has rejected no longer survives in the cache.** The refresh-and-retry
-  watched for a 401, but this server refuses a bad token with **400 `invalid_request`**, naming the
-  reason in `error_description` ("JWT strings must contain exactly 2 period characters", "Unable to
-  verify RSA signature ..."). Both answers are reproducible by planting a bad
-  token into the cache, which is why the cure used to be written down as deleting
-  `<TEMP>/elemctl-token-*.json` by hand. Such a refusal now drops the cache FILE and retries once;
-  an ordinary bad request, whose description says nothing about a token, is not retried.
-
-## 2026-07-26 – 0.17.0
-
-### Added
 - `elemctl user-lists` – the sign-in settings of a user list, the ones a control panel
   usually holds: `list`, `get`, `self-registration [--enable|--disable]` and
   `password-login [--enable|--disable]`. The list is addressed by id, by its exact
@@ -201,21 +184,6 @@ day are named in the heading. The format follows
   there sends no request. The MCP side is `list_user_lists` and `configure_user_list`,
   which does both settings in one call.
 
-### Documentation
-- The Console API contract now describes user lists (section 4.7): the settings endpoints,
-  the meaning of the `Local` account service, and the fact that the link between an
-  application and a list carries no settings of its own. Also written down: the composition
-  of the authentication FORMS and the "connect users automatically" setting are not in the
-  API at all; the rules for parsing an account service response
-  are accepted under `userPropertiesCalculationRules` while the reference's own schema calls
-  them `calculation-rules` and the platform answers 400 to that spelling – and a GET never
-  returns them, so the setting is write-only; `POST /user-lists` wants the whole card and
-  answers a 500 "Failed to parse json" to anything less; an unknown Console API path is
-  answered with a 401 "Handler ... not found", not a 404.
-
-## 2026-07-26 – 0.16.0
-
-### Added
 - The **`elemctl.commands`** entry point group – a plugin package brings commands of its own.
   The value is a `Command`, a list of them or a zero-argument callable returning either; one
   declaration serves both surfaces at once, becoming a CLI subcommand and an MCP tool with a
@@ -231,9 +199,6 @@ day are named in the heading. The format follows
 - `plugins` reports the commands the plugins bring (`commands`: the name, the entry point and
   the name of the MCP tool) alongside the adapter directories.
 
-## 2026-07-26 – 0.15.0
-
-### Added
 - `elemctl probe` – an isolated compilation check of the sources that does not touch the
   working application. Compilation on this platform is the server's and happens when a build
   is applied, so the probe builds the archive, uploads it, creates a THROWAWAY application out
@@ -246,6 +211,20 @@ day are named in the heading. The format follows
   MCP tool.
 
 ### Fixed
+
+- **A global option is accepted after the subcommand too.** `--env-file`, `--lang`, `--base-url`,
+  `--client-id`, `--client-secret` and `--timeout` are declared on the root parser, so
+  `elemctl deploy --env-file .env` used to die with argparse's "unrecognized arguments" and the
+  order rule had to live in a checklist and in three skills. The options are hoisted to the front
+  of argv instead; both spellings work and the tokens after a bare `--` are left alone.
+- **A token the server has rejected no longer survives in the cache.** The refresh-and-retry
+  watched for a 401, but this server refuses a bad token with **400 `invalid_request`**, naming the
+  reason in `error_description` ("JWT strings must contain exactly 2 period characters", "Unable to
+  verify RSA signature ..."). Both answers are reproducible by planting a bad
+  token into the cache, which is why the cure used to be written down as deleting
+  `<TEMP>/elemctl-token-*.json` by hand. Such a refusal now drops the cache FILE and retries once;
+  an ordinary bad request, whose description says nothing about a token, is not retried.
+
 - The documented behaviour of deleting a build was wrong: the platform rejects it with a 500
   only while an application created from that build is still alive – after the application
   has really disappeared the same request succeeds. That is why `probe` deletes the
@@ -253,6 +232,18 @@ day are named in the heading. The format follows
   only then deletes the build.
 
 ### Documentation
+
+- The Console API contract now describes user lists (section 4.7): the settings endpoints,
+  the meaning of the `Local` account service, and the fact that the link between an
+  application and a list carries no settings of its own. Also written down: the composition
+  of the authentication FORMS and the "connect users automatically" setting are not in the
+  API at all; the rules for parsing an account service response
+  are accepted under `userPropertiesCalculationRules` while the reference's own schema calls
+  them `calculation-rules` and the platform answers 400 to that spelling – and a GET never
+  returns them, so the setting is write-only; `POST /user-lists` wants the whole card and
+  answers a 500 "Failed to parse json" to anything less; an unknown Console API path is
+  answered with a 401 "Handler ... not found", not a 404.
+
 - A platform project is identified by the `Vendor` + `Name` pair of the manifest, not by the
   `Ид` of `Проект.yaml`: an upload without a project id lands in the project that already owns
   the pair, and a second project for the same pair is refused with a 409 `ALREADY_EXISTS`
@@ -262,6 +253,7 @@ day are named in the heading. The format follows
 ## 2026-07-25 – 0.14.0
 
 ### Added
+
 - Build: without an explicit version and a last build, the version suffix comes from the CI
   run number in the environment (`CI_PIPELINE_IID`, `GITHUB_RUN_NUMBER`, `BUILD_NUMBER` – the
   first numeric value in that order), so a clean CI checkout no longer produces `-1` on every
@@ -283,6 +275,7 @@ day are named in the heading. The format follows
   nothing to confirm a clean tree with).
 
 ### Changed
+
 - `apps list --name` (CLI) and `list_apps(name=...)` (MCP) filter by a case-insensitive name
   substring on the client. The platform ignores the `name` query parameter and returns the
   full list (verified against a live instance), so the former pass-through filter did not
@@ -298,6 +291,7 @@ day are named in the heading. The format follows
   180-second timeout (an application in `Error` never reaches `Stopped`).
 
 ### Fixed
+
 - `--lang en` is now English everywhere. About forty user-facing strings were built into
   the modules as Russian literals and bypassed the message catalog, so an English-speaking
   user still got Russian out of `deploy` (the problems of the report), `self-update` (all of
@@ -305,9 +299,10 @@ day are named in the heading. The format follows
   are keys of the catalog now, and a test walks the modules to keep new literals from
   creeping back in.
 
-## 2026-07-24 – 0.13.1
+## 2026-07-24 – 0.12.0, 0.13.0, 0.13.1
 
 ### Fixed
+
 - Build: files inside resource directories (the literal directory name is `Ресурсы`) are
   now archived regardless of extension (`.pdf`, `.htm`, `.mxl`, `.docx`, `.xsd` etc.) – per
   the platform documentation a resource is an arbitrary file. Previously the general
@@ -316,15 +311,13 @@ day are named in the heading. The format follows
   Outside resource directories the allowlist still applies and now also accepts `.htm`
   (previously only `.html`).
 
-## 2026-07-24 – 0.13.0
-
 ### Changed
+
 - MCP: `list_projects` returns brief cards by default (id, name, project kind, space,
   application count, deletion flag), like `list_apps` does; pass `brief=false` for full cards.
 
-## 2026-07-24 – 0.12.0
-
 ### Added
+
 - `builds upload` reports the upload target: the JSON output carries `project-id` and
   `project-id-source` (`flag`/`env`/none), and when the target comes from `ELEMENT_PROJECT_ID`
   a stderr note says so – previously the build could silently land in the project from the
@@ -341,16 +334,19 @@ day are named in the heading. The format follows
 ## 2026-07-22 – 0.11.0
 
 ### Added
+
 - The documentation site ([docs.keyfire.ru/elemctl](https://docs.keyfire.ru/elemctl/)), a full
   command reference and CLI help – complete in English and Russian.
 
 ## 2026-07-21 – 0.10.0
 
 ### Changed
+
 - MCP: the environment is passed per call, and `apps list` is brief by default.
 - The "no application source" error now tells you how to set a project up.
 
 ### Fixed
+
 - CLI help is localized: the language is resolved before the argument parser is built.
 - `apps create` surfaces the task's own compilation errors instead of the platform's generic
   "Неизвестная ошибка. Обратитесь к администратору".
@@ -358,52 +354,62 @@ day are named in the heading. The format follows
 ## 2026-07-19 – 0.9.1
 
 ### Changed
+
 - The command section of the help is named "commands", and the version is read from a single
   source.
 
 ## 2026-07-17 – 0.9.0
 
 ### Added
+
 - `inspect` – parse a ready-made build archive.
 - `builds get` and `builds delete` accept a build version and resolve it to the build id.
 
 ## 2026-07-15 – 0.5.0, 0.6.0, 0.7.0, 0.8.0
 
 ### Added
+
 - `self-update` – update by unpacking the wheel, safe even when the running executable is locked
   (0.7.0).
 - A plugin system: the platform debug adapter is contributed through extension points (0.5.0).
 
 ### Changed
+
 - `verify` confirms the deploy by the applied build's id instead of the version string (0.8.0).
 - The MCP tool guidance notes that long operations are asynchronous – run the CLI in the
   background (0.5.0).
 - PyPI project links (Homepage / Repository / Issues) in the package metadata (0.6.0).
 
 ### Fixed
+
 - The MCP server honours the global configuration arguments (`--env-file` and the rest) (0.7.0).
 
 ## 2026-07-12 – 0.4.0, 0.4.1
 
 ### Added
+
 - Full ru/en bilinguality: runtime i18n (`--lang` / `ELEMCTL_LANG`), with the README and the
   specification in both languages.
 - `apps debug` – the data for a platform debug session (`POST /actions/debug`).
 
 ### Changed
+
 - Releases publish to PyPI on a `v*` tag through Trusted Publishing, with signed provenance
   attestations; the `vscode-v*` tags are left untouched.
 
 ## 2026-07-10 – 0.2.0, 0.2.1, 0.3.0
 
 ### Added
+
 - Initial release: a client for the documented Console API v2, `.xasm`/`.xlib` builds from
   source, a one-command deploy with an honest check that the change actually applied, a CLI and an
   MCP server – written clean-room, to the specification in `docs/SPEC.md` (0.2.0).
 - `apps ensure` – create the application only when it is absent (0.3.0).
 
 ### Changed
+
 - `apps find` skips deleted applications; `--include-deleted` restores the old behaviour (0.3.0).
 
 ### Fixed
+
 - `apps find` exits 0 when the application is absent instead of failing (0.2.1).
