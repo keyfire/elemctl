@@ -410,27 +410,48 @@ def test_builds_upload_new_project_conflicts_with_project_id(
     assert fake.upload_kwargs is None
 
 
-def test_builds_upload_warns_when_assembly_name_differs(
+def test_builds_upload_refuses_when_assembly_name_differs(
     monkeypatch, capsys, project_factory, tmp_path
 ):
-    """A mismatch between the assembly name and the target project – a warning, but not a refusal.
+    """A mismatch between the assembly name and the target project is a refusal.
 
-    The console shows the project under the name of the last uploaded assembly: a foreign
-    assembly silently renamed the project, and that was noticed only through the console.
+    The console shows the project under the name of the last uploaded assembly, so a
+    foreign assembly renames the project and its group – and deleting the assembly does
+    not undo it. A warning printed a moment before the irreversible act reads as a hint;
+    the fork has to be taken deliberately.
     """
     archive = _built_archive(project_factory, tmp_path, capsys)
-    fake = FakeUploadClient(project_name="Сайт")
+    fake = FakeUploadClient(project_name="acme-site")
     monkeypatch.setattr(cli, "make_client", lambda config: fake)
 
     rc = cli.main(["builds", "upload", archive, "--project-id", "proj-1"])
+
+    assert rc == 1
+    captured = capsys.readouterr()
+    error = json.loads(captured.err)["error"]
+    assert "'crm'" in error and "'acme-site'" in error
+    # The price is named right there: the rename is not undone by deleting the assembly.
+    assert "--force-rename" in error and "--new-project" in error
+    assert fake.get_project_calls == ["proj-1"]
+    assert fake.upload_kwargs is None
+
+
+def test_builds_upload_force_rename_uploads_and_names_the_price(
+    monkeypatch, capsys, project_factory, tmp_path
+):
+    """The deliberate case: the flag lets the upload through, the warning stays."""
+    archive = _built_archive(project_factory, tmp_path, capsys)
+    fake = FakeUploadClient(project_name="acme-site")
+    monkeypatch.setattr(cli, "make_client", lambda config: fake)
+
+    rc = cli.main(["builds", "upload", archive, "--project-id", "proj-1", "--force-rename"])
 
     assert rc == 0
     captured = capsys.readouterr()
     payload = json.loads(captured.out)
     assert payload["project-id-source"] == "flag"
-    assert fake.get_project_calls == ["proj-1"]
-    assert "'crm'" in captured.err
-    assert "'Сайт'" in captured.err
+    assert fake.upload_kwargs["project_id"] == "proj-1"
+    assert "'crm'" in captured.err and "'acme-site'" in captured.err
     # The target is set by a flag rather than by the environment – there is no env hint.
     assert "ELEMENT_PROJECT_ID" not in captured.err
 
@@ -438,7 +459,8 @@ def test_builds_upload_warns_when_assembly_name_differs(
 def test_builds_upload_name_check_failure_does_not_block(
     monkeypatch, capsys, project_factory, tmp_path
 ):
-    """The name check is auxiliary: a failure of the project card does not hinder the upload."""
+    """A guard that cannot compare must not refuse: not being able to compare is no proof
+    of danger. An unreachable project card leaves the upload exactly as it was before."""
     archive = _built_archive(project_factory, tmp_path, capsys)
     fake = FakeUploadClient(fail_get_project=True)
     monkeypatch.setattr(cli, "make_client", lambda config: fake)

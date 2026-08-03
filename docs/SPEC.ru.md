@@ -134,9 +134,12 @@ Windows) с TTL 1 час; ключ кеша должен различать па
   открывается карточкой проекта), `configuration-id` (`Ид` из `Проект.yaml`) и
   `name` (представление проекта). Панель показывает проект
   под именем последней залитой сборки (`Name` из манифеста), поэтому сборка,
-  залитая в проект под другим именем, молча переименовывает этот проект -
-  клиент предупреждает о таком несовпадении перед загрузкой (вспомогательно,
-  загрузку не блокирует).
+  залитая в проект под другим именем, переименовывает этот проект и его группу,
+  и удалением сборки это не откатывается. Клиент отказывает в такой загрузке,
+  называя цену; намеренная загрузка чужой сборки – флаг `--force-rename`. Сверка
+  вспомогательная: когда сравнить нечем (манифест не читается, карточка проекта
+  недоступна), загрузка идёт как прежде – невозможность сравнить не есть
+  доказательство опасности.
 - **Проект опознаётся парой `Vendor` + `Name` манифеста** (п. 6.8). Поэтому
   `POST /projects` не всегда создаёт проект: если проект с такой парой уже есть,
   сборка добавляется в него, и в ответе приходит его `artifact-id`. Два способа
@@ -456,12 +459,13 @@ stderr и код возврата 1.
   именно этот вызов - перевод в состояние, которое уже стоит, запроса не делает.
 - `projects list`, `projects get [PROJECT_ID]`, `projects delete PROJECT_ID`.
 - `builds list [--project-id]`, `builds get VERSION [--project-id]`,
-  `builds upload FILE [--project-id --new-project --space-id --branch --commit
-  --commit-message]`, `builds delete VERSION [--project-id]`. `builds upload`
-  сообщает выбранную цель в выводе (`project-id`, `project-id-source`:
-  `flag`/`env`/нет) и пишет в stderr, когда цель пришла из
+  `builds upload FILE [--project-id --new-project --force-rename --space-id
+  --branch --commit --commit-message]`, `builds delete VERSION [--project-id]`.
+  `builds upload` сообщает выбранную цель в выводе (`project-id`,
+  `project-id-source`: `flag`/`env`/нет) и пишет в stderr, когда цель пришла из
   `ELEMENT_PROJECT_ID`; `--new-project` отключает привязку из окружения и
-  всегда создаёт новый проект (несовместим с `--project-id`).
+  всегда создаёт новый проект (несовместим с `--project-id`); `--force-rename`
+  разрешает загрузку сборки с чужим именем, которая переименует проект-цель.
 - `build [--project-dir --output --build-version --last-build --commit
   --branch --kind {application,library} --require-clean]` - локально собрать
   архив. Вывод: `file`, `name`, `vendor`, `version`, `version-source`

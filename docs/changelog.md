@@ -14,6 +14,32 @@ day are named in the heading. The format follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html). The VS Code debug companion in
 `editors/vscode` is released separately under the `vscode-v*` tags and is not tracked here.
 
+## Unreleased
+
+### Changed
+- **A build whose name differs from the target project is refused, not just warned about.**
+  The console shows a project under the name of the LAST uploaded build, so uploading a foreign
+  build renames the target project and its group – and deleting the build does not bring the
+  name back (only uploading a build with the former name does). Until now the mismatch was
+  printed a moment before the irreversible act, which in the flow reads as a hint rather than as
+  a fork. `builds upload` now stops with exit code 1 and names the price, the alternatives being
+  spelled out in the message: `--force-rename` for the deliberate case, `--new-project` for a
+  build that belongs elsewhere. The check stays best effort – when the names cannot be compared
+  (an unreadable manifest, an unreachable project card) the upload proceeds exactly as before,
+  because not being able to compare is no proof of danger.
+
+## 2026-07-31 – 0.24.0
+
+### Fixed
+- **`self-update` right after a release no longer misses it.** The file list came from the JSON
+  metadata of PyPI, a cache that catches up minutes after an upload: within that window the
+  command answered "already current", and with an explicit version - "no wheel", because the
+  files were read from that same lagging document. The list now comes from the SIMPLE index
+  (PEP 691), the newest release is ranked numerically (`0.9.0` before `0.23.0`, no pre-releases,
+  no yanked files), and the JSON metadata stays as the fallback for an index that does not speak
+  PEP 691. Proven on the toolkit engine first, in the live lag window: the JSON still answered
+  with the previous version while the index already served the new wheel.
+
 ## 2026-07-31 – 0.23.0
 
 ### Changed

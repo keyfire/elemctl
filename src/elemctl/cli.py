@@ -369,28 +369,24 @@ def _upload_target(args, config):
     return None, None
 
 
-def _warn_upload_name_mismatch(client, project_id, file_path):
-    """Warn when the name of the uploaded assembly differs from the project name.
+def _upload_name_mismatch(client, project_id, file_path):
+    """The names of the assembly and of the target project when they differ.
 
-    The console shows the project under the name of the last uploaded assembly,
-    so a foreign assembly silently renames the project. The check is auxiliary:
-    any failure of it does not get in the way of the upload.
+    The console shows the project under the name of the LAST uploaded assembly, so
+    a foreign assembly renames the project and its group. Returns None when the
+    names match or when they cannot be compared: not being able to compare is no
+    proof of danger, and an unreadable manifest or an unreachable project card must
+    not stand in the way of an upload.
     """
     try:
         assembly_name = (read_assembly_manifest(file_path).get("Name") or "").strip()
         project_card = client.get_project(project_id) or {}
         project_name = (project_card.get("name") or "").strip()
     except Exception:
-        return
-    if assembly_name and project_name and assembly_name != project_name:
-        _progress(
-            i18n.t(
-                "cli.upload-name-mismatch",
-                assembly=assembly_name,
-                project=project_name,
-                project_id=project_id,
-            )
-        )
+        return None
+    if not assembly_name or not project_name or assembly_name == project_name:
+        return None
+    return {"assembly": assembly_name, "project": project_name, "project_id": project_id}
 
 
 def _manifest_of(file_path):
@@ -414,7 +410,15 @@ def cmd_builds_upload(args):
     if project_id_source == "env":
         _progress(i18n.t("cli.upload-target-from-env", project_id=project_id))
     if project_id:
-        _warn_upload_name_mismatch(client, project_id, file_path)
+        # A name mismatch is far more often a slip than an intent: the target came from
+        # ELEMENT_PROJECT_ID, and the assembly is someone else's. Until now the mismatch
+        # was only printed a moment before the irreversible act, and in the flow that reads
+        # as a hint rather than as a fork - so it now takes an explicit --force-rename.
+        mismatch = _upload_name_mismatch(client, project_id, file_path)
+        if mismatch and not args.force_rename:
+            raise ElemctlError(i18n.t("cli.upload-name-mismatch", **mismatch))
+        if mismatch:
+            _progress(i18n.t("cli.upload-name-mismatch-forced", **mismatch))
     # The archive already knows its commit - the build wrote it into the manifest - so
     # the two-step route (build, then upload) no longer has to be told it twice.
     # CAVEAT: the platform may IGNORE the CommitId and
@@ -1118,6 +1122,11 @@ def build_parser():
         "--new-project",
         action="store_true",
         help=i18n.t("cli.help.builds-upload-new-project"),
+    )
+    p.add_argument(
+        "--force-rename",
+        action="store_true",
+        help=i18n.t("cli.help.builds-upload-force-rename"),
     )
     p.add_argument("--space-id", help=i18n.t("cli.help.arg.space-id"))
     p.add_argument("--branch", help=i18n.t("cli.help.builds-upload-branch"))

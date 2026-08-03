@@ -429,8 +429,9 @@ usage: elemctl builds get [-h] [--project-id PROJECT_ID] VERSION
 ### `elemctl builds upload`
 
 ```bash
-usage: elemctl builds upload [-h] [--project-id PROJECT_ID] [--new-project] [--space-id SPACE_ID]
-                             [--branch BRANCH] [--commit COMMIT] [--commit-message COMMIT_MESSAGE]
+usage: elemctl builds upload [-h] [--project-id PROJECT_ID] [--new-project] [--force-rename]
+                             [--space-id SPACE_ID] [--branch BRANCH] [--commit COMMIT]
+                             [--commit-message COMMIT_MESSAGE]
                              FILE
 ```
 
@@ -447,6 +448,7 @@ usage: elemctl builds upload [-h] [--project-id PROJECT_ID] [--new-project] [--s
 | `-h, --help` | показать эту справку и выйти |
 | `--project-id PROJECT_ID` | проект; БЕЗ него платформа заводит новый проект – это единственный способ создать проект через Console API |
 | `--new-project` | загрузить сборку новым проектом, игнорируя ELEMENT_PROJECT_ID из окружения и .env-файла |
+| `--force-rename` | разрешить загрузку сборки с ЧУЖИМ именем: панель переименует проект-цель и его группу именем сборки |
 | `--space-id SPACE_ID` | пространство, в котором завести проект – нужно, когда `--project-id` не задан |
 | `--branch BRANCH` | имя git-ветки (метаданные) |
 | `--commit COMMIT` | хэш коммита (метаданные) |

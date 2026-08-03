@@ -8,6 +8,20 @@ day are named in the heading. The format follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html). The VS Code debug companion in
 `editors/vscode` is released separately under the `vscode-v*` tags and is not tracked here.
 
+## Unreleased
+
+### Changed
+- **A build whose name differs from the target project is refused, not just warned about.**
+  The console shows a project under the name of the LAST uploaded build, so uploading a foreign
+  build renames the target project and its group – and deleting the build does not bring the
+  name back (only uploading a build with the former name does). Until now the mismatch was
+  printed a moment before the irreversible act, which in the flow reads as a hint rather than as
+  a fork. `builds upload` now stops with exit code 1 and names the price, the alternatives being
+  spelled out in the message: `--force-rename` for the deliberate case, `--new-project` for a
+  build that belongs elsewhere. The check stays best effort – when the names cannot be compared
+  (an unreadable manifest, an unreachable project card) the upload proceeds exactly as before,
+  because not being able to compare is no proof of danger.
+
 ## 2026-07-31 – 0.24.0
 
 ### Fixed

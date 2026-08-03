@@ -126,12 +126,26 @@ MESSAGES = {
               "environment or the .env file); pass --new-project to upload as a new project",
     },
     "cli.upload-name-mismatch": {
-        "ru": "внимание: имя сборки '{assembly}' не совпадает с именем проекта-цели "
-              "'{project}' ({project_id}) – после загрузки панель покажет проект "
-              "под именем сборки",
-        "en": "warning: the assembly name '{assembly}' differs from the target project "
-              "name '{project}' ({project_id}) – after the upload the console shows "
-              "the project under the assembly name",
+        "ru": "имя сборки '{assembly}' не совпадает с именем проекта-цели '{project}' "
+              "({project_id}): загрузка ПЕРЕИМЕНУЕТ проект и его группу в панели, и "
+              "удалением сборки это не откатывается – прежнее имя возвращает только "
+              "загрузка сборки с этим именем. Если так и задумано – повторите с "
+              "--force-rename; если сборка чужая – с --new-project (заведёт отдельный "
+              "проект) либо укажите --project-id нужного",
+        "en": "the assembly name '{assembly}' differs from the target project name "
+              "'{project}' ({project_id}): the upload RENAMES the project and its group "
+              "in the console, and deleting the assembly does not undo it – only "
+              "uploading an assembly with the former name brings it back. If that is "
+              "intended, repeat with --force-rename; if the assembly belongs elsewhere, "
+              "pass --new-project (starts a separate project) or the right --project-id",
+    },
+    "cli.upload-name-mismatch-forced": {
+        "ru": "внимание: по флагу --force-rename имя проекта-цели '{project}' "
+              "({project_id}) будет переписано именем сборки '{assembly}'; удалением "
+              "сборки это не откатывается",
+        "en": "warning: --force-rename was given, so the target project name '{project}' "
+              "({project_id}) is being overwritten by the assembly name '{assembly}'; "
+              "deleting the assembly does not undo it",
     },
     "cli.app-source-required": {
         "ru": "нужен источник приложения: --version-id либо --project-id [--latest-build]. "
@@ -938,6 +952,12 @@ MESSAGES = {
               "окружения и .env-файла",
         "en": "upload the build as a new project, ignoring ELEMENT_PROJECT_ID from "
               "the environment and the .env file",
+    },
+    "cli.help.builds-upload-force-rename": {
+        "ru": "разрешить загрузку сборки с ЧУЖИМ именем: панель переименует "
+              "проект-цель и его группу именем сборки",
+        "en": "allow uploading an assembly whose name differs: the console renames "
+              "the target project and its group after the assembly",
     },
     "cli.help.builds-upload-project-id": {
         "ru": "проект; БЕЗ него платформа заводит новый проект – это единственный "
