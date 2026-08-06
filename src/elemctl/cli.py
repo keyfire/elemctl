@@ -389,17 +389,6 @@ def _upload_name_mismatch(client, project_id, file_path):
     return {"assembly": assembly_name, "project": project_name, "project_id": project_id}
 
 
-def _manifest_of(file_path):
-    """The manifest of an archive, or an empty dict when it cannot be read.
-
-    Auxiliary: a manifest that fails to parse must not stand in the way of an upload.
-    """
-    try:
-        return read_assembly_manifest(file_path)
-    except Exception:
-        return {}
-
-
 def cmd_builds_upload(args):
     config = _config(args)
     client = make_client(config)
@@ -419,21 +408,15 @@ def cmd_builds_upload(args):
             raise ElemctlError(i18n.t("cli.upload-name-mismatch", **mismatch))
         if mismatch:
             _progress(i18n.t("cli.upload-name-mismatch-forced", **mismatch))
-    # The archive already knows its commit - the build wrote it into the manifest - so
-    # the two-step route (build, then upload) no longer has to be told it twice.
-    # CAVEAT: the platform may IGNORE the CommitId and
-    # BranchName query parameters - even an explicitly passed value comes back null,
-    # while assemblies uploaded earlier still carry a commit. So this fills the gap only
-    # where the server does accept them; the schema guard must keep working when the
-    # card has no commit at all.
-    manifest = _manifest_of(file_path)
+    # The branch and the commit live in the MANIFEST inside the archive - the build wrote
+    # them there. They are not sent alongside: the documented upload method has no such
+    # parameters, and the server ignores them when sent (a direct POST with a real hash
+    # answered commit-id: null) - the commit of an assembly card comes from the project's
+    # link to its repository.
     response = client.upload_assembly(
         file_path.read_bytes(),
         project_id=project_id,
         space_id=args.space_id or config.space_id or None,
-        branch_name=args.branch or manifest.get("BranchName") or None,
-        commit_id=args.commit or manifest.get("CommitId") or None,
-        commit_message=args.commit_message or None,
     )
     _emit(
         {
@@ -560,7 +543,6 @@ def cmd_deploy(args):
         version=args.build_version or "",
         branch=args.branch,
         commit=args.commit,
-        commit_message=args.commit_message or "",
         app_id_source=app_id_source,
         project_id_source=project_id_source,
         allow_data_loss=args.allow_data_loss,
@@ -1129,9 +1111,6 @@ def build_parser():
         help=i18n.t("cli.help.builds-upload-force-rename"),
     )
     p.add_argument("--space-id", help=i18n.t("cli.help.arg.space-id"))
-    p.add_argument("--branch", help=i18n.t("cli.help.builds-upload-branch"))
-    p.add_argument("--commit", help=i18n.t("cli.help.builds-upload-commit"))
-    p.add_argument("--commit-message", help=i18n.t("cli.help.builds-upload-commit-message"))
     p.set_defaults(handler=cmd_builds_upload)
 
     p = builds_sub.add_parser("delete", help=i18n.t("cli.help.builds-delete"))
@@ -1169,7 +1148,6 @@ def build_parser():
     p.add_argument("--build-version", help=i18n.t("cli.help.deploy-build-version"))
     p.add_argument("--branch", help=i18n.t("cli.help.deploy-branch"))
     p.add_argument("--commit", help=i18n.t("cli.help.deploy-commit"))
-    p.add_argument("--commit-message", help=i18n.t("cli.help.deploy-commit-message"))
     p.add_argument("--dry-run", action="store_true", help=i18n.t("cli.help.deploy-dry-run"))
     p.add_argument(
         "--require-clean",

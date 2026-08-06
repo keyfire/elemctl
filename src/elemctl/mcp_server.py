@@ -347,7 +347,6 @@ def create_server(config=None):
         project_dir: str = "",
         version: str = "",
         branch: str = "",
-        commit_message: str = "",
         env_file: str = "",
     ) -> dict:
         """Полный цикл деплоя из исходников с честной проверкой применения; итог – поле ok, детали – problems и log."""
@@ -359,7 +358,6 @@ def create_server(config=None):
             project_dir=project_dir or None,
             version=version,
             branch=branch or None,
-            commit_message=commit_message,
             # Both ids are required parameters of the tool, so they are always explicit.
             app_id_source="flag",
             project_id_source="flag",

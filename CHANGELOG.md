@@ -8,6 +8,24 @@ day are named in the heading. The format follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html). The VS Code debug companion in
 `editors/vscode` is released separately under the `vscode-v*` tags and is not tracked here.
 
+## Unreleased
+
+### Changed
+- **The upload sends no commit or branch parameters.** `CommitId`/`BranchName`/`CommitMessage`
+  went out as query parameters of the assembly upload, looked functional - and did nothing: the
+  Console API reference does not list them, and the server ignores them when sent (a direct POST
+  with a real hash answered `commit-id: null`). The commit on a build card only comes from the
+  project's link to its repository. The parameters are gone from the client, the `--branch`/
+  `--commit`/`--commit-message` flags - from `builds upload`, `--commit-message` - from `deploy`
+  and its MCP tool. The branch and the commit still travel INSIDE the archive: the build writes
+  them into the manifest, and `build`/`deploy` keep their `--branch`/`--commit` for exactly that.
+- **A skipped schema check is named in the report, not only in the progress log.** The deploy
+  report carries `schema-check`: `clean`, `allowed` (narrowings let through by
+  `--allow-data-loss`) or `skipped:<reason>` - a skipped check must not read as a passed one.
+  And when the applied build carries no commit, the message now explains the mechanism: a commit
+  only comes from the project's repository link, so without the link the check can never run -
+  that is by design, not a server version quirk.
+
 ## 2026-08-03 – 0.25.0
 
 ### Changed

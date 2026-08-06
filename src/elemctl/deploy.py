@@ -57,6 +57,12 @@ class DeployReport:
     problems: list = field(default_factory=list)
     ok: bool = False
     dirty_files: list | None = None
+    # The schema guard's verdict: "clean" - ran and found nothing, "allowed" - narrowings
+    # overridden by --allow-data-loss, "skipped:<reason>" - there was nothing to compare
+    # against ("skipped:no-commit-id" means the project has no repository link, so the
+    # check can never run for it). "" - the guard was not involved (verify without deploy).
+    # Named in the report on purpose: a skipped check must not read as a passed one.
+    schema_check: str = ""
 
     def to_dict(self):
         """Render the report as a dict with kebab-case keys (for JSON output)."""
@@ -78,6 +84,7 @@ class DeployReport:
             "ok": self.ok,
             "dirty": None if self.dirty_files is None else bool(self.dirty_files),
             "dirty-files": None if self.dirty_files is None else list(self.dirty_files),
+            "schema-check": self.schema_check or None,
         }
 
 
@@ -91,7 +98,6 @@ def deploy_from_sources(
     version="",
     branch=None,
     commit=None,
-    commit_message="",
     app_id_source="",
     project_id_source="",
     allow_data_loss=False,
@@ -130,8 +136,20 @@ def deploy_from_sources(
     if changes:
         log(i18n.t("deploy.destructive-allowed", count=len(changes),
                    changes="; ".join(changes)))
+        schema_check = "allowed"
     elif blocked_reason:
-        log(i18n.t("deploy.schema-check-skipped", reason=blocked_reason))
+        # "no-commit-id" is not a version quirk: an assembly gets a commit only from the
+        # project's link to its repository, so without the link the guard can NEVER run -
+        # that has to be said plainly instead of looking like a passed check.
+        key = (
+            "deploy.schema-check-no-repo-link"
+            if blocked_reason == "no-commit-id"
+            else "deploy.schema-check-skipped"
+        )
+        log(i18n.t(key, reason=blocked_reason))
+        schema_check = f"skipped:{blocked_reason}"
+    else:
+        schema_check = "clean"
 
     # The build version: either explicit or auto-incremented from the project's last build.
     last_version = ""
@@ -164,13 +182,10 @@ def deploy_from_sources(
             files=_shorten_list(result.skipped_files),
         ))
 
-    response = client.upload_assembly(
-        result.file.read_bytes(),
-        project_id=project_id,
-        branch_name=result.branch or None,
-        commit_id=result.commit or None,
-        commit_message=commit_message or None,
-    )
+    # The branch and the commit travel INSIDE the archive (the build wrote the manifest);
+    # the upload method has no such parameters and the server ignores them when sent -
+    # the commit of an assembly card comes from the project's repository link.
+    response = client.upload_assembly(result.file.read_bytes(), project_id=project_id)
     assembly_id = extract_assembly_id(response) or ""
     log(i18n.t("deploy.uploaded", id=assembly_id or i18n.t("deploy.unknown")))
 
@@ -194,6 +209,7 @@ def deploy_from_sources(
     )
     report.assembly_id = assembly_id
     report.dirty_files = result.dirty_files
+    report.schema_check = schema_check
     report.app_id_source = app_id_source or ""
     report.project_id = str(project_id or "")
     report.project_id_source = project_id_source or ""

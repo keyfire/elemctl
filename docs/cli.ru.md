@@ -430,8 +430,7 @@ usage: elemctl builds get [-h] [--project-id PROJECT_ID] VERSION
 
 ```bash
 usage: elemctl builds upload [-h] [--project-id PROJECT_ID] [--new-project] [--force-rename]
-                             [--space-id SPACE_ID] [--branch BRANCH] [--commit COMMIT]
-                             [--commit-message COMMIT_MESSAGE]
+                             [--space-id SPACE_ID]
                              FILE
 ```
 
@@ -450,9 +449,6 @@ usage: elemctl builds upload [-h] [--project-id PROJECT_ID] [--new-project] [--f
 | `--new-project` | загрузить сборку новым проектом, игнорируя ELEMENT_PROJECT_ID из окружения и .env-файла |
 | `--force-rename` | разрешить загрузку сборки с ЧУЖИМ именем: панель переименует проект-цель и его группу именем сборки |
 | `--space-id SPACE_ID` | пространство, в котором завести проект – нужно, когда `--project-id` не задан |
-| `--branch BRANCH` | имя git-ветки (метаданные) |
-| `--commit COMMIT` | хэш коммита (метаданные) |
-| `--commit-message COMMIT_MESSAGE` | сообщение коммита (метаданные) |
 
 ### `elemctl builds delete`
 
@@ -518,8 +514,7 @@ usage: elemctl inspect [-h] FILE
 ```bash
 usage: elemctl deploy [-h] [--app-id APP_ID] [--project-id PROJECT_ID] [--project-dir PROJECT_DIR]
                       [--output OUTPUT] [--build-version BUILD_VERSION] [--branch BRANCH]
-                      [--commit COMMIT] [--commit-message COMMIT_MESSAGE] [--dry-run]
-                      [--require-clean] [--allow-data-loss]
+                      [--commit COMMIT] [--dry-run] [--require-clean] [--allow-data-loss]
 ```
 
 **Параметры**
@@ -534,7 +529,6 @@ usage: elemctl deploy [-h] [--app-id APP_ID] [--project-id PROJECT_ID] [--projec
 | `--build-version BUILD_VERSION` | явная версия сборки |
 | `--branch BRANCH` | имя ветки в метаданные (по умолчанию из git) |
 | `--commit COMMIT` | хэш коммита в метаданные (по умолчанию из git) |
-| `--commit-message COMMIT_MESSAGE` | сообщение коммита (метаданные загрузки) |
 | `--dry-run` | только сборка, без загрузки |
 | `--require-clean` | прервать деплой, если в каталоге проекта есть незакоммиченные изменения |
 | `--allow-data-loss` | разрешить применение, пересоздающее данные объектов (сужение длины, смена типа реквизита); без флага такой деплой отклоняется до сборки |

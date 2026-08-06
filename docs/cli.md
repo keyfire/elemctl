@@ -430,8 +430,7 @@ usage: elemctl builds get [-h] [--project-id PROJECT_ID] VERSION
 
 ```bash
 usage: elemctl builds upload [-h] [--project-id PROJECT_ID] [--new-project] [--force-rename]
-                             [--space-id SPACE_ID] [--branch BRANCH] [--commit COMMIT]
-                             [--commit-message COMMIT_MESSAGE]
+                             [--space-id SPACE_ID]
                              FILE
 ```
 
@@ -450,9 +449,6 @@ usage: elemctl builds upload [-h] [--project-id PROJECT_ID] [--new-project] [--f
 | `--new-project` | upload the build as a new project, ignoring ELEMENT_PROJECT_ID from the environment and the .env file |
 | `--force-rename` | allow uploading an assembly whose name differs: the console renames the target project and its group after the assembly |
 | `--space-id SPACE_ID` | the space to create the project in – needed when `--project-id` is omitted |
-| `--branch BRANCH` | git branch name (metadata) |
-| `--commit COMMIT` | commit hash (metadata) |
-| `--commit-message COMMIT_MESSAGE` | commit message (metadata) |
 
 ### `elemctl builds delete`
 
@@ -518,8 +514,7 @@ usage: elemctl inspect [-h] FILE
 ```bash
 usage: elemctl deploy [-h] [--app-id APP_ID] [--project-id PROJECT_ID] [--project-dir PROJECT_DIR]
                       [--output OUTPUT] [--build-version BUILD_VERSION] [--branch BRANCH]
-                      [--commit COMMIT] [--commit-message COMMIT_MESSAGE] [--dry-run]
-                      [--require-clean] [--allow-data-loss]
+                      [--commit COMMIT] [--dry-run] [--require-clean] [--allow-data-loss]
 ```
 
 **Options**
@@ -534,7 +529,6 @@ usage: elemctl deploy [-h] [--app-id APP_ID] [--project-id PROJECT_ID] [--projec
 | `--build-version BUILD_VERSION` | explicit assembly version |
 | `--branch BRANCH` | branch name for the metadata (default: from git) |
 | `--commit COMMIT` | commit hash for the metadata (default: from git) |
-| `--commit-message COMMIT_MESSAGE` | commit message (upload metadata) |
 | `--dry-run` | build only, no upload |
 | `--require-clean` | abort the deploy if the project directory has uncommitted changes |
 | `--allow-data-loss` | allow an apply that recreates the data of the objects (a narrowed length, a changed attribute type); without the flag such a deploy is refused before the build |

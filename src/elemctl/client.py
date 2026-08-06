@@ -726,27 +726,24 @@ class ElementClient:
         *,
         project_id=None,
         space_id=None,
-        branch_name=None,
-        commit_id=None,
-        commit_message=None,
     ):
         """Upload an assembly file (.xasm/.xlib) to the platform.
 
         With project_id the assembly is added to an existing project, without
         it a new project is created. The platform spells its query parameter
         names in PascalCase.
+
+        No commit or branch parameters: the documented method does not take
+        them, and the server ignores them when sent - proven by a direct POST
+        with a real commit hash answered by `commit-id: null`. The commit on an
+        assembly card comes from the project's link to its repository, not from
+        the upload.
         """
         path = f"/projects/{project_id}/assemblies" if project_id else "/projects"
-        query = {
-            "SpaceId": space_id,
-            "BranchName": branch_name,
-            "CommitId": commit_id,
-            "CommitMessage": commit_message,
-        }
         return self._api(
             "POST",
             path,
-            query=query,
+            query={"SpaceId": space_id},
             data=bytes(data),
             content_type="application/octet-stream",
         )

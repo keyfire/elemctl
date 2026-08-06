@@ -256,6 +256,7 @@ def test_report_to_dict_kebab_case(project_factory, tmp_path):
         "ok",
         "dirty",
         "dirty-files",
+        "schema-check",
     }
     assert payload["ok"] is True
 
@@ -464,10 +465,16 @@ def test_allow_data_loss_lets_the_narrowing_through(project_factory, tmp_path, m
 
     assert report.ok is True
     assert any("пересозданы" in line for line in log_lines)
+    assert report.schema_check == "allowed"
 
 
 def test_without_a_commit_id_the_guard_steps_aside(project_factory, tmp_path):
-    """Being unable to compare is not evidence of danger - the deploy goes on, saying so."""
+    """Being unable to compare is not evidence of danger - the deploy goes on, saying so.
+
+    A missing commit is not a server quirk: an assembly gets its commit only from the
+    project's repository link, so the message names that mechanism, and the report
+    records the skip - a skipped check must not read as a passed one.
+    """
     log_lines = []
     report = deploy_from_sources(
         SchemaGuardClient(commit_id=""), "app-1", "proj-1",
@@ -475,4 +482,6 @@ def test_without_a_commit_id_the_guard_steps_aside(project_factory, tmp_path):
         log=log_lines.append,
     )
     assert report.ok is True
-    assert any("no-commit-id" in line for line in log_lines)
+    assert any("репозитори" in line for line in log_lines)
+    assert report.schema_check == "skipped:no-commit-id"
+    assert report.to_dict()["schema-check"] == "skipped:no-commit-id"

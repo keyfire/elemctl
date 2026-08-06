@@ -322,7 +322,7 @@ EXPECTED_TOOL_PARAMETERS = {
     "debug_info": ("app_id env_file", "app_id"),
     "delete_app": ("app_id env_file", "app_id"),
     "deploy": (
-        "app_id branch commit_message env_file project_dir project_id version",
+        "app_id branch env_file project_dir project_id version",
         "app_id project_id",
     ),
     "ensure_app": ("development_mode env_file name project_id space_id version_id", "name"),

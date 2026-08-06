@@ -182,25 +182,24 @@ def test_extract_assembly_id_order():
     assert extract_assembly_id(None) is None
 
 
-def test_upload_assembly_pascalcase_query(api):
+def test_upload_assembly_sends_no_commit_parameters(api):
+    """The documented upload method takes SpaceId only.
+
+    CommitId/BranchName/CommitMessage used to be sent as query parameters, but the
+    reference carries no such parameters and the server ignores them (a direct POST
+    with a real hash answered commit-id: null) - the commit of an assembly card comes
+    from the project's repository link. Parameters that look functional and do nothing
+    mislead, so they are gone.
+    """
     client, transport = api
     transport.add("POST", f"{API}/projects/p1/assemblies", {"image-id": "asm-1"})
 
-    response = client.upload_assembly(
-        b"PK-data",
-        project_id="p1",
-        space_id="s1",
-        branch_name="feature/x",
-        commit_id="abc",
-        commit_message="msg",
-    )
+    response = client.upload_assembly(b"PK-data", project_id="p1", space_id="s1")
 
     assert response == {"image-id": "asm-1"}
     call = transport.calls_to("POST", f"{API}/projects/p1/assemblies")[0]
     assert "SpaceId=s1" in call["query"]
-    assert "BranchName=feature%2Fx" in call["query"]
-    assert "CommitId=abc" in call["query"]
-    assert "CommitMessage=msg" in call["query"]
+    assert "Commit" not in call["query"] and "Branch" not in call["query"]
     assert call["data"] == b"PK-data"
     assert call["headers"]["Content-Type"] == "application/octet-stream"
 

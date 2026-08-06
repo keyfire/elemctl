@@ -560,6 +560,15 @@ MESSAGES = {
         "en": "the schema check did not run ({reason}) – there is nothing to compare against, "
               "which does NOT mean the apply is safe",
     },
+    "deploy.schema-check-no-repo-link": {
+        "ru": "сверка схемы недоступна: у применённой сборки не записан коммит, а коммит "
+              "проставляется только связью проекта с репозиторием – без неё сверке не с чем "
+              "сравнивать никогда; это НЕ значит, что применение безопасно",
+        "en": "the schema check is unavailable: the applied assembly carries no commit, and a "
+              "commit only comes from the project's link to its repository – without the link "
+              "the check never has anything to compare against; this does NOT mean the apply "
+              "is safe",
+    },
     # -- schema.py ----------------------------------------------------------------
     "schema.length-narrowed": {
         "ru": "{where}: реквизит {name} – длина сужена с {before} до {after}",
@@ -965,18 +974,6 @@ MESSAGES = {
         "en": "project; WITHOUT it the platform creates a new project – the only way "
               "to create a project through the Console API",
     },
-    "cli.help.builds-upload-branch": {
-        "ru": "имя git-ветки (метаданные)",
-        "en": "git branch name (metadata)",
-    },
-    "cli.help.builds-upload-commit": {
-        "ru": "хэш коммита (метаданные)",
-        "en": "commit hash (metadata)",
-    },
-    "cli.help.builds-upload-commit-message": {
-        "ru": "сообщение коммита (метаданные)",
-        "en": "commit message (metadata)",
-    },
     "cli.help.builds-delete": {
         "ru": "удалить сборку по версии либо ид",
         "en": "delete an assembly by version or id",
@@ -1044,10 +1041,6 @@ MESSAGES = {
     "cli.help.deploy-commit": {
         "ru": "хэш коммита в метаданные (по умолчанию из git)",
         "en": "commit hash for the metadata (default: from git)",
-    },
-    "cli.help.deploy-commit-message": {
-        "ru": "сообщение коммита (метаданные загрузки)",
-        "en": "commit message (upload metadata)",
     },
     "cli.help.deploy-dry-run": {
         "ru": "только сборка, без загрузки",
