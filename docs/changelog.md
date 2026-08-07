@@ -14,7 +14,7 @@ day are named in the heading. The format follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html). The VS Code debug companion in
 `editors/vscode` is released separately under the `vscode-v*` tags and is not tracked here.
 
-## Unreleased
+## 2026-08-07 – 0.26.0, 0.27.0
 
 ### Added
 - **Projects with English artifacts build and deploy.** The platform accepts both spellings of
@@ -26,8 +26,6 @@ day are named in the heading. The format follows
   (`Attributes`, `Id`, `Name`, `Type`, `Length`, `MaxLength`) as well, and knows the two
   spellings of a primitive type name are the SAME type - translating a description does not read
   as a data-destroying change.
-
-## 2026-08-07 – 0.26.0
 
 ### Changed
 - **The upload sends no commit or branch parameters.** `CommitId`/`BranchName`/`CommitMessage`
