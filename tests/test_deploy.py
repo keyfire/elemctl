@@ -468,6 +468,45 @@ def test_allow_data_loss_lets_the_narrowing_through(project_factory, tmp_path, m
     assert report.schema_check == "allowed"
 
 
+def test_the_guard_reads_an_english_project_at_the_commit(tmp_path, monkeypatch):
+    """A Project.yaml at the applied commit is proof enough that the commit is readable.
+
+    The availability probe used to ask git for Проект.yaml only, so on an English
+    project the guard always answered "commit-unavailable" and silently stepped
+    aside - a narrowing there was never judged.
+    """
+    from elemctl import deploy as deploy_module
+
+    project_dir = tmp_path / "repo-en" / "acme" / "crm"
+    project_dir.mkdir(parents=True)
+    (project_dir / "Project.yaml").write_text(
+        "Name: crm\nVendor: acme\nVersion: 1.0\n", encoding="utf-8"
+    )
+    (project_dir / "Catalog.yaml").write_text(
+        "Attributes:\n    -\n        Id: a1\n        Name: Code\n        Type: String\n"
+        "        MaxLength: 50\n",
+        encoding="utf-8",
+    )
+    earlier = {
+        "Project.yaml": "Name: crm\nVendor: acme\nVersion: 1.0\n",
+        "Catalog.yaml": (
+            "Attributes:\n    -\n        Id: a1\n        Name: Code\n        Type: String\n"
+            "        MaxLength: 200\n"
+        ),
+    }
+    monkeypatch.setattr(
+        deploy_module, "_git_show",
+        lambda project_dir, commit, relative: earlier.get(relative),
+    )
+
+    with pytest.raises(ElemctlError) as error:
+        deploy_from_sources(
+            SchemaGuardClient(), "app-1", "proj-1",
+            project_dir=project_dir, output_dir=tmp_path / "d",
+        )
+    assert "Code" in str(error.value) and "--allow-data-loss" in str(error.value)
+
+
 def test_without_a_commit_id_the_guard_steps_aside(project_factory, tmp_path):
     """Being unable to compare is not evidence of danger - the deploy goes on, saying so.
 

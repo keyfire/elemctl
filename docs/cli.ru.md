@@ -488,7 +488,7 @@ usage: elemctl build [-h] [--project-dir PROJECT_DIR] [--output OUTPUT]
 | `--last-build LAST_BUILD` | версия последней сборки проекта – для автоинкремента |
 | `--commit COMMIT` | хэш коммита в манифест (по умолчанию из git) |
 | `--branch BRANCH` | имя ветки в манифест (по умолчанию из git) |
-| `--kind {application,library}` | вид проекта (по умолчанию из Проект.yaml) |
+| `--kind {application,library}` | вид проекта (по умолчанию из Проект.yaml/Project.yaml) |
 | `--require-clean` | прервать сборку, если в каталоге проекта есть незакоммиченные изменения |
 
 ## `elemctl inspect`

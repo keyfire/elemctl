@@ -149,7 +149,7 @@ A build file is a ZIP archive (deflate):
 
 Build file name: `{Имя} {Version}.xasm` (with a space).
 
-Project metadata – from `Проект.yaml` (YAML; parsing flat top-level `key: value` pairs is sufficient, skip nested indented lines). Bilingual sources are a declared platform capability – a descriptor written with English keys deploys fine – so every key is read in both spellings: `Имя`/`Name`, `Поставщик`/`Vendor`, `Версия`/`Version` (base, e.g. `1.0`), `ВидПроекта`/`ProjectKind` (the value `Библиотека`/`Library` means a library, otherwise an application). The Russian spelling wins when both are present.
+Project metadata – from `Проект.yaml` (YAML; parsing flat top-level `key: value` pairs is sufficient, skip nested indented lines). Bilingual sources are a declared platform capability – a descriptor written with English keys deploys fine – so every key is read in both spellings: `Имя`/`Name`, `Поставщик`/`Vendor`, `Версия`/`Version` (base, e.g. `1.0`), `ВидПроекта`/`ProjectKind` (the value `Библиотека`/`Library` means a library, otherwise an application). The Russian spelling wins when both are present. The SERVICE FILE NAMES are bilingual too: the platform converter accepts `Project.yaml`/`Проект.yaml` and `Subsystem.yaml`/`Подсистема.yaml`, so the descriptor is looked up by both names everywhere – project discovery, local library dependencies, the archive inspection, the schema guard's availability probe.
 
 Build version, if not set explicitly: `{base version}-{N+1}`, where N is the counter from the version of the project's latest build. Without a last build, the suffix comes from the CI run number in the environment – the first numeric value of `CI_PIPELINE_IID`, `GITHUB_RUN_NUMBER`, `BUILD_NUMBER` (in that order) – so a clean CI checkout does not produce `-1` on every run; with no CI number either, the version is `{base version}-1`.
 
@@ -168,11 +168,11 @@ The reverse of a build: given a `.xasm`/`.xlib` file – the manifest, the proje
 
 The layout inside a project (directories are the only source of truth about the contents):
 
-- a first-level directory is a **subsystem**; `Подсистема.yaml` is **optional** (a library subsystem may have none at all), so it cannot be relied upon when looking for subsystems;
+- a first-level directory is a **subsystem**; `Подсистема.yaml`/`Subsystem.yaml` is **optional** (a library subsystem may have none at all), so it cannot be relied upon when looking for subsystems;
 - a nested directory of a subsystem is a **package**; a package has no description file, every directory contributes a name segment;
 - the qualified name of a type: `{vendor}::{name}::{subsystem}[::{package}]::{TypeName}`. The same name without the last segment is what `Использование` and `импорт` take.
 
-Only types with `ОбластьВидимости: Глобально` are visible outside, in the project that attached the library (the default is `ВПодсистеме`, the global scope is written explicitly).
+Only types with `ОбластьВидимости: Глобально` (`VisibilityScope: Global`) are visible outside, in the project that attached the library (the default is `ВПодсистеме`/`InSubsystem`, the global scope is written explicitly). An English descriptor carries English VALUES as well – the enumeration values are read in both spellings.
 
 Compatibility is checked against the `РежимСовместимости` property of `Проект.yaml`. The `ВерсияТехнологии` property **does not exist** in `Проект.yaml` – it belongs to the body of the Console API request that creates an application, not to the project file.
 

@@ -6,8 +6,8 @@ the limits. Widening keeps the data, so the dangerous
 class is narrow: a smaller length or a changed type.
 
 There is no full YAML parser here on purpose - elemctl has no dependencies at all.
-What is read is the top-level `Реквизиты:` block of an object description, whose
-layout is regular in the sources of the platform. Anything the reader does not
+What is read is the top-level `Реквизиты:`/`Attributes:` block of an object
+description, whose layout is regular in the sources of the platform. Anything the reader does not
 recognize it stays silent about: the guard may not be able to judge, but it must
 never invent a change that is not there.
 """
@@ -16,10 +16,27 @@ from __future__ import annotations
 
 from . import i18n
 
-# The keys carrying the length of a field. The platform spells it both ways:
-# Длина for a number, МаксимальнаяДлина for a string.
-LENGTH_KEYS = ("Длина", "МаксимальнаяДлина")
-ATTRIBUTES_KEY = "Реквизиты"
+# Bilingual sources are a declared platform capability, so every key is read in
+# both spellings. The keys carrying the length of a field: Длина/Length for a
+# number, МаксимальнаяДлина/MaxLength for a string.
+LENGTH_KEYS = ("Длина", "МаксимальнаяДлина", "Length", "MaxLength")
+ATTRIBUTES_KEYS = ("Реквизиты", "Attributes")
+_ID_KEYS = ("Ид", "Id")
+_NAME_KEYS = ("Имя", "Name")
+_TYPE_KEYS = ("Тип", "Type")
+
+# The primitive type names in both spellings: a translated description names the
+# SAME type, not a change. Only the pairs the platform declares are listed;
+# anything else (reference types included) is compared verbatim - the guard must
+# not guess.
+_TYPE_SPELLINGS = {
+    "String": "Строка",
+    "Number": "Число",
+    "Boolean": "Булево",
+    "Date": "Дата",
+    "DateTime": "ДатаВремя",
+    "Time": "Время",
+}
 
 
 def parse_attributes(text):
@@ -51,13 +68,13 @@ def parse_attributes(text):
             continue
         key, _, value = stripped.partition(":")
         current[key.strip()] = value.strip()
-        identity = current.get("Ид") or current.get("Имя")
+        identity = _first_of(current, _ID_KEYS) or _first_of(current, _NAME_KEYS)
         if identity:
             attributes[identity] = current
     return {
         key: {
-            "name": item.get("Имя", ""),
-            "type": item.get("Тип", ""),
+            "name": _first_of(item, _NAME_KEYS) or "",
+            "type": _first_of(item, _TYPE_KEYS) or "",
             "length": _as_int(_first_of(item, LENGTH_KEYS)),
         }
         for key, item in attributes.items()
@@ -79,7 +96,10 @@ def narrowing_changes(before_text, after_text, *, where=""):
         if new is None:
             continue  # a removed attribute is a separate story, and the platform asks about it
         name = new.get("name") or old.get("name") or key
-        if old["type"] and new["type"] and old["type"] != new["type"]:
+        if (
+            old["type"] and new["type"]
+            and _canonical_type(old["type"]) != _canonical_type(new["type"])
+        ):
             changes.append(i18n.t(
                 "schema.type-changed",
                 where=where,
@@ -129,11 +149,16 @@ def narrowing_in_tree(project_dir, read_before):
 
 
 def _find_block(lines):
-    """The index of the top-level `Реквизиты:` line, or None."""
+    """The index of the top-level `Реквизиты:`/`Attributes:` line, or None."""
     for index, line in enumerate(lines):
-        if line.rstrip() == f"{ATTRIBUTES_KEY}:":
+        if line.rstrip() in tuple(f"{key}:" for key in ATTRIBUTES_KEYS):
             return index
     return None
+
+
+def _canonical_type(value):
+    """One spelling for the two names of a primitive type; the rest stay as written."""
+    return _TYPE_SPELLINGS.get(value, value)
 
 
 def _first_of(item, keys):

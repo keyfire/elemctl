@@ -194,6 +194,8 @@ def test_no_russian_string_literals_outside_the_catalog():
         "библиотека", "приложение",
         # The keys of an attribute description, read by the schema guard.
         "Реквизиты", "Ид", "Тип", "Длина", "МаксимальнаяДлина",
+        # The primitive type names the guard canonicalizes across the spellings.
+        "Строка", "Число", "Булево", "Дата", "ДатаВремя", "Время",
     }
     package = Path(i18n.__file__).parent
     offenders = []

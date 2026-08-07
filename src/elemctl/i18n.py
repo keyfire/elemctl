@@ -1007,8 +1007,8 @@ MESSAGES = {
         "en": "branch name for the manifest (default: from git)",
     },
     "cli.help.build-kind": {
-        "ru": "вид проекта (по умолчанию из Проект.yaml)",
-        "en": "project kind (default: from Проект.yaml)",
+        "ru": "вид проекта (по умолчанию из Проект.yaml/Project.yaml)",
+        "en": "project kind (default: from Проект.yaml/Project.yaml)",
     },
     "cli.help.build-require-clean": {
         "ru": "прервать сборку, если в каталоге проекта есть незакоммиченные изменения",

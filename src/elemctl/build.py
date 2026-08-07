@@ -19,13 +19,20 @@ from . import i18n
 from .errors import BuildError
 from .versions import next_version
 
+# The platform accepts BOTH spellings of the service file names - its converter
+# checks the pairs itself (Проект/Project, Подсистема/Subsystem). The Russian
+# spelling stays canonical in messages naming a single file.
 PROJECT_FILE = "Проект.yaml"
+PROJECT_FILE_EN = "Project.yaml"
+PROJECT_FILES = (PROJECT_FILE, PROJECT_FILE_EN)
 MANIFEST_FILE = "Assembly.yaml"
 SUBSYSTEM_FILE = "Подсистема.yaml"
+SUBSYSTEM_FILE_EN = "Subsystem.yaml"
+SUBSYSTEM_FILES = (SUBSYSTEM_FILE, SUBSYSTEM_FILE_EN)
 
 # The visibility scope at which a type is available to the project that plugged
-# the library in.
-GLOBAL_SCOPE = "Глобально"
+# the library in - both spellings, like everything else in a descriptor.
+GLOBAL_SCOPES = ("Глобально", "Global")
 
 # Extensions that go into the archive outside the resource directories: sources,
 # images, web resources.
@@ -58,7 +65,7 @@ CI_BUILD_NUMBER_VARS = ("CI_PIPELINE_IID", "GITHUB_RUN_NUMBER", "BUILD_NUMBER")
 
 @dataclass
 class ProjectMeta:
-    """The project metadata from Проект.yaml and from the directory layout."""
+    """The project metadata from Проект.yaml/Project.yaml and from the directory layout."""
 
     name: str
     vendor: str
@@ -66,6 +73,7 @@ class ProjectMeta:
     kind: str  # "Application" or "Library"
     project_dir: Path
     repo_root: Path
+    project_file: Path = None  # the descriptor the metadata was read from
 
 
 @dataclass(frozen=True)
@@ -181,6 +189,15 @@ def parse_project_libraries(text):
     return libraries
 
 
+def project_file_in(directory):
+    """The project descriptor inside the directory, either spelling, or None."""
+    for name in PROJECT_FILES:
+        candidate = Path(directory) / name
+        if candidate.is_file():
+            return candidate
+    return None
+
+
 def descriptor_value(values, russian, english):
     """The value of a descriptor property by its Russian or English spelling.
 
@@ -209,13 +226,13 @@ def local_project_dependencies(meta):
     while index < len(projects):
         project = projects[index]
         index += 1
-        text = (project.project_dir / PROJECT_FILE).read_text(encoding="utf-8-sig")
+        text = project.project_file.read_text(encoding="utf-8-sig")
         for library in parse_project_libraries(text):
             key = (library.vendor, library.name)
             if key in seen:
                 continue
             candidate = meta.repo_root / library.vendor / library.name
-            if not (candidate / PROJECT_FILE).is_file():
+            if project_file_in(candidate) is None:
                 continue
             projects.append(read_project_meta(candidate))
             seen.add(key)
@@ -237,26 +254,29 @@ def ci_build_number(environ=None):
 
 
 def find_project_dir(start=None):
-    """Find the project directory: the first one with Проект.yaml downward from start."""
+    """Find the project directory: the first one with Проект.yaml/Project.yaml downward from start."""
     base = Path(start) if start else Path.cwd()
-    if (base / PROJECT_FILE).is_file():
+    if project_file_in(base) is not None:
         return base
     for root, dirs, files in os.walk(base):
         dirs[:] = sorted(d for d in dirs if not _is_excluded_dir(d))
-        if PROJECT_FILE in files:
+        if any(name in files for name in PROJECT_FILES):
             return Path(root)
-    raise BuildError(i18n.t("build.project-dir-not-found", file=PROJECT_FILE, base=base))
+    raise BuildError(i18n.t(
+        "build.project-dir-not-found", file="/".join(PROJECT_FILES), base=base
+    ))
 
 
 def read_project_meta(project_dir):
     """Read the project metadata and check the directory layout.
 
-    The project directory must follow the {repo}/{vendor}/{name}/Проект.yaml layout.
+    The project directory must follow the {repo}/{vendor}/{name}/Проект.yaml
+    layout; the descriptor may carry either spelling of its name.
     """
     project_dir = Path(project_dir).resolve()
-    project_file = project_dir / PROJECT_FILE
-    if not project_file.is_file():
-        raise BuildError(i18n.t("build.not-found", file=project_file))
+    project_file = project_file_in(project_dir)
+    if project_file is None:
+        raise BuildError(i18n.t("build.not-found", file=project_dir / PROJECT_FILE))
     values = parse_flat_yaml(project_file.read_text(encoding="utf-8-sig"))
 
     name = descriptor_value(values, "Имя", "Name")
@@ -266,7 +286,7 @@ def read_project_meta(project_dir):
     if project_dir.name != name or project_dir.parent.name != vendor:
         raise BuildError(i18n.t(
             "build.layout-mismatch",
-            file=PROJECT_FILE,
+            file=project_file.name,
             vendor=vendor,
             name=name,
             actual=f"{project_dir.parent.name}/{project_dir.name}",
@@ -282,6 +302,7 @@ def read_project_meta(project_dir):
         kind=kind,
         project_dir=project_dir,
         repo_root=project_dir.parent.parent,
+        project_file=project_file,
     )
 
 
@@ -534,11 +555,15 @@ def inspect_assembly(path):
             vendor = manifest.get("Vendor", "").strip()
             name = manifest.get("Name", "").strip()
             prefix = f"{vendor}/{name}/"
-            project_entry = prefix + PROJECT_FILE
-            if project_entry not in names:
-                raise BuildError(
-                    i18n.t("build.no-project-file", file=archive_path, entry=project_entry)
-                )
+            project_entry = next(
+                (prefix + entry for entry in PROJECT_FILES if prefix + entry in names), None
+            )
+            if project_entry is None:
+                raise BuildError(i18n.t(
+                    "build.no-project-file",
+                    file=archive_path,
+                    entry=prefix + "/".join(PROJECT_FILES),
+                ))
             project = parse_flat_yaml(_read_entry(archive, project_entry))
             elements = _archive_elements(archive, names, prefix)
     except zipfile.BadZipFile:
@@ -557,7 +582,7 @@ def inspect_assembly(path):
         "representation": descriptor_value(project, "Представление", "Presentation"),
         "project": project,
         "subsystems": _subsystems(elements, vendor, name),
-        "global_types": [item for item in elements if item["scope"] == GLOBAL_SCOPE],
+        "global_types": [item for item in elements if item["scope"] in GLOBAL_SCOPES],
     }
 
 
@@ -596,22 +621,25 @@ def _archive_elements(archive, names, prefix):
         if not entry.startswith(prefix) or not entry.endswith(".yaml"):
             continue
         parts = entry[len(prefix):].split("/")
-        if parts[-1] in (PROJECT_FILE, SUBSYSTEM_FILE) or len(parts) < 2:
+        if parts[-1] in PROJECT_FILES + SUBSYSTEM_FILES or len(parts) < 2:
             continue
         values = parse_flat_yaml(_read_entry(archive, entry))
-        kind = values.get("ВидЭлемента", "")
+        kind = descriptor_value(values, "ВидЭлемента", "ElementKind")
         if not kind:
             continue
         # The directories between the subsystem and the file are packages, each
         # one contributing a segment of the name.
         namespace = "::".join(vendor_name + parts[:-1])
         element_name = descriptor_value(values, "Имя", "Name") or parts[-1][: -len(".yaml")]
+        # The default visibility scope is ВПодсистеме, the global one is written
+        # explicitly; the spelling of the default follows the descriptor around it.
+        scope = descriptor_value(values, "ОбластьВидимости", "VisibilityScope")
+        if not scope:
+            scope = "InSubsystem" if "ElementKind" in values else "ВПодсистеме"
         elements.append({
             "name": element_name,
             "kind": kind,
-            # The default visibility scope is ВПодсистеме, the global one is
-            # written explicitly.
-            "scope": values.get("ОбластьВидимости", "ВПодсистеме"),
+            "scope": scope,
             "subsystem": parts[0],
             "namespace": namespace,
             "qualified": f"{namespace}::{element_name}",
@@ -638,7 +666,7 @@ def _subsystems(elements, vendor, name):
         package = item["namespace"].split("::")[3:]
         if package:
             entry["packages"].add("::".join(package))
-        if item["scope"] == GLOBAL_SCOPE:
+        if item["scope"] in GLOBAL_SCOPES:
             entry["global_types"] += 1
     result = []
     for subsystem in sorted(found):

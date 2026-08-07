@@ -8,6 +8,19 @@ day are named in the heading. The format follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html). The VS Code debug companion in
 `editors/vscode` is released separately under the `vscode-v*` tags and is not tracked here.
 
+## Unreleased
+
+### Added
+- **Projects with English artifacts build and deploy.** The platform accepts both spellings of
+  the service file names - its converter checks the pairs itself - so the toolkit now resolves
+  them too: `build`/`deploy`/`probe` find a descriptor named `Project.yaml` next to
+  `Проект.yaml`, a local library dependency is found by either name, and the archive inspection
+  reads `ElementKind`/`VisibilityScope` (with the English values, e.g. `Global`) and skips
+  `Subsystem.yaml` as a descriptor. The schema guard reads the English attribute keys
+  (`Attributes`, `Id`, `Name`, `Type`, `Length`, `MaxLength`) as well, and knows the two
+  spellings of a primitive type name are the SAME type - translating a description does not read
+  as a data-destroying change.
+
 ## 2026-08-07 – 0.26.0
 
 ### Changed

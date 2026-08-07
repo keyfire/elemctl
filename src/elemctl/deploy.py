@@ -15,7 +15,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
 from . import i18n
-from .build import build_assembly
+from .build import PROJECT_FILES, build_assembly
 from .client import FAILED_TASK_STATUSES, extract_assembly_id
 from .errors import ElemctlError
 from .schema import narrowing_in_tree
@@ -293,7 +293,7 @@ def check_destructive_changes(client, app_id, project_id, project_dir, log=None)
     commit = _applied_commit(client, app_id, project_id)
     if not commit:
         return [], "no-commit-id"
-    if _git_show(project_dir, commit, "Проект.yaml") is None:
+    if all(_git_show(project_dir, commit, name) is None for name in PROJECT_FILES):
         return [], "commit-unavailable"
     changes = narrowing_in_tree(
         project_dir, lambda relative: _git_show(project_dir, commit, relative)

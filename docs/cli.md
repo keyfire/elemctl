@@ -488,7 +488,7 @@ usage: elemctl build [-h] [--project-dir PROJECT_DIR] [--output OUTPUT]
 | `--last-build LAST_BUILD` | the project's last assembly version – for auto-increment |
 | `--commit COMMIT` | commit hash for the manifest (default: from git) |
 | `--branch BRANCH` | branch name for the manifest (default: from git) |
-| `--kind {application,library}` | project kind (default: from Проект.yaml) |
+| `--kind {application,library}` | project kind (default: from Проект.yaml/Project.yaml) |
 | `--require-clean` | abort the build if the project directory has uncommitted changes |
 
 ## `elemctl inspect`

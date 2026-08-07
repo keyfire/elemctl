@@ -487,6 +487,87 @@ def test_build_english_project_end_to_end(tmp_path):
     assert report["compatibility"] == "10.0"
 
 
+# -- the English spellings of the service file names ------------------------------
+
+
+def _english_named_project(tmp_path):
+    """A project whose descriptor is Project.yaml - the spelling the platform accepts too."""
+    project_dir = tmp_path / "repo-en" / "acme" / "crm"
+    project_dir.mkdir(parents=True)
+    (project_dir / "Project.yaml").write_text(
+        "Name: crm\nVendor: acme\nVersion: 2.0\n", encoding="utf-8"
+    )
+    return project_dir
+
+
+def test_project_yaml_english_name_is_found(tmp_path):
+    """Project.yaml is a legal descriptor name: the platform converter checks both spellings.
+
+    The build used to know only Проект.yaml and refused such a project entirely.
+    """
+    project_dir = _english_named_project(tmp_path)
+    assert find_project_dir(tmp_path / "repo-en") == project_dir
+    meta = read_project_meta(project_dir)
+    assert (meta.name, meta.vendor, meta.base_version) == ("crm", "acme", "2.0")
+    assert meta.project_file.name == "Project.yaml"
+
+
+def test_english_named_library_dependency_is_included(tmp_path):
+    """A local library found by its Project.yaml goes into the application archive."""
+    app_dir = _english_named_project(tmp_path)
+    (app_dir / "Project.yaml").write_text(
+        "Name: crm\nVendor: acme\nVersion: 2.0\n"
+        "Libraries:\n    -\n        Name: shared\n        Vendor: acme\n",
+        encoding="utf-8",
+    )
+    library_dir = tmp_path / "repo-en" / "acme" / "shared"
+    library_dir.mkdir(parents=True)
+    (library_dir / "Project.yaml").write_text(
+        "Name: shared\nVendor: acme\nVersion: 1.0\nProjectKind: Library\n",
+        encoding="utf-8",
+    )
+    result = build_assembly(app_dir, output_dir=tmp_path / "out", version="2.0-1")
+    with zipfile.ZipFile(result.file) as archive:
+        names = archive.namelist()
+    assert "acme/crm/Project.yaml" in names
+    assert "acme/shared/Project.yaml" in names
+
+
+def test_inspect_archive_with_english_file_names(tmp_path):
+    """Elements of an English project are seen: ElementKind, VisibilityScope: Global.
+
+    The English descriptors carry English VALUES as well, so the global-type
+    selection accepts both spellings of the scope; an element without a scope gets
+    the default in the spelling of the descriptor around it.
+    """
+    from elemctl.build import _archive_elements
+
+    project_dir = _english_named_project(tmp_path)
+    subsystem = project_dir / "Main"
+    subsystem.mkdir()
+    (subsystem / "Subsystem.yaml").write_text("Interface:\n", encoding="utf-8")
+    (subsystem / "Api.yaml").write_text(
+        "ElementKind: CommonModule\nName: Api\nVisibilityScope: Global\n",
+        encoding="utf-8",
+    )
+    (subsystem / "Card.yaml").write_text(
+        "ElementKind: InterfaceComponent\nName: Card\n", encoding="utf-8"
+    )
+    result = build_assembly(project_dir, output_dir=tmp_path / "out", version="2.0-1")
+
+    report = inspect_assembly(result.file)
+    assert [item["name"] for item in report["global_types"]] == ["Api"]
+    assert report["subsystems"][0]["name"] == "Main"
+    assert report["subsystems"][0]["global_types"] == 1
+
+    with zipfile.ZipFile(result.file) as archive:
+        elements = _archive_elements(archive, archive.namelist(), "acme/crm/")
+    by_name = {item["name"]: item for item in elements}
+    # Subsystem.yaml and Project.yaml are descriptors, not elements of the project.
+    assert set(by_name) == {"Api", "Card"}
+    assert by_name["Card"]["scope"] == "InSubsystem"
+
+
 # -- uncommitted changes of the project directory ---------------------------------
 
 
