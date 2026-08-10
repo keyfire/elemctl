@@ -531,6 +531,10 @@ def cmd_deploy(args):
     app_id, app_id_source = _require_with_source(
         args.app_id, config.app_id, i18n.t("cli.require.app-id-flag")
     )
+    # An application is addressed by its id or by its exact name, the way apps get/start/stop do:
+    # the name is what a person has in front of them, the id is what the API wants. A UUID passes
+    # through without a request.
+    app_id = client.resolve_app_id(app_id)
     project_id, project_id_source = _require_with_source(
         args.project_id, config.project_id, i18n.t("cli.require.project-id-flag")
     )

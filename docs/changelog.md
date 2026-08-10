@@ -13,6 +13,21 @@ day are named in the heading. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2026-08-10 – 0.28.0
+
+### Added
+- **`deploy` accepts an application name, not only its id.** Every other command addressing one
+  application - `apps get`, `apps start`, `apps stop`, `apps debug` - has always taken a name and
+  resolved it; the deploy took the value as it was and sent the name to the API, where it is not
+  an identifier at all. A UUID still passes through without a request.
+
+### Changed
+- **The VS Code extension moved out of this repository.** Debugging 1C:Element applications is
+  part of the [XBSL](https://github.com/keyfire/xbsl) extension since its 0.57.0, together with
+  the deploy button that was already there - the split made a user configure the elemctl path and
+  the application id twice. What stays here is the elemctl side: `apps debug`, `debug-adapter`,
+  the `elemctl.debug_adapter` entry point group and the adapter extraction script.
+
 ## 2026-08-07 – 0.26.0, 0.27.0
 
 ### Added

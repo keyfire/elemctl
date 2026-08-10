@@ -36,6 +36,10 @@ class FakeDeployClient:
         self.apply_calls = []
         self.upload_kwargs = None
 
+    def resolve_app_id(self, name_or_id):
+        # deploy addresses an application by id or by name, like the other commands
+        return name_or_id
+
     def latest_assembly(self, project_id):
         return self._latest
 

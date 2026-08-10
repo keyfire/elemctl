@@ -657,6 +657,45 @@ def test_apps_delete_accepts_application_name(monkeypatch, capsys):
     assert payload == {"deleted": True, "app-id": "6b3a2f00-0000-0000-0000-000000000001"}
 
 
+def test_deploy_accepts_application_name(monkeypatch, capsys, project_factory, tmp_path):
+    """deploy --app-id crm-x: the name is resolved, and the deploy receives the id.
+
+    The other commands addressing one application have always accepted a name; deploy took the
+    value as it was and sent the name straight to the API, where it is not an id at all.
+    """
+    project = project_factory()
+    seen = {}
+
+    class FakeClient:
+        def resolve_app_id(self, value):
+            seen["asked"] = value
+            return "6b3a2f00-0000-0000-0000-000000000002"
+
+    class FakeReport:
+        ok = True
+
+        def __init__(self, app_id):
+            self.app_id = app_id
+
+        def to_dict(self):
+            return {"ok": True, "app-id": self.app_id}
+
+    def fake_deploy(client, app_id, project_id, **kwargs):
+        seen["deployed"] = app_id
+        return FakeReport(app_id)
+
+    monkeypatch.setattr(cli, "make_client", lambda config: FakeClient())
+    monkeypatch.setattr(cli, "deploy_from_sources", fake_deploy)
+    rc = cli.main([
+        "deploy", "--project-dir", str(project), "--output", str(tmp_path / "out"),
+        "--app-id", "crm-x", "--project-id", "proj-1",
+    ])
+    assert rc == 0
+    assert seen["asked"] == "crm-x"
+    assert seen["deployed"] == "6b3a2f00-0000-0000-0000-000000000002"
+    assert json.loads(capsys.readouterr().out)["ok"] is True
+
+
 def test_apps_get_resolves_name(monkeypatch, capsys):
     class FakeClient:
         def resolve_app_id(self, value):
