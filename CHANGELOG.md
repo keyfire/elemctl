@@ -9,6 +9,35 @@ day are named in the heading. The format follows
 
 ## 2026-08-10 – 0.28.0
 
+### Documentation
+- **The MCP tool catalogue is on the page now.** Seven of the twenty-four – `apply_build`,
+  `build_assembly`, `find_app`, `inspect_assembly`, `list_app_tasks`, `list_branches`,
+  `list_spaces` – were named nowhere outside the sources, the page making do with "and others".
+  A table lists every one of them.
+- **The environment variables are documented in full.** The settings page was missing
+  `ELEMCTL_NO_PLUGINS` and the variables the build reads from CI (`CI_PIPELINE_IID`,
+  `GITHUB_RUN_NUMBER`, `BUILD_NUMBER`, `CI_COMMIT_BRANCH`, `CI_COMMIT_REF_NAME`,
+  `GITHUB_REF_NAME`), and the `ELEMCTL_NO_PROXY` row had fallen out of the table into a
+  paragraph of pipes. The language section now names the system `LC_ALL`/`LANG` as well.
+- **Statements that had stopped being true.** The command reference promised common flags before
+  the subcommand only, though they are accepted in any position; the platform page left `.htm`
+  out of the archive extensions and did not say that inside a `Ресурсы` directory nothing is
+  filtered by extension; the Russian README still claimed the documentation was Russian-only.
+- **One source per text.** The README sections that repeat a site page had drifted both ways:
+  the README knew about `probe` and the user lists and the page did not, the page knew about the
+  `elemctl.commands` plugin group and the README did not, and the README still promised two VS
+  Code extensions after one of them was gone. The page is the source now, and
+  `scripts/sync-docs.mjs` injects its section into the README between markers.
+- **A diagram of how the tool is wired.** `docs/architecture.svg` (with a Russian twin) – the
+  surfaces, the engine, the deploy cycle with its silent rollback and the probe; on the home page
+  and in the README. The palette follows the reader's theme, and the README PNG is rendered by
+  `scripts/render-diagrams.py` with the palette forced.
+- **The guard `scripts/docsguard.py` and a `docs` job in CI.** It checks what is mechanically
+  checkable: a tool without a row, a row without a tool, an environment variable the code reads
+  and nobody documented, an archive extension the page omits, a stale README block or changelog
+  mirror, a page without a translation, an image without a file. Every class of finding is
+  provoked by a test (`tests/test_docs_coverage.py`).
+
 ### Added
 - **`deploy` accepts an application name, not only its id.** Every other command addressing one
   application - `apps get`, `apps start`, `apps stop`, `apps debug` - has always taken a name and

@@ -16,7 +16,38 @@ pip install "elemctl[mcp]"
 claude mcp add elemctl -- elemctl mcp
 ```
 
-The server reads connection credentials from the same `ELEMENT_*` variables / `.env`. Among the tools: `list_apps`, `get_app`, `deploy` (with an `ok` field in the response), `probe` (a compilation check that does not touch the working application), `verify_deploy`, `list_builds`, `merge_branch` and others.
+The server reads connection credentials from the same `ELEMENT_*` variables / `.env`.
+
+### Tools
+
+| Tool | What it does |
+|---|---|
+| `list_apps` | list of applications; `name` filters by a substring of the name on the client, `brief` (the default) keeps id, name, status, uri and the applied version |
+| `find_app` | find an application by its exact name: the id and a `found` flag; deleted ones are skipped unless `include_deleted` is set |
+| `get_app` | application card: status, uri, the actual project version |
+| `create_app` | create an application; with only a `project_id` the source is the project's latest build. The answer carries `sign-in` – the way in |
+| `ensure_app` | create an application by name only if it does not exist yet; an existing one is not recreated (`created: false`) |
+| `start_app` | start the application |
+| `stop_app` | stop the application |
+| `delete_app` | delete the application. IRREVERSIBLE: the data is lost, and a recreated application gets a different URL |
+| `list_app_tasks` | tasks of the applications; `app_id` is an optional filter |
+| `debug_info` | debug-session data: `debug-token` and `debug-address` (debugging must be enabled on the server) |
+| `list_spaces` | list of spaces |
+| `list_projects` | list of projects; `brief` (the default) – id, name, project kind, space, application count, deletion flag |
+| `list_builds` | list of a project's builds |
+| `build_assembly` | build a `.xasm`/`.xlib` archive from the sources locally (does not talk to the platform) |
+| `inspect_assembly` | parse a built archive: manifest, project properties, subsystems and global types with qualified names (local) |
+| `deploy` | the whole cycle from sources with the honest apply verification; the verdict is `ok`, the details are `problems` and `log` |
+| `probe` | check the compilation with the server compiler WITHOUT touching the working application; errors with file, line and column, cleans up after itself |
+| `apply_build` | apply an uploaded build to the application by its id |
+| `verify_deploy` | verify the apply actually took effect: failed tasks, the applied build, the availability of the uri |
+| `list_user_lists` | user lists; `name` filters by a substring of the presentation |
+| `configure_user_list` | self-registration and password sign-in; without the flags it only reports the current state |
+| `list_branches` | list of development-environment branches; the `project_id` and `name` filters are optional |
+| `merge_branch` | accept the changes of a development-environment branch |
+| `debug_adapter` | the path to the platform debug adapter from a plugin; a missing plugin is an answer (`found: false`), not an error (local) |
+
+The tools a plugin brings stand next to these (see below).
 
 A single environment is not a limit: every tool that talks to the platform takes an optional `env_file` - a path to another installation's `.env`. One server thus serves both the cloud and a local installation without a restart with different credentials. `list_apps` returns brief cards by default (id, name, status, uri, applied version): full cards of a whole space are tens of thousands of characters in an agent's response - pass `brief=false` for them; its `name` parameter filters by a case-insensitive substring on the client (the platform ignores the query parameter). `list_projects` behaves the same way (id, name, project kind, space, application count, deletion flag). `get_app`, `delete_app`, `start_app`, `stop_app` and `debug_info` accept the application id (UUID) or its exact name - a non-UUID value is resolved through the list, and several matches are an error rather than a guess. `create_app` and `ensure_app` add a `sign-in` field to the answer – the address and the account that gets into a freshly created application (a CONTROL PANEL one; the accounts of an external provider do not work there) – because an agent sees only the JSON.
 
@@ -80,6 +111,8 @@ A companion extension integrates elemctl into the editor:
   [xbsl](https://github.com/keyfire/xbsl) project) – highlighting, linting, the form designer,
   the metadata tree, the *XBSL: deploy the project* button that runs `elemctl deploy` as a
   terminal task with the apply verification, and debugging 1C:Element applications with the
-  platform's DAP adapter, whose session data comes from `elemctl apps debug`.
+  platform's DAP adapter, whose session data comes from `elemctl apps debug`. Debugging used
+  to be a separate *XBSL Debug* extension living in the elemctl repository; since XBSL 0.57 it
+  is part of the one extension, and the repository keeps only the elemctl side of it.
 
 It is also published to [Open VSX](https://open-vsx.org/namespace/keyfire).

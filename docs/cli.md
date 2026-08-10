@@ -10,7 +10,7 @@ sidebar:
 
 This reference is generated from the tool itself – the same text `elemctl --help` prints, gathered on one page.
 
-Common flags go before the command: `elemctl --timeout 120 apps list`. The output language follows `--lang`, the `ELEMCTL_LANG` variable, or the system locale.
+Common flags are accepted in any position – before the command and after it: `elemctl --timeout 120 apps list` and `elemctl apps list --timeout 120` are the same run. The output language follows `--lang`, the `ELEMCTL_LANG` variable, or the system locale.
 
 ## Common flags
 

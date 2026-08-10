@@ -48,4 +48,4 @@ Assembly.yaml            # manifest: ProjectKind, Vendor, Name, Version, ...
 {vendor}/{name}/...      # project files: .yaml, .xbsl, resources
 ```
 
-The project directory must follow the `{repo}/{vendor}/{name}/Проект.yaml` layout – paths inside the archive are built relative to the repository root. The project kind (application/library) is determined by the `ВидПроекта` field in `Проект.yaml`.
+The project directory must follow the `{repo}/{vendor}/{name}/Проект.yaml` layout – paths inside the archive are built relative to the repository root. The project kind (application/library) is determined by the `ВидПроекта` field in `Проект.yaml`. When an application references libraries whose source projects are present under the same repository root, their files are included in the application archive automatically (including transitive local dependencies). A referenced library that is not present locally remains an external platform dependency.

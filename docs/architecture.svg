@@ -1,0 +1,141 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="860" height="616" viewBox="0 0 860 616">
+  <style>
+    /* The colours live in variables so the picture follows the reader's theme: the light
+       palette is the default, the dark one comes from the media query. It works even when
+       the file is embedded as an image: the SVG document gets the system preference of its
+       own. The PNG next to it is rendered from this file with a palette forced
+       (scripts/render-diagrams.py), because a README on GitHub follows no theme. */
+    :root {
+      --card: #ffffff; --card-edge: #d0d7e2; --divider: #d7dde8;
+      --box: #ffffff; --box-edge: #ccd4e0;
+      --title: #1c2029; --muted: #5c6577; --body: #414a5c;
+      --edge-text: #3c4557; --edge: #8a94a6; --edge-sub: #67707f;
+      --accent-blue: #0969da; --accent-teal: #0b7285; --accent-green: #1a7f37;
+      --accent-yellow: #9a6700; --accent-orange: #bc4c00; --accent-purple: #8250df;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --card: #14171e; --card-edge: #262c38; --divider: #2c3345;
+        --box: #232a38; --box-edge: #3b445c;
+        --title: #eef1f8; --muted: #7f8aa3; --body: #aab3c7;
+        --edge-text: #c6cddd; --edge: #6d7891; --edge-sub: #8b95ab;
+        --accent-blue: #3794ff; --accent-teal: #39c5cf; --accent-green: #56d364;
+        --accent-yellow: #ffd23f; --accent-orange: #f0883e; --accent-purple: #a78bfa;
+      }
+    }
+    text { font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; }
+    .mono { font-family: Consolas, 'Cascadia Mono', Menlo, monospace; }
+    .title { font-size: 17px; font-weight: 600; fill: var(--title); }
+    .box-title { font-size: 14.5px; font-weight: 600; fill: var(--title); }
+    .box-sub { font-size: 11.5px; fill: var(--muted); }
+    .box-body { font-size: 12px; fill: var(--body); }
+    .step-title { font-size: 14px; font-weight: 600; fill: var(--title); }
+    .edge-label { font-size: 12px; font-weight: 600; fill: var(--edge-text); }
+    .note { font-size: 12px; fill: var(--edge-sub); }
+    .note-strong { font-size: 12px; font-weight: 600; fill: var(--edge-text); }
+    .box { fill: var(--box); stroke: var(--box-edge); }
+    .edge { stroke: var(--edge); stroke-width: 1.5; fill: none; }
+    .edge-dashed { stroke: var(--accent-orange); stroke-width: 1.5; fill: none; stroke-dasharray: 5 4; }
+    .dot-blue { fill: var(--accent-blue); }
+    .dot-teal { fill: var(--accent-teal); }
+    .dot-green { fill: var(--accent-green); }
+    .dot-yellow { fill: var(--accent-yellow); }
+    .dot-orange { fill: var(--accent-orange); }
+    .dot-purple { fill: var(--accent-purple); }
+    .card { fill: var(--card); stroke: var(--card-edge); }
+    .divider { stroke: var(--divider); }
+    .arrow { fill: var(--edge); }
+    .arrow-warn { fill: var(--accent-orange); }
+  </style>
+  <defs>
+    <marker id="ah" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L8,4 L0,8 Z" class="arrow"/>
+    </marker>
+    <marker id="ah-warn" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L8,4 L0,8 Z" class="arrow-warn"/>
+    </marker>
+  </defs>
+
+  <rect x="0.5" y="0.5" width="859" height="615" rx="12" class="card"/>
+  <text x="430" y="36" text-anchor="middle" class="title">How elemctl is wired</text>
+
+  <!-- Three surfaces -->
+  <rect x="33" y="60" width="250" height="76" rx="10" class="box"/>
+  <circle cx="53" cy="86" r="4" class="dot-blue"/>
+  <text x="65" y="91" class="box-title">CLI</text>
+  <text x="49" y="112" class="box-body">terminal and CI, JSON to stdout,</text>
+  <text x="49" y="128" class="box-body">progress to stderr</text>
+
+  <rect x="305" y="60" width="250" height="76" rx="10" class="box"/>
+  <circle cx="325" cy="86" r="4" class="dot-purple"/>
+  <text x="337" y="91" class="box-title">MCP server</text>
+  <text x="321" y="112" class="box-body">tools for AI agents, stdio;</text>
+  <text x="321" y="128" class="box-body"><tspan class="mono">env_file</tspan> picks the environment</text>
+
+  <rect x="577" y="60" width="250" height="76" rx="10" class="box"/>
+  <circle cx="597" cy="86" r="4" class="dot-teal"/>
+  <text x="609" y="91" class="box-title">Python library</text>
+  <text x="593" y="112" class="box-body"><tspan class="mono">Config</tspan>, <tspan class="mono">ElementClient</tspan>,</text>
+  <text x="593" y="128" class="box-body"><tspan class="mono">deploy_from_sources</tspan></text>
+
+  <path d="M158,136 L158,168" class="edge" marker-end="url(#ah)"/>
+  <path d="M430,136 L430,168" class="edge" marker-end="url(#ah)"/>
+  <path d="M702,136 L702,168" class="edge" marker-end="url(#ah)"/>
+
+  <!-- The engine -->
+  <rect x="33" y="170" width="794" height="62" rx="10" class="box"/>
+  <circle cx="53" cy="194" r="4" class="dot-green"/>
+  <text x="65" y="199" class="box-title">One engine – the same code behind all three surfaces</text>
+  <text x="49" y="220" class="box-body">packing the archive, the deploy cycle, the probe, the Console API v2 client with its token cache</text>
+
+  <path d="M430,232 L430,268" class="edge" marker-end="url(#ah)"/>
+  <text x="444" y="255" class="edge-label">Console API v2 over HTTPS</text>
+
+  <!-- The deploy pipeline -->
+  <rect x="33" y="270" width="794" height="150" rx="10" class="card"/>
+  <text x="53" y="294" class="box-title">The deploy cycle, one command</text>
+
+  <rect x="49" y="308" width="140" height="76" rx="8" class="box"/>
+  <text x="63" y="332" class="step-title">sources</text>
+  <text x="63" y="352" class="box-sub"><tspan class="mono">Проект.yaml</tspan></text>
+  <text x="63" y="368" class="box-sub">and the modules</text>
+
+  <rect x="213" y="308" width="140" height="76" rx="8" class="box"/>
+  <text x="227" y="332" class="step-title">build</text>
+  <text x="227" y="352" class="box-sub"><tspan class="mono">.xasm</tspan> / <tspan class="mono">.xlib</tspan> archive,</text>
+  <text x="227" y="368" class="box-sub">manifest, git metadata</text>
+
+  <rect x="377" y="308" width="140" height="76" rx="8" class="box"/>
+  <text x="391" y="332" class="step-title">upload</text>
+  <text x="391" y="352" class="box-sub">into the project of the</text>
+  <text x="391" y="368" class="box-sub">Vendor + Name pair</text>
+
+  <rect x="541" y="308" width="140" height="76" rx="8" class="box"/>
+  <text x="555" y="332" class="step-title">apply</text>
+  <text x="555" y="352" class="box-sub">the server compiles</text>
+  <text x="555" y="368" class="box-sub">and restarts here</text>
+
+  <rect x="705" y="308" width="106" height="76" rx="8" class="box"/>
+  <text x="719" y="332" class="step-title">verify</text>
+  <text x="719" y="352" class="box-sub">tasks, applied</text>
+  <text x="719" y="368" class="box-sub">version, uri</text>
+
+  <path d="M189,346 L211,346" class="edge" marker-end="url(#ah)"/>
+  <path d="M353,346 L375,346" class="edge" marker-end="url(#ah)"/>
+  <path d="M517,346 L539,346" class="edge" marker-end="url(#ah)"/>
+  <path d="M681,346 L703,346" class="edge" marker-end="url(#ah)"/>
+
+  <path d="M611,384 L611,402 L478,402" class="edge-dashed" marker-end="url(#ah-warn)"/>
+  <text x="466" y="406" text-anchor="end" class="note-strong">silent rollback when the apply fails</text>
+
+  <text x="49" y="446" class="note">The platform rolls the application back to the previous build and starts it, so the <tspan class="mono">Running</tspan> status says nothing.</text>
+  <text x="49" y="464" class="note">Only the verification does: failed tasks since the deploy began, the actually applied version, the uri answering.</text>
+
+  <!-- probe -->
+  <rect x="33" y="486" width="794" height="104" rx="10" class="box"/>
+  <circle cx="53" cy="512" r="4" class="dot-yellow"/>
+  <text x="65" y="517" class="box-title">probe – the same archive, a throwaway application</text>
+  <text x="49" y="540" class="box-body">Compilation belongs to the server and happens on apply, so a check without risk needs a victim of its own:</text>
+  <text x="49" y="558" class="box-body">the probe creates one, collects the errors with file, line and column, and removes what it created. The working</text>
+  <text x="49" y="576" class="box-body">application is out of reach on purpose – <tspan class="mono">ELEMENT_APP_ID</tspan> and <tspan class="mono">ELEMENT_PROJECT_ID</tspan> are not used.</text>
+</svg>

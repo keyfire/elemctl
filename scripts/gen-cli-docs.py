@@ -34,9 +34,10 @@ TEXT = {
         "intro": (
             "Справочник собран из самого инструмента – это то же, что показывает "
             "`elemctl --help`, только на одной странице и целиком.\n\n"
-            "Общие флаги ставятся до команды: `elemctl --timeout 120 apps list`. "
-            "Язык вывода переключается флагом `--lang`, переменной `ELEMCTL_LANG` "
-            "или берётся из локали системы."
+            "Общие флаги принимаются в любой позиции – и до команды, и после неё: "
+            "`elemctl --timeout 120 apps list` и `elemctl apps list --timeout 120` "
+            "равнозначны. Язык вывода переключается флагом `--lang`, переменной "
+            "`ELEMCTL_LANG` или берётся из локали системы."
         ),
         "common": "Общие флаги",
         "col_opt": "Параметр",
@@ -51,9 +52,10 @@ TEXT = {
         "intro": (
             "This reference is generated from the tool itself – the same text "
             "`elemctl --help` prints, gathered on one page.\n\n"
-            "Common flags go before the command: `elemctl --timeout 120 apps list`. "
-            "The output language follows `--lang`, the `ELEMCTL_LANG` variable, or "
-            "the system locale."
+            "Common flags are accepted in any position – before the command and "
+            "after it: `elemctl --timeout 120 apps list` and `elemctl apps list "
+            "--timeout 120` are the same run. The output language follows `--lang`, "
+            "the `ELEMCTL_LANG` variable, or the system locale."
         ),
         "common": "Common flags",
         "col_opt": "Option",
