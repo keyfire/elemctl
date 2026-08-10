@@ -25,7 +25,7 @@ Development notes and updates (in Russian): the [1C × AI: engineering workshop]
 - **MCP server**: the same operations exposed as tools for AI agents (Claude Code and other MCP clients).
 - **Plugins**: `importlib.metadata` entry points – an external package supplies the platform debug adapter (`elemctl debug-adapter`) and commands of its own without bloating the core. One `Command` declaration becomes both a CLI subcommand and an MCP tool, so a command that knows about your own environment lives in your package rather than in a public core.
 - **Self-update**: `elemctl self-update` – update the package by unpacking the wheel, even while `elemctl.exe` is held by a running MCP server (where plain pipx/pip would break the install).
-- **VS Code extension (debugging)**: a companion in [`editors/vscode`](editors/vscode) – debug 1C:Enterprise.Element (XBSL) applications in plain VS Code through the platform's built-in debug adapter; it obtains the debug-session coordinates via `elemctl apps debug`.
+- **In VS Code**: deploy and debugging live in the [XBSL](https://github.com/keyfire/xbsl) extension – it calls elemctl: `elemctl deploy` behind the deploy button, `elemctl apps debug` for the debug-session coordinates.
 
 ### Honest apply verification
 
@@ -141,7 +141,7 @@ elemctl debug-adapter
 elemctl plugins
 ```
 
-The adapter itself (proprietary 1C jars) is extracted from the platform distribution by `tools/extract_adapter.py` – into a directory for a manual `xbslDebug.adapterPath`, or for building the plugin package. The script is not shipped in the package distribution.
+The adapter itself (proprietary 1C jars) is extracted from the platform distribution by `tools/extract_adapter.py` – into a directory for a manual `xbsl.debug.adapterPath`, or for building the plugin package. The script is not shipped in the package distribution.
 
 Plugin discovery is disabled by `ELEMCTL_NO_PLUGINS=1` (a run with the core capabilities only).
 
@@ -150,14 +150,14 @@ Plugin discovery is disabled by `ELEMCTL_NO_PLUGINS=1` (a run with the core capa
 Two companion extensions integrate elemctl into the editor:
 
 - [XBSL](https://marketplace.visualstudio.com/items?itemName=keyfire.xbsl) (the
-  [xbsl-lint](https://github.com/keyfire/xbsl-lint) project) – highlighting, linting, a form
-  preview, and the *XBSL: deploy the project* button that runs `elemctl deploy` as a terminal
-  task with the apply verification.
-- [XBSL Debug](https://marketplace.visualstudio.com/items?itemName=keyfire.xbsl-debug) (lives
-  in this repository, [`editors/vscode`](editors/vscode)) – debugging 1C:Element applications
-  with the platform's DAP adapter; the debug session data comes from `elemctl apps debug`.
+  [xbsl](https://github.com/keyfire/xbsl) project) – highlighting, linting, the form designer,
+  the metadata tree, the *XBSL: deploy the project* button that runs `elemctl deploy` as a
+  terminal task with the apply verification, and debugging 1C:Element applications through the
+  platform's DAP adapter, whose session data comes from `elemctl apps debug`. Debugging used to
+  be a separate *XBSL Debug* extension living in this repository; since XBSL 0.57 it is part of
+  the one extension, and this repository keeps only the elemctl side of it.
 
-Both are also published to [Open VSX](https://open-vsx.org/namespace/keyfire).
+It is also published to [Open VSX](https://open-vsx.org/namespace/keyfire).
 
 ## Use as a library
 

@@ -8,7 +8,7 @@ pyproject.toml – it only reads them:
   adapter; the value of the entry point is either a path (Path/str) or a function
   without arguments that returns one. The path is a directory containing a repo/
   subdirectory with the adapter jars (the ready-made value of
-  xbslDebug.adapterPath for the keyfire.xbsl-debug VS Code extension).
+  xbsl.debug.adapterPath for the XBSL VS Code extension).
 - "elemctl.commands" – commands of the plugin. The value is a Command, a list of
   them, or a function without arguments returning either. ONE declaration gives
   both surfaces: the core builds a CLI subcommand and an MCP tool out of it, and

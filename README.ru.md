@@ -59,9 +59,9 @@ platform's audience - but the CLI output is plain JSON.*
   поэтому команда, знающая про ваше окружение, живёт в вашем пакете, а не в публичном ядре.
 - **Обновление**: `elemctl self-update` - обновить пакет распаковкой колеса, даже когда
   `elemctl.exe` занят работающим MCP-сервером (штатный pipx/pip в этом случае ломает установку).
-- **Расширение VS Code (отладка)**: спутник в [`editors/vscode`](editors/vscode) – отладка
-  приложений 1С:Предприятие.Элемент (XBSL) в обычном VS Code через штатный debug-адаптер
-  платформы; координаты debug-сессии берёт через `elemctl apps debug`.
+- **В VS Code**: деплой и отладка живут в расширении [XBSL](https://github.com/keyfire/xbsl) –
+  оно зовёт elemctl: `elemctl deploy` по кнопке деплоя, `elemctl apps debug` за координатами
+  сессии отладки.
 
 ### Честная проверка применения
 
@@ -206,7 +206,7 @@ elemctl plugins
 ```
 
 Сам адаптер (проприетарные jar 1С) извлекается из дистрибутива платформы скриптом
-`tools/extract_adapter.py` - в каталог для ручной настройки `xbslDebug.adapterPath` либо
+`tools/extract_adapter.py` - в каталог для ручной настройки `xbsl.debug.adapterPath` либо
 для сборки пакета-плагина. Скрипт в дистрибутив пакета не входит.
 
 Обнаружение плагинов отключается переменной `ELEMCTL_NO_PLUGINS=1` (прогон только
@@ -217,15 +217,14 @@ elemctl plugins
 С редактором elemctl связывают два расширения-спутника:
 
 - [XBSL](https://marketplace.visualstudio.com/items?itemName=keyfire.xbsl) (проект
-  [xbsl-lint](https://github.com/keyfire/xbsl-lint)) – подсветка, линтер, предпросмотр форм
-  и кнопка "XBSL: деплой на стенд", запускающая `elemctl deploy` терминальной задачей с
-  проверкой применения.
-- [XBSL Debug](https://marketplace.visualstudio.com/items?itemName=keyfire.xbsl-debug)
-  (живёт в этом репозитории, [`editors/vscode`](editors/vscode)) – отладка приложений
-  1С:Элемента штатным DAP-адаптером платформы; данные отладочной сессии берёт
-  `elemctl apps debug`.
+  [xbsl](https://github.com/keyfire/xbsl)) – подсветка, линтер, конструктор форм, дерево
+  метаданных, кнопка "XBSL: деплой на стенд", запускающая `elemctl deploy` терминальной задачей
+  с проверкой применения, и отладка приложений 1С:Элемента штатным DAP-адаптером платформы,
+  данные сессии для которой даёт `elemctl apps debug`. Отладка была отдельным расширением
+  *XBSL Debug* в этом репозитории; с версии XBSL 0.57 она часть одного расширения, а здесь
+  осталась только сторона elemctl.
 
-Оба публикуются и в [Open VSX](https://open-vsx.org/namespace/keyfire).
+Оно публикуется и в [Open VSX](https://open-vsx.org/namespace/keyfire).
 
 ## Использование как библиотеки
 

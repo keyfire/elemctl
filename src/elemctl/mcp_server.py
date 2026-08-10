@@ -286,7 +286,7 @@ def create_server(config=None):
         """Путь к debug-адаптеру платформы из плагина (для расширения VS Code).
 
         Каталог содержит подкаталог repo/ с jar-файлами адаптера – готовое значение
-        настройки xbslDebug.adapterPath. Отсутствие плагина – это ответ (found: false),
+        настройки xbsl.debug.adapterPath. Отсутствие плагина – это ответ (found: false),
         а не ошибка. Локальная операция, к платформе не обращается.
         """
         path = plugins.debug_adapter_path()

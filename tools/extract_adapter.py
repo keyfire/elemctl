@@ -6,17 +6,14 @@ data/ide/theia/plugins/@1c-appengine-plugin/bin/debugger/ (the bin/ and repo/
 subdirectories with the adapter jars). Proprietary 1C components are not part of
 elemctl – this script extracts them from the distribution you are licensed for.
 
-The result is an <output>/<version>/ directory with a repo/ subdirectory: a ready value
-for the xbslDebug.adapterPath setting of the keyfire.xbsl-debug VS Code extension. The
-script also writes <output>/index.json (the available versions and the default one) –
-that file is read by the elemctl plugin package (the elemctl.debug_adapter entry point
-group) when the adapter is shipped through a plugin.
+The result is an <output>/<version>/ directory with a repo/ subdirectory: a ready value for
+the xbsl.debug.adapterPath setting of the XBSL VS Code extension. The script also writes
+<output>/index.json (the available versions and the default one) – the file a package that
+ships the adapter through the elemctl.debug_adapter entry point group reads to answer
+`elemctl debug-adapter`.
 
 Usage:
-    # to configure adapterPath by hand:
     python tools/extract_adapter.py <path to the .car or to the distribution directory> --output C:/tools/xbsl-adapter
-    # to build the plugin package:
-    python tools/extract_adapter.py <distribution> --output <elemctl-plugin>/elemctl_plugin/adapter
 """
 
 from __future__ import annotations

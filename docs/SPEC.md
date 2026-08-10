@@ -284,7 +284,7 @@ Commands (significant flags in parentheses):
 - `dumps create [APP_ID] [--description]`, `dumps get APP_ID DUMP_ID`.
 - `tasks list [--app-id]`, `tasks get-group TASK_ID`.
 - `tech get [APP_ID]`, `tech set APP_ID VERSION`.
-- `debug-adapter` – the path to the platform debug adapter directory supplied by a plugin (the `elemctl.debug_adapter` entry-point group, section 10). Output `{"path": ..., "found": true, "adapter-class": ...}` when present or `{"path": null, "found": false}`; exit code 0 in both cases. The `path` is a ready value for the VS Code extension's `xbslDebug.adapterPath` (a directory with a `repo/` subdirectory).
+- `debug-adapter` – the path to the platform debug adapter directory supplied by a plugin (the `elemctl.debug_adapter` entry-point group, section 10). Output `{"path": ..., "found": true, "adapter-class": ...}` when present or `{"path": null, "found": false}`; exit code 0 in both cases. The `path` is a ready value for the VS Code extension's `xbsl.debug.adapterPath` (a directory with a `repo/` subdirectory).
 - `plugins` – plugin diagnostics: what the plugins bring. `debug-adapter` – the declared adapter directories and whether each holds jars; `commands` – the commands of the plugins with the entry point they arrived through and the name of their MCP tool (`null` when the command stays out of MCP): `{"debug-adapter": [{"path": ..., "has-jars": true|false}], "commands": [{"name": ..., "source": ..., "mcp": ...}]}`.
 - The subcommands the plugins bring (section 10, the `elemctl.commands` group) stand alongside the commands of the core and are listed by `--help`. They may not take over a name of the core; the command reference describes the core alone.
 - `self-update [--version X]` – update the installed elemctl by unpacking the wheel from PyPI into site-packages, without touching busy exe files (plain pipx/pip breaks the install when `elemctl.exe` is held by a running MCP server; only the package files are updated, and the exe stub calls the new code). Fixes `pipx_metadata.json`. Output `{updated, from, to}`.
@@ -355,7 +355,7 @@ taken by a tool of the core is an error rather than a silent override.
 
 elemctl discovers external packages through `importlib.metadata.entry_points`. The core declares nothing about plugins in its own `pyproject.toml` – it is a consumer that reads the entry points on demand. This keeps non-publishable vendor artifacts (proprietary 1C jars) in a separate package while the public core stays clean.
 
-The **`elemctl.debug_adapter`** group. The entry-point value is a path (Path/str) or a zero-argument callable returning a path (`() -> Path | str`). The path points to the platform debug adapter directory: a directory containing a `repo/` subdirectory with the adapter jars (including `com.e1c.g5rt.debugger.adapter*.jar`). This is a ready value for the VS Code extension's `xbslDebug.adapterPath`.
+The **`elemctl.debug_adapter`** group. The entry-point value is a path (Path/str) or a zero-argument callable returning a path (`() -> Path | str`). The path points to the platform debug adapter directory: a directory containing a `repo/` subdirectory with the adapter jars (including `com.e1c.g5rt.debugger.adapter*.jar`). This is a ready value for the VS Code extension's `xbsl.debug.adapterPath`.
 
 Declaration in a plugin package:
 

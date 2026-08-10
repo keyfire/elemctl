@@ -816,7 +816,7 @@ def cmd_debug_adapter(args):
     """The path to the platform debug adapter directory brought by the plugin.
 
     The directory holds a repo/ subdirectory with the jar files of the adapter – that is
-    the ready value of the xbslDebug.adapterPath setting for the VS Code extension. A
+    the ready value of the xbsl.debug.adapterPath setting for the VS Code extension. A
     missing plugin is an answer (found: false, code 0), not an error: a non-zero code
     would mean a failure.
     """

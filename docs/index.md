@@ -26,7 +26,7 @@ Development notes and updates (in Russian): the [1C × AI: engineering workshop]
 - **MCP server**: the same operations exposed as tools for AI agents (Claude Code and other MCP clients).
 - **Plugins**: `importlib.metadata` entry points – an external package supplies the platform debug adapter (`elemctl debug-adapter`) without bloating the core.
 - **Self-update**: `elemctl self-update` – update the package by unpacking the wheel, even while `elemctl.exe` is held by a running MCP server (where plain pipx/pip would break the install).
-- **VS Code extension (debugging)**: a companion in [`editors/vscode`](editors/vscode) – debug 1C:Enterprise.Element (XBSL) applications in plain VS Code through the platform's built-in debug adapter; it obtains the debug-session coordinates via `elemctl apps debug`.
+- **In VS Code**: deploy and debugging live in the [XBSL](https://github.com/keyfire/xbsl) extension – it calls elemctl: `elemctl deploy` behind the deploy button, `elemctl apps debug` for the debug-session coordinates.
 
 ### Honest apply verification
 

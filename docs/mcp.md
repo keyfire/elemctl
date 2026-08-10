@@ -67,21 +67,19 @@ elemctl debug-adapter
 elemctl plugins
 ```
 
-The adapter itself (proprietary 1C jars) is extracted from the platform distribution by `tools/extract_adapter.py` – into a directory for a manual `xbslDebug.adapterPath`, or for building the plugin package. The script is not shipped in the package distribution.
+The adapter itself (proprietary 1C jars) is extracted from the platform distribution by `tools/extract_adapter.py` – into a directory for a manual `xbsl.debug.adapterPath`, or for building the plugin package. The script is not shipped in the package distribution.
 
 Plugin discovery is disabled by `ELEMCTL_NO_PLUGINS=1` (a run with the core capabilities only).
 
 ## VS Code
 
 
-Two companion extensions integrate elemctl into the editor:
+A companion extension integrates elemctl into the editor:
 
 - [XBSL](https://marketplace.visualstudio.com/items?itemName=keyfire.xbsl) (the
-  [xbsl-lint](https://github.com/keyfire/xbsl-lint) project) – highlighting, linting, a form
-  preview, and the *XBSL: deploy the project* button that runs `elemctl deploy` as a terminal
-  task with the apply verification.
-- [XBSL Debug](https://marketplace.visualstudio.com/items?itemName=keyfire.xbsl-debug) (lives
-  in this repository, [`editors/vscode`](editors/vscode)) – debugging 1C:Element applications
-  with the platform's DAP adapter; the debug session data comes from `elemctl apps debug`.
+  [xbsl](https://github.com/keyfire/xbsl) project) – highlighting, linting, the form designer,
+  the metadata tree, the *XBSL: deploy the project* button that runs `elemctl deploy` as a
+  terminal task with the apply verification, and debugging 1C:Element applications with the
+  platform's DAP adapter, whose session data comes from `elemctl apps debug`.
 
-Both are also published to [Open VSX](https://open-vsx.org/namespace/keyfire).
+It is also published to [Open VSX](https://open-vsx.org/namespace/keyfire).

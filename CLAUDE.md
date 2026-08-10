@@ -53,5 +53,4 @@ fails in CI.
 
 The version lives in `src/elemctl/__init__.py` alone (`pyproject.toml` reads it dynamically).
 A release is a version bump, a `CHANGELOG` section for the day and an annotated `v<version>`
-tag – publishing to PyPI happens in CI through Trusted Publishing. The VS Code debug companion
-in `editors/vscode` is released separately under `vscode-v*` tags.
+tag – publishing to PyPI happens in CI through Trusted Publishing.

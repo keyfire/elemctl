@@ -5,8 +5,7 @@
 Notable changes to elemctl, newest first. Entries are grouped by day; the versions released that
 day are named in the heading. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
-[Semantic Versioning](https://semver.org/spec/v2.0.0.html). The VS Code debug companion in
-`editors/vscode` is released separately under the `vscode-v*` tags and is not tracked here.
+[Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## 2026-08-07 – 0.26.0, 0.27.0
 

@@ -100,7 +100,7 @@ elemctl plugins
 ```
 
 Сам адаптер (проприетарные jar 1С) извлекается из дистрибутива платформы скриптом
-`tools/extract_adapter.py` - в каталог для ручной настройки `xbslDebug.adapterPath` либо
+`tools/extract_adapter.py` - в каталог для ручной настройки `xbsl.debug.adapterPath` либо
 для сборки пакета-плагина. Скрипт в дистрибутив пакета не входит.
 
 Обнаружение плагинов отключается переменной `ELEMCTL_NO_PLUGINS=1` (прогон только
@@ -109,15 +109,12 @@ elemctl plugins
 ## VS Code
 
 
-С редактором elemctl связывают два расширения-спутника:
+С редактором elemctl связывает расширение-спутник:
 
 - [XBSL](https://marketplace.visualstudio.com/items?itemName=keyfire.xbsl) (проект
-  [xbsl-lint](https://github.com/keyfire/xbsl-lint)) – подсветка, линтер, предпросмотр форм
-  и кнопка "XBSL: деплой на стенд", запускающая `elemctl deploy` терминальной задачей с
-  проверкой применения.
-- [XBSL Debug](https://marketplace.visualstudio.com/items?itemName=keyfire.xbsl-debug)
-  (живёт в этом репозитории, [`editors/vscode`](editors/vscode)) – отладка приложений
-  1С:Элемента штатным DAP-адаптером платформы; данные отладочной сессии берёт
-  `elemctl apps debug`.
+  [xbsl](https://github.com/keyfire/xbsl)) – подсветка, линтер, конструктор форм, дерево
+  метаданных, кнопка "XBSL: деплой на стенд", запускающая `elemctl deploy` терминальной задачей
+  с проверкой применения, и отладка приложений 1С:Элемента штатным DAP-адаптером платформы,
+  данные сессии для которой даёт `elemctl apps debug`.
 
-Оба публикуются и в [Open VSX](https://open-vsx.org/namespace/keyfire).
+Оно публикуется и в [Open VSX](https://open-vsx.org/namespace/keyfire).
