@@ -216,6 +216,15 @@ def check() -> list[str]:
                 target = (DOCS / href).resolve()
             if not target.exists():
                 problems.append(f"{name}: the image {href} is not in the repository")
+                continue
+            # A page must show the SVG, which carries both palettes; the PNG next to it has one
+            # baked in and belongs to the README, where GitHub follows no theme at all.
+            if name.endswith(".md") and name not in ("README.md", "README.ru.md") \
+                    and target.suffix == ".png" and target.with_suffix(".svg").exists():
+                problems.append(
+                    f"{name}: {target.name} follows no theme - the page needs "
+                    f"{target.with_suffix('.svg').name}, the PNG belongs to the README"
+                )
 
     return problems
 

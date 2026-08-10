@@ -112,6 +112,18 @@ def test_guard_notices_a_missing_image(guard, monkeypatch):
     assert any("no-such-diagram.svg" in problem for problem in guard.check())
 
 
+def test_guard_notices_a_page_showing_the_readme_png(guard, monkeypatch):
+    # the page has to embed the SVG - it carries both palettes; the PNG has one baked in, and a
+    # reader in the light theme gets a dark picture (that is how it looked on the neighbouring
+    # edt-bridge site)
+    original = guard.page
+    monkeypatch.setattr(
+        guard, "page",
+        lambda name: original(name).replace("architecture.ru.svg)", "architecture.ru.png)"),
+    )
+    assert any("architecture.ru.png follows no theme" in problem for problem in guard.check())
+
+
 def test_guard_notices_a_broken_raw_link_in_the_readme(guard, monkeypatch):
     # a README embeds its images by raw URL, and that link rots without a trace when the
     # file behind it is renamed
