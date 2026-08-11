@@ -7,7 +7,7 @@ day are named in the heading. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## 2026-08-11 – 0.29.0
 
 ### Changed
 - **A missing `.env` file is reported with the absolute path and the current directory.** A
