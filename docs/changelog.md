@@ -13,6 +13,18 @@ day are named in the heading. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Changed
+- **A missing `.env` file is reported with the absolute path and the current directory.** A
+  relative `--env-file` is resolved from the current directory, not from `--project-dir`, and in
+  a background run the current directory is not always the one it seems to be – the refusal used
+  to read as "the stand is unreachable".
+- **`probe` documents its project layout requirement.** The command description and the
+  `--project-dir` help now say the directory must follow the
+  `{repository}/{Vendor}/{Name}/Project.yaml` layout (the Vendor+Name pair is how the platform
+  identifies the project); previously the requirement surfaced only as an error after the fact.
+
 ## 2026-08-10 – 0.28.0
 
 ### Documentation

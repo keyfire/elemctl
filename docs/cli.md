@@ -48,7 +48,7 @@ usage: elemctl [-h] [--base-url BASE_URL] [--client-id CLIENT_ID] [--client-secr
 | `inspect` | inspect a prebuilt assembly archive (.xasm/.xlib) |
 | `deploy` | full cycle: build -&gt; upload -&gt; apply -&gt; restart -&gt; verify the apply |
 | `user-lists` | user lists and their sign-in settings |
-| `probe` | isolated compilation check: build -&gt; throwaway application -&gt; errors with file and position -&gt; cleanup |
+| `probe` | isolated compilation check: build -&gt; throwaway application -&gt; errors with file and position -&gt; cleanup; the project directory must follow the {repository}/{Vendor}/{Name}/Project.yaml layout – the Vendor+Name pair is how the platform identifies the project |
 | `branches` | development-environment branches |
 | `dumps` | application dumps |
 | `tasks` | application tasks |
@@ -673,7 +673,7 @@ usage: elemctl probe [-h] [--project-dir PROJECT_DIR] [--output OUTPUT]
 | Option | Description |
 |---|---|
 | `-h, --help` | show this help message and exit |
-| `--project-dir PROJECT_DIR` | the project directory (by default searched downward from the current one) |
+| `--project-dir PROJECT_DIR` | the project directory – .../{Vendor}/{Name} with Project.yaml inside (by default searched downward from the current one) |
 | `--output OUTPUT` | directory for the archive (default: a temporary one) |
 | `--build-version BUILD_VERSION` | explicit build version (default {base}`-probe-`{token} – it has to be a new one) |
 | `--name NAME` | name of the throwaway application (default elemctl-probe-{token}) |

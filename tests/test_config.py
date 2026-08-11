@@ -79,6 +79,18 @@ def test_missing_env_file_raises(tmp_path):
         Config.from_env(env_file=tmp_path / "нет-такого.env", environ={})
 
 
+def test_missing_relative_env_file_names_the_absolute_path_and_cwd(tmp_path, monkeypatch):
+    """A relative --env-file is resolved from the CURRENT directory, not from
+    --project-dir; the message must show where the file was actually looked for,
+    or the refusal reads as "the stand is unreachable" in a background run."""
+    monkeypatch.chdir(tmp_path)
+    with pytest.raises(ConfigError) as excinfo:
+        Config.from_env(env_file=".agent/local.env", environ={})
+    message = str(excinfo.value)
+    assert ".agent" in message
+    assert str(tmp_path) in message  # both the resolved path and the cwd carry it
+
+
 def test_require_reports_missing_variables(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)  # so that no stray .env is picked up
     config = Config.from_env(environ={"ELEMENT_BASE_URL": "https://api.test"})

@@ -84,7 +84,18 @@ class Config:
         if env_file:
             path = Path(env_file)
             if not path.is_file():
-                raise ConfigError(i18n.t("config.env-file-not-found", path=path))
+                # The absolute path and the cwd answer the actual question: a
+                # relative --env-file is resolved from the CURRENT directory,
+                # not from --project-dir, and in a background run the current
+                # directory is not always the one it seems to be.
+                raise ConfigError(
+                    i18n.t(
+                        "config.env-file-not-found",
+                        path=path,
+                        absolute=path.resolve(),
+                        cwd=Path.cwd(),
+                    )
+                )
             file_values = parse_env_file(path)
         else:
             default_path = Path(".env")

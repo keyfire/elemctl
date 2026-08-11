@@ -336,8 +336,11 @@ MESSAGES = {
         "en": "unknown configuration parameters: {unknown}",
     },
     "config.env-file-not-found": {
-        "ru": ".env-файл не найден: {path}",
-        "en": ".env file not found: {path}",
+        "ru": ".env-файл не найден: {path} (искали {absolute}; относительный путь "
+              "разрешается от текущего каталога {cwd}, а не от каталога проекта)",
+        "en": ".env file not found: {path} (looked for {absolute}; a relative path "
+              "is resolved from the current directory {cwd}, not from the project "
+              "directory)",
     },
     "config.connection-not-set": {
         "ru": "не заданы параметры подключения: {missing} (переменные окружения, "
@@ -1154,13 +1157,19 @@ MESSAGES = {
     },
     "cli.help.probe": {
         "ru": "изолированная проверка компиляции: сборка -> одноразовое приложение -> "
-              "ошибки с файлом и позицией -> уборка",
+              "ошибки с файлом и позицией -> уборка; каталог проекта обязан лежать по "
+              "схеме {{репозиторий}}/{{Поставщик}}/{{Имя}}/Проект.yaml – по паре "
+              "Поставщик+Имя платформа опознаёт проект",
         "en": "isolated compilation check: build -> throwaway application -> errors with "
-              "file and position -> cleanup",
+              "file and position -> cleanup; the project directory must follow the "
+              "{{repository}}/{{Vendor}}/{{Name}}/Project.yaml layout – the Vendor+Name "
+              "pair is how the platform identifies the project",
     },
     "cli.help.probe-project-dir": {
-        "ru": "каталог проекта (по умолчанию ищется вглубь от текущего)",
-        "en": "the project directory (by default searched downward from the current one)",
+        "ru": "каталог проекта – вида .../{{Поставщик}}/{{Имя}} с Проект.yaml внутри "
+              "(по умолчанию ищется вглубь от текущего)",
+        "en": "the project directory – .../{{Vendor}}/{{Name}} with Project.yaml inside "
+              "(by default searched downward from the current one)",
     },
     "cli.help.probe-output": {
         "ru": "каталог для архива (по умолчанию временный)",
