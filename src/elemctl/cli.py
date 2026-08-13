@@ -25,6 +25,7 @@ from .client import (
     OIDC_SERVICE,
     ElementClient,
     brief_app,
+    brief_assembly,
     extract_assembly_id,
     sign_in_hint,
 )
@@ -32,6 +33,7 @@ from .config import Config
 from .deploy import deploy_from_sources
 from .errors import ApiError, ConfigError, ElemctlError, PluginError
 from .probe import probe_project
+from .versions import newest_first
 
 
 def make_client(config):
@@ -330,12 +332,27 @@ def cmd_projects_delete(args):
 
 
 def cmd_builds_list(args):
+    """The project's assemblies, newest first and limited by default.
+
+    The site project alone holds over a thousand assemblies: printing them all
+    made the answer to "which commit is the applied build from" a matter of
+    piping through head and hoping the right card made the cut. The default
+    shows the latest ten; --limit 0 brings the whole list back, and the cut is
+    never silent - the count of what was left out goes to stderr.
+    """
     config = _config(args)
     client = make_client(config)
     project_id = _require(
         args.project_id, config.project_id, i18n.t("cli.require.project-id-flag")
     )
-    _emit(client.list_assemblies(project_id))
+    assemblies = newest_first(client.list_assemblies(project_id))
+    total = len(assemblies)
+    if args.limit > 0 and total > args.limit:
+        assemblies = assemblies[: args.limit]
+        _progress(i18n.t("cli.builds-list-truncated", shown=len(assemblies), total=total))
+    if args.brief:
+        assemblies = [brief_assembly(assembly) for assembly in assemblies]
+    _emit(assemblies)
     return 0
 
 
@@ -1094,6 +1111,12 @@ def build_parser():
 
     p = builds_sub.add_parser("list", help=i18n.t("cli.help.builds-list"))
     p.add_argument("--project-id", help=i18n.t("cli.help.arg.project-id"))
+    p.add_argument(
+        "--limit", type=int, default=10, help=i18n.t("cli.help.builds-list-limit")
+    )
+    p.add_argument(
+        "--brief", action="store_true", help=i18n.t("cli.help.builds-list-brief")
+    )
     p.set_defaults(handler=cmd_builds_list)
 
     p = builds_sub.add_parser("get", help=i18n.t("cli.help.builds-get"))

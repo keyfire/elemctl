@@ -14,7 +14,7 @@ import pytest
 # different name; the extra is what may be missing.
 pytest.importorskip("mcp.server", reason="extra elemctl[mcp] не установлен")
 
-from elemctl.client import brief_app
+from elemctl.client import brief_app, brief_assembly
 from elemctl.mcp_server import (
     INSTRUCTIONS,
     _brief_project,
@@ -119,6 +119,40 @@ def test_list_projects_is_brief_by_default():
     list_tool = next(tool for tool in tools if tool.name == "list_projects")
     properties = tool_input_schema(list_tool).get("properties") or {}
     assert properties.get("brief", {}).get("default") is True
+
+
+def test_list_builds_is_brief_and_limited_by_default():
+    """A project holds assemblies by the thousand: the full list floods the response."""
+    server = create_server()
+    tools = asyncio.run(server.list_tools())
+    list_tool = next(tool for tool in tools if tool.name == "list_builds")
+    properties = tool_input_schema(list_tool).get("properties") or {}
+    assert properties.get("brief", {}).get("default") is True
+    assert properties.get("limit", {}).get("default") == 10
+
+
+def test_brief_assembly_keeps_only_the_identifying_fields():
+    card = {
+        "id": "asm-1",
+        "assembly-version": "1.0-3",
+        "project-version": "1.0-3",
+        "created": "2026-01-01T10:00:00.000Z",
+        "branch-name": "main",
+        "commit-id": "abc123",
+        "project-name": "crm",
+        "project-developer": "acme",
+        "project-id": "proj-1",
+        "modified": False,
+        "comment": "",
+    }
+    assert brief_assembly(card) == {
+        "id": "asm-1",
+        "assembly-version": "1.0-3",
+        "project-version": "1.0-3",
+        "created": "2026-01-01T10:00:00.000Z",
+        "branch-name": "main",
+        "commit-id": "abc123",
+    }
 
 
 def test_brief_project_keeps_only_the_identifying_fields():
@@ -332,7 +366,7 @@ EXPECTED_TOOL_PARAMETERS = {
     "list_app_tasks": ("app_id env_file", ""),
     "list_apps": ("brief env_file name", ""),
     "list_branches": ("env_file name project_id", ""),
-    "list_builds": ("env_file project_id", "project_id"),
+    "list_builds": ("brief env_file limit project_id", "project_id"),
     "list_projects": ("brief env_file", ""),
     "list_spaces": ("env_file", ""),
     "list_user_lists": ("env_file name", ""),

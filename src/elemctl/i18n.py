@@ -113,6 +113,10 @@ MESSAGES = {
         "ru": "для --latest-build нужен --project-id (или ELEMENT_PROJECT_ID)",
         "en": "--latest-build requires --project-id (or ELEMENT_PROJECT_ID)",
     },
+    "cli.builds-list-truncated": {
+        "ru": "показаны {shown} из {total} сборок (свежие первыми); все – флаг --limit 0",
+        "en": "showing {shown} of {total} assemblies (newest first); --limit 0 shows them all",
+    },
     "cli.upload-new-project-conflict": {
         "ru": "флаги --new-project и --project-id несовместимы: либо новый проект, "
               "либо конкретный",
@@ -948,8 +952,16 @@ MESSAGES = {
         "en": "project assemblies on the platform",
     },
     "cli.help.builds-list": {
-        "ru": "список сборок проекта",
-        "en": "list project assemblies",
+        "ru": "список сборок проекта (свежие первыми)",
+        "en": "list project assemblies (newest first)",
+    },
+    "cli.help.builds-list-limit": {
+        "ru": "сколько сборок показать (по умолчанию 10; 0 – все)",
+        "en": "how many assemblies to show (default 10; 0 – all)",
+    },
+    "cli.help.builds-list-brief": {
+        "ru": "краткие карточки: ид, версии, дата, ветка, коммит",
+        "en": "brief cards: id, versions, date, branch, commit",
     },
     "cli.help.builds-get": {
         "ru": "карточка сборки по версии либо ид",

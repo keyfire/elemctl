@@ -41,7 +41,7 @@ except ImportError:
 
 from . import __version__, i18n, plugins
 from .build import build_assembly, inspect_assembly
-from .client import ElementClient, brief_app, extract_assembly_id, sign_in_hint
+from .client import ElementClient, brief_app, brief_assembly, extract_assembly_id, sign_in_hint
 from .config import Config
 from .deploy import (
     deploy_from_sources,
@@ -49,6 +49,7 @@ from .deploy import (
 )
 from .errors import ElemctlError, PluginError
 from .probe import probe_project
+from .versions import newest_first
 
 INSTRUCTIONS = (
     "Инструменты управления платформой 1С:Предприятие.Элемент (Console API v2). "
@@ -320,9 +321,22 @@ def create_server(config=None):
         return [_brief_project(project) for project in projects if isinstance(project, dict)]
 
     @server.tool()
-    def list_builds(project_id: str, env_file: str = "") -> list:
-        """Список сборок проекта."""
-        return client(env_file).list_assemblies(project_id)
+    def list_builds(
+        project_id: str, limit: int = 10, brief: bool = True, env_file: str = ""
+    ) -> list:
+        """Список сборок проекта, свежие первыми; limit – сколько показать (по умолчанию 10, 0 – все).
+
+        brief (по умолчанию) оставляет от карточки ид, версии, дату, ветку и коммит;
+        brief=false отдаёт карточки целиком. У старого проекта сборок бывают тысячи –
+        полный список без limit переполняет ответ. env_file – путь к .env другого
+        окружения.
+        """
+        assemblies = newest_first(client(env_file).list_assemblies(project_id))
+        if limit > 0:
+            assemblies = assemblies[:limit]
+        if not brief:
+            return assemblies
+        return [brief_assembly(assembly) for assembly in assemblies]
 
     # The function name differs from the tool name so that it does not shadow
     # build_assembly imported from the build module.

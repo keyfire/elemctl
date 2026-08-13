@@ -13,6 +13,17 @@ day are named in the heading. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Changed
+- **`builds list` answers with the ten newest assemblies by default.** A long-lived project
+  holds assemblies by the thousand, and "which commit is the applied build from" meant piping
+  the full list through `head` and hoping the right card made the cut. The list is now sorted
+  newest first, `--limit N` changes the cut (`--limit 0` – everything), and the cut is never
+  silent: stderr names how many of how many are shown. The new `--brief` flag keeps the id,
+  the versions, the date, the branch and the commit of each card. The MCP `list_builds` tool
+  takes the same `limit` (default 10) and `brief` (on by default).
+
 ## 2026-08-11 – 0.29.0
 
 ### Changed

@@ -317,6 +317,79 @@ def test_app_source_error_explains_how_to_get_a_project(capsys):
     assert "--project-id" in payload["error"]
 
 
+def _assembly_cards(count):
+    """Synthetic assembly cards, oldest first: 1.0-1 .. 1.0-{count}."""
+    return [
+        {
+            "id": f"asm-{number}",
+            "assembly-version": f"1.0-{number}",
+            "project-version": f"1.0-{number}",
+            "created": f"2026-01-{number:02d}T10:00:00.000Z",
+            "branch-name": None,
+            "commit-id": f"c{number}",
+            "project-name": "crm",
+            "project-developer": "acme",
+            "modified": False,
+            "comment": "",
+        }
+        for number in range(1, count + 1)
+    ]
+
+
+class FakeAssembliesClient:
+    def __init__(self, cards):
+        self._cards = cards
+
+    def list_assemblies(self, project_id):
+        return self._cards
+
+
+def test_builds_list_shows_the_latest_ten_and_says_so(monkeypatch, capsys):
+    """A project accumulates assemblies by the thousand: the default answer is the ten
+    newest, and the cut is not silent – the count of what was left out goes to stderr."""
+    monkeypatch.setattr(cli, "make_client", lambda config: FakeAssembliesClient(_assembly_cards(15)))
+
+    rc = cli.main(["builds", "list", "--project-id", "proj-1"])
+
+    assert rc == 0
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+    assert [card["assembly-version"] for card in payload] == [
+        f"1.0-{number}" for number in range(15, 5, -1)
+    ]
+    assert "10" in captured.err and "15" in captured.err
+    # The full cards stay full by default – brevity is a separate flag.
+    assert payload[0]["project-developer"] == "acme"
+
+
+def test_builds_list_limit_zero_prints_everything(monkeypatch, capsys):
+    monkeypatch.setattr(cli, "make_client", lambda config: FakeAssembliesClient(_assembly_cards(15)))
+
+    rc = cli.main(["builds", "list", "--project-id", "proj-1", "--limit", "0"])
+
+    assert rc == 0
+    captured = capsys.readouterr()
+    assert len(json.loads(captured.out)) == 15
+    assert captured.err == ""
+
+
+def test_builds_list_brief_keeps_only_the_identifying_fields(monkeypatch, capsys):
+    monkeypatch.setattr(cli, "make_client", lambda config: FakeAssembliesClient(_assembly_cards(2)))
+
+    rc = cli.main(["builds", "list", "--project-id", "proj-1", "--brief"])
+
+    assert rc == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload[0] == {
+        "id": "asm-2",
+        "assembly-version": "1.0-2",
+        "project-version": "1.0-2",
+        "created": "2026-01-02T10:00:00.000Z",
+        "branch-name": None,
+        "commit-id": "c2",
+    }
+
+
 class FakeUploadClient:
     """A client for the builds upload tests: records the calls, answers with a project card."""
 

@@ -43,3 +43,23 @@ def pick_latest(assemblies, version_key="assembly-version"):
             best = item
             best_counter = counter
     return best
+
+
+def newest_first(assemblies):
+    """The assemblies sorted newest first, ready for a limited listing.
+
+    The primary key is the created stamp: the platform writes ISO-8601 in one
+    time zone, which sorts chronologically as text. The numeric version counter
+    breaks the ties and orders the cards that carry no stamp at all - those go
+    after the stamped ones. Non-dict items are dropped: there is nothing to sort
+    them by, and every consumer reads the cards as dictionaries anyway.
+    """
+    items = [item for item in assemblies or [] if isinstance(item, dict)]
+    return sorted(
+        items,
+        key=lambda item: (
+            str(item.get("created") or ""),
+            version_counter(item.get("assembly-version")),
+        ),
+        reverse=True,
+    )

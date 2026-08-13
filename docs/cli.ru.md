@@ -383,7 +383,7 @@ usage: elemctl builds [-h] действие ...
 
 | Параметр | Описание |
 |---|---|
-| `list` | список сборок проекта |
+| `list` | список сборок проекта (свежие первыми) |
 | `get` | карточка сборки по версии либо ид |
 | `upload` | загрузить файл сборки (.xasm/.xlib) |
 | `delete` | удалить сборку по версии либо ид |
@@ -397,7 +397,7 @@ usage: elemctl builds [-h] действие ...
 ### `elemctl builds list`
 
 ```bash
-usage: elemctl builds list [-h] [--project-id PROJECT_ID]
+usage: elemctl builds list [-h] [--project-id PROJECT_ID] [--limit LIMIT] [--brief]
 ```
 
 **Параметры**
@@ -406,6 +406,8 @@ usage: elemctl builds list [-h] [--project-id PROJECT_ID]
 |---|---|
 | `-h, --help` | показать эту справку и выйти |
 | `--project-id PROJECT_ID` | ид проекта (по умолчанию ELEMENT_PROJECT_ID) |
+| `--limit LIMIT` | сколько сборок показать (по умолчанию 10; 0 – все) |
+| `--brief` | краткие карточки: ид, версии, дата, ветка, коммит |
 
 ### `elemctl builds get`
 

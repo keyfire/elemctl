@@ -206,6 +206,24 @@ def brief_app(app):
     }
 
 
+def brief_assembly(assembly):
+    """A brief assembly card: what a build is recognized and picked by.
+
+    The question a listing answers is "which commit is that build from": the
+    versions, the date, the branch and the commit, plus the id an assembly is
+    addressed by. The rest of the full card names the project over again or
+    serves the platform itself.
+    """
+    return {
+        "id": assembly.get("id"),
+        "assembly-version": assembly.get("assembly-version"),
+        "project-version": assembly.get("project-version"),
+        "created": assembly.get("created"),
+        "branch-name": assembly.get("branch-name"),
+        "commit-id": assembly.get("commit-id"),
+    }
+
+
 #: The account a freshly created application can be signed in with. It is a code,
 #: not a text: the human wording lives in the message catalog.
 CONTROL_PANEL_ACCOUNT = "control-panel"

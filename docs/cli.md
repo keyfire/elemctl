@@ -383,7 +383,7 @@ usage: elemctl builds [-h] action ...
 
 | Option | Description |
 |---|---|
-| `list` | list project assemblies |
+| `list` | list project assemblies (newest first) |
 | `get` | assembly details by version or id |
 | `upload` | upload an assembly file (.xasm/.xlib) |
 | `delete` | delete an assembly by version or id |
@@ -397,7 +397,7 @@ usage: elemctl builds [-h] action ...
 ### `elemctl builds list`
 
 ```bash
-usage: elemctl builds list [-h] [--project-id PROJECT_ID]
+usage: elemctl builds list [-h] [--project-id PROJECT_ID] [--limit LIMIT] [--brief]
 ```
 
 **Options**
@@ -406,6 +406,8 @@ usage: elemctl builds list [-h] [--project-id PROJECT_ID]
 |---|---|
 | `-h, --help` | show this help message and exit |
 | `--project-id PROJECT_ID` | the project id (default: ELEMENT_PROJECT_ID) |
+| `--limit LIMIT` | how many assemblies to show (default 10; 0 – all) |
+| `--brief` | brief cards: id, versions, date, branch, commit |
 
 ### `elemctl builds get`
 
