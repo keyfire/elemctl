@@ -13,7 +13,7 @@ sidebar:
 [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/), проект следует
 [семантическому версионированию](https://semver.org/lang/ru/).
 
-## Unreleased
+## 14.08.2026 – 0.30.0
 
 ### Изменено
 - **`builds list` по умолчанию отвечает десятью свежими сборками.** У давнего проекта сборок
