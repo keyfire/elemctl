@@ -150,7 +150,12 @@ def probe_project(
     project in place (for a hands-on investigation of a failure).
     """
     log = log or (lambda message: None)
+    # The token ends up as the version suffix after the last hyphen, and that suffix
+    # picks the project's latest build when it parses as a number. Eight hex digits
+    # come out all-numeric once in ~43 draws – often enough that CI caught it live.
     token = uuid.uuid4().hex[:8]
+    while token.isdigit():
+        token = uuid.uuid4().hex[:8]
 
     meta = read_project_meta(find_project_dir(project_dir) if project_dir else find_project_dir())
     report = ProbeReport(

@@ -153,6 +153,30 @@ def test_probe_default_version_is_not_a_numeric_counter(project_factory, tmp_pat
     assert version_counter(report.version) == 0
 
 
+def test_probe_skips_an_all_digit_token(monkeypatch, project_factory, tmp_path):
+    """Eight hex digits come out all-numeric once in ~43 draws – CI caught one live
+    (28229801): such a version parses as a numeric counter and would win the
+    latest-build pick. An all-digit token must be redrawn, however many in a row."""
+    import elemctl.probe as probe_module
+    from elemctl.versions import version_counter
+
+    class StubUuid:
+        def __init__(self, hex_value):
+            self.hex = hex_value
+
+    draws = iter(["28229801", "31415926", "c0ffee12"])
+    monkeypatch.setattr(
+        probe_module.uuid, "uuid4", lambda: StubUuid(next(draws).ljust(32, "f"))
+    )
+
+    report = probe_project(
+        FakeProbeClient(), project_dir=project_factory(), output_dir=tmp_path / "dist"
+    )
+
+    assert report.version.endswith("-probe-c0ffee12")
+    assert version_counter(report.version) == 0
+
+
 def test_probe_reports_compilation_errors_and_fails(project_factory, tmp_path):
     client = FakeProbeClient(fail=True)
 

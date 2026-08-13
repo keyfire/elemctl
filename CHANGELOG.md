@@ -18,6 +18,12 @@ day are named in the heading. The format follows
   the versions, the date, the branch and the commit of each card. The MCP `list_builds` tool
   takes the same `limit` (default 10) and `brief` (on by default).
 
+### Fixed
+- **A probe build can no longer win the latest-build pick.** The probe version ends with a
+  random token, and eight hex digits come out all-numeric once in ~43 draws – such a version
+  parses as a huge numeric counter, and `create_app --latest-build` would pick the probe build
+  over the real one. An all-digit token is redrawn now. Caught live by CI.
+
 ## 2026-08-11 – 0.29.0
 
 ### Changed
