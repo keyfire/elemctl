@@ -13,7 +13,7 @@ day are named in the heading. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## 2026-08-18 – 0.31.0, 0.31.1
 
 ### Added
 
@@ -23,11 +23,6 @@ day are named in the heading. The format follows
   stderr whenever the context is built without verification; stdout keeps the answer of the
   command, so piped JSON is not spoiled by it. `ELEMENT_TLS_STRICT=false` stays silent – it drops
   the strict profile alone and leaves the chain and the host name judged.
-
-## 2026-08-18 – 0.31.0
-
-### Added
-
 - **The TLS of a connection is configurable: a private CA and how strict the checks are.**
   Python 3.13 turned the strict RFC 5280 profile on, and a private cloud whose internal CA
   predates it began refusing every call with `CERTIFICATE_VERIFY_FAILED: Basic Constraints of CA
