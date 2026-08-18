@@ -117,6 +117,23 @@ def test_verification_can_be_explicitly_disabled():
     assert context.check_hostname is False
 
 
+def test_verification_switched_off_says_so_on_stderr(capsys):
+    """The point of the entry: a .env written once keeps the check off for months, and nothing
+    about a call that skips verification looks different from a call that passed it."""
+    UrllibTransport(tls_verify=False)
+    streams = capsys.readouterr()
+    assert "ELEMENT_TLS_VERIFY" in streams.err
+    # stdout is the answer of the command - a warning there would end up inside piped JSON.
+    assert streams.out == ""
+
+
+def test_a_verifying_transport_keeps_quiet(capsys):
+    UrllibTransport()
+    UrllibTransport(tls_strict=False)
+    streams = capsys.readouterr()
+    assert (streams.out, streams.err) == ("", "")
+
+
 def test_invalid_ca_file_is_a_configuration_error(tmp_path):
     missing = tmp_path / "missing-ca.pem"
     with pytest.raises(ConfigError, match="missing-ca.pem"):

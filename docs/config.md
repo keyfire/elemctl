@@ -87,7 +87,9 @@ profile. Prefer fixing or reissuing the CA certificate when possible.
 Use `ELEMENT_CA_FILE=/path/to/internal-ca.pem` when the private CA is not in the
 system trust store. `ELEMENT_TLS_VERIFY=false` disables both certificate and
 hostname verification and is intended only as a last resort in an isolated test
-network. Boolean values accept `true`/`false`, `yes`/`no`, `on`/`off`, or `1`/`0`.
+network. With verification off every command prints a warning to stderr - stdout
+keeps the answer, so a piped JSON output is not spoiled by it. Boolean values
+accept `true`/`false`, `yes`/`no`, `on`/`off`, or `1`/`0`.
 
 `ELEMCTL_NO_PROXY` solves a different problem: it routes requests past the
 environment's proxy. It can help when the proxy cannot reach an internal address

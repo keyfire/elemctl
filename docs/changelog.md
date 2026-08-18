@@ -13,6 +13,17 @@ day are named in the heading. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Added
+
+- **A connection with verification switched off says so on every run.** `ELEMENT_TLS_VERIFY=false`
+  is written into a `.env` once and then keeps quiet for months, while a call that verifies
+  nothing looks exactly like a call that passed the checks. The tool now prints a warning to
+  stderr whenever the context is built without verification; stdout keeps the answer of the
+  command, so piped JSON is not spoiled by it. `ELEMENT_TLS_STRICT=false` stays silent – it drops
+  the strict profile alone and leaves the chain and the host name judged.
+
 ## 2026-08-18 – 0.31.0
 
 ### Added

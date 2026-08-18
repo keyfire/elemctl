@@ -523,6 +523,13 @@ MESSAGES = {
         "ru": "сетевая ошибка {method} {url}: {error}",
         "en": "network error {method} {url}: {error}",
     },
+    "transport.tls-verify-off": {
+        "ru": "внимание: проверка сертификата и имени сервера отключена "
+              "(ELEMENT_TLS_VERIFY=false) – соединение не защищено от подмены сервера",
+        "en": "warning: certificate and host name verification is off "
+              "(ELEMENT_TLS_VERIFY=false) – the connection is not protected from a spoofed "
+              "server",
+    },
     "transport.proxy-hint": {
         "ru": "Запрос шёл через прокси {proxy} из окружения. Если стенд внутренний, "
               "прокси до него не дотянется: задайте {variable}=1 или добавьте хост в NO_PROXY.",

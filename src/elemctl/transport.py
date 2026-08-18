@@ -10,6 +10,7 @@ import ipaddress
 import json
 import os
 import ssl
+import sys
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -22,6 +23,11 @@ NO_PROXY_ENV = "ELEMCTL_NO_PROXY"
 
 #: Host suffixes served inside a network, never through an outbound proxy.
 _LOCAL_SUFFIXES = (".local", ".lan", ".localdomain", ".internal", ".test")
+
+
+def _warn(message):
+    """A warning of the tool itself: stderr, so that stdout stays the answer of the command."""
+    print(message, file=sys.stderr)
 
 
 def _no_proxy_requested(environ=None):
@@ -106,6 +112,9 @@ class UrllibTransport:
         if not tls_verify:
             context.check_hostname = False
             context.verify_mode = ssl.CERT_NONE
+            # Switched off once in a .env, the setting is then silent for months - and a
+            # connection nobody verifies looks exactly like a connection that is fine.
+            _warn(i18n.t("transport.tls-verify-off"))
         elif hasattr(ssl, "VERIFY_X509_STRICT"):
             if tls_strict:
                 context.verify_flags |= ssl.VERIFY_X509_STRICT
