@@ -19,8 +19,81 @@ Connection credentials are taken from environment variables or from a `.env` fil
 | `ELEMENT_APP_ID` | default application (optional) |
 | `ELEMENT_PROJECT_ID` | default project (optional) |
 | `ELEMENT_SPACE_ID` | default space (optional) |
+| `ELEMENT_CA_FILE` | additional PEM CA bundle for a private cloud (optional) |
+| `ELEMENT_TLS_STRICT` | strict RFC 5280 certificate checks; `true` by default |
+| `ELEMENT_TLS_VERIFY` | certificate and hostname verification; `true` by default |
 
 Client-Id/Client-Secret are issued in the 1cmycloud control panel (the Console API integrations section). A file template is [.env.example](https://github.com/keyfire/elemctl/blob/main/.env.example).
+
+### Configuring with `.env`
+
+Copy the template into the directory from which you will run `elemctl`:
+
+```bash
+cp .env.example .env
+```
+
+Then fill in at least the platform address, Client-Id and Client-Secret:
+
+```dotenv
+ELEMENT_BASE_URL=https://1cmycloud.com
+ELEMENT_CLIENT_ID=client-id
+ELEMENT_CLIENT_SECRET=client-secret
+```
+
+Without `--env-file`, the tool looks for a file named exactly `.env` in the
+**current working directory**. That is not necessarily the project directory or
+the directory where `elemctl` is installed. The `elemctl` repository excludes
+`.env` from Git; if you create one in another repository, add `.env` to its
+`.gitignore`. The file contains a secret and must stay out of commits and logs.
+
+When the configuration lives elsewhere, pass it explicitly. An absolute path is
+more reliable for the MCP server, background jobs and CI:
+
+```bash
+elemctl --env-file /opt/elemctl/cloud.env apps list
+```
+
+The option is also accepted after the command:
+
+```bash
+elemctl apps list --env-file /opt/elemctl/cloud.env
+```
+
+A relative path is resolved from the current working directory. Separate files
+let one installation address multiple stands without changing process variables:
+
+```bash
+elemctl --env-file ./env/public-cloud.env apps list
+elemctl --env-file ./env/local-cloud.env apps list
+```
+
+Example for a local cloud with a trusted but legacy internal CA that Python 3.13
+rejects under strict RFC 5280 checks:
+
+```dotenv
+ELEMENT_BASE_URL=https://cloud-platform.zephyrus.dept07
+ELEMENT_CLIENT_ID=client-id
+ELEMENT_CLIENT_SECRET=client-secret
+ELEMENT_TLS_STRICT=false
+```
+
+For an internal CA that is trusted but rejected by Python 3.13 with
+`Basic Constraints of CA cert not marked critical`, set
+`ELEMENT_TLS_STRICT=false`. This keeps certificate-chain, validity, signature,
+and hostname verification enabled; it only relaxes OpenSSL's strict RFC 5280
+profile. Prefer fixing or reissuing the CA certificate when possible.
+
+Use `ELEMENT_CA_FILE=/path/to/internal-ca.pem` when the private CA is not in the
+system trust store. `ELEMENT_TLS_VERIFY=false` disables both certificate and
+hostname verification and is intended only as a last resort in an isolated test
+network. Boolean values accept `true`/`false`, `yes`/`no`, `on`/`off`, or `1`/`0`.
+
+`ELEMCTL_NO_PROXY` solves a different problem: it routes requests past the
+environment's proxy. It can help when the proxy cannot reach an internal address
+or replaces its certificate, but it does not disable server-certificate
+verification. If the direct connection reaches the server and ends with
+`CERTIFICATE_VERIFY_FAILED`, configure the trusted CA or `ELEMENT_TLS_*` options.
 
 ### Behaviour of the tool
 

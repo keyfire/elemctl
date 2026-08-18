@@ -7,13 +7,14 @@ lost before anyone suspected the proxy. So a proxy that cannot possibly help is 
 that can is left alone, and a failure that went through a proxy says so.
 """
 
+import ssl
 import urllib.error
 import urllib.request
 
 import pytest
 
 from elemctl import transport
-from elemctl.errors import TransportError
+from elemctl.errors import ConfigError, TransportError
 from elemctl.transport import UrllibTransport
 
 
@@ -39,7 +40,6 @@ def test_everything_else_keeps_going_through_the_proxy(host):
 
 
 def _opener_of(url, monkeypatch, environ=None):
-    monkeypatch.setattr(UrllibTransport, "_direct", None)
     for name, value in (environ or {}).items():
         monkeypatch.setenv(name, value)
     return UrllibTransport()._opener(url)
@@ -71,8 +71,6 @@ def test_a_failure_through_a_proxy_names_it(monkeypatch):
     connection was reset, and the proxy is the last thing anyone suspects."""
     monkeypatch.setenv("HTTPS_PROXY", "http://127.0.0.1:12334")
     monkeypatch.delenv("NO_PROXY", raising=False)
-    monkeypatch.setattr(UrllibTransport, "_direct", None)
-
     def _boom(*_args, **_kwargs):
         raise ConnectionResetError(10054, "connection reset")
 
@@ -86,8 +84,6 @@ def test_a_failure_through_a_proxy_names_it(monkeypatch):
 def test_a_failure_without_a_proxy_says_nothing_about_one(monkeypatch):
     for name in ("HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy", "ALL_PROXY"):
         monkeypatch.delenv(name, raising=False)
-    monkeypatch.setattr(UrllibTransport, "_direct", None)
-
     def _boom(*_args, **_kwargs):
         raise ConnectionResetError(10054, "connection reset")
 
@@ -95,3 +91,74 @@ def test_a_failure_without_a_proxy_says_nothing_about_one(monkeypatch):
     with pytest.raises(TransportError) as failure:
         UrllibTransport().request("GET", "https://stand.example.ru/console/sys/token")
     assert transport.NO_PROXY_ENV not in str(failure.value)
+
+
+def test_default_transport_verifies_certificates_and_hostnames():
+    context = UrllibTransport().ssl_context
+    assert context.verify_mode == ssl.CERT_REQUIRED
+    assert context.check_hostname is True
+    if hasattr(ssl, "VERIFY_X509_STRICT"):
+        assert context.verify_flags & ssl.VERIFY_X509_STRICT
+
+
+def test_strict_can_be_relaxed_without_disabling_verification():
+    context = UrllibTransport(tls_strict=False).ssl_context
+    assert context.verify_mode == ssl.CERT_REQUIRED
+    assert context.check_hostname is True
+    if hasattr(ssl, "VERIFY_X509_STRICT"):
+        assert not context.verify_flags & ssl.VERIFY_X509_STRICT
+
+
+def test_verification_can_be_explicitly_disabled():
+    context = UrllibTransport(tls_verify=False).ssl_context
+    assert context.verify_mode == ssl.CERT_NONE
+    assert context.check_hostname is False
+
+
+def test_invalid_ca_file_is_a_configuration_error(tmp_path):
+    missing = tmp_path / "missing-ca.pem"
+    with pytest.raises(ConfigError, match="missing-ca.pem"):
+        UrllibTransport(ca_file=str(missing))
+
+
+def test_ca_file_is_added_to_the_default_trust_store(monkeypatch):
+    loaded = []
+    original = ssl.create_default_context
+
+    def _context():
+        context = original()
+        original_load = context.load_verify_locations
+
+        def _load(*, cafile=None, capath=None, cadata=None):
+            loaded.append(cafile)
+            return original_load(cafile=cafile, capath=capath, cadata=cadata)
+
+        # SSLContext methods are read-only, so return a small forwarding wrapper.
+        class Context:
+            def __getattr__(self, name):
+                return _load if name == "load_verify_locations" else getattr(context, name)
+
+            def __setattr__(self, name, value):
+                setattr(context, name, value)
+
+        return Context()
+
+    monkeypatch.setattr(ssl, "create_default_context", _context)
+    # The missing file still proves which path was handed to the context before it raises.
+    with pytest.raises(ConfigError):
+        UrllibTransport(ca_file="company-ca.pem")
+    assert loaded == ["company-ca.pem"]
+
+
+def test_public_request_receives_the_configured_context(monkeypatch):
+    captured = {}
+
+    def _boom(_request, **kwargs):
+        captured.update(kwargs)
+        raise ConnectionResetError(10054, "connection reset")
+
+    client = UrllibTransport(tls_strict=False)
+    monkeypatch.setattr(urllib.request, "urlopen", _boom)
+    with pytest.raises(TransportError):
+        client.request("GET", "https://stand.example.ru/console/sys/token")
+    assert captured["context"] is client.ssl_context

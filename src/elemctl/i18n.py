@@ -352,6 +352,14 @@ MESSAGES = {
         "en": "connection parameters are not set: {missing} (environment variables, "
               "the .env file or CLI flags)",
     },
+    "config.invalid-boolean": {
+        "ru": "неверное логическое значение {name}={value!r}; используйте true или false",
+        "en": "invalid boolean value {name}={value!r}; use true or false",
+    },
+    "config.ca-file-invalid": {
+        "ru": "не удалось загрузить CA-файл {path}: {error}",
+        "en": "failed to load CA file {path}: {error}",
+    },
     # -- mcp_server.py ------------------------------------------------------------
     "mcp.project-or-version-required": {
         "ru": "нужен project_id или version_id",

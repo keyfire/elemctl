@@ -22,9 +22,27 @@ ENV_KEYS = {
     "app_id": "ELEMENT_APP_ID",
     "project_id": "ELEMENT_PROJECT_ID",
     "space_id": "ELEMENT_SPACE_ID",
+    "ca_file": "ELEMENT_CA_FILE",
+}
+
+BOOL_ENV_KEYS = {
+    "tls_verify": "ELEMENT_TLS_VERIFY",
+    "tls_strict": "ELEMENT_TLS_STRICT",
 }
 
 DEFAULT_TIMEOUT = 60.0
+
+
+def parse_bool(value, *, name):
+    """Parse a human-friendly boolean, rejecting typos instead of weakening TLS."""
+    if isinstance(value, bool):
+        return value
+    normalized = str(value).strip().lower()
+    if normalized in ("1", "true", "yes", "on"):
+        return True
+    if normalized in ("0", "false", "no", "off"):
+        return False
+    raise ConfigError(i18n.t("config.invalid-boolean", name=name, value=value))
 
 
 def parse_env_file(path):
@@ -64,11 +82,16 @@ class Config:
     app_id: str = ""
     project_id: str = ""
     space_id: str = ""
+    ca_file: str = ""
+    tls_verify: bool = True
+    tls_strict: bool = True
     timeout: float = field(default=DEFAULT_TIMEOUT)
 
     def __post_init__(self):
         # The trailing slash of the base URL is always stripped.
         self.base_url = (self.base_url or "").rstrip("/")
+        self.tls_verify = parse_bool(self.tls_verify, name=BOOL_ENV_KEYS["tls_verify"])
+        self.tls_strict = parse_bool(self.tls_strict, name=BOOL_ENV_KEYS["tls_strict"])
 
     @classmethod
     def from_env(cls, env_file=None, environ=None, **overrides):
@@ -111,6 +134,15 @@ class Config:
                 values[field_name] = env[env_key]
             elif file_values.get(env_key):
                 values[field_name] = file_values[env_key]
+
+        for field_name, env_key in BOOL_ENV_KEYS.items():
+            override = overrides.pop(field_name, None)
+            if override not in (None, ""):
+                values[field_name] = parse_bool(override, name=env_key)
+            elif env.get(env_key) not in (None, ""):
+                values[field_name] = parse_bool(env[env_key], name=env_key)
+            elif file_values.get(env_key) not in (None, ""):
+                values[field_name] = parse_bool(file_values[env_key], name=env_key)
 
         timeout = overrides.pop("timeout", None)
         if timeout:

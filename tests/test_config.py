@@ -6,7 +6,7 @@ import codecs
 
 import pytest
 
-from elemctl.config import Config, parse_env_file
+from elemctl.config import Config, parse_bool, parse_env_file
 from elemctl.errors import ConfigError
 
 
@@ -59,6 +59,41 @@ def test_priority_explicit_over_env_over_file(tmp_path):
     assert config.base_url == "https://file.test"
     assert config.client_id == "env-id"
     assert config.client_secret == "explicit-secret"
+
+
+def test_tls_configuration_from_env_and_file(tmp_path):
+    env_path = tmp_path / "tls.env"
+    env_path.write_text(
+        "ELEMENT_TLS_VERIFY=false\n"
+        "ELEMENT_TLS_STRICT=no\n"
+        "ELEMENT_CA_FILE=internal-ca.pem\n",
+        encoding="utf-8",
+    )
+    config = Config.from_env(env_file=env_path, environ={})
+    assert config.tls_verify is False
+    assert config.tls_strict is False
+    assert config.ca_file == "internal-ca.pem"
+
+
+@pytest.mark.parametrize("value", ["1", "true", "YES", "on", True])
+def test_boolean_true_values(value):
+    assert parse_bool(value, name="TEST") is True
+
+
+@pytest.mark.parametrize("value", ["0", "false", "NO", "off", False])
+def test_boolean_false_values(value):
+    assert parse_bool(value, name="TEST") is False
+
+
+def test_invalid_tls_boolean_is_a_configuration_error():
+    with pytest.raises(ConfigError, match="ELEMENT_TLS_VERIFY"):
+        Config.from_env(environ={"ELEMENT_TLS_VERIFY": "flase"})
+
+
+def test_tls_defaults_are_safe():
+    config = Config.from_env(environ={})
+    assert config.tls_verify is True
+    assert config.tls_strict is True
 
 
 def test_default_env_file_in_cwd(tmp_path, monkeypatch):

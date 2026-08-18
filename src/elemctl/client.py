@@ -264,7 +264,11 @@ class ElementClient:
 
     def __init__(self, config, transport=None, token_cache_dir=None):
         self.config = config
-        self._transport = transport or UrllibTransport()
+        self._transport = transport or UrllibTransport(
+            tls_verify=config.tls_verify,
+            tls_strict=config.tls_strict,
+            ca_file=config.ca_file,
+        )
         self._tokens = TokenManager(config, self._transport, cache_dir=token_cache_dir)
         # The override point for the tests: waits must not really sleep.
         self._sleep = time.sleep

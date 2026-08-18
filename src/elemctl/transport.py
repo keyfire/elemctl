@@ -9,12 +9,13 @@ from __future__ import annotations
 import ipaddress
 import json
 import os
+import ssl
 import urllib.error
 import urllib.parse
 import urllib.request
 
 from . import i18n
-from .errors import TransportError
+from .errors import ConfigError, TransportError
 
 #: Set it to bypass the environment's proxy for every request of the tool.
 NO_PROXY_ENV = "ELEMCTL_NO_PROXY"
@@ -85,8 +86,32 @@ class UrllibTransport:
     into TransportError.
     """
 
-    #: An opener that ignores the environment's proxies – built once, it holds no state.
-    _direct = None
+    def __init__(self, *, tls_verify=True, tls_strict=True, ca_file=""):
+        self.ssl_context = self._ssl_context(
+            tls_verify=tls_verify, tls_strict=tls_strict, ca_file=ca_file
+        )
+        self._direct = None
+
+    @staticmethod
+    def _ssl_context(*, tls_verify, tls_strict, ca_file):
+        """Build this client's TLS policy without changing process-global defaults."""
+        context = ssl.create_default_context()
+        if ca_file:
+            try:
+                context.load_verify_locations(cafile=ca_file)
+            except (OSError, ssl.SSLError) as error:
+                raise ConfigError(
+                    i18n.t("config.ca-file-invalid", path=ca_file, error=error)
+                ) from error
+        if not tls_verify:
+            context.check_hostname = False
+            context.verify_mode = ssl.CERT_NONE
+        elif hasattr(ssl, "VERIFY_X509_STRICT"):
+            if tls_strict:
+                context.verify_flags |= ssl.VERIFY_X509_STRICT
+            else:
+                context.verify_flags &= ~ssl.VERIFY_X509_STRICT
+        return context
 
     def _opener(self, url):
         """The opener for this URL: the default one, or a direct one past the proxy.
@@ -98,18 +123,23 @@ class UrllibTransport:
         host = urllib.parse.urlsplit(url).hostname
         if not (_no_proxy_requested() or is_local_host(host)):
             return urllib.request.urlopen
-        if UrllibTransport._direct is None:
-            UrllibTransport._direct = urllib.request.build_opener(
-                urllib.request.ProxyHandler({})
+        if self._direct is None:
+            self._direct = urllib.request.build_opener(
+                urllib.request.ProxyHandler({}),
+                urllib.request.HTTPSHandler(context=self.ssl_context),
             )
-        return UrllibTransport._direct.open
+        return self._direct.open
 
     def request(self, method, url, *, headers=None, data=None, timeout=60.0):
         request = urllib.request.Request(url, data=data, method=method)
         for name, value in (headers or {}).items():
             request.add_header(name, value)
         try:
-            with self._opener(url)(request, timeout=timeout) as response:
+            opener = self._opener(url)
+            kwargs = {"timeout": timeout}
+            if opener is urllib.request.urlopen:
+                kwargs["context"] = self.ssl_context
+            with opener(request, **kwargs) as response:
                 return HttpResponse(response.status, response.headers, response.read())
         except urllib.error.HTTPError as error:
             # HTTPError is a response by itself – we return its body and code.

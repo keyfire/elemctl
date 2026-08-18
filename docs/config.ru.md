@@ -20,10 +20,85 @@ sidebar:
 | `ELEMENT_APP_ID` | приложение по умолчанию (необязательно) |
 | `ELEMENT_PROJECT_ID` | проект по умолчанию (необязательно) |
 | `ELEMENT_SPACE_ID` | пространство по умолчанию (необязательно) |
+| `ELEMENT_CA_FILE` | дополнительный PEM-файл CA для частного облака (необязательно) |
+| `ELEMENT_TLS_STRICT` | строгая проверка сертификатов по RFC 5280; по умолчанию `true` |
+| `ELEMENT_TLS_VERIFY` | проверка сертификата и имени сервера; по умолчанию `true` |
 
 Client-Id/Client-Secret выпускаются в панели управления 1cmycloud
 (раздел интеграций Console API). Шаблон файла –
 [.env.example](https://github.com/keyfire/elemctl/blob/main/.env.example).
+
+### Настройка через `.env`
+
+Скопируйте шаблон в каталог, из которого будете запускать `elemctl`:
+
+```bash
+cp .env.example .env
+```
+
+Затем заполните как минимум адрес платформы, Client-Id и Client-Secret:
+
+```dotenv
+ELEMENT_BASE_URL=https://1cmycloud.com
+ELEMENT_CLIENT_ID=client-id
+ELEMENT_CLIENT_SECRET=client-secret
+```
+
+Без параметра `--env-file` инструмент ищет файл с точным именем `.env` в
+**текущем каталоге запуска**. Это не обязательно каталог проекта или каталог,
+в котором установлен `elemctl`. В репозитории `elemctl` файл `.env` исключён из
+Git; если вы создаёте его в другом репозитории, добавьте `.env` в `.gitignore`.
+Файл содержит секрет и не должен попадать в коммиты или журналы работы.
+
+Если конфигурация лежит в другом месте, укажите её явно. Абсолютный путь надёжнее
+для MCP-сервера, фоновых запусков и CI:
+
+```bash
+elemctl --env-file /opt/elemctl/cloud.env apps list
+```
+
+Параметр можно ставить и после команды:
+
+```bash
+elemctl apps list --env-file /opt/elemctl/cloud.env
+```
+
+Относительный путь разрешается от текущего каталога. Несколько файлов позволяют
+работать с разными стендами без изменения переменных процесса:
+
+```bash
+elemctl --env-file ./env/public-cloud.env apps list
+elemctl --env-file ./env/local-cloud.env apps list
+```
+
+Пример конфигурации локального облака с доверенным, но устаревшим внутренним CA,
+который Python 3.13 отклоняет из-за строгой проверки RFC 5280:
+
+```dotenv
+ELEMENT_BASE_URL=https://cloud-platform.zephyrus.dept07
+ELEMENT_CLIENT_ID=client-id
+ELEMENT_CLIENT_SECRET=client-secret
+ELEMENT_TLS_STRICT=false
+```
+
+Если внутренний CA уже доверен, но Python 3.13 отклоняет его с ошибкой
+`Basic Constraints of CA cert not marked critical`, задайте
+`ELEMENT_TLS_STRICT=false`. Проверка цепочки, срока действия, подписи и имени
+сервера при этом сохраняется; отключается только строгий профиль RFC 5280 в
+OpenSSL. Если возможно, предпочтительнее исправить или перевыпустить CA.
+
+Если частного CA нет в системном хранилище, укажите
+`ELEMENT_CA_FILE=/path/to/internal-ca.pem`. Значение
+`ELEMENT_TLS_VERIFY=false` полностью отключает проверку сертификата и имени
+сервера и предназначено только для изолированной тестовой сети как крайняя
+мера. Допустимые логические значения: `true`/`false`, `yes`/`no`, `on`/`off`
+и `1`/`0`.
+
+`ELEMCTL_NO_PROXY` решает другую задачу: направляет запрос мимо прокси окружения.
+Он может помочь, когда прокси не видит внутренний адрес или подменяет сертификат,
+но не отменяет TLS-проверку сервера. Если прямое соединение дошло до сервера и
+завершилось ошибкой `CERTIFICATE_VERIFY_FAILED`, настройте доверенный CA или
+параметры `ELEMENT_TLS_*`.
 
 ### Поведение инструмента
 
