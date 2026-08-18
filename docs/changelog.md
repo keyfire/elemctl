@@ -13,6 +13,22 @@ day are named in the heading. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2026-08-18 – 0.31.0
+
+### Added
+
+- **The TLS of a connection is configurable: a private CA and how strict the checks are.**
+  Python 3.13 turned the strict RFC 5280 profile on, and a private cloud whose internal CA
+  predates it began refusing every call with `CERTIFICATE_VERIFY_FAILED: Basic Constraints of CA
+  cert not marked critical`. `ELEMCTL_NO_PROXY` does not help there – it decides the route of the
+  request, while the certificate is judged later. `ELEMENT_CA_FILE` adds a PEM bundle to the
+  system trust store; `ELEMENT_TLS_STRICT=false` drops the strict profile alone and keeps the
+  chain, the signature, the expiry and the host name verified; `ELEMENT_TLS_VERIFY=false` turns
+  verification off entirely and is a last resort for an isolated test network. The defaults are
+  the safe ones, the TLS context belongs to the client rather than to the process, and a typo in
+  a boolean or an unreadable CA file is a configuration error rather than a quietly weakened TLS.
+  Contributed by @dvkuchin (pull request #4).
+
 ## 2026-08-14 – 0.30.0
 
 ### Changed
