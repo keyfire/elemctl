@@ -32,6 +32,9 @@ Environment variables:
 | `ELEMENT_APP_ID` | default application | no |
 | `ELEMENT_PROJECT_ID` | default project | no |
 | `ELEMENT_SPACE_ID` | default space | no |
+| `ELEMENT_CA_FILE` | additional PEM CA bundle for a private cloud | no |
+| `ELEMENT_TLS_STRICT` | strict RFC 5280 certificate checks; `true` by default | no |
+| `ELEMENT_TLS_VERIFY` | certificate and hostname verification; `true` by default | no |
 
 .env format: `KEY=VALUE` lines; empty lines and lines starting with `#` are skipped; a leading `export ` prefix and single/double quotes around the value are allowed; UTF-8 encoding, a BOM is possible (read as `utf-8-sig`). A trailing slash in `ELEMENT_BASE_URL` is trimmed.
 

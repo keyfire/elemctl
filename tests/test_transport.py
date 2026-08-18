@@ -71,6 +71,7 @@ def test_a_failure_through_a_proxy_names_it(monkeypatch):
     connection was reset, and the proxy is the last thing anyone suspects."""
     monkeypatch.setenv("HTTPS_PROXY", "http://127.0.0.1:12334")
     monkeypatch.delenv("NO_PROXY", raising=False)
+
     def _boom(*_args, **_kwargs):
         raise ConnectionResetError(10054, "connection reset")
 
@@ -84,6 +85,7 @@ def test_a_failure_through_a_proxy_names_it(monkeypatch):
 def test_a_failure_without_a_proxy_says_nothing_about_one(monkeypatch):
     for name in ("HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy", "ALL_PROXY"):
         monkeypatch.delenv(name, raising=False)
+
     def _boom(*_args, **_kwargs):
         raise ConnectionResetError(10054, "connection reset")
 
