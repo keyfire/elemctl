@@ -17,3 +17,9 @@ sponsored by or supported by 1C Company.
 The library depends only on the Python standard library. The optional MCP server extra
 (elemctl[mcp]) uses the "mcp" package (MIT). Platform credentials are issued by the
 platform to its own users and are not redistributed by this project.
+
+The documentation site carries the Cyrillic subsets of the Inter, Inter Tight and
+JetBrains Mono webfonts (site/public/fonts): the build downloads the Latin subset of
+them only, so without these files Russian pages would fall back to Arial and Courier
+New. The fonts are licensed under the SIL Open Font License 1.1 - the license texts lie
+next to them.
