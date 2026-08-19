@@ -95,10 +95,10 @@ export default defineConfig({
   // A violet accent – so that the sites of the projects differ at first glance.
   theme: {
     accent: "violet",
-    // Code is set in Fira Code: at the small size of the table chips its Cyrillic reads
+    // Code is set in Geist Mono: at the small size of the table chips its Cyrillic reads
     // more evenly than the default IBM Plex Mono. Astro downloads its Latin subset only –
     // the Cyrillic one comes from theme.css, which names the family variable of every
     // role of this block, so a font changed here has to be renamed there too.
-    fonts: { mono: "fira-code" },
+    fonts: { mono: "geist-mono" },
   },
 });
