@@ -475,7 +475,7 @@ def test_project_meta_mixed_keys_version_not_lost(tmp_path):
 def test_build_english_project_end_to_end(tmp_path):
     """An English descriptor builds: the manifest carries the project's Name/Vendor/Version."""
     result = build_assembly(
-        _english_project(tmp_path, kind_line="CompatibilityMode: 10.0"),
+        _english_project(tmp_path, kind_line="CompatibilityMode: 9.2"),
         output_dir=tmp_path / "out",
         version="3.1-7",
     )
@@ -484,7 +484,7 @@ def test_build_english_project_end_to_end(tmp_path):
     assert report["manifest"]["Name"] == "crm"
     assert report["manifest"]["Vendor"] == "acme"
     assert report["version"] == "3.1-7"
-    assert report["compatibility"] == "10.0"
+    assert report["compatibility"] == "9.2"
 
 
 # -- the English spellings of the service file names ------------------------------
