@@ -19,7 +19,9 @@ Checks, all of them cheap enough to run on every commit:
 
 * every MCP tool the server registers has a row on docs/mcp.md AND docs/mcp.ru.md;
 * no row names a tool the server no longer registers;
-* every environment variable the code reads is documented on both settings pages;
+* every environment variable the code reads is documented on both settings pages, and every
+  variable of the platform contract (the `ELEMENT_` family) also has a row in both
+  specifications;
 * every extension of the archive allowlist is named on both platform pages;
 * the sections injected into the READMEs match their source pages, and the mirrored
   changelog pages match the root CHANGELOG (scripts/sync-docs.mjs was run);
@@ -163,6 +165,19 @@ def check() -> list[str]:
         documented = set(_INLINE.findall(page(name)))
         for missing in sorted(variables - documented):
             problems.append(f"{name}: {missing} is read by the code and documented nowhere")
+
+    # The specification carries its own table, and it is about the CONTRACT with the platform:
+    # a variable of the ELEMENT_ family belongs there, while the CI, locale and plugin knobs do
+    # not. Judged apart for that reason - a contribution with three new TLS variables passed
+    # this guard green while the specification knew nothing about them.
+    contract = {name for name in variables if name.startswith("ELEMENT_")}
+    for name in ("SPEC.md", "SPEC.ru.md"):
+        documented = set(_INLINE.findall(page(name)))
+        for missing in sorted(contract - documented):
+            problems.append(
+                f"{name}: {missing} is part of the platform contract and the specification "
+                "does not name it"
+            )
 
     extensions = allowed_extensions()
     for name in ("platform.md", "platform.ru.md"):
