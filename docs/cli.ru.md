@@ -85,6 +85,7 @@ usage: elemctl apps [-h] действие ...
 | `find` | найти приложение по имени (точное совпадение без учёта регистра) |
 | `create` | создать приложение |
 | `ensure` | создать приложение, если его ещё нет (идемпотентно) |
+| `apply` | применить загруженную сборку к приложению и проверить, что она правда применилась |
 | `delete` | удалить приложение (необратимо, URL меняется при пересоздании) |
 | `start` | запустить приложение |
 | `stop` | остановить приложение |
@@ -180,7 +181,7 @@ usage: elemctl apps create [-h] [--project-id PROJECT_ID] [--version-id VERSION_
 ```bash
 usage: elemctl apps ensure [-h] [--project-id PROJECT_ID] [--version-id VERSION_ID]
                            [--latest-build] [--space-id SPACE_ID] [--tech-version TECH_VERSION]
-                           [--no-dev-mode] [--wait]
+                           [--no-dev-mode] [--wait] [--apply]
                            NAME
 ```
 
@@ -202,6 +203,26 @@ usage: elemctl apps ensure [-h] [--project-id PROJECT_ID] [--version-id VERSION_
 | `--tech-version TECH_VERSION` | версия технологии |
 | `--no-dev-mode` | не создавать среду разработки |
 | `--wait` | дождаться готовности приложения |
+| `--apply` | если приложение уже есть – применить ему указанную сборку (иначе только сообщается, что сборка не применена) |
+
+### `elemctl apps apply`
+
+```bash
+usage: elemctl apps apply [-h] [APP_ID] VERSION_ID
+```
+
+**Аргументы**
+
+| Параметр | Описание |
+|---|---|
+| `APP_ID` | ид (UUID) либо точное имя приложения (по умолчанию ELEMENT_APP_ID) |
+| `VERSION_ID` | ид загруженной сборки (project version id) |
+
+**Параметры**
+
+| Параметр | Описание |
+|---|---|
+| `-h, --help` | показать эту справку и выйти |
 
 ### `elemctl apps delete`
 

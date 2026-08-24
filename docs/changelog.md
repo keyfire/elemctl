@@ -13,6 +13,39 @@ day are named in the heading. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2026-08-24 – 0.32.0
+
+### Added
+
+- **`apps apply [APP_ID] VERSION_ID` – apply an uploaded assembly and verify the result.**
+  Applying was reachable through the MCP tool alone, while long operations are the ones that
+  want a CLI run in the background – so an artifact taken from storage had no way in from the
+  command line. The command applies the assembly, waits for the application and checks that it
+  is the one running: on a failure the platform silently rolls the application back to the
+  previous build and starts it, so a status of Running is not success. The exit code is 1 when
+  the assembly did not land.
+- **`apps ensure` says what it did about the assembly.** The creation flags act on creation
+  alone, so `--version-id` was not applied to an existing application – silently: `created:
+  false`, exit code 0 and not a word about the build. A stand went to work on the previous
+  assembly because of it. The answer now carries `applied` and `applied-version-id`, stderr
+  names the command that brings the application to the requested assembly, and `--apply` does
+  it in the same run. The MCP tool `ensure_app` grew the same field.
+
+### Fixed
+
+- **`builds upload` no longer refuses an assembly of its OWN project.** The name check compared
+  the technical name of the manifest against the name the console shows the project under –
+  two different things that can only match by accident. Every correct upload therefore looked
+  like a rename and demanded `--force-rename` (which really would rename the project) or
+  `--new-project`. What is compared now is what the console shows against what the archive
+  would put there – the presentation of the project descriptor inside the archive; the manifest
+  name answers only when the archive carries no descriptor. A foreign assembly is refused as
+  before.
+- **The refusal explains `--new-project`.** The wording "starts a separate project" scared
+  people away from the one path that worked: the platform recognizes a project by the vendor
+  and name of the manifest, so an assembly of the same project lands in the existing project
+  instead of starting a second one.
+
 ## 2026-08-18 – 0.31.0, 0.31.1
 
 ### Added

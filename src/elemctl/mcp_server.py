@@ -239,17 +239,27 @@ def create_server(config=None):
         приложения (статус Deleted) не в счёт. Параметры создания – как у
         create_app; они действуют, только когда создание происходит.
 
+        Поэтому version_id существующему приложению НЕ применяется: поле applied
+        ответа говорит, стоит ли на приложении запрошенная сборка, а applied-version-id
+        – какая стоит на самом деле. Применить – инструментом apply_build (долгая
+        операция) либо командой elemctl apps apply.
+
         Поле sign-in обоих ответов говорит, как войти в приложение: адрес и
         учётная запись ПАНЕЛИ УПРАВЛЕНИЯ (учётные записи, которыми входят в
         другие приложения, в новом не работают).
         """
         existing = client(env_file).find_app(name)
         if existing is not None:
-            return {
+            answer = {
                 "id": existing.get("id"),
                 "created": False,
                 "sign-in": sign_in_hint(existing),
             }
+            if version_id:
+                applied = str((existing.get("source") or {}).get("project-version-id") or "")
+                answer["applied"] = applied == version_id
+                answer["applied-version-id"] = applied
+            return answer
         card = _create_app(name, project_id, version_id, space_id, development_mode, env_file)
         return {
             "id": (card or {}).get("id"),

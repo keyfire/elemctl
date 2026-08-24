@@ -130,18 +130,24 @@ MESSAGES = {
               "environment or the .env file); pass --new-project to upload as a new project",
     },
     "cli.upload-name-mismatch": {
-        "ru": "имя сборки '{assembly}' не совпадает с именем проекта-цели '{project}' "
-              "({project_id}): загрузка ПЕРЕИМЕНУЕТ проект и его группу в панели, и "
-              "удалением сборки это не откатывается – прежнее имя возвращает только "
-              "загрузка сборки с этим именем. Если так и задумано – повторите с "
-              "--force-rename; если сборка чужая – с --new-project (заведёт отдельный "
-              "проект) либо укажите --project-id нужного",
-        "en": "the assembly name '{assembly}' differs from the target project name "
-              "'{project}' ({project_id}): the upload RENAMES the project and its group "
-              "in the console, and deleting the assembly does not undo it – only "
+        "ru": "сборка называет свой проект '{assembly}', а проект-цель называется "
+              "'{project}' ({project_id}): загрузка ПЕРЕИМЕНУЕТ проект и его группу в "
+              "панели, и удалением сборки это не откатывается – прежнее имя возвращает "
+              "только загрузка сборки с этим именем. Если так и задумано – повторите с "
+              "--force-rename; если сборка чужая – укажите --project-id нужного проекта "
+              "либо повторите с --new-project. Флаг --new-project безопасен и для сборки "
+              "СВОЕГО проекта: платформа опознаёт проект по паре поставщик плюс имя из "
+              "манифеста, поэтому такая сборка попадает в существующий проект, а не "
+              "заводит второй",
+        "en": "the assembly calls its project '{assembly}' while the target project is "
+              "called '{project}' ({project_id}): the upload RENAMES the project and its "
+              "group in the console, and deleting the assembly does not undo it – only "
               "uploading an assembly with the former name brings it back. If that is "
               "intended, repeat with --force-rename; if the assembly belongs elsewhere, "
-              "pass --new-project (starts a separate project) or the right --project-id",
+              "pass the right --project-id or repeat with --new-project. That flag is "
+              "safe for an assembly of the SAME project too: the platform recognizes a "
+              "project by the vendor and name of the manifest, so such an assembly lands "
+              "in the existing project instead of starting a second one",
     },
     "cli.upload-name-mismatch-forced": {
         "ru": "внимание: по флагу --force-rename имя проекта-цели '{project}' "
@@ -891,6 +897,36 @@ MESSAGES = {
     "cli.help.apps-ensure": {
         "ru": "создать приложение, если его ещё нет (идемпотентно)",
         "en": "create the application if it does not exist yet (idempotent)",
+    },
+    "cli.help.apps-apply": {
+        "ru": "применить загруженную сборку к приложению и проверить, что она правда применилась",
+        "en": "apply an uploaded assembly to an application and verify that it really landed",
+    },
+    "cli.help.apps-ensure-apply": {
+        "ru": "если приложение уже есть – применить ему указанную сборку (иначе только сообщается,"
+              " что сборка не применена)",
+        "en": "when the application already exists, apply the given assembly to it (otherwise the"
+              " answer only says that it was not applied)",
+    },
+    "cli.help.arg.version-id-required": {
+        "ru": "ид загруженной сборки (project version id)",
+        "en": "id of the uploaded assembly (the project version id)",
+    },
+    "cli.apply.started": {
+        "ru": "применение сборки {version_id} запущено, ждём приложение",
+        "en": "applying assembly {version_id} started, waiting for the application",
+    },
+    "cli.ensure.build-differs": {
+        "ru": "приложение уже есть, и на нём сборка {applied}, а не {requested}:"
+              " сборка НЕ применена. Примените её командой elemctl apps apply {app_id}"
+              " {requested} либо повторите ensure с флагом --apply",
+        "en": "the application already exists and runs assembly {applied} rather than"
+              " {requested}: the assembly was NOT applied. Apply it with elemctl apps apply"
+              " {app_id} {requested}, or repeat ensure with --apply",
+    },
+    "cli.ensure.build-already": {
+        "ru": "приложение уже есть, и на нём та самая сборка {requested}",
+        "en": "the application already exists and already runs assembly {requested}",
     },
     "cli.help.apps-delete": {
         "ru": "удалить приложение (необратимо, URL меняется при пересоздании)",

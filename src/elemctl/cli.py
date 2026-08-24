@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 from . import __version__, i18n, plugins
@@ -19,6 +20,7 @@ from .build import (
     git_dirty_files,
     inspect_assembly,
     read_assembly_manifest,
+    read_assembly_project,
 )
 from .client import (
     CALCULATION_RULE_FIELDS,
@@ -30,7 +32,7 @@ from .client import (
     sign_in_hint,
 )
 from .config import Config
-from .deploy import deploy_from_sources
+from .deploy import deploy_from_sources, verify_deploy
 from .errors import ApiError, ConfigError, ElemctlError, PluginError
 from .probe import probe_project
 from .versions import newest_first
@@ -232,6 +234,39 @@ def cmd_apps_create(args):
     return 0
 
 
+def _applied_assembly_id(card):
+    """The assembly the application currently runs, out of its card ("" when unknown)."""
+    return str(((card or {}).get("source") or {}).get("project-version-id") or "")
+
+
+def _apply_and_verify(client, app_id, version_id):
+    """Apply the assembly, wait for the application and check that it really landed.
+
+    Applying is not a fact until it is verified: on a failure the platform silently
+    rolls the application back to the previous build and starts it, so a status of
+    Running says nothing about the assembly that was asked for.
+    """
+    started_at = datetime.now(timezone.utc)
+    client.apply_build(app_id, image_id=version_id)
+    _progress(i18n.t("cli.apply.started", version_id=version_id))
+    client.ensure_running(app_id, log=_progress)
+    return verify_deploy(
+        client, app_id, expected_assembly_id=version_id, since=started_at, log=_progress
+    )
+
+
+def cmd_apps_apply(args):
+    """Apply an already uploaded assembly to an application and verify the result."""
+    config = _config(args)
+    client = make_client(config)
+    app_id = client.resolve_app_id(
+        _require(args.app_id, config.app_id, i18n.t("cli.require.app-id-arg"))
+    )
+    report = _apply_and_verify(client, app_id, args.version_id)
+    _emit(report.to_dict())
+    return 0 if report.ok else 1
+
+
 def cmd_apps_ensure(args):
     """Idempotently bring an application with the given name into existence.
 
@@ -243,6 +278,13 @@ def cmd_apps_ensure(args):
     one. The exit code is 0 in both cases; a failed request is JSON with an error
     field on stderr and exit code 1.
 
+    The creation flags act on creation alone, and --version-id is one of them.
+    That silence cost a stand: ensure over an existing application answered
+    created: false and exit code 0 while the assembly stayed the previous one,
+    and nothing in the answer said so. Now the answer carries applied - whether
+    the application runs the requested assembly - and, when it does not, names
+    the way to bring it there; with --apply the same run does it.
+
     Both answers end with the way into the application (the sign-in field and
     the same on stderr): the caller of ensure is usually raising a stand, and a
     stand nobody can sign in to is not raised yet.
@@ -251,19 +293,47 @@ def cmd_apps_ensure(args):
     client = make_client(config)
     existing = client.find_app(args.name)
     if existing is not None:
-        _emit({
+        answer = {
             "id": existing.get("id"),
             "created": False,
             "sign-in": _report_sign_in(existing),
-        })
+        }
+        answer.update(_ensure_build_state(client, existing, args))
+        _emit(answer)
         return 0
     card = _create_app_from_args(client, config, args)
     _emit({
         "id": (card or {}).get("id"),
         "created": True,
+        "applied": True,
         "sign-in": _report_sign_in(card),
     })
     return 0
+
+
+def _ensure_build_state(client, existing, args):
+    """What ensure has to say about the ASSEMBLY of an application it did not create.
+
+    Nothing when no assembly was asked for - ensure was then about existence alone.
+    """
+    requested = str(args.version_id or "")
+    if not requested:
+        return {}
+    app_id = str(existing.get("id") or "")
+    applied = _applied_assembly_id(existing)
+    if applied and applied == requested:
+        _progress(i18n.t("cli.ensure.build-already", requested=requested))
+        return {"applied": True, "applied-version-id": applied}
+    if args.apply:
+        report = _apply_and_verify(client, app_id, requested)
+        return {"applied": bool(report.ok), "verify": report.to_dict()}
+    _progress(i18n.t(
+        "cli.ensure.build-differs",
+        applied=applied or i18n.t("deploy.unknown"),
+        requested=requested,
+        app_id=app_id,
+    ))
+    return {"applied": False, "applied-version-id": applied}
 
 
 def cmd_apps_delete(args):
@@ -394,9 +464,16 @@ def _upload_name_mismatch(client, project_id, file_path):
     names match or when they cannot be compared: not being able to compare is no
     proof of danger, and an unreadable manifest or an unreachable project card must
     not stand in the way of an upload.
+
+    Compared is what the console actually shows against what this archive would put
+    there - the PRESENTATION of its project descriptor. The technical name of the
+    manifest is a different thing: a project named `site` is shown as "1C:Fresh
+    Site", and comparing those two called every correct upload a rename and refused
+    it. The manifest name answers only when the archive carries no descriptor.
     """
     try:
-        assembly_name = (read_assembly_manifest(file_path).get("Name") or "").strip()
+        identity = read_assembly_project(file_path)
+        assembly_name = identity["presentation"] or identity["name"]
         project_card = client.get_project(project_id) or {}
         project_name = (project_card.get("name") or "").strip()
     except Exception:
@@ -1066,7 +1143,15 @@ def build_parser():
 
     p = apps_sub.add_parser("ensure", help=i18n.t("cli.help.apps-ensure"))
     _add_create_flags(p)
+    p.add_argument("--apply", action="store_true", help=i18n.t("cli.help.apps-ensure-apply"))
     p.set_defaults(handler=cmd_apps_ensure)
+
+    p = apps_sub.add_parser("apply", help=i18n.t("cli.help.apps-apply"))
+    p.add_argument("app_id", nargs="?", metavar="APP_ID", help=i18n.t("cli.help.arg.app-ref"))
+    p.add_argument(
+        "version_id", metavar="VERSION_ID", help=i18n.t("cli.help.arg.version-id-required")
+    )
+    p.set_defaults(handler=cmd_apps_apply)
 
     p = apps_sub.add_parser("delete", help=i18n.t("cli.help.apps-delete"))
     p.add_argument("app_id", metavar="APP_ID", help=i18n.t("cli.help.arg.app-ref-required"))

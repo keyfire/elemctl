@@ -85,6 +85,7 @@ usage: elemctl apps [-h] action ...
 | `find` | find an application by name (exact, case-insensitive match) |
 | `create` | create an application |
 | `ensure` | create the application if it does not exist yet (idempotent) |
+| `apply` | apply an uploaded assembly to an application and verify that it really landed |
 | `delete` | delete an application (irreversible; the URL changes on re-creation) |
 | `start` | start an application |
 | `stop` | stop an application |
@@ -180,7 +181,7 @@ usage: elemctl apps create [-h] [--project-id PROJECT_ID] [--version-id VERSION_
 ```bash
 usage: elemctl apps ensure [-h] [--project-id PROJECT_ID] [--version-id VERSION_ID]
                            [--latest-build] [--space-id SPACE_ID] [--tech-version TECH_VERSION]
-                           [--no-dev-mode] [--wait]
+                           [--no-dev-mode] [--wait] [--apply]
                            NAME
 ```
 
@@ -202,6 +203,26 @@ usage: elemctl apps ensure [-h] [--project-id PROJECT_ID] [--version-id VERSION_
 | `--tech-version TECH_VERSION` | technology version |
 | `--no-dev-mode` | do not create a development environment |
 | `--wait` | wait until the application is ready |
+| `--apply` | when the application already exists, apply the given assembly to it (otherwise the answer only says that it was not applied) |
+
+### `elemctl apps apply`
+
+```bash
+usage: elemctl apps apply [-h] [APP_ID] VERSION_ID
+```
+
+**Arguments**
+
+| Option | Description |
+|---|---|
+| `APP_ID` | the application id (UUID) or its exact name (default: ELEMENT_APP_ID) |
+| `VERSION_ID` | id of the uploaded assembly (the project version id) |
+
+**Options**
+
+| Option | Description |
+|---|---|
+| `-h, --help` | show this help message and exit |
 
 ### `elemctl apps delete`
 

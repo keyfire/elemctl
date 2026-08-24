@@ -120,10 +120,14 @@ def api(tmp_path):
 def project_factory(tmp_path):
     """A factory of a synthetic {repo}/{vendor}/{name}/Проект.yaml project."""
 
-    def make(vendor="acme", name="crm", *, kind=None, base_version="1.0", repo_name="repo"):
+    def make(vendor="acme", name="crm", *, kind=None, base_version="1.0", repo_name="repo",
+             presentation=""):
         project_dir = tmp_path / repo_name / vendor / name
         project_dir.mkdir(parents=True)
         lines = [f"Имя: {name}", f"Поставщик: {vendor}", f"Версия: {base_version}"]
+        if presentation:
+            # The name a console shows - a different thing from the technical name above.
+            lines.append(f'Представление: "{presentation}"')
         if kind:
             lines.append(f"ВидПроекта: {kind}")
         lines.extend(["Подсистемы:", "  - Основная"])

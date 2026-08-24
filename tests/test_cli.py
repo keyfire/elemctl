@@ -175,6 +175,122 @@ def test_apps_ensure_existing_returns_created_false_without_creating(monkeypatch
     assert payload["sign-in"]["url"] == "https://host/apps/demo-app"
 
 
+class FakeApplyClient:
+    """An application that runs `applied` and records what was applied to it."""
+
+    def __init__(self, applied="asm-old", ok=True):
+        self.applied = applied
+        self.ok = ok
+        self.applied_calls = []
+
+    def find_app(self, name, *, include_deleted=False):
+        return {
+            "id": "app-7",
+            "display-name": name,
+            "uri": "https://host/apps/demo-app",
+            "source": {"project-version-id": self.applied},
+        }
+
+    def create_app(self, *args, **kwargs):
+        raise AssertionError("создание не должно вызываться для существующего приложения")
+
+    def resolve_app_id(self, app_id):
+        return app_id
+
+    def apply_build(self, app_id, *, image_id=None, **kwargs):
+        self.applied_calls.append((app_id, image_id))
+        self.applied = image_id
+        return {"ok": True}
+
+    def ensure_running(self, app_id, log=None):
+        return {"id": app_id, "status": "Running", "uri": "https://host/apps/demo-app"}
+
+
+def _stub_verify(monkeypatch, ok=True):
+    """Verification is a separate mechanism with tests of its own - stubbed by its verdict."""
+
+    class Report:
+        def __init__(self):
+            self.ok = ok
+
+        def to_dict(self):
+            return {"ok": ok}
+
+    monkeypatch.setattr(cli, "verify_deploy", lambda *args, **kwargs: Report())
+
+
+def test_apps_ensure_says_the_assembly_was_not_applied(monkeypatch, capsys):
+    """The silence that cost a stand: ensure over an existing application applies nothing.
+
+    The creation flags act on creation alone, so `--version-id` did nothing here - and the
+    answer said created: false, exit code 0 and not a word about the assembly.
+    """
+    fake = FakeApplyClient(applied="asm-old")
+    monkeypatch.setattr(cli, "make_client", lambda config: fake)
+
+    rc = cli.main(["apps", "ensure", "demo-app", "--version-id", "asm-1"])
+
+    assert rc == 0
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+    assert payload["created"] is False
+    assert payload["applied"] is False
+    assert payload["applied-version-id"] == "asm-old"
+    # And the way to bring it there is named, with the command to run.
+    assert "apps apply" in captured.err and "asm-1" in captured.err
+    assert fake.applied_calls == []
+
+
+def test_apps_ensure_with_apply_brings_the_application_to_the_assembly(monkeypatch, capsys):
+    """--apply is the deliberate case: the same run applies the assembly and verifies it."""
+    fake = FakeApplyClient(applied="asm-old")
+    monkeypatch.setattr(cli, "make_client", lambda config: fake)
+    _stub_verify(monkeypatch, ok=True)
+
+    rc = cli.main(["apps", "ensure", "demo-app", "--version-id", "asm-1", "--apply"])
+
+    assert rc == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["applied"] is True
+    assert fake.applied_calls == [("app-7", "asm-1")]
+
+
+def test_apps_ensure_says_nothing_about_a_build_it_was_not_asked_about(monkeypatch, capsys):
+    """Without an assembly ensure is about existence alone - and stays silent about builds."""
+    fake = FakeApplyClient(applied="asm-old")
+    monkeypatch.setattr(cli, "make_client", lambda config: fake)
+
+    rc = cli.main(["apps", "ensure", "demo-app"])
+
+    assert rc == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert "applied" not in payload
+
+
+def test_apps_apply_applies_and_verifies(monkeypatch, capsys):
+    """The subcommand the CLI had no answer for: applying was reachable through MCP alone."""
+    fake = FakeApplyClient(applied="asm-old")
+    monkeypatch.setattr(cli, "make_client", lambda config: fake)
+    _stub_verify(monkeypatch, ok=True)
+
+    rc = cli.main(["apps", "apply", "app-7", "asm-1"])
+
+    assert rc == 0
+    assert json.loads(capsys.readouterr().out) == {"ok": True}
+    assert fake.applied_calls == [("app-7", "asm-1")]
+
+
+def test_apps_apply_fails_when_the_build_did_not_land(monkeypatch, capsys):
+    """A failed apply is rolled back by the platform silently - the exit code must not be 0."""
+    fake = FakeApplyClient(applied="asm-old")
+    monkeypatch.setattr(cli, "make_client", lambda config: fake)
+    _stub_verify(monkeypatch, ok=False)
+
+    rc = cli.main(["apps", "apply", "app-7", "asm-1"])
+
+    assert rc == 1
+
+
 def test_apps_ensure_missing_creates_and_returns_created_true(monkeypatch, capsys):
     """A missing application is created: created=true, the given assembly acts as the source."""
 
@@ -506,6 +622,59 @@ def test_builds_upload_refuses_when_assembly_name_differs(
     # The price is named right there: the rename is not undone by deleting the assembly.
     assert "--force-rename" in error and "--new-project" in error
     assert fake.get_project_calls == ["proj-1"]
+    assert fake.upload_kwargs is None
+
+
+def test_builds_upload_compares_the_presentation_not_the_technical_name(
+    monkeypatch, capsys, project_factory, tmp_path
+):
+    """A project shown under a presentation accepts ITS OWN assembly without a fight.
+
+    The manifest carries the technical name (`crm`) and the console shows the
+    presentation ("Acme CRM"): comparing one against the other called every correct
+    upload a rename and refused it, which left the assembly of a real project with no
+    way in at all.
+    """
+    project_dir = project_factory(presentation="Acme CRM")
+    rc = cli.main(
+        ["build", "--project-dir", str(project_dir), "--output", str(tmp_path / "dist"),
+         "--branch", "", "--commit", ""]
+    )
+    assert rc == 0
+    archive = json.loads(capsys.readouterr().out)["file"]
+    fake = FakeUploadClient(project_name="Acme CRM")
+    monkeypatch.setattr(cli, "make_client", lambda config: fake)
+
+    rc = cli.main(["builds", "upload", archive, "--project-id", "proj-1"])
+
+    assert rc == 0
+    captured = capsys.readouterr()
+    assert json.loads(captured.out)["assembly-id"] == "asm-1"
+    assert fake.upload_kwargs["project_id"] == "proj-1"
+    assert "--force-rename" not in captured.err
+
+
+def test_builds_upload_still_refuses_a_foreign_assembly_by_presentation(
+    monkeypatch, capsys, project_factory, tmp_path
+):
+    """And the guard still stands: what the console would be renamed TO is named in the refusal."""
+    project_dir = project_factory(presentation="Acme CRM")
+    rc = cli.main(
+        ["build", "--project-dir", str(project_dir), "--output", str(tmp_path / "dist"),
+         "--branch", "", "--commit", ""]
+    )
+    assert rc == 0
+    archive = json.loads(capsys.readouterr().out)["file"]
+    fake = FakeUploadClient(project_name="Globex Portal")
+    monkeypatch.setattr(cli, "make_client", lambda config: fake)
+
+    rc = cli.main(["builds", "upload", archive, "--project-id", "proj-1"])
+
+    assert rc == 1
+    error = json.loads(capsys.readouterr().err)["error"]
+    assert "'Acme CRM'" in error and "'Globex Portal'" in error
+    # The way out of the refusal for an assembly of the SAME project is named too.
+    assert "--new-project" in error
     assert fake.upload_kwargs is None
 
 
