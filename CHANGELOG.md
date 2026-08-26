@@ -7,6 +7,15 @@ day are named in the heading. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2026-08-26 – 0.32.1
+
+### Changed
+
+- **The local-cloud example in the documentation points at a placeholder domain** in the
+  reserved `.example` zone: a configuration example must not name any real server.
+- **The changelog is trimmed to two-four lines per entry**: what changed and why it matters;
+  the history of a finding stays in the commits and the documentation.
+
 ## 2026-08-24 – 0.32.0
 
 ### Added
