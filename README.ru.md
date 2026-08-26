@@ -169,7 +169,7 @@ elemctl --env-file ./env/local-cloud.env apps list
 который Python 3.13 отклоняет из-за строгой проверки RFC 5280:
 
 ```dotenv
-ELEMENT_BASE_URL=https://cloud-platform.zephyrus.dept07
+ELEMENT_BASE_URL=https://cloud.internal.example
 ELEMENT_CLIENT_ID=client-id
 ELEMENT_CLIENT_SECRET=client-secret
 ELEMENT_TLS_STRICT=false

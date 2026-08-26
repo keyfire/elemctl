@@ -72,7 +72,7 @@ Example for a local cloud with a trusted but legacy internal CA that Python 3.13
 rejects under strict RFC 5280 checks:
 
 ```dotenv
-ELEMENT_BASE_URL=https://cloud-platform.zephyrus.dept07
+ELEMENT_BASE_URL=https://cloud.internal.example
 ELEMENT_CLIENT_ID=client-id
 ELEMENT_CLIENT_SECRET=client-secret
 ELEMENT_TLS_STRICT=false
