@@ -7,6 +7,15 @@ day are named in the heading. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2026-08-27 – 0.32.2
+
+### Added
+
+- **A release leaves a GitHub release card.** After a successful PyPI publication the
+  workflow creates a GitHub release whose body is this changelog's section for the
+  released versions – repository subscribers now see the actual "what's new" in their
+  feeds instead of a bare tag.
+
 ## 2026-08-26 – 0.32.1
 
 ### Changed
