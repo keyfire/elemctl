@@ -47,3 +47,24 @@ jobs:
           name: dist
           path: dist/
       - uses: pypa/gh-action-pypi-publish@release/v1
+
+  # The GitHub release card: repository subscribers see the changelog's "what's new"
+  # in their feeds. Only after a successful publication - the release announces what
+  # is already on PyPI. A missing section does not cancel the card: the body then
+  # stays with the generated notes alone.
+  github-release:
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Release notes from the changelog
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          python3 scripts/release-notes.py "$version" CHANGELOG.md --out notes.md \
+            || { echo "::warning::CHANGELOG.md has no section naming $version - the release body falls back to the generated notes"; : > notes.md; }
+      - uses: softprops/action-gh-release@v2
+        with:
+          body_path: notes.md
+          generate_release_notes: true
