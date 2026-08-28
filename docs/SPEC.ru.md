@@ -22,7 +22,7 @@ Python-пакет `elemctl` из трёх слоёв поверх общего �
 
 Требования пакета: имя `elemctl`, версия 0.1.0, Python >= 3.10, лицензия MIT,
 автор KeyFire, layout `src/elemctl/`, extra `dev` с pytest. Файлы LICENSE,
-README.md, .env.example и .gitignore предоставлены заказчиком и не меняются.
+README.md, .env.example и .gitignore заданы и не меняются.
 
 ## 2. Конфигурация подключения
 

@@ -538,7 +538,7 @@ def read_assembly_project(path):
     The manifest carries the technical pair the platform recognizes a project by
     (vendor plus name), and the project descriptor inside the archive carries the
     presentation - the name a console shows. The two are different things: a
-    project named `site` is shown as "1C:Fresh Site", and comparing one against
+    project named `crm` is shown as "Acme CRM", and comparing one against
     the other calls every correct upload a mismatch.
 
     Light, like read_assembly_manifest: two entries are read, nothing is walked.

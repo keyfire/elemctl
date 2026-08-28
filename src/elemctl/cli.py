@@ -404,7 +404,7 @@ def cmd_projects_delete(args):
 def cmd_builds_list(args):
     """The project's assemblies, newest first and limited by default.
 
-    The site project alone holds over a thousand assemblies: printing them all
+    A long-lived project alone holds over a thousand assemblies: printing them all
     made the answer to "which commit is the applied build from" a matter of
     piping through head and hoping the right card made the cut. The default
     shows the latest ten; --limit 0 brings the whole list back, and the cut is
@@ -467,8 +467,8 @@ def _upload_name_mismatch(client, project_id, file_path):
 
     Compared is what the console actually shows against what this archive would put
     there - the PRESENTATION of its project descriptor. The technical name of the
-    manifest is a different thing: a project named `site` is shown as "1C:Fresh
-    Site", and comparing those two called every correct upload a rename and refused
+    manifest is a different thing: a project named `crm` is shown as "Acme CRM",
+    and comparing those two called every correct upload a rename and refused
     it. The manifest name answers only when the archive carries no descriptor.
     """
     try:
