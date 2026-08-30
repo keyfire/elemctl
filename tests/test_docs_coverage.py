@@ -133,3 +133,39 @@ def test_guard_notices_a_broken_raw_link_in_the_readme(guard, monkeypatch):
         lambda name: original(name) + f"\n![gone]({guard._RAW_PREFIX}docs/renamed.png)\n",
     )
     assert any("renamed.png" in problem for problem in guard.check())
+
+
+def test_guard_notices_a_feature_missing_from_one_annotation(guard, monkeypatch):
+    # the failure this check exists for: the block on the page names a capability and the
+    # one-liners around it - which is what a search engine and an AI answer quote - do not
+    surfaces = guard.pitch_surfaces()
+    surfaces["ru"]["docs/index.ru.md"] = surfaces["ru"]["docs/index.ru.md"].replace("пробник", "")
+    monkeypatch.setattr(guard, "pitch_surfaces", lambda: surfaces)
+    problems = guard.pitch_problems()
+    assert len(problems) == 1
+    assert "docs/index.ru.md" in problems[0]
+
+
+def test_guard_notices_a_headline_no_row_names(guard, monkeypatch):
+    original = guard.box_headlines
+    monkeypatch.setattr(
+        guard, "box_headlines",
+        lambda name, heading: original(name, heading) + ["Invented feature"],
+    )
+    assert any("Invented feature" in problem for problem in guard.pitch_problems())
+
+
+def test_guard_notices_a_row_the_page_dropped(guard, monkeypatch):
+    original = guard.box_headlines
+    monkeypatch.setattr(
+        guard, "box_headlines",
+        lambda name, heading: [h for h in original(name, heading) if h not in ("Dumps", "Дампы")],
+    )
+    assert any("Dumps" in problem for problem in guard.pitch_problems())
+
+
+def test_the_annotations_are_read_as_annotations(guard):
+    # an extractor quietly returning a whole file would make every word check above vacuous
+    for locale, group in guard.pitch_surfaces().items():
+        for where, text in group.items():
+            assert 80 < len(text) < 600, f"{locale} {where}: {len(text)} characters"

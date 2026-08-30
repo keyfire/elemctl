@@ -8,8 +8,9 @@ export default defineConfig({
   title: "Elemctl",
   description:
     "A CLI, MCP server and library for the 1C:Element Console API: applications, " +
-    "builds from source and one-command deploys with an honest check that the " +
-    "change actually landed.",
+    "builds from source, one-command deploys with an honest check that the change " +
+    "actually landed, and a probe that compiles sources on the server without " +
+    "touching the working application.",
 
   // The whole content of the site is in docs/. The changelog*.md pages mirror the CHANGELOG
   // from the repository root, they are assembled by scripts/sync-docs.mjs (npm run sync:docs).

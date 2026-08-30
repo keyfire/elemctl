@@ -1,6 +1,6 @@
 ---
 title: "Elemctl"
-description: "A CLI, MCP server and library for the 1C:Element Console API: applications, builds from source and one-command deploys with an honest check that the change actually landed."
+description: "A CLI, MCP server and library for the 1C:Element Console API: applications, builds from source, one-command deploys with an honest check that the change actually landed, and a probe that compiles sources on the server without touching the working application."
 sidebar:
   label: Home
   order: 1
@@ -8,7 +8,7 @@ sidebar:
 
 A command-line tool, MCP server and Python library for managing applications on the **1C:Enterprise.Element** cloud platform (1cmycloud.com) through Console API v2.
 
-elemctl covers an application's lifecycle on the platform without the web console: create an application, build a `.xasm`/`.xlib` build archive from project sources, upload the build, apply it to the application and make sure the apply actually happened (the platform can silently roll back), and manage development-environment branches, dumps and the technology version. The same engine is available in three ways: the `elemctl` command for the terminal and CI, an MCP server for AI agents (Claude Code and other MCP clients), and the `elemctl` Python module for your own scripts.
+elemctl covers an application's lifecycle on the platform without the web console: create an application, build a `.xasm`/`.xlib` build archive from project sources, upload the build, apply it to the application and make sure the apply actually happened (the platform can silently roll back), check compilation with a probe that never touches the working application, and manage development-environment branches, dumps and the technology version. The same engine is available in three ways: the `elemctl` command for the terminal and CI, an MCP server for AI agents (Claude Code and other MCP clients), and the `elemctl` Python module for your own scripts.
 
 Development notes and updates (in Russian): the [1C × AI: engineering workshop](https://t.me/ceh_1c_ai) Telegram channel.
 

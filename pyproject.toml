@@ -7,7 +7,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "elemctl"
 dynamic = ["version"]
-description = "CLI, MCP server and library for the Console API v2 of the 1C:Enterprise.Element platform (1cmycloud)"
+description = "CLI, MCP server and library for the Console API v2 of the 1C:Enterprise.Element platform (1cmycloud): applications, builds from source, one-command deploy with verification, a compile probe"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"

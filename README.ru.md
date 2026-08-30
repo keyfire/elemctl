@@ -12,6 +12,7 @@ elemctl закрывает жизненный цикл приложения на
 создать приложение, собрать архив сборки `.xasm`/`.xlib` из исходников
 проекта, загрузить сборку, применить её к приложению и убедиться, что
 применение действительно произошло (платформа умеет молча откатывать),
+проверить компиляцию пробником, который не трогает рабочее приложение,
 управлять ветками среды разработки, дампами и версией технологии. Один и
 тот же движок доступен тремя способами: команда `elemctl` для терминала и
 CI, MCP-сервер для AI-агентов (Claude Code и другие MCP-клиенты) и
@@ -19,7 +20,8 @@ python-модуль `elemctl` для собственных скриптов.
 
 *elemctl is a CLI tool, MCP server and Python library for the
 1C:Enterprise.Element (1cmycloud) Console API: manage applications, upload
-builds and deploy with honest apply verification. The documentation comes in
+builds, deploy with honest apply verification and check compilation with a
+probe. The documentation comes in
 both languages, and the CLI output is plain JSON.*
 
 Заметки о разработке и новости – в Telegram-канале [1С × ИИ: инженерный цех](https://t.me/ceh_1c_ai).
