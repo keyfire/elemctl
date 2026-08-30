@@ -7,6 +7,14 @@ day are named in the heading. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2026-08-30 – 0.32.3
+
+### Changed
+
+- **The package description names the probe.** The PyPI summary and the site descriptions
+  listed applications, builds and deploys and said nothing about the compilation check the
+  server runs without risking the working application – a reason of its own to pick elemctl.
+
 ## 2026-08-27 – 0.32.2
 
 ### Added
