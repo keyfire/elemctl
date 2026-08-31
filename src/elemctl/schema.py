@@ -5,11 +5,19 @@ catalog comes out empty after a "repair" build that puts the lengths back within
 the limits. Widening keeps the data, so the dangerous
 class is narrow: a smaller length or a changed type.
 
+A register is the sharper case. Its records are keyed BY THE DIMENSIONS, so
+changing the type of one - or removing it - does not merely empty the object: the
+platform converts the existing records to the new type, the values collapse, and
+the apply then fails on their uniqueness. That failure rolls the application back
+silently, and a probe cannot foresee it either - a throwaway application has no
+records to convert. The previous schema is what the answer needs, and only a
+deploy has it.
+
 There is no full YAML parser here on purpose - elemctl has no dependencies at all.
-What is read is the top-level `Реквизиты:`/`Attributes:` block of an object
-description, whose layout is regular in the sources of the platform. Anything the reader does not
-recognize it stays silent about: the guard may not be able to judge, but it must
-never invent a change that is not there.
+What is read are the top-level blocks of an object description that carry
+data-bearing fields, whose layout is regular in the sources of the platform.
+Anything the reader does not recognize it stays silent about: the guard may not be
+able to judge, but it must never invent a change that is not there.
 """
 
 from __future__ import annotations
@@ -21,6 +29,19 @@ from . import i18n
 # number, МаксимальнаяДлина/MaxLength for a string.
 LENGTH_KEYS = ("Длина", "МаксимальнаяДлина", "Length", "MaxLength")
 ATTRIBUTES_KEYS = ("Реквизиты", "Attributes")
+DIMENSIONS_KEYS = ("Измерения", "Dimensions")
+RESOURCES_KEYS = ("Ресурсы", "Resources")
+
+# The blocks read out of a description, and the kind each one is reported as. A
+# dimension is singled out because the consequences of touching it differ: the
+# records are keyed by it.
+ATTRIBUTE, DIMENSION, RESOURCE = "attribute", "dimension", "resource"
+BLOCKS = (
+    (ATTRIBUTE, ATTRIBUTES_KEYS),
+    (DIMENSION, DIMENSIONS_KEYS),
+    (RESOURCE, RESOURCES_KEYS),
+)
+
 _ID_KEYS = ("Ид", "Id")
 _NAME_KEYS = ("Имя", "Name")
 _TYPE_KEYS = ("Тип", "Type")
@@ -40,16 +61,21 @@ _TYPE_SPELLINGS = {
 
 
 def parse_attributes(text):
-    """The attributes of an object description: {key: {name, type, length}}.
+    """The attributes of an object description: {key: {name, type, length}}."""
+    return parse_block(text, ATTRIBUTES_KEYS)
+
+
+def parse_block(text, keys):
+    """One top-level block of a description: {key: {name, type, length}}.
 
     The key is Ид when the description has one, otherwise the name - the platform
-    maps attributes by Ид, so a rename under the same Ид is not a new attribute and
-    must not read as one. Only the top-level block is read; the attributes of a
-    tabular part sit deeper and are left to the compiler.
+    maps fields by Ид, so a rename under the same Ид is not a new field and must
+    not read as one. Only the top-level block is read; the attributes of a tabular
+    part sit deeper and are left to the compiler.
     """
     attributes = {}
     lines = text.splitlines()
-    index = _find_block(lines)
+    index = _find_block(lines, keys)
     if index is None:
         return attributes
 
@@ -88,33 +114,47 @@ def narrowing_changes(before_text, after_text, *, where=""):
     nothing narrowed or that the reader could not judge - the caller must not read
     it as a promise that the apply is safe.
     """
-    before = parse_attributes(before_text)
-    after = parse_attributes(after_text)
     changes = []
-    for key, old in before.items():
-        new = after.get(key)
-        if new is None:
-            continue  # a removed attribute is a separate story, and the platform asks about it
-        name = new.get("name") or old.get("name") or key
-        if (
-            old["type"] and new["type"]
-            and _canonical_type(old["type"]) != _canonical_type(new["type"])
-        ):
-            changes.append(i18n.t(
-                "schema.type-changed",
-                where=where,
-                name=name,
-                before=old["type"],
-                after=new["type"],
-            ))
-        if old["length"] and new["length"] and new["length"] < old["length"]:
-            changes.append(i18n.t(
-                "schema.length-narrowed",
-                where=where,
-                name=name,
-                before=old["length"],
-                after=new["length"],
-            ))
+    for kind, keys in BLOCKS:
+        before = parse_block(before_text, keys)
+        after = parse_block(after_text, keys)
+        for key, old in before.items():
+            new = after.get(key)
+            if new is None:
+                # A removed attribute or resource is a separate story, and the platform
+                # asks about it. A removed DIMENSION is not asked about: the records
+                # collapse onto the keys that are left, and the apply dies on their
+                # uniqueness - after the data has already been rewritten.
+                if kind == DIMENSION:
+                    changes.append(i18n.t(
+                        "schema.dimension-removed",
+                        where=where,
+                        name=old.get("name") or key,
+                    ))
+                continue
+            name = new.get("name") or old.get("name") or key
+            if (
+                old["type"] and new["type"]
+                and _canonical_type(old["type"]) != _canonical_type(new["type"])
+            ):
+                changes.append(i18n.t(
+                    "schema.dimension-type-changed" if kind == DIMENSION
+                    else "schema.type-changed",
+                    where=where,
+                    kind=_kind_word(kind),
+                    name=name,
+                    before=old["type"],
+                    after=new["type"],
+                ))
+            if old["length"] and new["length"] and new["length"] < old["length"]:
+                changes.append(i18n.t(
+                    "schema.length-narrowed",
+                    where=where,
+                    kind=_kind_word(kind),
+                    name=name,
+                    before=old["length"],
+                    after=new["length"],
+                ))
     return changes
 
 
@@ -148,12 +188,18 @@ def narrowing_in_tree(project_dir, read_before):
 # -- internals ----------------------------------------------------------------
 
 
-def _find_block(lines):
-    """The index of the top-level `Реквизиты:`/`Attributes:` line, or None."""
+def _find_block(lines, keys):
+    """The index of the top-level line opening the block, or None."""
+    wanted = tuple(f"{key}:" for key in keys)
     for index, line in enumerate(lines):
-        if line.rstrip() in tuple(f"{key}:" for key in ATTRIBUTES_KEYS):
+        if line.rstrip() in wanted:
             return index
     return None
+
+
+def _kind_word(kind):
+    """The word a field of this kind is called by in a report."""
+    return i18n.t(f"schema.kind-{kind}")
 
 
 def _canonical_type(value):

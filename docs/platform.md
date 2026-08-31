@@ -123,6 +123,7 @@ File selection for the archive:
 
 - only these extensions are included: `.yaml .xbsl .xbql .md .txt .json` (sources), `.png .svg .jpg .jpeg .gif .webp .ico` (images), `.css .htm .html .js .woff .woff2 .ttf .eot` (web resources);
 - the extension filter does NOT apply inside a `Ресурсы` directory (at any level, subdirectories included): by the platform's own documentation a resource is an arbitrary file, so everything there goes in;
+- the description files of a SOAP service client are included wherever they lie: `<Client>.Wsdl.<n>` and `<Client>.Xsd` – the platform keeps them next to the project element and reads them by name;
 - the directories `.git`, `.claude`, `.github`, `__pycache__`, `node_modules`, `.venv` and all hidden ones (starting with a dot) are excluded;
 - the files `.gitignore`, `.env`, `.DS_Store` and `*.xasm`, `*.xlib` files are excluded.
 

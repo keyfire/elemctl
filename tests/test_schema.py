@@ -131,3 +131,117 @@ def test_a_translation_of_the_description_does_not_blind_the_guard():
 def test_a_pure_translation_is_silent():
     """Translating a description changes no schema - the guard must not refuse it."""
     assert narrowing_changes(BEFORE, BEFORE_EN) == []
+
+
+# -- registers: the records are keyed by the dimensions -------------------------
+
+REGISTER = """\
+ВидЭлемента: РегистрСведений
+Ид: c7e72c67-35e8-4f24-adb6-39a729fda0db
+Имя: СостоянияЗаказов
+Измерения:
+    -
+        Ид: 9608ce45-3dd9-4e25-9437-5d61a0bbe4f9
+        Имя: Пользователь
+        Тип: Пользователи.Ссылка?
+    -
+        Ид: 89fb9e11-7d37-4f81-9361-4b7ef5576c89
+        Имя: КлючОповещения
+        Тип: Строка
+        МаксимальнаяДлина: 50
+Ресурсы:
+    -
+        Ид: e4fb211e-bad1-4dfa-98db-a5b0abbc701e
+        Имя: ЗакрытоUtc
+        Тип: ДатаВремя
+"""
+
+
+def test_a_changed_dimension_type_is_reported_with_its_consequence():
+    """The platform converts the records, the values collapse and the keys stop being unique."""
+    after = REGISTER.replace("Тип: Пользователи.Ссылка?", "Тип: Строка")
+    changes = narrowing_changes(REGISTER, after, where="СостоянияЗаказов.yaml")
+    assert len(changes) == 1
+    assert "измерение" in changes[0] and "Пользователь" in changes[0]
+    assert "неуникальности" in changes[0]
+
+
+def test_a_removed_dimension_is_reported():
+    after = REGISTER.replace(
+        """    -
+        Ид: 89fb9e11-7d37-4f81-9361-4b7ef5576c89
+        Имя: КлючОповещения
+        Тип: Строка
+        МаксимальнаяДлина: 50
+""",
+        "",
+    )
+    changes = narrowing_changes(REGISTER, after, where="СостоянияЗаказов.yaml")
+    assert len(changes) == 1
+    assert "КлючОповещения" in changes[0] and "удалено" in changes[0]
+
+
+def test_a_narrowed_dimension_length_is_reported():
+    after = REGISTER.replace("МаксимальнаяДлина: 50", "МаксимальнаяДлина: 20")
+    changes = narrowing_changes(REGISTER, after, where="СостоянияЗаказов.yaml")
+    assert len(changes) == 1
+    assert "измерение" in changes[0] and "50" in changes[0] and "20" in changes[0]
+
+
+def test_a_changed_resource_type_is_reported_as_a_resource():
+    after = REGISTER.replace("Тип: ДатаВремя", "Тип: Строка")
+    changes = narrowing_changes(REGISTER, after, where="СостоянияЗаказов.yaml")
+    assert len(changes) == 1
+    assert "ресурс" in changes[0] and "ЗакрытоUtc" in changes[0]
+
+
+def test_a_removed_resource_is_not_reported():
+    """Only a dimension is singled out: the platform asks about the rest."""
+    after = REGISTER.replace(
+        """    -
+        Ид: e4fb211e-bad1-4dfa-98db-a5b0abbc701e
+        Имя: ЗакрытоUtc
+        Тип: ДатаВремя
+""",
+        "",
+    )
+    assert narrowing_changes(REGISTER, after) == []
+
+
+def test_a_register_untouched_reports_nothing():
+    assert narrowing_changes(REGISTER, REGISTER) == []
+
+
+def test_a_renamed_dimension_under_the_same_id_is_not_a_removal():
+    after = REGISTER.replace("Имя: КлючОповещения", "Имя: КодОповещения")
+    assert narrowing_changes(REGISTER, after) == []
+
+
+def test_an_added_dimension_is_not_reported_as_a_change():
+    """Adding a key is the platform's own business - the guard judges losses only."""
+    after = REGISTER.replace(
+        "Ресурсы:",
+        """    -
+        Ид: 11111111-2222-4333-8444-555555555555
+        Имя: Раздел
+        Тип: Строка
+Ресурсы:""",
+    )
+    assert narrowing_changes(REGISTER, after) == []
+
+
+def test_the_english_spelling_of_the_dimension_block_is_read():
+    before = """\
+ElementKind: InformationRegister
+Name: ClosedNotices
+Dimensions:
+    -
+        Id: 9608ce45-3dd9-4e25-9437-5d61a0bbe4f9
+        Name: NoticeKey
+        Type: String
+        MaxLength: 50
+"""
+    after = before.replace("Type: String", "Type: Number")
+    changes = narrowing_changes(before, after, where="ClosedNotices.yaml")
+    assert len(changes) == 1
+    assert "NoticeKey" in changes[0]

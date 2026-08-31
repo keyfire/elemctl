@@ -48,6 +48,17 @@ _ERROR_LINE = re.compile(
 # or client, in angle brackets and spelled in the language of the platform.
 _ENVIRONMENT = re.compile(r"^<(?P<environment>[^>]+)>\s*")
 
+# The refusal that means the STAND is older than the project, not that the sources
+# are broken. It comes first, and behind it follows an avalanche of derived errors:
+# a platform that does not know the compatibility mode does not know the types and
+# the properties of that mode either, so it complains about files the change never
+# touched. Parsing that avalanche costs hundreds of lines and answers nothing -
+# the probe stops at the refusal and says what it really is.
+_COMPATIBILITY_REFUSED = re.compile(
+    r"(?:Неизвестный режим совместимости|Unknown compatibility mode)\s*(?P<mode>[\d.]+)?",
+    re.IGNORECASE,
+)
+
 
 @dataclass
 class ProbeReport:
@@ -73,6 +84,11 @@ class ProbeReport:
     errors: list = field(default_factory=list)
     messages: list = field(default_factory=list)
     cleanup: dict = field(default_factory=dict)
+    # The stand refused the compatibility mode of the project: the mode it refused
+    # and how many further messages were dropped as derived from that refusal.
+    # Filled in, these two say the verdict is about the STAND, not about the code.
+    compatibility_refused: str = ""
+    messages_dropped: int = 0
 
     def to_dict(self):
         """Render the report as a dict with kebab-case keys (for JSON output)."""
@@ -91,6 +107,8 @@ class ProbeReport:
             "errors": list(self.errors),
             "messages": list(self.messages),
             "cleanup": dict(self.cleanup),
+            "compatibility-refused": self.compatibility_refused or None,
+            "messages-dropped": self.messages_dropped,
         }
 
 
@@ -130,6 +148,29 @@ def parse_compilation_errors(messages, prefix=""):
                 }
             )
     return errors
+
+
+def compatibility_refusal(messages):
+    """The compatibility mode the stand refused, or "" when the refusal is not there.
+
+    The mode named in the text when the platform names one; otherwise the marker
+    itself, so that a refusal without a version still reads as one.
+    """
+    for line in _all_lines(messages):
+        found = _COMPATIBILITY_REFUSED.search(line)
+        if found:
+            return (found.group("mode") or "").strip() or line.strip()
+    return ""
+
+
+def _all_lines(messages):
+    """Every non-empty line of the messages, in order."""
+    return [
+        line.strip()
+        for message in messages or []
+        for line in str(message).splitlines()
+        if line.strip()
+    ]
 
 
 def probe_project(
@@ -216,10 +257,26 @@ def probe_project(
         report.messages = client.failed_task_messages(report.app_id) if report.app_id else []
         if not report.messages:
             report.messages = [str(error)]
-        report.errors = parse_compilation_errors(
-            report.messages, prefix=f"{meta.vendor}/{meta.name}/"
-        )
-        log(i18n.t("probe.failed", count=len(report.errors) or len(report.messages)))
+        refused = compatibility_refusal(report.messages)
+        if refused:
+            # The verdict is about the stand, and the rest of the answer is its
+            # consequence - the report keeps the refusal itself and counts what it
+            # dropped, so nothing looks hidden.
+            report.compatibility_refused = refused
+            kept = [line for line in _all_lines(report.messages) if _COMPATIBILITY_REFUSED.search(line)]
+            report.messages_dropped = len(_all_lines(report.messages)) - len(kept)
+            report.messages = kept
+            log(i18n.t(
+                "probe.compatibility-refused",
+                mode=refused,
+                project=meta.compatibility or i18n.t("probe.unknown"),
+                dropped=report.messages_dropped,
+            ))
+        else:
+            report.errors = parse_compilation_errors(
+                report.messages, prefix=f"{meta.vendor}/{meta.name}/"
+            )
+            log(i18n.t("probe.failed", count=len(report.errors) or len(report.messages)))
     finally:
         report.cleanup = _cleanup(
             client, report, keep=keep, delete_project=created_project, log=log

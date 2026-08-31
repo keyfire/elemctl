@@ -364,7 +364,7 @@ EXPECTED_TOOL_PARAMETERS = {
     "get_app": ("app_id env_file", "app_id"),
     "inspect_assembly": ("file", "file"),
     "list_app_tasks": ("app_id env_file", ""),
-    "list_apps": ("brief env_file name", ""),
+    "list_apps": ("brief env_file name status", ""),
     "list_branches": ("env_file name project_id", ""),
     "list_builds": ("brief env_file limit project_id", "project_id"),
     "list_projects": ("brief env_file", ""),

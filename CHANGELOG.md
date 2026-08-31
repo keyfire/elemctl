@@ -7,6 +7,37 @@ day are named in the heading. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2026-08-31 – 0.33.0
+
+### Added
+
+- **The schema guard covers the dimensions of a register.** The records are keyed by them, so
+  changing a dimension's type – or removing it – makes the platform convert the records, collapse
+  the values and fail the apply on their uniqueness, with a silent rollback behind it. A probe
+  cannot foresee that: a throwaway application has no records to convert.
+- **A SOAP service client's description goes into the build.** `<Client>.Wsdl.<n>` and
+  `<Client>.Xsd` lie next to the project element rather than in `Ресурсы`, and their extensions
+  are outside the allowlist – the archive used to lose them silently. A client whose description
+  is missing is named before the upload.
+- **`apps list --status running`** (several statuses separated by commas). A stand a few months
+  old holds hundreds of applications of which a handful are alive, and asking what runs here
+  should not cost the full listing.
+- **The deploy report carries the refusal as lines.** `problems-lines` holds the platform's text
+  broken into plain lines: JSON escapes a multi-line refusal into `
+` and `	` exactly where it
+  has to be read – which object, which keys stopped being unique.
+
+### Fixed
+
+- **An apply waits out a busy application** instead of giving up on it. A deploy right after
+  another one used to fail with "the application is busy" AFTER the build had been uploaded;
+  the wait is short and only fires on the busy wording, so a missing application still fails at
+  once.
+- **A probe stops at a refused compatibility mode.** A stand older than the project refuses the
+  whole project and then complains about types and properties of that mode in files the change
+  never touched – hundreds of lines that read like a verdict on the code. The refusal is now
+  named for what it is, and what followed from it is counted rather than parsed.
+
 ## 2026-08-30 – 0.32.3
 
 ### Changed

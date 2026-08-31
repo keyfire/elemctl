@@ -100,7 +100,7 @@ usage: elemctl apps [-h] действие ...
 ### `elemctl apps list`
 
 ```bash
-usage: elemctl apps list [-h] [--name NAME] [--brief]
+usage: elemctl apps list [-h] [--name NAME] [--status STATUS] [--brief]
 ```
 
 **Параметры**
@@ -109,6 +109,7 @@ usage: elemctl apps list [-h] [--name NAME] [--brief]
 |---|---|
 | `-h, --help` | показать эту справку и выйти |
 | `--name NAME` | фильтр по подстроке имени без учёта регистра (выполняется на клиенте) |
+| `--status STATUS` | отбор по статусу (Running, Stopped, Error, Deleted); несколько – через запятую |
 | `--brief` | краткие карточки: ид, имя, статус, uri, применённая версия |
 
 ### `elemctl apps get`

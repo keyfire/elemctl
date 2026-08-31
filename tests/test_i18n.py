@@ -192,10 +192,23 @@ def test_no_russian_string_literals_outside_the_catalog():
         "Библиотеки",
         "ВидЭлемента", "ОбластьВидимости", "РежимСовместимости", "Представление",
         "библиотека", "приложение",
-        # The keys of an attribute description, read by the schema guard.
-        "Реквизиты", "Ид", "Тип", "Длина", "МаксимальнаяДлина",
+        # The kind of a SOAP service client element.
+        "КлиентSoapСервиса",
+        # The keys of a description block, read by the schema guard.
+        "Реквизиты", "Измерения", "Ид", "Тип", "Длина", "МаксимальнаяДлина",
         # The primitive type names the guard canonicalizes across the spellings.
         "Строка", "Число", "Булево", "Дата", "ДатаВремя", "Время",
+    }
+
+    # Constants that RECOGNIZE the platform's own wording rather than produce ours:
+    # markers and patterns matched against the server's answers. Translating them
+    # would stop them from matching, so they belong outside the catalog - but each
+    # one has to be declared here, so a genuine message cannot slip in as a "marker".
+    platform_recognizers = {
+        "BUSY_MARKERS",  # client.py – "the application is busy" in a refusal
+        "SOAP_CLIENT_KINDS",  # build.py – the element kind of a SOAP service client
+        "_ELEMENT_KIND",  # build.py – the ВидЭлемента line of a descriptor
+        "_COMPATIBILITY_REFUSED",  # probe.py – "unknown compatibility mode"
     }
     package = Path(i18n.__file__).parent
     offenders = []
@@ -203,6 +216,17 @@ def test_no_russian_string_literals_outside_the_catalog():
         if module.name in ("i18n.py", "mcp_server.py"):
             continue
         tree = ast.parse(module.read_text(encoding="utf-8"))
+        recognizers = {
+            id(constant)
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Assign)
+            and any(
+                isinstance(target, ast.Name) and target.id in platform_recognizers
+                for target in node.targets
+            )
+            for constant in ast.walk(node.value)
+            if isinstance(constant, ast.Constant)
+        }
         docstrings = {
             id(node.body[0].value)
             for node in ast.walk(tree)
@@ -214,7 +238,9 @@ def test_no_russian_string_literals_outside_the_catalog():
         for node in ast.walk(tree):
             if not isinstance(node, ast.Constant) or not isinstance(node.value, str):
                 continue
-            if id(node) in docstrings or node.value.strip() in platform_literals:
+            if id(node) in docstrings or id(node) in recognizers:
+                continue
+            if node.value.strip() in platform_literals:
                 continue
             if re.search(r"[А-Яа-яЁё]", node.value):
                 offenders.append(f"{module.name}:{node.lineno}: {node.value[:60]}")

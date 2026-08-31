@@ -134,7 +134,7 @@ def cmd_token(args):
 
 def cmd_apps_list(args):
     client = make_client(_config(args))
-    apps = client.list_apps(name=args.name or "")
+    apps = client.list_apps(name=args.name or "", status=args.status or "")
     if args.brief:
         apps = [brief_app(app) for app in apps if isinstance(app, dict)]
     _emit(apps)
@@ -247,7 +247,7 @@ def _apply_and_verify(client, app_id, version_id):
     Running says nothing about the assembly that was asked for.
     """
     started_at = datetime.now(timezone.utc)
-    client.apply_build(app_id, image_id=version_id)
+    client.apply_build(app_id, image_id=version_id, log=_progress)
     _progress(i18n.t("cli.apply.started", version_id=version_id))
     client.ensure_running(app_id, log=_progress)
     return verify_deploy(
@@ -1121,6 +1121,7 @@ def build_parser():
 
     p = apps_sub.add_parser("list", help=i18n.t("cli.help.apps-list"))
     p.add_argument("--name", help=i18n.t("cli.help.apps-list-name"))
+    p.add_argument("--status", help=i18n.t("cli.help.apps-list-status"))
     p.add_argument("--brief", action="store_true", help=i18n.t("cli.help.apps-list-brief"))
     p.set_defaults(handler=cmd_apps_list)
 

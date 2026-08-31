@@ -9,6 +9,7 @@ forward slashes.
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import zipfile
 from dataclasses import dataclass, field
@@ -42,6 +43,18 @@ ALLOWED_EXTENSIONS = {
     ".css", ".htm", ".html", ".js", ".woff", ".woff2", ".ttf", ".eot",
 }
 
+# The description files of a SOAP service client. The platform puts them NEXT TO
+# the project element rather than into a resource directory, and forbids renaming
+# them - it finds them by name: "<Client>.Wsdl.1" for the description, ".Wsdl.2"
+# and further for the WSDL files it references, "<Client>.Xsd" for a schema.
+# Their extensions are outside the allowlist, so without this pattern a project
+# with a SOAP client builds an archive with the description missing, and the
+# platform only says so when applying - after which it silently rolls back.
+SOAP_DESCRIPTION = re.compile(r"\.(?:wsdl|xsd)(?:\.\d+)?$", re.IGNORECASE)
+
+# The element kind whose description files the pattern above belongs to.
+SOAP_CLIENT_KINDS = ("КлиентSoapСервиса", "SoapServiceClient")
+
 # The resource directory of a subsystem or a package. By the platform documentation
 # a resource is an arbitrary file, so inside such directories there is no selection
 # by extension.
@@ -74,6 +87,10 @@ class ProjectMeta:
     project_dir: Path
     repo_root: Path
     project_file: Path = None  # the descriptor the metadata was read from
+    # РежимСовместимости of the descriptor ("" when it is not set): the platform
+    # version the sources are written for. A stand older than that refuses the
+    # whole project, not a particular file.
+    compatibility: str = ""
 
 
 @dataclass(frozen=True)
@@ -106,6 +123,10 @@ class BuildResult:
     version_source: str = ""
     dirty_files: list | None = None
     skipped_files: list = field(default_factory=list)
+    # SOAP service clients whose description file is not in the archive: the apply
+    # fails on that and the platform silently rolls the application back, so the
+    # build says so while the failure is still cheap.
+    clients_without_description: list = field(default_factory=list)
 
 
 def parse_flat_yaml(text):
@@ -293,6 +314,7 @@ def read_project_meta(project_dir):
         ))
 
     base_version = descriptor_value(values, "Версия", "Version") or "1.0"
+    compatibility = descriptor_value(values, "РежимСовместимости", "CompatibilityMode")
     kind_value = descriptor_value(values, "ВидПроекта", "ProjectKind").lower()
     kind = "Library" if kind_value in ("библиотека", "library") else "Application"
     return ProjectMeta(
@@ -303,6 +325,7 @@ def read_project_meta(project_dir):
         project_dir=project_dir,
         repo_root=project_dir.parent.parent,
         project_file=project_file,
+        compatibility=compatibility,
     )
 
 
@@ -335,11 +358,59 @@ def collect_with_skipped(project_dir):
             path = Path(root) / file_name
             if _is_excluded_file(file_name):
                 continue
-            if not in_resources and Path(file_name).suffix.lower() not in ALLOWED_EXTENSIONS:
+            if (
+                not in_resources
+                and Path(file_name).suffix.lower() not in ALLOWED_EXTENSIONS
+                and not SOAP_DESCRIPTION.search(file_name)
+            ):
                 skipped.append(path)
                 continue
             selected.append(path)
     return selected, skipped
+
+
+def soap_clients_without_description(files):
+    """The SOAP service clients among the files whose description is not there.
+
+    The platform reads the description by the name of the element - the file lies
+    next to the descriptor and is called "<Client>.Wsdl.<n>". Without it the apply
+    fails, and a failed apply rolls the application back without saying why, so a
+    client with no description has to be named BEFORE the upload. Returned are the
+    paths of the descriptors, sorted.
+    """
+    files = [Path(item) for item in files]
+    by_directory = {}
+    for path in files:
+        by_directory.setdefault(path.parent, []).append(path.name.lower())
+    missing = []
+    for path in files:
+        if path.suffix.lower() != ".yaml" or path.name in PROJECT_FILES + SUBSYSTEM_FILES:
+            continue
+        if _element_kind(path) not in SOAP_CLIENT_KINDS:
+            continue
+        wanted = path.stem.lower() + ".wsdl"
+        if not any(name.startswith(wanted) for name in by_directory.get(path.parent, ())):
+            missing.append(path)
+    return sorted(missing)
+
+
+def _element_kind(path):
+    """The ВидЭлемента/ElementKind of a descriptor ("" when there is none).
+
+    Only the head of the file is read: the kind is a top-level key of a
+    descriptor, and a build must not parse every YAML of the project in full to
+    find it.
+    """
+    try:
+        with path.open("r", encoding="utf-8-sig", errors="replace") as handle:
+            head = handle.read(512)
+    except OSError:
+        return ""
+    found = _ELEMENT_KIND.search(head)
+    return found.group(1) if found else ""
+
+
+_ELEMENT_KIND = re.compile(r"^(?:ВидЭлемента|ElementKind):\s*(\S+)", re.MULTILINE)
 
 
 # Where the branch name comes from when the checkout is detached. A CI runner checks out
@@ -484,6 +555,7 @@ def build_assembly(
     projects = local_project_dependencies(meta) if project_kind == "Application" else [meta]
     archive_names = []
     skipped_names = []
+    clients_without_description = []
     with zipfile.ZipFile(archive_path, "w", zipfile.ZIP_DEFLATED) as archive:
         archive.writestr("Assembly.yaml", manifest)
         for project in projects:
@@ -495,6 +567,10 @@ def build_assembly(
                 archive_names.append(arc_name)
             skipped_names.extend(
                 _result_path(project, meta, path) for path in skipped
+            )
+            clients_without_description.extend(
+                _result_path(project, meta, path)
+                for path in soap_clients_without_description(files)
             )
 
     return BuildResult(
@@ -509,6 +585,7 @@ def build_assembly(
         version_source=version_source,
         dirty_files=git_dirty_files(meta.project_dir),
         skipped_files=skipped_names,
+        clients_without_description=clients_without_description,
     )
 
 

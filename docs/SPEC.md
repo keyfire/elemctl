@@ -162,6 +162,7 @@ File selection for the archive:
 
 - inside resource directories (the literal directory name is `Ресурсы`) – at any level, including their subdirectories – files of ANY extension are included: per the platform documentation a resource is an arbitrary file (`.pdf`, `.htm`, `.mxl`, `.docx`, `.xsd` etc.);
 - outside resource directories only these extensions are included: `.yaml .xbsl .xbql .md .txt .json` (sources), `.png .svg .jpg .jpeg .gif .webp .ico` (images), `.css .htm .html .js .woff .woff2 .ttf .eot` (web resources);
+- the description files of a SOAP service client are included wherever they lie: `<Client>.Wsdl.<n>` and `<Client>.Xsd`. The platform puts them next to the project element rather than into a resource directory and forbids renaming them, so they are matched by name, not by extension;
 - the directories `.git`, `.claude`, `.github`, `__pycache__`, `node_modules`, `.venv` and all hidden ones (starting with a dot) are excluded;
 - the files `.gitignore`, `.env`, `.DS_Store` and `*.xasm`, `*.xlib` files are excluded – including inside resource directories.
 
@@ -256,7 +257,8 @@ Commands (significant flags in parentheses):
   nothing to confirm a clean tree with).
 - `deploy [--app-id --project-id --project-dir --output --build-version
   --branch --commit --commit-message --dry-run --require-clean]` –
-  the full cycle: build -> upload -> apply -> restart -> verification of the actual apply (section 6.1). Output – a JSON report with fields: `app-id`, `uri`, `status`, `version`, `assembly-id`, `applied-version`, `applied` (true/false/null – null when the actual version could not be determined), `uri-status`, `problems` (list of strings), `ok` (boolean), `dirty`/`dirty-files` (uncommitted changes of the project directory at build time – the build captures the current disk state, so the divergence from HEAD must be visible; a warning also goes to stderr; null when git is unavailable). Return code 0 only when `ok`. `--dry-run` – build only. `--require-clean` – abort before building on a dirty tree.
+  the full cycle: build -> upload -> apply -> restart -> verification of the actual apply (section 6.1). Output – a JSON report with fields: `app-id`, `uri`, `status`, `version`, `assembly-id`, `applied-version`, `applied` (true/false/null – null when the actual version could not be determined), `uri-status`, `problems` (list of strings, the platform's texts as they came), `problems-lines` (the same broken into plain lines: JSON escapes a multi-line refusal into `
+` and `	` exactly where it has to be read), `ok` (boolean), `dirty`/`dirty-files` (uncommitted changes of the project directory at build time – the build captures the current disk state, so the divergence from HEAD must be visible; a warning also goes to stderr; null when git is unavailable). Return code 0 only when `ok`. `--dry-run` – build only. `--require-clean` – abort before building on a dirty tree.
 - `probe [--project-dir --output --build-version --name --space-id --keep
   --require-clean]` – an isolated compilation check of the sources: build ->
   upload -> a THROWAWAY application (that is the compilation, section 6.10) ->
@@ -275,7 +277,12 @@ Commands (significant flags in parentheses):
   `file` is the path relative to the project directory), `messages` (the platform
   texts verbatim – nothing is lost when the failure is not a compilation one) and
   `cleanup` (`kept`, `app-deleted`, `assembly-deleted`, `project-deleted`,
-  `problems`). Return code 0 only when `ok`; a failed cleanup is a problem in the
+  `problems`). A stand that does not know the compatibility mode of the project
+  refuses the whole project and then complains about types and properties of that
+  mode in files the change never touched: the refusal is recognized, the parsing
+  stops there, `compatibility-refused` names the mode and `messages-dropped`
+  counts what followed from it – so that a verdict about the STAND cannot read as
+  a verdict about the code. Return code 0 only when `ok`; a failed cleanup is a problem in the
   report and on stderr, it does not change the compilation verdict. `--keep`
   leaves the application and the build in place for a hands-on look. What a probe
   does leave behind is a tombstone: the platform keeps deleted applications in

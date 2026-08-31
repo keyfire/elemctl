@@ -275,3 +275,77 @@ def test_probe_without_an_assembly_id_is_an_error(project_factory, tmp_path):
         probe_project(client, project_dir=project_factory(), output_dir=tmp_path / "dist")
 
     assert "create_app" not in client.names()
+
+
+# --- the stand does not know the compatibility mode of the project ------------
+
+# What a stand older than the project answers: the refusal comes first, and the
+# derived complaints follow - about types and properties of a mode the platform
+# does not know, in files the change never touched.
+COMPATIBILITY_MESSAGE = (
+    "CreateApplication: Ошибка создания приложения: Неизвестный режим совместимости 99.0\n"
+    'acme/crm/Основное/Карточка.xbsl [12:4]: <Сервер> Unknown type "ПанельЭтапов"\n'
+    'acme/crm/Основное/Список.xbsl [3:9]: <Клиент> Unknown property "МинимальнаяШирина"'
+)
+
+
+def test_a_refused_compatibility_mode_stops_the_parsing(project_factory, tmp_path):
+    """The verdict is about the stand: the avalanche behind it answers nothing."""
+    client = FakeProbeClient(fail=True, messages=[COMPATIBILITY_MESSAGE])
+
+    report = probe_project(client, project_dir=project_factory(), output_dir=tmp_path / "dist")
+
+    assert report.ok is False
+    assert report.compatibility_refused == "99.0"
+    # The derived errors are NOT parsed - they would read as a verdict on the code.
+    assert report.errors == []
+    assert report.messages_dropped == 2
+    assert len(report.messages) == 1 and "режим совместимости" in report.messages[0]
+
+
+def test_a_refused_compatibility_mode_is_announced(project_factory, tmp_path):
+    client = FakeProbeClient(fail=True, messages=[COMPATIBILITY_MESSAGE])
+    lines = []
+
+    probe_project(
+        client, project_dir=project_factory(), output_dir=tmp_path / "dist", log=lines.append
+    )
+
+    said = "\n".join(lines)
+    assert "старше проекта" in said and "99.0" in said
+
+
+def test_the_project_compatibility_mode_is_named_in_the_refusal(project_factory, tmp_path):
+    """The report says what the project asks for, not only what the stand refused."""
+    project_dir = project_factory()
+    descriptor = project_dir / "Проект.yaml"
+    descriptor.write_text(
+        descriptor.read_text(encoding="utf-8") + "РежимСовместимости: 99.0\n", encoding="utf-8"
+    )
+    client = FakeProbeClient(fail=True, messages=[COMPATIBILITY_MESSAGE])
+    lines = []
+
+    probe_project(client, project_dir=project_dir, output_dir=tmp_path / "dist", log=lines.append)
+
+    assert any("99.0" in line for line in lines)
+
+
+def test_an_ordinary_compilation_failure_is_still_parsed(project_factory, tmp_path):
+    """The short circuit fires on the refusal alone - nothing else changes."""
+    client = FakeProbeClient(fail=True)
+
+    report = probe_project(client, project_dir=project_factory(), output_dir=tmp_path / "dist")
+
+    assert report.compatibility_refused == ""
+    assert report.messages_dropped == 0
+    assert [error["line"] for error in report.errors] == [4, 8]
+
+
+def test_the_english_wording_of_the_refusal_is_recognized(project_factory, tmp_path):
+    client = FakeProbeClient(
+        fail=True, messages=["CreateApplication: Unknown compatibility mode 99.0"]
+    )
+
+    report = probe_project(client, project_dir=project_factory(), output_dir=tmp_path / "dist")
+
+    assert report.compatibility_refused == "99.0"

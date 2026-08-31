@@ -101,7 +101,7 @@ def test_deploy_success(project_factory, tmp_path):
     assert report.ok is True
     assert report.problems == []
     assert report.uri_status == 200
-    assert client.apply_calls == [("app-1", {"image_id": "asm-777"})]
+    assert [(app, args["image_id"]) for app, args in client.apply_calls] == [("app-1", "asm-777")]
     assert log_lines  # progress was reported through the callback
 
 
@@ -257,6 +257,7 @@ def test_report_to_dict_kebab_case(project_factory, tmp_path):
         "applied",
         "uri-status",
         "problems",
+        "problems-lines",
         "ok",
         "dirty",
         "dirty-files",
@@ -528,3 +529,49 @@ def test_without_a_commit_id_the_guard_steps_aside(project_factory, tmp_path):
     assert any("репозитори" in line for line in log_lines)
     assert report.schema_check == "skipped:no-commit-id"
     assert report.to_dict()["schema-check"] == "skipped:no-commit-id"
+
+
+# --- a refusal several lines long ---------------------------------------------
+
+
+def test_problem_lines_break_a_multiline_refusal_into_plain_lines():
+    """A JSON report escapes newlines and tabs; lines survive the trip as they are."""
+    from elemctl.deploy import problem_lines
+
+    refusal = "Ошибка применения:\n\tОбъект СостоянияЗаказов:\n\t\tзаписи стали неуникальными\n"
+
+    assert problem_lines([refusal]) == [
+        "Ошибка применения:",
+        "    Объект СостоянияЗаказов:",
+        "        записи стали неуникальными",
+    ]
+
+
+def test_the_report_carries_the_refusal_as_lines(project_factory, tmp_path):
+    client = FakeDeployClient(applied_version="1.0-9")
+    report = deploy_from_sources(
+        client,
+        "app-1",
+        "proj-1",
+        project_dir=project_factory(),
+        output_dir=tmp_path / "d",
+        version="1.0-1",
+    )
+    payload = report.to_dict()
+
+    assert report.ok is False  # the applied version does not match the uploaded one
+    assert payload["problems-lines"]
+    # No escape sequence is left anywhere in the lines - that is the whole point.
+    assert all("\n" not in line and "\t" not in line for line in payload["problems-lines"])
+
+
+def test_a_multiline_problem_is_logged_as_an_indented_block(project_factory, tmp_path):
+    """The first line is marked as a problem, the rest are indented under it."""
+    from elemctl.deploy import DeployReport, _log_outcome
+
+    report = DeployReport(problems=["Отказ:\n\tвторая строка"], ok=False)
+    lines = []
+    _log_outcome(report, lines.append)
+
+    assert "Отказ:" in lines[0]
+    assert lines[1] == "        вторая строка"

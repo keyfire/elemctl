@@ -279,6 +279,17 @@ MESSAGES = {
         "ru": "нужен источник применения: image_id либо project_id",
         "en": "an apply source is required: image_id or project_id",
     },
+    "client.apply-busy": {
+        "ru": "приложение {app} занято предыдущей операцией – жду освобождения (до {seconds} с); "
+              "сборка уже загружена, терять её незачем",
+        "en": "application {app} is busy with a previous operation – waiting for it "
+              "(up to {seconds} s); the build is uploaded already, there is nothing to gain "
+              "by dropping it",
+    },
+    "client.apply-busy-gone": {
+        "ru": "приложение освободилось, применение начато",
+        "en": "the application is free again, the apply has started",
+    },
     "client.api-error": {
         "ru": "Console API ответил {status} на {method} {url}",
         "en": "Console API responded {status} to {method} {url}",
@@ -598,13 +609,30 @@ MESSAGES = {
               "is safe",
     },
     # -- schema.py ----------------------------------------------------------------
+    "schema.kind-attribute": {"ru": "реквизит", "en": "attribute"},
+    "schema.kind-dimension": {"ru": "измерение", "en": "dimension"},
+    "schema.kind-resource": {"ru": "ресурс", "en": "resource"},
     "schema.length-narrowed": {
-        "ru": "{where}: реквизит {name} – длина сужена с {before} до {after}",
-        "en": "{where}: attribute {name} – the length narrowed from {before} to {after}",
+        "ru": "{where}: {kind} {name} – длина сужена с {before} до {after}",
+        "en": "{where}: {kind} {name} – the length narrowed from {before} to {after}",
     },
     "schema.type-changed": {
-        "ru": "{where}: реквизит {name} – тип изменён с {before} на {after}",
-        "en": "{where}: attribute {name} – the type changed from {before} to {after}",
+        "ru": "{where}: {kind} {name} – тип изменён с {before} на {after}",
+        "en": "{where}: {kind} {name} – the type changed from {before} to {after}",
+    },
+    "schema.dimension-type-changed": {
+        "ru": "{where}: {kind} {name} – тип изменён с {before} на {after}; записи регистра "
+              "будут конвертированы к новому типу, значения схлопнутся, и применение "
+              "упадёт на неуникальности ключей",
+        "en": "{where}: {kind} {name} – the type changed from {before} to {after}; the records "
+              "of the register will be converted to the new type, the values will collapse "
+              "and the apply will fail on the uniqueness of the keys",
+    },
+    "schema.dimension-removed": {
+        "ru": "{where}: измерение {name} удалено – записи регистра схлопнутся на оставшихся "
+              "ключах и станут неуникальными",
+        "en": "{where}: dimension {name} removed – the records of the register will collapse "
+              "onto the keys that are left and stop being unique",
     },
     "deploy.skipped-files": {
         "ru": "внимание: в архив НЕ вошли файлы ({count}): {files} – расширение вне списка "
@@ -613,6 +641,14 @@ MESSAGES = {
         "en": "warning: files did NOT make it into the archive ({count}): {files} – the extension "
               "is not on the allowlist and the file lies outside a Ресурсы directory; on apply "
               "this shows up as \"Неизвестный ресурс\"",
+    },
+    "deploy.soap-without-description": {
+        "ru": "внимание: у клиентов SOAP-сервиса нет файла описания ({count}): {files} – "
+              "рядом с элементом должен лежать файл \"<Имя>.Wsdl.1\"; без него применение "
+              "отказывает, а приложение молча откатывается",
+        "en": "warning: SOAP service clients have no description file ({count}): {files} – a "
+              "\"<Name>.Wsdl.1\" file has to lie next to the element; without it the apply "
+              "fails and the application is silently rolled back",
     },
     "deploy.target": {
         "ru": "цель: приложение {app_id} ({app_source}), проект {project_id} ({project_source})",
@@ -702,6 +738,16 @@ MESSAGES = {
     "probe.failed": {
         "ru": "компиляция НЕ пройдена, сообщений: {count}",
         "en": "compilation FAILED, messages: {count}",
+    },
+    "probe.compatibility-refused": {
+        "ru": "стенд НЕ знает режим совместимости {mode} (проект объявляет {project}) – "
+              "он старше проекта, и проверять здесь нечего: остальные {dropped} сообщений "
+              "производны от этого отказа и отброшены. Укажите стенд посвежее "
+              "(--env-file с его .env)",
+        "en": "the stand does NOT know the compatibility mode {mode} (the project declares "
+              "{project}) – it is older than the project and there is nothing to check here: "
+              "the remaining {dropped} messages follow from that refusal and were dropped. "
+              "Point at a newer stand (--env-file with its .env)",
     },
     "probe.no-assembly-id": {
         "ru": "платформа не вернула ид сборки в ответе на загрузку – компилировать нечего",
@@ -873,6 +919,12 @@ MESSAGES = {
     "cli.help.apps-list-name": {
         "ru": "фильтр по подстроке имени без учёта регистра (выполняется на клиенте)",
         "en": "case-insensitive name substring filter (applied client-side)",
+    },
+    "cli.help.apps-list-status": {
+        "ru": "отбор по статусу (Running, Stopped, Error, Deleted); "
+              "несколько – через запятую",
+        "en": "filter by status (Running, Stopped, Error, Deleted); "
+              "several of them separated by commas",
     },
     "cli.help.apps-list-brief": {
         "ru": "краткие карточки: ид, имя, статус, uri, применённая версия",

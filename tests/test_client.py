@@ -541,3 +541,109 @@ def test_sign_in_hint_does_not_invent_an_address():
         assert hint["url"] is None, card
         assert hint["account"] == "control-panel", card
         assert "apps get" in hint["hint"], card  # where the address comes from later
+
+
+# -- an apply against a busy application ---------------------------------------
+
+
+def _busy(message="Application app-1 is busy"):
+    return json.dumps({"message": message}).encode("utf-8")
+
+
+def test_apply_build_waits_out_a_busy_application(api):
+    client, transport = api
+    transport.add("POST", f"{API}/applications/app-1/project/update", status=404, body=_busy())
+    transport.add("POST", f"{API}/applications/app-1/project/update", {"task-id": "t-1"})
+    lines = []
+
+    response = client.apply_build("app-1", image_id="asm-1", log=lines.append)
+
+    assert response == {"task-id": "t-1"}
+    assert len(transport.calls_to("POST", f"{API}/applications/app-1/project/update")) == 2
+    # The wait is announced once and its end is announced too: a deploy that stalls
+    # for minutes must say what it is waiting for.
+    assert any("занято" in line for line in lines)
+    assert any("освободилось" in line for line in lines)
+
+
+def test_apply_build_gives_up_on_a_busy_application_after_the_timeout(api):
+    client, transport = api
+    transport.add("POST", f"{API}/applications/app-1/project/update", status=404, body=_busy())
+
+    with pytest.raises(ApiError):
+        client.apply_build("app-1", image_id="asm-1", busy_timeout=0)
+
+    # Exactly one attempt: busy_timeout=0 makes the first refusal final.
+    assert len(transport.calls_to("POST", f"{API}/applications/app-1/project/update")) == 1
+
+
+def test_apply_build_does_not_retry_a_missing_application(api):
+    client, transport = api
+    transport.add(
+        "POST",
+        f"{API}/applications/app-9/project/update",
+        status=404,
+        body=json.dumps({"message": "Application app-9 not found"}).encode("utf-8"),
+    )
+
+    with pytest.raises(ApiError):
+        client.apply_build("app-9", image_id="asm-1")
+
+    # A 404 without the busy wording is the application really being absent -
+    # retrying it would burn the whole timeout for nothing.
+    assert len(transport.calls_to("POST", f"{API}/applications/app-9/project/update")) == 1
+
+
+def test_apply_build_recognizes_the_russian_wording_of_busy(api):
+    client, transport = api
+    transport.add(
+        "POST",
+        f"{API}/applications/app-1/project/update",
+        status=404,
+        body=_busy("Приложение app-1 занято"),
+    )
+    transport.add("POST", f"{API}/applications/app-1/project/update", {"task-id": "t-2"})
+
+    assert client.apply_build("app-1", image_id="asm-1") == {"task-id": "t-2"}
+    assert len(transport.calls_to("POST", f"{API}/applications/app-1/project/update")) == 2
+
+
+# -- listing applications by status --------------------------------------------
+
+
+APPS_PAGE = [
+    {"id": "1", "name": "crm-dev", "status": "Running"},
+    {"id": "2", "name": "crm-old", "status": "Deleted"},
+    {"id": "3", "name": "shop-dev", "status": "Stopped"},
+    {"id": "4", "name": "probe-1", "status": "Deleted"},
+]
+
+
+def test_list_apps_filters_by_status(api):
+    client, transport = api
+    transport.add("GET", f"{API}/applications", APPS_PAGE)
+
+    assert [app["id"] for app in client.list_apps(status="Running")] == ["1"]
+
+
+def test_list_apps_status_filter_is_case_insensitive_and_takes_several(api):
+    client, transport = api
+    transport.add("GET", f"{API}/applications", APPS_PAGE)
+
+    apps = client.list_apps(status="running, stopped")
+
+    assert [app["id"] for app in apps] == ["1", "3"]
+
+
+def test_list_apps_combines_the_name_and_the_status_filters(api):
+    client, transport = api
+    transport.add("GET", f"{API}/applications", APPS_PAGE)
+
+    assert [app["id"] for app in client.list_apps(name="crm", status="Deleted")] == ["2"]
+
+
+def test_list_apps_without_a_status_returns_everything(api):
+    client, transport = api
+    transport.add("GET", f"{API}/applications", APPS_PAGE)
+
+    assert len(client.list_apps()) == 4

@@ -147,15 +147,22 @@ def create_server(config=None):
         return state["clients"][key]
 
     @server.tool()
-    def list_apps(name: str = "", brief: bool = True, env_file: str = "") -> list:
+    def list_apps(
+        name: str = "", status: str = "", brief: bool = True, env_file: str = ""
+    ) -> list:
         """Список приложений платформы; name – фильтр по подстроке имени без учёта регистра (выполняется на клиенте: платформа query-параметр игнорирует).
+
+        status – отбор по статусу целиком (Running, Stopped, Error, Deleted;
+        несколько – через запятую): на стенде, живущем не первый месяц, приложений
+        сотни, а живых единицы, и вопрос "что здесь работает" не должен стоить
+        полного перечня.
 
         brief (по умолчанию) оставляет от карточки только id, имя, статус, uri и
         применённую версию: полные карточки всего пространства – это десятки тысяч
         символов, которые в ответе агенту почти всегда лишние. brief=false отдаёт
         карточки целиком. env_file – путь к .env другого окружения.
         """
-        apps = client(env_file).list_apps(name=name)
+        apps = client(env_file).list_apps(name=name, status=status)
         if not brief:
             return apps
         return [brief_app(app) for app in apps if isinstance(app, dict)]

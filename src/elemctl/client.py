@@ -29,6 +29,18 @@ START_TIMEOUT = 300.0
 READY_TIMEOUT = 600.0
 DELETE_TIMEOUT = 180.0
 
+# How long an apply waits out an application that is still finishing a previous
+# operation, and how often it asks again. The wait is short on purpose: it covers
+# a deploy that follows another one, not a stand that has hung.
+APPLY_BUSY_TIMEOUT = 180.0
+BUSY_POLL_INTERVAL = 10.0
+
+# The platform answers a request to a busy application with a 404 whose text says
+# so - the same status a missing application gets. The text is what tells them
+# apart, and retrying on the status alone would spend the whole timeout on an
+# application that really is not there. Both spellings, like everywhere else.
+BUSY_MARKERS = ("is busy", "занято", "занят")
+
 # Application task statuses that mean a failure (compared case-insensitively).
 FAILED_TASK_STATUSES = {"error", "failed"}
 
@@ -118,6 +130,22 @@ def _is_stale_token(response):
         return False
     description = str(body.get("error_description") or "").lower()
     return any(marker in description for marker in _STALE_TOKEN_MARKERS)
+
+
+def _is_busy(error):
+    """Is this refusal about the application being busy rather than missing?
+
+    The platform refuses a request to an application that is still finishing a
+    previous operation with a 404 - the same status a missing application gets -
+    and says which of the two it is only in the text. Everything the error carries
+    is searched (the message and the body), because the wording travels in
+    different fields depending on the method.
+    """
+    status = getattr(error, "status", None)
+    if status not in (404, 409, 423):
+        return False
+    haystack = f"{getattr(error, 'message', '') or error} {getattr(error, 'body', '') or ''}".lower()
+    return any(marker in haystack for marker in BUSY_MARKERS)
 
 
 def _as_list(payload, *keys):
@@ -352,22 +380,36 @@ class ElementClient:
 
     # -- applications ------------------------------------------------------
 
-    def list_apps(self, name=""):
-        """The list of applications; name is an optional filter by a name substring.
+    def list_apps(self, name="", status=""):
+        """The list of applications; name and status are optional filters.
 
-        The filter runs on the client, case-insensitively (over the
-        APP_NAME_KEYS fields): the platform ignores the name query parameter
-        and returns the full list – verified by a live call.
+        Both filters run on the client, case-insensitively: the platform ignores
+        the name query parameter and returns the full list – verified by a live
+        call. name matches a substring of the APP_NAME_KEYS fields; status matches
+        the whole status word, and several of them may be given separated by
+        commas ("running,stopped"). A stand a few months old holds hundreds of
+        applications of which a handful are alive, and asking "what is running
+        here" should not cost the full listing.
         """
         payload = self._api("GET", "/applications")
         apps = _as_list(payload, "items", "applications")
         needle = (name or "").strip().lower()
-        if not needle:
-            return apps
-        return [
-            app for app in apps
-            if isinstance(app, dict) and _app_name_contains(app, needle)
-        ]
+        if needle:
+            apps = [
+                app for app in apps
+                if isinstance(app, dict) and _app_name_contains(app, needle)
+            ]
+        wanted = {
+            part.strip().lower()
+            for part in str(status or "").split(",")
+            if part.strip()
+        }
+        if wanted:
+            apps = [
+                app for app in apps
+                if isinstance(app, dict) and str(app.get("status") or "").lower() in wanted
+            ]
+        return apps
 
     def get_app(self, app_id):
         """The application card (status, uri, source.project-version and so on)."""
@@ -496,11 +538,27 @@ class ElementClient:
         """
         return self._api("POST", f"/applications/{app_id}/actions/debug")
 
-    def apply_build(self, app_id, *, image_id=None, project_id=None, assembly_version=None):
+    def apply_build(
+        self,
+        app_id,
+        *,
+        image_id=None,
+        project_id=None,
+        assembly_version=None,
+        busy_timeout=APPLY_BUSY_TIMEOUT,
+        poll=BUSY_POLL_INTERVAL,
+        log=None,
+    ):
         """Apply a build to the application (project/update).
 
         The source is either image_id (the assembly id) or project_id with an
         optional assembly_version.
+
+        An application still finishing a previous operation refuses the call as
+        busy; the apply waits it out instead of giving up, because by this point
+        the build has already been uploaded and there is nothing to gain by
+        throwing it away. busy_timeout=0 turns the wait off and makes the first
+        refusal final.
         """
         if image_id:
             source = {"type": "repository", "image-id": image_id}
@@ -510,9 +568,27 @@ class ElementClient:
                 source["assembly-version"] = assembly_version
         else:
             raise ConfigError(i18n.t("client.apply-source-required"))
-        return self._api(
-            "POST", f"/applications/{app_id}/project/update", json_body={"source": source}
-        )
+
+        deadline = time.monotonic() + max(0.0, float(busy_timeout))
+        waited = False
+        while True:
+            try:
+                response = self._api(
+                    "POST",
+                    f"/applications/{app_id}/project/update",
+                    json_body={"source": source},
+                )
+            except ApiError as error:
+                if not _is_busy(error) or time.monotonic() >= deadline:
+                    raise
+                if not waited and log:
+                    log(i18n.t("client.apply-busy", app=app_id, seconds=int(busy_timeout)))
+                waited = True
+                self._sleep(poll)
+                continue
+            if waited and log:
+                log(i18n.t("client.apply-busy-gone"))
+            return response
 
     def create_dump(self, app_id, *, include_users=True, include_binary_data=True, description=""):
         """Create an application dump."""

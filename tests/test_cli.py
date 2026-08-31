@@ -955,7 +955,7 @@ def test_apps_get_resolves_name(monkeypatch, capsys):
 
 def test_apps_list_brief_cards(monkeypatch, capsys):
     class FakeClient:
-        def list_apps(self, name=""):
+        def list_apps(self, name="", status=""):
             assert name == "crm"
             return [
                 {

@@ -17,6 +17,7 @@ from elemctl.build import (
     inspect_assembly,
     parse_project_libraries,
     read_project_meta,
+    soap_clients_without_description,
 )
 from elemctl.errors import BuildError
 
@@ -726,3 +727,100 @@ def test_manifest_of_a_detached_build_carries_no_head(project_factory, tmp_path)
     )
     with zipfile.ZipFile(with_ci.file) as archive:
         assert "BranchName: master" in archive.read("Assembly.yaml").decode("utf-8")
+
+
+# --- the description files of a SOAP service client ---------------------------------------
+
+
+def _soap_client(project_dir, name="КлиентСервисаМагазина", *, with_description=True):
+    """A SOAP service client element and, optionally, its description files."""
+    package = project_dir / "Интеграция"
+    package.mkdir(exist_ok=True)
+    (package / f"{name}.yaml").write_text(
+        f"ВидЭлемента: КлиентSoapСервиса\nИд: f65ac26f-0351-48cd-bc93-751912e05bc1\nИмя: {name}\n",
+        encoding="utf-8",
+    )
+    (package / f"{name}.xbsl").write_text("// модуль клиента\n", encoding="utf-8")
+    if with_description:
+        (package / f"{name}.Wsdl.1").write_text("<definitions/>", encoding="utf-8")
+        (package / f"{name}.Xsd").write_text("<schema/>", encoding="utf-8")
+    return package
+
+
+def test_the_description_of_a_soap_client_goes_into_the_archive(project_factory):
+    """.Wsdl.1 and .Xsd lie NEXT TO the element, not in Ресурсы – and are still taken."""
+    project_dir = project_factory()
+    _soap_client(project_dir)
+
+    selected, skipped = collect_with_skipped(project_dir)
+
+    names = {path.name for path in selected}
+    assert "КлиентСервисаМагазина.Wsdl.1" in names
+    assert "КлиентСервисаМагазина.Xsd" in names
+    assert skipped == []
+
+
+def test_further_wsdl_files_of_a_soap_client_are_taken_too(project_factory):
+    """A referenced WSDL arrives as .Wsdl.2 and further – the pattern covers the numbering."""
+    project_dir = project_factory()
+    package = _soap_client(project_dir)
+    (package / "КлиентСервисаМагазина.Wsdl.2").write_text("<definitions/>", encoding="utf-8")
+
+    selected, _ = collect_with_skipped(project_dir)
+
+    assert "КлиентСервисаМагазина.Wsdl.2" in {path.name for path in selected}
+
+
+def test_a_soap_client_without_a_description_is_named(project_factory):
+    project_dir = project_factory()
+    _soap_client(project_dir, with_description=False)
+
+    selected, _ = collect_with_skipped(project_dir)
+    missing = soap_clients_without_description(selected)
+
+    assert [path.name for path in missing] == ["КлиентСервисаМагазина.yaml"]
+
+
+def test_a_soap_client_with_a_description_is_not_named(project_factory):
+    project_dir = project_factory()
+    _soap_client(project_dir)
+
+    selected, _ = collect_with_skipped(project_dir)
+
+    assert soap_clients_without_description(selected) == []
+
+
+def test_other_elements_are_not_asked_for_a_description(project_factory):
+    """The check is about SOAP clients alone - an ordinary element has no WSDL."""
+    project_dir = project_factory()
+    package = project_dir / "Основная"
+    package.mkdir()
+    (package / "Абоненты.yaml").write_text(
+        "ВидЭлемента: Справочник\nИмя: Абоненты\n", encoding="utf-8"
+    )
+
+    selected, _ = collect_with_skipped(project_dir)
+
+    assert soap_clients_without_description(selected) == []
+
+
+def test_build_result_carries_the_clients_without_a_description(project_factory, tmp_path):
+    project_dir = project_factory()
+    _soap_client(project_dir, with_description=False)
+
+    result = build_assembly(project_dir, output_dir=tmp_path / "dist", version="1.0-1")
+
+    assert result.clients_without_description == ["Интеграция/КлиентСервисаМагазина.yaml"]
+
+
+def test_the_description_really_lands_in_the_archive(project_factory, tmp_path):
+    project_dir = project_factory()
+    _soap_client(project_dir)
+
+    result = build_assembly(project_dir, output_dir=tmp_path / "dist", version="1.0-1")
+
+    with zipfile.ZipFile(result.file) as archive:
+        names = archive.namelist()
+    assert "acme/crm/Интеграция/КлиентСервисаМагазина.Wsdl.1" in names
+    assert "acme/crm/Интеграция/КлиентСервисаМагазина.Xsd" in names
+    assert result.clients_without_description == []

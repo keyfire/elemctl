@@ -34,6 +34,12 @@ class DeployReport:
     no build ran in this invocation): a build captures the disk as it is, so any
     divergence from HEAD has to be visible in the report.
 
+    problems – the refusal texts as the platform gave them, newlines and tabs
+    included; to_dict adds problems-lines, the same thing broken into plain lines.
+    A JSON report escapes a multi-line string into \n and \t, and the refusal
+    stops being readable exactly where it matters - the object and the keys that
+    made the apply fail.
+
     app_id_source / project_id_source – where the target came from: "flag" – an
     explicit --app-id / --project-id, "env" – ELEMENT_APP_ID / ELEMENT_PROJECT_ID
     of the environment or the .env file. A deploy to the wrong application is the
@@ -81,6 +87,7 @@ class DeployReport:
             "applied": self.applied,
             "uri-status": self.uri_status,
             "problems": list(self.problems),
+            "problems-lines": problem_lines(self.problems),
             "ok": self.ok,
             "dirty": None if self.dirty_files is None else bool(self.dirty_files),
             "dirty-files": None if self.dirty_files is None else list(self.dirty_files),
@@ -181,6 +188,14 @@ def deploy_from_sources(
             count=len(result.skipped_files),
             files=_shorten_list(result.skipped_files),
         ))
+    if result.clients_without_description:
+        # Also before the apply: a client with no description is an apply failure,
+        # and a failed apply rolls the application back without naming the cause.
+        log(i18n.t(
+            "deploy.soap-without-description",
+            count=len(result.clients_without_description),
+            files=_shorten_list(result.clients_without_description),
+        ))
 
     # The branch and the commit travel INSIDE the archive (the build wrote the manifest);
     # the upload method has no such parameters and the server ignores them when sent -
@@ -190,10 +205,12 @@ def deploy_from_sources(
     log(i18n.t("deploy.uploaded", id=assembly_id or i18n.t("deploy.unknown")))
 
     if assembly_id:
-        client.apply_build(app_id, image_id=assembly_id)
+        client.apply_build(app_id, image_id=assembly_id, log=log)
     else:
         # The response carries no assembly id: apply by project and version.
-        client.apply_build(app_id, project_id=project_id, assembly_version=result.version)
+        client.apply_build(
+            app_id, project_id=project_id, assembly_version=result.version, log=log
+        )
     log(i18n.t("deploy.apply-started"))
 
     card = client.ensure_running(app_id, log=log)
@@ -387,12 +404,35 @@ def _verify(client, app_id, *, card, expected_version, since, expected_assembly_
     return report
 
 
+def problem_lines(problems):
+    """The refusal texts broken into plain lines, with tabs expanded.
+
+    The platform hands a refusal over as ONE string carrying newlines and tabs,
+    and json.dumps turns those into escape sequences. Lines survive the trip
+    through JSON as they are, so the report carries both: the raw texts and this.
+    """
+    lines = []
+    for problem in problems or []:
+        for raw in str(problem).expandtabs(4).splitlines():
+            text = raw.rstrip()
+            if text:
+                lines.append(text)
+    return lines
+
+
 def _log_outcome(report, log):
     if report.ok:
         log(i18n.t("deploy.verify-passed"))
     else:
+        # The first line of a problem is marked, the rest are indented under it:
+        # a refusal several lines long has to stay one readable block.
         for problem in report.problems:
-            log(i18n.t("deploy.problem", problem=problem))
+            lines = problem_lines([problem])
+            if not lines:
+                continue
+            log(i18n.t("deploy.problem", problem=lines[0]))
+            for extra in lines[1:]:
+                log("    " + extra)
         log(i18n.t("deploy.verify-failed"))
 
 

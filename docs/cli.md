@@ -100,7 +100,7 @@ usage: elemctl apps [-h] action ...
 ### `elemctl apps list`
 
 ```bash
-usage: elemctl apps list [-h] [--name NAME] [--brief]
+usage: elemctl apps list [-h] [--name NAME] [--status STATUS] [--brief]
 ```
 
 **Options**
@@ -109,6 +109,7 @@ usage: elemctl apps list [-h] [--name NAME] [--brief]
 |---|---|
 | `-h, --help` | show this help message and exit |
 | `--name NAME` | case-insensitive name substring filter (applied client-side) |
+| `--status STATUS` | filter by status (Running, Stopped, Error, Deleted); several of them separated by commas |
 | `--brief` | brief cards: id, name, status, uri, applied version |
 
 ### `elemctl apps get`
