@@ -47,4 +47,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: python scripts/docsguard.py
+      # The shared parts of the guard live in their own repository - three repositories were
+      # keeping the same readers in triplicate - and it runs in checks only, so it is
+      # installed from git rather than released.
+      - run: pip install "git+https://github.com/keyfire/docsguard@main"
+      - run: python scripts/check_docs.py

@@ -38,7 +38,9 @@ Changelog = "https://github.com/keyfire/elemctl/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 mcp = ["mcp>=1.2,<3"]
-dev = ["pytest>=7"]
+# The documentation guard lives in its own repository and is installed from git: it runs
+# in checks only, is never shipped to a user, and needs no release cadence of its own.
+dev = ["pytest>=7", "docsguard @ git+https://github.com/keyfire/docsguard@main"]
 
 [project.scripts]
 elemctl = "elemctl.cli:main"
