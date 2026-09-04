@@ -38,9 +38,10 @@ Changelog = "https://github.com/keyfire/elemctl/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 mcp = ["mcp>=1.2,<3"]
-# The documentation guard lives in its own repository and is installed from git: it runs
-# in checks only, is never shipped to a user, and needs no release cadence of its own.
-dev = ["pytest>=7", "docsguard @ git+https://github.com/keyfire/docsguard@main"]
+# The documentation guard is installed by the checks themselves, not declared here:
+# PyPI refuses a distribution whose metadata carries a direct URL dependency, even
+# in an optional extra. See the CI workflow and CONTRIBUTING.
+dev = ["pytest>=7"]
 
 [project.scripts]
 elemctl = "elemctl.cli:main"

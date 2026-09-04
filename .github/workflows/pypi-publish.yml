@@ -18,6 +18,7 @@ jobs:
         with:
           python-version: "3.12"
       - run: python -m pip install -e ".[dev,mcp]"
+      - run: pip install "git+https://github.com/keyfire/docsguard@main"
       - run: python -m pytest -q
 
   build:

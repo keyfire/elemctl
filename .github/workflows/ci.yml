@@ -33,6 +33,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - run: python -m pip install -e ".[dev,mcp]"
+      - run: pip install "git+https://github.com/keyfire/docsguard@main"
       - if: matrix.mcp-major == '1'
         run: python -m pip install "mcp<2"
       - run: python -m pytest -q
