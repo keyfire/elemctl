@@ -115,7 +115,7 @@ usage: elemctl apps list [-h] [--name NAME] [--status STATUS] [--brief]
 ### `elemctl apps get`
 
 ```bash
-usage: elemctl apps get [-h] [APP_ID]
+usage: elemctl apps get [-h] [--app-id APP_ID] [APP_ID]
 ```
 
 **Arguments**
@@ -129,6 +129,7 @@ usage: elemctl apps get [-h] [APP_ID]
 | Option | Description |
 |---|---|
 | `-h, --help` | show this help message and exit |
+| `--app-id APP_ID` | the same application as an option: deploy and apps ensure take this form only |
 
 ### `elemctl apps find`
 
@@ -209,7 +210,7 @@ usage: elemctl apps ensure [-h] [--project-id PROJECT_ID] [--version-id VERSION_
 ### `elemctl apps apply`
 
 ```bash
-usage: elemctl apps apply [-h] [APP_ID] VERSION_ID
+usage: elemctl apps apply [-h] [--app-id APP_ID] [APP_ID] VERSION_ID
 ```
 
 **Arguments**
@@ -224,11 +225,12 @@ usage: elemctl apps apply [-h] [APP_ID] VERSION_ID
 | Option | Description |
 |---|---|
 | `-h, --help` | show this help message and exit |
+| `--app-id APP_ID` | the same application as an option: deploy and apps ensure take this form only |
 
 ### `elemctl apps delete`
 
 ```bash
-usage: elemctl apps delete [-h] APP_ID
+usage: elemctl apps delete [-h] [--app-id APP_ID] [APP_ID]
 ```
 
 **Arguments**
@@ -242,11 +244,12 @@ usage: elemctl apps delete [-h] APP_ID
 | Option | Description |
 |---|---|
 | `-h, --help` | show this help message and exit |
+| `--app-id APP_ID` | the same application as an option: deploy and apps ensure take this form only |
 
 ### `elemctl apps start`
 
 ```bash
-usage: elemctl apps start [-h] [APP_ID]
+usage: elemctl apps start [-h] [--app-id APP_ID] [APP_ID]
 ```
 
 **Arguments**
@@ -260,11 +263,12 @@ usage: elemctl apps start [-h] [APP_ID]
 | Option | Description |
 |---|---|
 | `-h, --help` | show this help message and exit |
+| `--app-id APP_ID` | the same application as an option: deploy and apps ensure take this form only |
 
 ### `elemctl apps stop`
 
 ```bash
-usage: elemctl apps stop [-h] [APP_ID]
+usage: elemctl apps stop [-h] [--app-id APP_ID] [APP_ID]
 ```
 
 **Arguments**
@@ -278,11 +282,12 @@ usage: elemctl apps stop [-h] [APP_ID]
 | Option | Description |
 |---|---|
 | `-h, --help` | show this help message and exit |
+| `--app-id APP_ID` | the same application as an option: deploy and apps ensure take this form only |
 
 ### `elemctl apps debug`
 
 ```bash
-usage: elemctl apps debug [-h] [APP_ID]
+usage: elemctl apps debug [-h] [--app-id APP_ID] [APP_ID]
 ```
 
 **Arguments**
@@ -296,6 +301,7 @@ usage: elemctl apps debug [-h] [APP_ID]
 | Option | Description |
 |---|---|
 | `-h, --help` | show this help message and exit |
+| `--app-id APP_ID` | the same application as an option: deploy and apps ensure take this form only |
 
 ## `elemctl spaces`
 

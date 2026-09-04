@@ -13,6 +13,15 @@ day are named in the heading. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Fixed
+- **The application is addressed both positionally and with `--app-id`.** The `apps get`,
+  `apply`, `delete`, `start`, `stop` and `debug` commands took the positional form only, while
+  `deploy` and `apps ensure` took the option only, so a call written the other way answered
+  with usage instead of doing the work. Two DIFFERENT references in one call are refused:
+  silently preferring one would send the command to the wrong application.
+
 ## 2026-08-31 – 0.33.0
 
 ### Added

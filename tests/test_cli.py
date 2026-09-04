@@ -953,6 +953,56 @@ def test_apps_get_resolves_name(monkeypatch, capsys):
     assert json.loads(capsys.readouterr().out)["id"] == "app-uuid"
 
 
+def test_apps_get_takes_the_reference_as_an_option(monkeypatch, capsys):
+    """`deploy` and `apps ensure` take `--app-id`; the apps commands take it too."""
+    class FakeClient:
+        def resolve_app_id(self, value):
+            assert value == "crm-x"
+            return "app-uuid"
+
+        def get_app(self, app_id):
+            return {"id": app_id, "status": "Running"}
+
+    monkeypatch.setattr(cli, "make_client", lambda config: FakeClient())
+    rc = cli.main(["apps", "get", "--app-id", "crm-x"])
+    assert rc == 0
+    assert json.loads(capsys.readouterr().out)["id"] == "app-uuid"
+
+
+def test_apps_stop_takes_the_reference_as_an_option(monkeypatch, capsys):
+    class FakeClient:
+        def resolve_app_id(self, value):
+            return "app-uuid"
+
+        def stop_app(self, app_id):
+            return {"id": app_id, "status": "Stopped"}
+
+    monkeypatch.setattr(cli, "make_client", lambda config: FakeClient())
+    assert cli.main(["apps", "stop", "--app-id", "crm-x"]) == 0
+    assert json.loads(capsys.readouterr().out)["status"] == "Stopped"
+
+
+def test_two_different_references_are_refused(capsys):
+    """Silently preferring one of them would deploy commands to the wrong application."""
+    rc = cli.main(["apps", "get", "crm-x", "--app-id", "crm-y"])
+    assert rc == 1
+    error = json.loads(capsys.readouterr().err)["error"]
+    assert "crm-x" in error and "crm-y" in error
+
+
+def test_the_same_reference_written_twice_is_accepted(monkeypatch, capsys):
+    class FakeClient:
+        def resolve_app_id(self, value):
+            return "app-uuid"
+
+        def get_app(self, app_id):
+            return {"id": app_id}
+
+    monkeypatch.setattr(cli, "make_client", lambda config: FakeClient())
+    assert cli.main(["apps", "get", "crm-x", "--app-id", "crm-x"]) == 0
+    assert json.loads(capsys.readouterr().out)["id"] == "app-uuid"
+
+
 def test_apps_list_brief_cards(monkeypatch, capsys):
     class FakeClient:
         def list_apps(self, name="", status=""):

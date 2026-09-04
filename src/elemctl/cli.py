@@ -144,7 +144,7 @@ def cmd_apps_list(args):
 def cmd_apps_get(args):
     config = _config(args)
     client = make_client(config)
-    app_id = _require(args.app_id, config.app_id, i18n.t("cli.require.app-id-arg"))
+    app_id = _require(_app_ref(args), config.app_id, i18n.t("cli.require.app-id-arg"))
     _emit(client.get_app(client.resolve_app_id(app_id)))
     return 0
 
@@ -260,7 +260,7 @@ def cmd_apps_apply(args):
     config = _config(args)
     client = make_client(config)
     app_id = client.resolve_app_id(
-        _require(args.app_id, config.app_id, i18n.t("cli.require.app-id-arg"))
+        _require(_app_ref(args), config.app_id, i18n.t("cli.require.app-id-arg"))
     )
     report = _apply_and_verify(client, app_id, args.version_id)
     _emit(report.to_dict())
@@ -338,7 +338,7 @@ def _ensure_build_state(client, existing, args):
 
 def cmd_apps_delete(args):
     client = make_client(_config(args))
-    app_id = client.resolve_app_id(args.app_id)
+    app_id = client.resolve_app_id(_app_ref(args))
     response = client.delete_app(app_id)
     _emit(response if response is not None else {"deleted": True, "app-id": app_id})
     return 0
@@ -347,7 +347,7 @@ def cmd_apps_delete(args):
 def cmd_apps_debug(args):
     config = _config(args)
     client = make_client(config)
-    app_id = _require(args.app_id, config.app_id, i18n.t("cli.require.app-id-arg"))
+    app_id = _require(_app_ref(args), config.app_id, i18n.t("cli.require.app-id-arg"))
     _emit(client.get_debug_info(client.resolve_app_id(app_id)) or {})
     return 0
 
@@ -355,7 +355,7 @@ def cmd_apps_debug(args):
 def cmd_apps_start(args):
     config = _config(args)
     client = make_client(config)
-    app_id = _require(args.app_id, config.app_id, i18n.t("cli.require.app-id-arg"))
+    app_id = _require(_app_ref(args), config.app_id, i18n.t("cli.require.app-id-arg"))
     app_id = client.resolve_app_id(app_id)
     response = client.start_app(app_id)
     _emit(response if response is not None else {"ok": True, "app-id": app_id})
@@ -365,7 +365,7 @@ def cmd_apps_start(args):
 def cmd_apps_stop(args):
     config = _config(args)
     client = make_client(config)
-    app_id = _require(args.app_id, config.app_id, i18n.t("cli.require.app-id-arg"))
+    app_id = _require(_app_ref(args), config.app_id, i18n.t("cli.require.app-id-arg"))
     app_id = client.resolve_app_id(app_id)
     response = client.stop_app(app_id)
     _emit(response if response is not None else {"ok": True, "app-id": app_id})
@@ -1030,6 +1030,34 @@ def add_plugin_commands(sub):
         parser.set_defaults(handler=_plugin_handler(command), plugin_command=command)
 
 
+def _add_app_ref(p, *, required=False):
+    """Declare the application reference in BOTH forms - positionally and as `--app-id`.
+
+    The two halves of the toolkit disagreed on the form: `deploy` and `apps ensure` take the
+    option, the `apps` commands took the positional only, and a call written the other way
+    answered with a usage error rather than doing the work. Both are accepted now; a required
+    reference stays required, but the complaint comes from the handler, which knows about the
+    environment default, instead of from argparse, which does not.
+    """
+    p.add_argument(
+        "app_id", nargs="?", metavar="APP_ID",
+        help=i18n.t("cli.help.arg.app-ref-required" if required else "cli.help.arg.app-ref"),
+    )
+    p.add_argument(
+        "--app-id", dest="app_id_option", metavar="APP_ID",
+        help=i18n.t("cli.help.arg.app-ref-option"),
+    )
+
+
+def _app_ref(args):
+    """The reference given either way; two DIFFERENT values are a mistake worth naming."""
+    positional = getattr(args, "app_id", None)
+    option = getattr(args, "app_id_option", None)
+    if positional and option and positional != option:
+        raise ConfigError(i18n.t("cli.app-ref-twice", positional=positional, option=option))
+    return positional or option
+
+
 def _add_create_flags(p):
     """Add the application source and creation flags (shared by apps create and apps ensure)."""
     p.add_argument("name", metavar="NAME", help=i18n.t("cli.help.arg.app-name"))
@@ -1126,7 +1154,7 @@ def build_parser():
     p.set_defaults(handler=cmd_apps_list)
 
     p = apps_sub.add_parser("get", help=i18n.t("cli.help.apps-get"))
-    p.add_argument("app_id", nargs="?", metavar="APP_ID", help=i18n.t("cli.help.arg.app-ref"))
+    _add_app_ref(p)
     p.set_defaults(handler=cmd_apps_get)
 
     p = apps_sub.add_parser("find", help=i18n.t("cli.help.apps-find"))
@@ -1148,26 +1176,26 @@ def build_parser():
     p.set_defaults(handler=cmd_apps_ensure)
 
     p = apps_sub.add_parser("apply", help=i18n.t("cli.help.apps-apply"))
-    p.add_argument("app_id", nargs="?", metavar="APP_ID", help=i18n.t("cli.help.arg.app-ref"))
+    _add_app_ref(p)
     p.add_argument(
         "version_id", metavar="VERSION_ID", help=i18n.t("cli.help.arg.version-id-required")
     )
     p.set_defaults(handler=cmd_apps_apply)
 
     p = apps_sub.add_parser("delete", help=i18n.t("cli.help.apps-delete"))
-    p.add_argument("app_id", metavar="APP_ID", help=i18n.t("cli.help.arg.app-ref-required"))
+    _add_app_ref(p, required=True)
     p.set_defaults(handler=cmd_apps_delete)
 
     p = apps_sub.add_parser("start", help=i18n.t("cli.help.apps-start"))
-    p.add_argument("app_id", nargs="?", metavar="APP_ID", help=i18n.t("cli.help.arg.app-ref"))
+    _add_app_ref(p)
     p.set_defaults(handler=cmd_apps_start)
 
     p = apps_sub.add_parser("stop", help=i18n.t("cli.help.apps-stop"))
-    p.add_argument("app_id", nargs="?", metavar="APP_ID", help=i18n.t("cli.help.arg.app-ref"))
+    _add_app_ref(p)
     p.set_defaults(handler=cmd_apps_stop)
 
     p = apps_sub.add_parser("debug", help=i18n.t("cli.help.apps-debug"))
-    p.add_argument("app_id", nargs="?", metavar="APP_ID", help=i18n.t("cli.help.arg.app-ref"))
+    _add_app_ref(p)
     p.set_defaults(handler=cmd_apps_debug)
 
     # spaces ----------------------------------------------------------------

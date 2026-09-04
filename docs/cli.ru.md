@@ -115,7 +115,7 @@ usage: elemctl apps list [-h] [--name NAME] [--status STATUS] [--brief]
 ### `elemctl apps get`
 
 ```bash
-usage: elemctl apps get [-h] [APP_ID]
+usage: elemctl apps get [-h] [--app-id APP_ID] [APP_ID]
 ```
 
 **Аргументы**
@@ -129,6 +129,7 @@ usage: elemctl apps get [-h] [APP_ID]
 | Параметр | Описание |
 |---|---|
 | `-h, --help` | показать эту справку и выйти |
+| `--app-id APP_ID` | то же приложение ключом: deploy и apps ensure принимают только эту форму |
 
 ### `elemctl apps find`
 
@@ -209,7 +210,7 @@ usage: elemctl apps ensure [-h] [--project-id PROJECT_ID] [--version-id VERSION_
 ### `elemctl apps apply`
 
 ```bash
-usage: elemctl apps apply [-h] [APP_ID] VERSION_ID
+usage: elemctl apps apply [-h] [--app-id APP_ID] [APP_ID] VERSION_ID
 ```
 
 **Аргументы**
@@ -224,11 +225,12 @@ usage: elemctl apps apply [-h] [APP_ID] VERSION_ID
 | Параметр | Описание |
 |---|---|
 | `-h, --help` | показать эту справку и выйти |
+| `--app-id APP_ID` | то же приложение ключом: deploy и apps ensure принимают только эту форму |
 
 ### `elemctl apps delete`
 
 ```bash
-usage: elemctl apps delete [-h] APP_ID
+usage: elemctl apps delete [-h] [--app-id APP_ID] [APP_ID]
 ```
 
 **Аргументы**
@@ -242,11 +244,12 @@ usage: elemctl apps delete [-h] APP_ID
 | Параметр | Описание |
 |---|---|
 | `-h, --help` | показать эту справку и выйти |
+| `--app-id APP_ID` | то же приложение ключом: deploy и apps ensure принимают только эту форму |
 
 ### `elemctl apps start`
 
 ```bash
-usage: elemctl apps start [-h] [APP_ID]
+usage: elemctl apps start [-h] [--app-id APP_ID] [APP_ID]
 ```
 
 **Аргументы**
@@ -260,11 +263,12 @@ usage: elemctl apps start [-h] [APP_ID]
 | Параметр | Описание |
 |---|---|
 | `-h, --help` | показать эту справку и выйти |
+| `--app-id APP_ID` | то же приложение ключом: deploy и apps ensure принимают только эту форму |
 
 ### `elemctl apps stop`
 
 ```bash
-usage: elemctl apps stop [-h] [APP_ID]
+usage: elemctl apps stop [-h] [--app-id APP_ID] [APP_ID]
 ```
 
 **Аргументы**
@@ -278,11 +282,12 @@ usage: elemctl apps stop [-h] [APP_ID]
 | Параметр | Описание |
 |---|---|
 | `-h, --help` | показать эту справку и выйти |
+| `--app-id APP_ID` | то же приложение ключом: deploy и apps ensure принимают только эту форму |
 
 ### `elemctl apps debug`
 
 ```bash
-usage: elemctl apps debug [-h] [APP_ID]
+usage: elemctl apps debug [-h] [--app-id APP_ID] [APP_ID]
 ```
 
 **Аргументы**
@@ -296,6 +301,7 @@ usage: elemctl apps debug [-h] [APP_ID]
 | Параметр | Описание |
 |---|---|
 | `-h, --help` | показать эту справку и выйти |
+| `--app-id APP_ID` | то же приложение ключом: deploy и apps ensure принимают только эту форму |
 
 ## `elemctl spaces`
 

@@ -19,13 +19,19 @@ spec.loader.exec_module(relnotes)
 
 
 def newest_version(text: str) -> str:
-    """The last version named in the first `## ` heading of the changelog."""
+    """The last version named in the first RELEASED `## ` heading of the changelog.
+
+    An `## Unreleased` buffer may sit on top between releases - work merged ahead of the
+    owner's release call lives there until the tag renames it into a day heading. The release
+    card is asked for the newest RELEASED version, so the buffer is skipped, not an error.
+    """
     for line in text.splitlines():
         if line.startswith("## "):
             found = re.findall(r"\d+\.\d+\.\d+", line)
-            assert found, f"the first day heading names no version: {line!r}"
+            if not found:
+                continue  # the Unreleased buffer - not a release, nothing to serve
             return found[-1]
-    raise AssertionError("the changelog has no `## ` heading at all")
+    raise AssertionError("the changelog has no released `## ` heading at all")
 
 
 def test_changelog_serves_its_newest_version():

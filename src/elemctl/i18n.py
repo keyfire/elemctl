@@ -828,6 +828,16 @@ MESSAGES = {
         "ru": "ид (UUID) либо точное имя приложения",
         "en": "the application id (UUID) or its exact name",
     },
+    "cli.help.arg.app-ref-option": {
+        "ru": "то же приложение ключом: deploy и apps ensure принимают только эту форму",
+        "en": "the same application as an option: deploy and apps ensure take this form only",
+    },
+    "cli.app-ref-twice": {
+        "ru": "приложение задано дважды и по-разному: позиционно \"{positional}\" и "
+              "ключом --app-id \"{option}\" – оставьте одну форму",
+        "en": "the application is given twice and differently: positionally \"{positional}\" and "
+              "with --app-id \"{option}\" - keep one form",
+    },
     "cli.help.arg.project-id": {
         "ru": "ид проекта (по умолчанию ELEMENT_PROJECT_ID)",
         "en": "the project id (default: ELEMENT_PROJECT_ID)",
