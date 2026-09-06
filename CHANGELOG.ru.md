@@ -7,7 +7,7 @@
 [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/), проект следует
 [семантическому версионированию](https://semver.org/lang/ru/).
 
-## Не выпущено
+## 06.09.2026 – 0.35.0
 
 ### Добавлено
 - **`projects list --name` и `--include-deleted`; те же фильтры принимает инструмент MCP
