@@ -647,3 +647,49 @@ def test_list_apps_without_a_status_returns_everything(api):
     transport.add("GET", f"{API}/applications", APPS_PAGE)
 
     assert len(client.list_apps()) == 4
+
+
+# -- project list filters --------------------------------------------------------
+
+
+PROJECTS_PAGE = [
+    {"id": "p1", "name": "crm", "deleted": False},
+    {"id": "p2", "name": "crm-old", "deleted": True},
+    {"id": "p3", "presentation": "Shop CRM", "deleted": False},
+    {"id": "p4", "name": "warehouse"},
+]
+
+
+def test_list_projects_hides_the_deleted_ones_by_default(api):
+    """The platform keeps deleted projects in the list under a flag; a stand a few
+    months old carries hundreds of them against a handful of live ones. The request
+    goes out with no query: the filter is the client's."""
+    client, transport = api
+    transport.add("GET", f"{API}/projects", PROJECTS_PAGE)
+
+    assert [project["id"] for project in client.list_projects()] == ["p1", "p3", "p4"]
+    assert transport.calls_to("GET", f"{API}/projects")[0]["query"] == ""
+
+
+def test_list_projects_include_deleted_brings_the_full_list_back(api):
+    client, transport = api
+    transport.add("GET", f"{API}/projects", PROJECTS_PAGE)
+
+    assert len(client.list_projects(include_deleted=True)) == 4
+
+
+def test_list_projects_filters_by_substring_on_the_client(api):
+    """name is a case-insensitive substring over the name and the presentation."""
+    client, transport = api
+    transport.add("GET", f"{API}/projects", PROJECTS_PAGE)
+
+    assert [project["id"] for project in client.list_projects(name="CRM")] == ["p1", "p3"]
+
+
+def test_list_projects_combines_the_name_filter_with_include_deleted(api):
+    client, transport = api
+    transport.add("GET", f"{API}/projects", PROJECTS_PAGE)
+
+    projects = client.list_projects(name="crm", include_deleted=True)
+
+    assert [project["id"] for project in projects] == ["p1", "p2", "p3"]

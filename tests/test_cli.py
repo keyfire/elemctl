@@ -1034,6 +1034,31 @@ def test_apps_list_brief_cards(monkeypatch, capsys):
     ]
 
 
+def test_projects_list_passes_the_filters_to_the_client(monkeypatch, capsys):
+    class FakeClient:
+        def list_projects(self, name="", include_deleted=False):
+            assert name == "crm"
+            assert include_deleted is True
+            return [{"id": "p1", "name": "crm", "deleted": True}]
+
+    monkeypatch.setattr(cli, "make_client", lambda config: FakeClient())
+    rc = cli.main(["projects", "list", "--name", "crm", "--include-deleted"])
+    assert rc == 0
+    assert json.loads(capsys.readouterr().out) == [{"id": "p1", "name": "crm", "deleted": True}]
+
+
+def test_projects_list_without_flags_asks_for_the_live_projects_only(monkeypatch, capsys):
+    class FakeClient:
+        def list_projects(self, name="", include_deleted=False):
+            assert name == ""
+            assert include_deleted is False
+            return []
+
+    monkeypatch.setattr(cli, "make_client", lambda config: FakeClient())
+    assert cli.main(["projects", "list"]) == 0
+    assert json.loads(capsys.readouterr().out) == []
+
+
 def test_global_option_is_accepted_after_the_subcommand(tmp_path, capsys):
     """--env-file after the subcommand used to die with "unrecognized arguments"."""
     from elemctl.cli import _hoist_global_options

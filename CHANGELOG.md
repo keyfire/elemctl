@@ -7,6 +7,15 @@ day are named in the heading. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Added
+- **`projects list --name` and `--include-deleted`; the `list_projects` MCP tool takes the same
+  filters.** The platform keeps deleted projects in the list under a flag, so a stand a few months
+  old answered a check for a project name with over a hundred cards, most of them deleted. The
+  deleted ones are now hidden unless asked for, and `name` narrows the list by a case-insensitive
+  substring on the client – the way `apps list` already does it.
+
 ## 2026-09-05 – 0.34.0
 
 ### Fixed

@@ -252,6 +252,33 @@ def test_ensure_app_returns_the_way_in(monkeypatch):
     assert "другие приложения" in payload["sign-in"]["note"]
 
 
+def test_list_projects_passes_the_filters_and_keeps_the_cards_brief(monkeypatch):
+    """The listing of a long-lived stand is hundreds of cards, most of them deleted:
+    the filters go to the client, and the answer stays brief by default."""
+
+    class FakeClient:
+        def list_projects(self, name="", include_deleted=False):
+            assert name == "crm"
+            assert include_deleted is True
+            return [{"id": "p1", "name": "crm", "deleted": True, "code": "ART1", "group-id": "g"}]
+
+    server = _server_on(monkeypatch, FakeClient())
+
+    result = asyncio.run(
+        server.call_tool("list_projects", {"name": "crm", "include_deleted": True})
+    )
+    payload = json.loads(call_result_content(result)[0].text)
+
+    assert payload == {
+        "id": "p1",
+        "name": "crm",
+        "project-kind": None,
+        "space-id": None,
+        "application-count": None,
+        "deleted": True,
+    }
+
+
 def test_create_app_adds_the_way_in_to_the_card(monkeypatch):
     """create_app keeps answering with the platform card; the hint is an addition."""
 
@@ -367,7 +394,7 @@ EXPECTED_TOOL_PARAMETERS = {
     "list_apps": ("brief env_file name status", ""),
     "list_branches": ("env_file name project_id", ""),
     "list_builds": ("brief env_file limit project_id", "project_id"),
-    "list_projects": ("brief env_file", ""),
+    "list_projects": ("brief env_file include_deleted name", ""),
     "list_spaces": ("env_file", ""),
     "list_user_lists": ("env_file name", ""),
     "merge_branch": ("branch_id env_file", "branch_id"),

@@ -40,8 +40,8 @@ class FakeProbeClient:
         self._delete_assembly_error = delete_assembly_error
         self.calls = []
 
-    def list_projects(self):
-        self.calls.append(("list_projects",))
+    def list_projects(self, name="", include_deleted=False):
+        self.calls.append(("list_projects", include_deleted))
         return self._projects
 
     def upload_assembly(self, data, **kwargs):
@@ -214,6 +214,9 @@ def test_probe_deletes_the_project_it_created(project_factory, tmp_path):
     assert report.project_id == "fresh"
     assert report.cleanup["project-deleted"] is True
     assert ("delete_project", "fresh") in client.calls
+    # The deleted projects count too: an upload may land in one of them, and an id the
+    # set does not know would read as "created by this probe" and be deleted.
+    assert ("list_projects", True) in client.calls
 
 
 def test_probe_keeps_an_existing_project(project_factory, tmp_path):

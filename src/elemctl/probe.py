@@ -293,12 +293,13 @@ def _project_ids(client):
     It is the only way to tell whether the project was created by this very
     upload – and therefore whether it has to be removed afterwards. A failure of
     the request is not a reason to abort the probe: None means "do not touch the
-    project".
+    project". Deleted projects are asked for on purpose: an upload may land in
+    one of them, and an id the set does not know reads as "created here".
     """
     try:
         return {
             str(project.get("id"))
-            for project in client.list_projects()
+            for project in client.list_projects(include_deleted=True)
             if isinstance(project, dict) and project.get("id")
         }
     except ApiError:

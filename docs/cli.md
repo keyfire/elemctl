@@ -356,7 +356,7 @@ usage: elemctl projects [-h] action ...
 ### `elemctl projects list`
 
 ```bash
-usage: elemctl projects list [-h]
+usage: elemctl projects list [-h] [--name NAME] [--include-deleted]
 ```
 
 **Options**
@@ -364,6 +364,8 @@ usage: elemctl projects list [-h]
 | Option | Description |
 |---|---|
 | `-h, --help` | show this help message and exit |
+| `--name NAME` | case-insensitive name substring filter (applied client-side) |
+| `--include-deleted` | list deleted projects too (hidden by default) |
 
 ### `elemctl projects get`
 

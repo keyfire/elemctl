@@ -1052,6 +1052,14 @@ MESSAGES = {
         "ru": "список проектов",
         "en": "list projects",
     },
+    "cli.help.projects-list-name": {
+        "ru": "фильтр по подстроке имени без учёта регистра (выполняется на клиенте)",
+        "en": "case-insensitive name substring filter (applied client-side)",
+    },
+    "cli.help.projects-list-include-deleted": {
+        "ru": "показывать и удалённые проекты (по умолчанию скрыты)",
+        "en": "list deleted projects too (hidden by default)",
+    },
     "cli.help.projects-get": {
         "ru": "карточка проекта",
         "en": "project details",

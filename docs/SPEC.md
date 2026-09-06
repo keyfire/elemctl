@@ -82,7 +82,7 @@ Application statuses: stable `Running`, `Stopped`, `Error`; transitional `Starti
 ### 4.3. Spaces and projects
 
 - `GET /spaces` – list of spaces.
-- `GET /projects` – list of projects; `GET /projects/{id}` – card; `DELETE /projects/{id}` – delete.
+- `GET /projects` – list of projects; `GET /projects/{id}` – card; `DELETE /projects/{id}` – delete. The list is answered in full whatever the query, and deleted projects stay in it under the `deleted` flag with their former id: filtering by name and hiding the deleted ones is the client's work, as with applications (section 4.1).
 
 ### 4.4. Project builds (assemblies)
 
@@ -234,7 +234,8 @@ Commands (significant flags in parentheses):
   means the list has no such service at all (nothing signs in by password) and `changed`
   says whether this very call altered anything – switching to the state that is already
   there sends no request.
-- `projects list`, `projects get [PROJECT_ID]`, `projects delete PROJECT_ID`.
+- `projects list [--name --include-deleted]`, `projects get [PROJECT_ID]`, `projects delete PROJECT_ID`.
+  - `projects list --name` filters by a case-insensitive name substring on the client (section 4.3: the platform answers the full list); the projects marked deleted are hidden unless `--include-deleted` is given – a stand a few months old keeps hundreds of them in the list against a handful of live ones, and a check for a project name must not cost the full listing.
 - `builds list [--project-id]`, `builds get VERSION [--project-id]`,
   `builds upload FILE [--project-id --new-project --force-rename --space-id
   --branch --commit --commit-message]`, `builds delete VERSION [--project-id]`.
@@ -321,7 +322,7 @@ operation that does not call the platform), `delete_app(app_id)`
 (the docstring – a warning about irreversibility and URL change), `list_spaces()`,
 `app_id` of `get_app`/`delete_app`/`start_app`/`stop_app`/`debug_info` is the
 id (UUID) or the exact application name (resolved like the CLI does),
-`list_projects()`, `list_builds(project_id)`,
+`list_projects(name="", include_deleted=False)` – the filters of `projects list` (section 7), `list_builds(project_id)`,
 `build_assembly(project_dir="", output_dir="", version="")`,
 `inspect_assembly(file)` – parsing of a built archive (section 5.1; a local operation),
 `deploy(app_id, project_id, project_dir="", version="", branch="",

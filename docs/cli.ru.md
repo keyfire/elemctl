@@ -356,7 +356,7 @@ usage: elemctl projects [-h] действие ...
 ### `elemctl projects list`
 
 ```bash
-usage: elemctl projects list [-h]
+usage: elemctl projects list [-h] [--name NAME] [--include-deleted]
 ```
 
 **Параметры**
@@ -364,6 +364,8 @@ usage: elemctl projects list [-h]
 | Параметр | Описание |
 |---|---|
 | `-h, --help` | показать эту справку и выйти |
+| `--name NAME` | фильтр по подстроке имени без учёта регистра (выполняется на клиенте) |
+| `--include-deleted` | показывать и удалённые проекты (по умолчанию скрыты) |
 
 ### `elemctl projects get`
 

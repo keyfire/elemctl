@@ -380,7 +380,7 @@ def cmd_spaces_list(args):
 
 def cmd_projects_list(args):
     client = make_client(_config(args))
-    _emit(client.list_projects())
+    _emit(client.list_projects(name=args.name or "", include_deleted=args.include_deleted))
     return 0
 
 
@@ -1209,6 +1209,12 @@ def build_parser():
     projects_sub = projects.add_subparsers(dest="subcommand", metavar=action, required=True)
 
     p = projects_sub.add_parser("list", help=i18n.t("cli.help.projects-list"))
+    p.add_argument("--name", help=i18n.t("cli.help.projects-list-name"))
+    p.add_argument(
+        "--include-deleted",
+        action="store_true",
+        help=i18n.t("cli.help.projects-list-include-deleted"),
+    )
     p.set_defaults(handler=cmd_projects_list)
 
     p = projects_sub.add_parser("get", help=i18n.t("cli.help.projects-get"))

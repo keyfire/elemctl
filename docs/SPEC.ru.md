@@ -121,7 +121,9 @@ Windows) с TTL 1 час; ключ кеша должен различать па
 
 - `GET /spaces` - список пространств.
 - `GET /projects` - список проектов; `GET /projects/{id}` - карточка;
-  `DELETE /projects/{id}` - удаление.
+  `DELETE /projects/{id}` - удаление. Перечень отдаётся целиком, каким бы ни был
+  query, а удалённые проекты остаются в нём с признаком `deleted` и прежним ид:
+  отбор по имени и скрытие удалённых – работа клиента, как и у приложений (п. 4.1).
 
 ### 4.4. Сборки проекта (assemblies)
 
@@ -484,7 +486,13 @@ stderr и код возврата 1.
   `{"list-id", "enabled", "changed"}`, где `enabled: null` означает, что такого сервиса
   у списка нет вовсе (паролем входить нечем), а `changed` говорит, изменил ли что-то
   именно этот вызов - перевод в состояние, которое уже стоит, запроса не делает.
-- `projects list`, `projects get [PROJECT_ID]`, `projects delete PROJECT_ID`.
+- `projects list [--name --include-deleted]`, `projects get [PROJECT_ID]`,
+  `projects delete PROJECT_ID`.
+  - `projects list --name` фильтрует по подстроке имени без учёта регистра на
+    клиенте (п. 4.3: платформа отдаёт весь перечень); проекты с признаком
+    удаления скрыты, пока не задан `--include-deleted`, – на стенде, живущем не
+    первый месяц, их в перечне сотни против единиц живых, и проверка "нет ли
+    проекта с таким именем" не должна стоить полного перечня.
 - `builds list [--project-id]`, `builds get VERSION [--project-id]`,
   `builds upload FILE [--project-id --new-project --force-rename --space-id
   --branch --commit --commit-message]`, `builds delete VERSION [--project-id]`.
@@ -599,7 +607,8 @@ development_mode=True)` - при задании только project_id исто
 (в докстринге - предупреждение о необратимости и смене URL);
 `app_id` у `get_app`/`delete_app`/`start_app`/`stop_app`/`debug_info` - ид
 (UUID) либо точное имя приложения (резолв как в CLI); `list_spaces()`,
-`list_projects()`, `list_builds(project_id)`,
+`list_projects(name="", include_deleted=False)` – фильтры `projects list` (п. 7),
+`list_builds(project_id)`,
 `build_assembly(project_dir="", output_dir="", version="")`,
 `inspect_assembly(file)` - разбор готового архива (п. 5.1; локальная операция),
 `deploy(app_id, project_id, project_dir="", version="", branch="",

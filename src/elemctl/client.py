@@ -214,6 +214,29 @@ def _app_name_contains(app, needle):
     return False
 
 
+# The fields a project is named by: the manifest name and the presentation the console shows.
+PROJECT_NAME_KEYS = ("name", "presentation")
+
+
+def _is_deleted_project(project):
+    """Whether the project is a deleted one.
+
+    The platform does not drop deleted projects from the list either: they stay
+    there with the `deleted` flag set, keeping their former id. Any true value
+    of the flag counts.
+    """
+    return bool(project.get("deleted"))
+
+
+def _project_name_contains(project, needle):
+    """A case-insensitive substring occurrence in one of the project names."""
+    for key in PROJECT_NAME_KEYS:
+        value = project.get(key)
+        if isinstance(value, str) and needle in value.lower():
+            return True
+    return False
+
+
 def brief_app(app):
     """A brief application card: what an application is recognized and picked by.
 
@@ -804,9 +827,30 @@ class ElementClient:
         """The list of spaces."""
         return _as_list(self._api("GET", "/spaces"), "items", "spaces")
 
-    def list_projects(self):
-        """The list of projects."""
-        return _as_list(self._api("GET", "/projects"), "items", "projects")
+    def list_projects(self, name="", include_deleted=False):
+        """The list of projects; name and include_deleted are optional filters.
+
+        Both run on the client, the way list_apps does it: the platform answers
+        the full list whatever the query. name is a case-insensitive substring
+        of the PROJECT_NAME_KEYS fields. Deleted projects stay in the platform
+        list under the `deleted` flag, and a stand a few months old carries
+        hundreds of them against a handful of live ones – so they are hidden
+        unless include_deleted is True, which brings the former, unfiltered
+        list back.
+        """
+        projects = _as_list(self._api("GET", "/projects"), "items", "projects")
+        needle = (name or "").strip().lower()
+        if needle:
+            projects = [
+                project for project in projects
+                if isinstance(project, dict) and _project_name_contains(project, needle)
+            ]
+        if not include_deleted:
+            projects = [
+                project for project in projects
+                if not (isinstance(project, dict) and _is_deleted_project(project))
+            ]
+        return projects
 
     def get_project(self, project_id):
         """The project card."""

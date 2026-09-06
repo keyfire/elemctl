@@ -325,14 +325,22 @@ def create_server(config=None):
         return client(env_file).list_spaces()
 
     @server.tool()
-    def list_projects(brief: bool = True, env_file: str = "") -> list:
-        """Список проектов.
+    def list_projects(
+        name: str = "", include_deleted: bool = False, brief: bool = True, env_file: str = ""
+    ) -> list:
+        """Список проектов; name – фильтр по подстроке имени без учёта регистра (выполняется на клиенте: платформа отдаёт весь перечень).
+
+        Удалённые проекты по умолчанию скрыты: платформа держит их в перечне с
+        признаком deleted, и на стенде, живущем не первый месяц, это сотни
+        карточек, из которых живых единицы, – проверка "нет ли проекта с таким
+        именем" не должна стоить полного перечня. include_deleted=true
+        возвращает их в ответ.
 
         brief (по умолчанию) оставляет от карточки id, имя, вид проекта,
         пространство, счётчик приложений и признак удаления; brief=false
         отдаёт карточки целиком. env_file – путь к .env другого окружения.
         """
-        projects = client(env_file).list_projects()
+        projects = client(env_file).list_projects(name=name, include_deleted=include_deleted)
         if not brief:
             return projects
         return [_brief_project(project) for project in projects if isinstance(project, dict)]
