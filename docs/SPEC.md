@@ -206,13 +206,14 @@ Output: the result is JSON on stdout (`ensure_ascii=False`, indent 2); progress 
 Commands (significant flags in parentheses):
 
 - `token` – obtain and print the token.
-- `apps list [--name --brief]`, `apps get [APP_ID]`, `apps find NAME [--include-deleted]`,
+- `apps list [--name --status --include-deleted --brief]`, `apps get [APP_ID]`, `apps find NAME [--include-deleted]`,
   `apps create NAME [--project-id --version-id --latest-build --space-id
   --tech-version --no-dev-mode --wait]`,
   `apps ensure NAME [--project-id --version-id --latest-build --space-id
   --tech-version --no-dev-mode --wait --apply]`, `apps apply [APP_ID] VERSION_ID`,
   `apps delete APP_ID`, `apps start [APP_ID]`, `apps stop [APP_ID]`.
-  - `apps list --name` filters by a case-insensitive name substring on the client (section 4.1: the platform ignores the query parameter); `--brief` prints brief cards (id, name, status, uri, applied version) instead of full ones.
+  - `apps list --name` filters by a case-insensitive name substring on the client (section 4.1: the platform ignores the query parameter); `--status` selects by the whole status word (several of them separated by commas); `--brief` prints brief cards (id, name, status, uri, applied version) instead of full ones.
+  - `apps list` HIDES the deleted applications: they stay in the platform list under the `Deleted` status, and a stand a few months old answers with hundreds of cards of which a handful are alive. `--include-deleted` brings them back, and so does `--status deleted` – a filter that would answer with nothing is worse than no filter. A cut nobody is told about is a trap of its own, so the command ends with a count line on stderr – "7 live of 324", plus the number shown when a filter narrowed the answer further; stdout stays the JSON array, whatever is cut.
   - `APP_ID` of `apps get/delete/start/stop/debug` is the application id (UUID) or its exact name: a non-UUID value is resolved through the list by an exact case-insensitive match (deleted applications do not count). No match is an error; several matches are an error listing the ids – destructive commands must not guess.
   - `apps find` searches by an exact (case-insensitive) name match among the fields `name`, `display-name`, `publication-context`; output `{"id": ..., "found": true|false}`, return code 0 in both cases – the absence of an application is an answer, not an error. A non-zero return code means the request failed and is accompanied by JSON with an `error` field on stderr. In scripts, check the `found` field, not the return code.
   - Deleted applications remain in the platform list with the `Deleted` status and their former `id`. `apps find` SKIPS them: the found id must be usable, otherwise the caller gets an id on which `apps get` and `deploy` return 404. The `--include-deleted` flag restores the former behavior – searching among all applications, including deleted ones.
@@ -308,8 +309,11 @@ Positional APP_ID/PROJECT_ID marked as optional above are taken from the configu
 
 Server name `elemctl`, stdio transport, credentials – from the same environment variables/.env. In the server instructions, warn about the silent rollback of build apply (section 6.1). Tools (docstrings – short, in Russian):
 
-`list_apps(name="")` – `name` filters by a case-insensitive substring on the
-client (section 4.1), `get_app(app_id)`, `find_app(name)`,
+`list_apps(name="", status="", include_deleted=False)` – the filters of `apps list`
+(section 7): `name` by a case-insensitive substring on the client (section 4.1), `status`
+by the whole status word, and the deleted applications hidden unless asked for. The answer
+is an object – `total`, `live`, `shown`, a `summary` line and `applications` – so that what
+was hidden is stated rather than guessed at; `get_app(app_id)`, `find_app(name)`,
 `create_app(name, project_id="", version_id="", space_id="",
 development_mode=True)` – when only project_id is given, the project's latest build is
 automatically used as the source (section 6.2); `create_app` and `ensure_app` add a

@@ -1005,9 +1005,9 @@ def test_the_same_reference_written_twice_is_accepted(monkeypatch, capsys):
 
 def test_apps_list_brief_cards(monkeypatch, capsys):
     class FakeClient:
-        def list_apps(self, name="", status=""):
+        def list_apps_counted(self, name="", status="", include_deleted=False):
             assert name == "crm"
-            return [
+            items = [
                 {
                     "id": "1",
                     "name": "crm-dev",
@@ -1017,6 +1017,7 @@ def test_apps_list_brief_cards(monkeypatch, capsys):
                     "source": {"project-version": "1.0-9", "project-version-id": "asm-9"},
                 }
             ]
+            return {"items": items, "total": 1, "live": 1, "shown": 1}
 
     monkeypatch.setattr(cli, "make_client", lambda config: FakeClient())
     rc = cli.main(["apps", "list", "--name", "crm", "--brief"])
@@ -1032,6 +1033,45 @@ def test_apps_list_brief_cards(monkeypatch, capsys):
             "project-version-id": "asm-9",
         }
     ]
+
+
+def test_apps_list_hides_the_deleted_ones_and_counts_them_out_loud(monkeypatch, capsys):
+    """The listing of a long-lived stand is nearly all deleted cards. They are cut,
+    and the count line says how much was cut – on stderr, so stdout stays the JSON
+    array a script parses."""
+
+    class FakeClient:
+        def list_apps_counted(self, name="", status="", include_deleted=False):
+            assert (name, status, include_deleted) == ("", "", False)
+            return {
+                "items": [{"id": "1", "name": "crm-dev", "status": "Running"}],
+                "total": 324,
+                "live": 1,
+                "shown": 1,
+            }
+
+    monkeypatch.setattr(cli, "make_client", lambda config: FakeClient())
+    assert cli.main(["apps", "list"]) == 0
+    captured = capsys.readouterr()
+    assert json.loads(captured.out) == [{"id": "1", "name": "crm-dev", "status": "Running"}]
+    assert captured.err.strip() == "живых 1 из 324"
+
+
+def test_apps_list_include_deleted_reaches_the_client(monkeypatch, capsys):
+    class FakeClient:
+        def list_apps_counted(self, name="", status="", include_deleted=False):
+            assert include_deleted is True
+            items = [
+                {"id": "1", "status": "Running"},
+                {"id": "2", "status": "Deleted"},
+            ]
+            return {"items": items, "total": 2, "live": 1, "shown": 2}
+
+    monkeypatch.setattr(cli, "make_client", lambda config: FakeClient())
+    assert cli.main(["apps", "list", "--include-deleted"]) == 0
+    captured = capsys.readouterr()
+    assert [app["id"] for app in json.loads(captured.out)] == ["1", "2"]
+    assert captured.err.strip() == "живых 1 из 2, показано 2"
 
 
 def test_projects_list_passes_the_filters_to_the_client(monkeypatch, capsys):

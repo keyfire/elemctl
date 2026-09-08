@@ -242,6 +242,14 @@ MESSAGES = {
         "en": "the application source is exactly one of the parameters: "
               "project_version_id or image_id",
     },
+    "client.apps-summary": {
+        "ru": "живых {live} из {total}",
+        "en": "{live} live of {total}",
+    },
+    "client.apps-summary-shown": {
+        "ru": "живых {live} из {total}, показано {shown}",
+        "en": "{live} live of {total}, {shown} shown",
+    },
     "client.app-not-found": {
         "ru": "приложение '{name}' не найдено (ни по ид, ни по точному имени)",
         "en": "application '{name}' not found (neither by id nor by exact name)",
@@ -935,6 +943,10 @@ MESSAGES = {
               "несколько – через запятую",
         "en": "filter by status (Running, Stopped, Error, Deleted); "
               "several of them separated by commas",
+    },
+    "cli.help.apps-list-include-deleted": {
+        "ru": "показывать и удалённые приложения (по умолчанию скрыты)",
+        "en": "list deleted applications too (hidden by default)",
     },
     "cli.help.apps-list-brief": {
         "ru": "краткие карточки: ид, имя, статус, uri, применённая версия",

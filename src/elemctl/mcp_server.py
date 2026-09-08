@@ -41,7 +41,14 @@ except ImportError:
 
 from . import __version__, i18n, plugins
 from .build import build_assembly, inspect_assembly
-from .client import ElementClient, brief_app, brief_assembly, extract_assembly_id, sign_in_hint
+from .client import (
+    ElementClient,
+    apps_summary,
+    brief_app,
+    brief_assembly,
+    extract_assembly_id,
+    sign_in_hint,
+)
 from .config import Config
 from .deploy import (
     deploy_from_sources,
@@ -148,24 +155,44 @@ def create_server(config=None):
 
     @server.tool()
     def list_apps(
-        name: str = "", status: str = "", brief: bool = True, env_file: str = ""
-    ) -> list:
-        """Список приложений платформы; name – фильтр по подстроке имени без учёта регистра (выполняется на клиенте: платформа query-параметр игнорирует).
+        name: str = "",
+        status: str = "",
+        include_deleted: bool = False,
+        brief: bool = True,
+        env_file: str = "",
+    ) -> dict:
+        """Список приложений платформы; ответ – объект {total, live, shown, summary, applications}, сами карточки в applications.
 
-        status – отбор по статусу целиком (Running, Stopped, Error, Deleted;
-        несколько – через запятую): на стенде, живущем не первый месяц, приложений
-        сотни, а живых единицы, и вопрос "что здесь работает" не должен стоить
-        полного перечня.
+        Удалённые приложения по умолчанию СКРЫТЫ: платформа держит их в перечне со
+        статусом Deleted и прежним ид, и на стенде, живущем не первый месяц, это
+        сотни карточек, из которых живых единицы. Сколько скрыто, видно по счётчикам:
+        total – сколько карточек отдала платформа, live – сколько из них не удалено,
+        shown – сколько осталось в ответе; summary – та же мысль строкой ("живых N
+        из M"). include_deleted=true возвращает удалённые в ответ.
+
+        name – фильтр по подстроке имени без учёта регистра (выполняется на клиенте:
+        платформа query-параметр игнорирует). status – отбор по статусу целиком
+        (Running, Stopped, Error, Deleted; несколько – через запятую); статус Deleted,
+        запрошенный явно, сам снимает скрытие.
 
         brief (по умолчанию) оставляет от карточки только id, имя, статус, uri и
         применённую версию: полные карточки всего пространства – это десятки тысяч
         символов, которые в ответе агенту почти всегда лишние. brief=false отдаёт
         карточки целиком. env_file – путь к .env другого окружения.
         """
-        apps = client(env_file).list_apps(name=name, status=status)
-        if not brief:
-            return apps
-        return [brief_app(app) for app in apps if isinstance(app, dict)]
+        listing = client(env_file).list_apps_counted(
+            name=name, status=status, include_deleted=include_deleted
+        )
+        apps = listing["items"]
+        if brief:
+            apps = [brief_app(app) for app in apps if isinstance(app, dict)]
+        return {
+            "total": listing["total"],
+            "live": listing["live"],
+            "shown": listing["shown"],
+            "summary": apps_summary(listing),
+            "applications": apps,
+        }
 
     @server.tool()
     def get_app(app_id: str, env_file: str = "") -> dict:

@@ -7,7 +7,7 @@ import json
 import pytest
 
 from elemctl.auth import extract_token
-from elemctl.client import ElementClient, extract_assembly_id, sign_in_hint
+from elemctl.client import ElementClient, apps_summary, extract_assembly_id, sign_in_hint
 from elemctl.config import Config
 from elemctl.errors import ApiError, ConfigError
 from tests.conftest import FakeTransport
@@ -642,11 +642,104 @@ def test_list_apps_combines_the_name_and_the_status_filters(api):
     assert [app["id"] for app in client.list_apps(name="crm", status="Deleted")] == ["2"]
 
 
-def test_list_apps_without_a_status_returns_everything(api):
+def test_list_apps_without_a_status_returns_the_live_ones(api):
+    """No status asked for is not "everything": the deleted ones stay out."""
     client, transport = api
     transport.add("GET", f"{API}/applications", APPS_PAGE)
 
-    assert len(client.list_apps()) == 4
+    assert [app["id"] for app in client.list_apps()] == ["1", "3"]
+
+
+# -- the deleted applications and the counters ------------------------------------
+
+
+def test_list_apps_hides_the_deleted_ones_by_default(api):
+    """The platform keeps deleted applications in the list under the Deleted status,
+    and a stand a few months old carries hundreds of them against a handful of live
+    ones. The request goes out with no query: the filter is the client's."""
+    client, transport = api
+    transport.add("GET", f"{API}/applications", APPS_PAGE)
+
+    assert [app["id"] for app in client.list_apps()] == ["1", "3"]
+    assert transport.calls_to("GET", f"{API}/applications")[0]["query"] == ""
+
+
+def test_list_apps_include_deleted_brings_the_full_list_back(api):
+    client, transport = api
+    transport.add("GET", f"{API}/applications", APPS_PAGE)
+
+    assert [app["id"] for app in client.list_apps(include_deleted=True)] == ["1", "2", "3", "4"]
+
+
+def test_list_apps_shows_the_deleted_ones_when_the_status_asks_for_them(api):
+    """A filter that answers with nothing is worse than no filter: asking for the
+    Deleted status by name is asking for the deleted applications."""
+    client, transport = api
+    transport.add("GET", f"{API}/applications", APPS_PAGE)
+
+    assert [app["id"] for app in client.list_apps(status="deleted")] == ["2", "4"]
+
+
+def test_list_apps_counted_says_how_many_were_answered_and_shown(api):
+    client, transport = api
+    transport.add("GET", f"{API}/applications", APPS_PAGE)
+
+    listing = client.list_apps_counted()
+
+    assert [app["id"] for app in listing["items"]] == ["1", "3"]
+    assert (listing["total"], listing["live"], listing["shown"]) == (4, 2, 2)
+
+
+def test_list_apps_counted_keeps_the_total_of_the_whole_answer(api):
+    """A name filter narrows what is shown; total and live stay the numbers of the
+    platform answer – that is what "N of M" is counted against."""
+    client, transport = api
+    transport.add("GET", f"{API}/applications", APPS_PAGE)
+
+    listing = client.list_apps_counted(name="crm")
+
+    assert [app["id"] for app in listing["items"]] == ["1"]
+    assert (listing["total"], listing["live"], listing["shown"]) == (4, 2, 1)
+
+
+def test_apps_summary_names_the_live_ones_and_the_whole_answer(api):
+    client, transport = api
+    transport.add("GET", f"{API}/applications", APPS_PAGE)
+
+    assert apps_summary(client.list_apps_counted()) == "живых 2 из 4"
+
+
+def test_apps_summary_adds_the_shown_count_when_it_differs(api):
+    """With a filter of its own – or with the deleted ones asked for – the number
+    shown is not the number of live applications, and the line says both."""
+    client, transport = api
+    transport.add("GET", f"{API}/applications", APPS_PAGE)
+    transport.add("GET", f"{API}/applications", APPS_PAGE)
+
+    assert apps_summary(client.list_apps_counted(name="crm")) == "живых 2 из 4, показано 1"
+    assert (
+        apps_summary(client.list_apps_counted(include_deleted=True))
+        == "живых 2 из 4, показано 4"
+    )
+
+
+def test_find_app_still_reaches_the_deleted_ones(api):
+    """find_app filters the deleted ones itself: hidden by default, found with the
+    flag. Had it been left asking list_apps the plain way, its include_deleted
+    would have promised what the list had already dropped."""
+    client, transport = api
+    transport.add("GET", f"{API}/applications", APPS_PAGE)
+    transport.add("GET", f"{API}/applications", APPS_PAGE)
+
+    assert client.find_app("crm-old") is None
+    assert client.find_app("crm-old", include_deleted=True)["id"] == "2"
+
+
+def test_resolve_app_id_still_reaches_the_deleted_ones(api):
+    client, transport = api
+    transport.add("GET", f"{API}/applications", APPS_PAGE)
+
+    assert client.resolve_app_id("crm-old", include_deleted=True) == "2"
 
 
 # -- project list filters --------------------------------------------------------

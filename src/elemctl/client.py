@@ -257,6 +257,23 @@ def brief_app(app):
     }
 
 
+def apps_summary(listing):
+    """The count line of a listing: how many applications are alive out of how many.
+
+    Deleted applications are hidden by default, and a cut nobody is told about is
+    exactly the kind of help that misleads – so the answer of list_apps_counted is
+    put into a line: how many cards the platform gave (`total`), how many of them
+    are not deleted (`live`) and, when the answer holds something else than the
+    live ones, how many are actually shown (`shown`). The CLI prints it, the MCP
+    tool carries it in the answer.
+    """
+    total = listing.get("total") or 0
+    live = listing.get("live") or 0
+    shown = listing.get("shown") or 0
+    key = "client.apps-summary" if shown == live else "client.apps-summary-shown"
+    return i18n.t(key, live=live, total=total, shown=shown)
+
+
 def brief_assembly(assembly):
     """A brief assembly card: what a build is recognized and picked by.
 
@@ -403,25 +420,46 @@ class ElementClient:
 
     # -- applications ------------------------------------------------------
 
-    def list_apps(self, name="", status=""):
-        """The list of applications; name and status are optional filters.
+    def list_apps(self, name="", status="", include_deleted=False):
+        """The list of applications; name, status and include_deleted are filters.
 
-        Both filters run on the client, case-insensitively: the platform ignores
+        The plain list, for whoever only needs the applications; the counters
+        behind the answer are what list_apps_counted adds.
+        """
+        return self.list_apps_counted(
+            name=name, status=status, include_deleted=include_deleted
+        )["items"]
+
+    def list_apps_counted(self, name="", status="", include_deleted=False):
+        """The same list plus the counters the answer has to be read against.
+
+        Every filter runs on the client, case-insensitively: the platform ignores
         the name query parameter and returns the full list – verified by a live
         call. name matches a substring of the APP_NAME_KEYS fields; status matches
         the whole status word, and several of them may be given separated by
-        commas ("running,stopped"). A stand a few months old holds hundreds of
-        applications of which a handful are alive, and asking "what is running
-        here" should not cost the full listing.
+        commas ("running,stopped").
+
+        Deleted applications stay in the platform list under the Deleted status
+        keeping their former id, and a stand a few months old carries hundreds of
+        them against a handful of live ones – so they are hidden unless
+        include_deleted is True. Asking for the Deleted status by name counts as
+        asking for them: a filter that answers with nothing is worse than no
+        filter at all.
+
+        Hiding cards without saying so is a trap of its own, hence the counters:
+        `total` – how many the platform answered with, `live` – how many of those
+        are not deleted, `shown` – how many are left in `items`. The callers that
+        face a human report them (apps_summary); the library keeps the list.
         """
         payload = self._api("GET", "/applications")
-        apps = _as_list(payload, "items", "applications")
+        cards = _as_list(payload, "items", "applications")
+        apps = [app for app in cards if isinstance(app, dict)]
+        total = len(cards)
+        live = sum(1 for app in apps if not _is_deleted(app))
+
         needle = (name or "").strip().lower()
         if needle:
-            apps = [
-                app for app in apps
-                if isinstance(app, dict) and _app_name_contains(app, needle)
-            ]
+            apps = [app for app in apps if _app_name_contains(app, needle)]
         wanted = {
             part.strip().lower()
             for part in str(status or "").split(",")
@@ -430,9 +468,11 @@ class ElementClient:
         if wanted:
             apps = [
                 app for app in apps
-                if isinstance(app, dict) and str(app.get("status") or "").lower() in wanted
+                if str(app.get("status") or "").lower() in wanted
             ]
-        return apps
+        if not include_deleted and DELETED_STATUS.lower() not in wanted:
+            apps = [app for app in apps if not _is_deleted(app)]
+        return {"items": apps, "total": total, "live": live, "shown": len(apps)}
 
     def get_app(self, app_id):
         """The application card (status, uri, source.project-version and so on)."""
@@ -451,7 +491,7 @@ class ElementClient:
         target = (name or "").strip().lower()
         if not target:
             return None
-        for app in self.list_apps():
+        for app in self.list_apps(include_deleted=True):
             if not isinstance(app, dict):
                 continue
             if not include_deleted and _is_deleted(app):
@@ -475,7 +515,7 @@ class ElementClient:
         if not target:
             raise ConfigError(i18n.t("client.app-not-found", name=name_or_id))
         matches = [
-            app for app in self.list_apps()
+            app for app in self.list_apps(include_deleted=True)
             if isinstance(app, dict)
             and (include_deleted or not _is_deleted(app))
             and _app_name_matches(app, target)

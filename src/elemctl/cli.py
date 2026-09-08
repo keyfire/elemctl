@@ -26,6 +26,7 @@ from .client import (
     CALCULATION_RULE_FIELDS,
     OIDC_SERVICE,
     ElementClient,
+    apps_summary,
     brief_app,
     brief_assembly,
     extract_assembly_id,
@@ -133,11 +134,25 @@ def cmd_token(args):
 
 
 def cmd_apps_list(args):
+    """The list of applications; the deleted ones are hidden unless asked for.
+
+    A stand a few months old answers with hundreds of cards of which a handful are
+    alive: the deleted ones stay in the platform list under the Deleted status, and
+    the caller used to filter them out on its own. --include-deleted brings them
+    back. The count line goes to stderr, not into the answer: a cut nobody is told
+    about is a trap, while stdout has to stay the JSON array that scripts parse.
+    """
     client = make_client(_config(args))
-    apps = client.list_apps(name=args.name or "", status=args.status or "")
+    listing = client.list_apps_counted(
+        name=args.name or "",
+        status=args.status or "",
+        include_deleted=args.include_deleted,
+    )
+    apps = listing["items"]
     if args.brief:
         apps = [brief_app(app) for app in apps if isinstance(app, dict)]
     _emit(apps)
+    _progress(apps_summary(listing))
     return 0
 
 
@@ -1150,6 +1165,11 @@ def build_parser():
     p = apps_sub.add_parser("list", help=i18n.t("cli.help.apps-list"))
     p.add_argument("--name", help=i18n.t("cli.help.apps-list-name"))
     p.add_argument("--status", help=i18n.t("cli.help.apps-list-status"))
+    p.add_argument(
+        "--include-deleted",
+        action="store_true",
+        help=i18n.t("cli.help.apps-list-include-deleted"),
+    )
     p.add_argument("--brief", action="store_true", help=i18n.t("cli.help.apps-list-brief"))
     p.set_defaults(handler=cmd_apps_list)
 

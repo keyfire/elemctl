@@ -13,6 +13,24 @@ day are named in the heading. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Changed
+- **`apps list` hides the deleted applications and says how many it hid.** The platform keeps
+  them in the list under the `Deleted` status with their former id: a stand a few months old
+  answered with three hundred cards of which a handful were alive, and `--brief` did not drop
+  them – the answer had to be filtered by the caller's own code. The deleted ones are now hidden,
+  `--include-deleted` brings them back, and `--status deleted` lifts the hiding on its own: a
+  filter that would answer with nothing is worse than no filter. A cut nobody is told about is a
+  trap, so the command ends with a count line on stderr ("7 live of 324", plus the number shown
+  when a filter narrowed the answer further); stdout stays the same JSON array scripts parse.
+- **The `list_apps` MCP tool takes `include_deleted` and answers with an object.** The cards
+  (`applications`) come with the counters `total`, `live`, `shown` and a ready `summary` line: an
+  agent sees only the JSON, and the cards that were cut have to be named, otherwise the listing
+  reads as "the stand holds seven applications". The former answer – a bare array – is gone;
+  `find_app` and the name-to-id resolution still see the deleted applications and skip them
+  themselves.
+
 ## 2026-09-06 – 0.35.0
 
 ### Added

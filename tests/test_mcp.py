@@ -113,6 +113,18 @@ def test_list_apps_is_brief_by_default():
     assert properties.get("brief", {}).get("default") is True
 
 
+def test_list_apps_docstring_states_that_the_deleted_ones_are_hidden():
+    """An agent reads the docstring and nothing else: a cut it is not told about
+    would read as "the stand holds seven applications"."""
+    server = create_server()
+    tools = asyncio.run(server.list_tools())
+    list_tool = next(tool for tool in tools if tool.name == "list_apps")
+    description = list_tool.description or ""
+    assert "Deleted" in description
+    assert "СКРЫТЫ" in description
+    assert "include_deleted" in description
+
+
 def test_list_projects_is_brief_by_default():
     server = create_server()
     tools = asyncio.run(server.list_tools())
@@ -250,6 +262,61 @@ def test_ensure_app_returns_the_way_in(monkeypatch):
     assert payload["sign-in"]["url"] == "https://host/apps/crm-dev"
     assert payload["sign-in"]["account"] == "control-panel"
     assert "другие приложения" in payload["sign-in"]["note"]
+
+
+def test_list_apps_hides_the_deleted_ones_and_says_how_many(monkeypatch):
+    """Hiding cards silently is a trap of its own: the answer of the tool carries the
+    counters and the ready line next to the applications themselves."""
+
+    class FakeClient:
+        def list_apps_counted(self, name="", status="", include_deleted=False):
+            assert (name, status, include_deleted) == ("", "", False)
+            return {
+                "items": [{"id": "1", "name": "crm-dev", "status": "Running", "users": ["a"]}],
+                "total": 324,
+                "live": 1,
+                "shown": 1,
+            }
+
+    server = _server_on(monkeypatch, FakeClient())
+
+    result = asyncio.run(server.call_tool("list_apps", {}))
+    payload = json.loads(call_result_content(result)[0].text)
+
+    assert payload["total"] == 324
+    assert payload["live"] == 1
+    assert payload["shown"] == 1
+    assert payload["summary"] == "живых 1 из 324"
+    assert payload["applications"] == [
+        {
+            "id": "1",
+            "name": "crm-dev",
+            "status": "Running",
+            "uri": None,
+            "project-version": None,
+            "project-version-id": None,
+        }
+    ]
+
+
+def test_list_apps_passes_include_deleted_and_keeps_the_full_cards_on_demand(monkeypatch):
+    class FakeClient:
+        def list_apps_counted(self, name="", status="", include_deleted=False):
+            assert (name, include_deleted) == ("crm", True)
+            items = [{"id": "2", "name": "crm-old", "status": "Deleted", "users": ["a"]}]
+            return {"items": items, "total": 4, "live": 1, "shown": 1}
+
+    server = _server_on(monkeypatch, FakeClient())
+
+    result = asyncio.run(
+        server.call_tool(
+            "list_apps", {"name": "crm", "include_deleted": True, "brief": False}
+        )
+    )
+    payload = json.loads(call_result_content(result)[0].text)
+
+    assert payload["summary"] == "живых 1 из 4"
+    assert payload["applications"][0]["users"] == ["a"]
 
 
 def test_list_projects_passes_the_filters_and_keeps_the_cards_brief(monkeypatch):
@@ -391,7 +458,7 @@ EXPECTED_TOOL_PARAMETERS = {
     "get_app": ("app_id env_file", "app_id"),
     "inspect_assembly": ("file", "file"),
     "list_app_tasks": ("app_id env_file", ""),
-    "list_apps": ("brief env_file name status", ""),
+    "list_apps": ("brief env_file include_deleted name status", ""),
     "list_branches": ("env_file name project_id", ""),
     "list_builds": ("brief env_file limit project_id", "project_id"),
     "list_projects": ("brief env_file include_deleted name", ""),

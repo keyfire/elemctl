@@ -419,15 +419,24 @@ stderr и код возврата 1.
 Команды (в скобках - существенные флаги):
 
 - `token` - получить и напечатать токен.
-- `apps list [--name --brief]`, `apps get [APP_ID]`, `apps find NAME [--include-deleted]`,
+- `apps list [--name --status --include-deleted --brief]`, `apps get [APP_ID]`, `apps find NAME [--include-deleted]`,
   `apps create NAME [--project-id --version-id --latest-build --space-id
   --tech-version --no-dev-mode --wait]`,
   `apps ensure NAME [--project-id --version-id --latest-build --space-id
   --tech-version --no-dev-mode --wait --apply]`, `apps apply [APP_ID] VERSION_ID`,
   `apps delete APP_ID`, `apps start [APP_ID]`, `apps stop [APP_ID]`.
   - `apps list --name` фильтрует по подстроке имени без учёта регистра на
-    клиенте (п. 4.1: платформа query-параметр игнорирует); `--brief` печатает
+    клиенте (п. 4.1: платформа query-параметр игнорирует); `--status` отбирает
+    по статусу целиком (несколько – через запятую); `--brief` печатает
     краткие карточки (ид, имя, статус, uri, применённая версия) вместо полных.
+  - `apps list` СКРЫВАЕТ удалённые приложения: они остаются в перечне платформы
+    со статусом `Deleted`, и стенд, живущий не первый месяц, отвечает сотнями
+    карточек, из которых живых единицы. Вернуть их – `--include-deleted`; то же
+    делает `--status deleted`: отбор, который ответил бы пустотой, хуже, чем
+    отсутствие отбора. Молчаливое сокрытие – ловушка само по себе, поэтому
+    команда заканчивается строкой итога в stderr – "живых 7 из 324", а при
+    дополнительном отборе ещё и числом показанных; в stdout при этом остаётся
+    тот же массив JSON, сколько бы ни было срезано.
   - `APP_ID` у `apps get/delete/start/stop/debug` - ид приложения (UUID) либо
     его точное имя: не-UUID резолвится по списку точным совпадением без учёта
     регистра (удалённые приложения не в счёт). Нет совпадений - ошибка;
@@ -592,8 +601,11 @@ stderr и код возврата 1.
 окружения/.env. В instructions сервера предупредить о тихом откате применения
 (п. 6.1). Инструменты (докстринги - краткие, по-русски):
 
-`list_apps(name="")` - `name` фильтрует по подстроке без учёта регистра на
-клиенте (п. 4.1), `get_app(app_id)`, `find_app(name)`,
+`list_apps(name="", status="", include_deleted=False)` – фильтры `apps list`
+(п. 7): `name` по подстроке без учёта регистра на клиенте (п. 4.1), `status` по
+статусу целиком, удалённые приложения скрыты, пока их не попросят. Ответ –
+объект `total`, `live`, `shown`, строка `summary` и `applications`: скрытое
+названо, а не угадывается; `get_app(app_id)`, `find_app(name)`,
 `create_app(name, project_id="", version_id="", space_id="",
 development_mode=True)` - при задании только project_id источником
 автоматически берётся последняя сборка проекта (п. 6.2); `create_app` и

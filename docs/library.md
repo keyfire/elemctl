@@ -26,6 +26,12 @@ report = deploy_from_sources(
 assert report.ok, report.problems
 ```
 
+`list_apps()` answers with the live applications: the deleted ones stay in the
+platform list under the `Deleted` status, and a stand a few months old carries
+hundreds of them – pass `include_deleted=True` for the full list.
+`list_apps_counted()` returns the same list under `items` together with the
+counters the CLI and the MCP tool report – `total`, `live` and `shown`.
+
 A compilation check that does not touch the working application – the same cycle
 the `probe` command runs:
 
