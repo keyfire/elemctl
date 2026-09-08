@@ -7,7 +7,7 @@ day are named in the heading. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## 2026-09-09 – 0.36.0
 
 ### Changed
 - **`apps list` hides the deleted applications and says how many it hid.** The platform keeps
