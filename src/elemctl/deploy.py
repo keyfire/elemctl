@@ -15,7 +15,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
 from . import i18n
-from .build import PROJECT_FILES, build_assembly
+from .build import PROJECT_FILES, build_assembly, find_project_dir, read_project_meta
 from .client import FAILED_TASK_STATUSES, extract_assembly_id
 from .errors import ElemctlError
 from .schema import narrowing_in_tree
@@ -158,10 +158,14 @@ def deploy_from_sources(
     else:
         schema_check = "clean"
 
-    # The build version: either explicit or auto-incremented from the project's last build.
+    # The build version: either explicit or auto-incremented from the project's last build
+    # OF THE SAME BASE VERSION - a bumped project starts counting from 1 again.
     last_version = ""
     if not version:
-        latest = client.latest_assembly(project_id)
+        base_version = read_project_meta(
+            find_project_dir(project_dir) if project_dir else find_project_dir()
+        ).base_version
+        latest = client.latest_assembly(project_id, base_version=base_version)
         if latest:
             last_version = str(latest.get("assembly-version") or "")
 

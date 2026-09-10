@@ -15,7 +15,7 @@ from . import i18n
 from .auth import TokenManager
 from .errors import ApiError, ConfigError
 from .transport import UrllibTransport
-from .versions import pick_latest
+from .versions import newest_first, pick_latest
 
 API_PREFIX = "/console/api/v2"
 
@@ -964,9 +964,19 @@ class ElementClient:
         assembly_id = self.resolve_assembly_id(project_id, version)
         return self._api("DELETE", f"/projects/{project_id}/assemblies/{assembly_id}")
 
-    def latest_assembly(self, project_id):
-        """The project's latest assembly by the numeric version counter, or None."""
-        return pick_latest(self.list_assemblies(project_id))
+    def latest_assembly(self, project_id, base_version=None):
+        """The project's latest assembly, or None.
+
+        With base_version - the highest numeric counter among the assemblies of that
+        base, the source of the auto-increment. Without it - the newest by the created
+        stamp, which is what "the latest build" means when an application is created
+        from it: after a base version bump the old base keeps the higher counters.
+        """
+        assemblies = self.list_assemblies(project_id)
+        if base_version:
+            return pick_latest(assemblies, base_version=base_version)
+        ordered = newest_first(assemblies)
+        return ordered[0] if ordered else None
 
     # -- development-environment branches ------------------------------------
 

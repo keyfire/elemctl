@@ -2,7 +2,13 @@
 
 from __future__ import annotations
 
-from elemctl.versions import newest_first, next_version, pick_latest, version_counter
+from elemctl.versions import (
+    newest_first,
+    next_version,
+    pick_latest,
+    version_base,
+    version_counter,
+)
 
 
 def test_version_counter():
@@ -54,3 +60,27 @@ def test_next_version_autoincrement():
     assert next_version("1.0", "") == "1.0-1"
     assert next_version("1.0", "1.0-41") == "1.0-42"
     assert next_version("2.5", "2.5-9") == "2.5-10"
+
+
+def test_version_base():
+    assert version_base("1.0.2-7") == "1.0.2"
+    assert version_base("1.0") == ""
+    assert version_base("") == ""
+
+
+def test_next_version_restarts_with_a_new_base():
+    # The old base keeps its high counters; a bumped project starts from 1 again.
+    assert next_version("1.0.2", "1.0.1-19023") == "1.0.2-1"
+    assert next_version("1.0.2", "1.0.2-1") == "1.0.2-2"
+
+
+def test_pick_latest_by_base():
+    assemblies = [
+        {"assembly-version": "1.0.1-19023", "id": "old-base"},
+        {"assembly-version": "1.0.2-1", "id": "first"},
+        {"assembly-version": "1.0.2-3", "id": "third"},
+        {"assembly-version": "1.0.2-2", "id": "second"},
+    ]
+    assert pick_latest(assemblies, base_version="1.0.2")["id"] == "third"
+    assert pick_latest(assemblies, base_version="1.0.3") is None
+    assert pick_latest(assemblies)["id"] == "old-base"

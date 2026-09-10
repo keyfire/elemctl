@@ -174,6 +174,22 @@ def test_latest_assembly_numeric_order(api):
     assert client.latest_assembly("p1")["id"] == "new"
 
 
+def test_latest_assembly_by_base_and_by_created_stamp(api):
+    """With a base version the highest counter of that base wins; without one the newest
+    created stamp does - an old base keeps the higher counters after a bump."""
+    client, transport = api
+    assemblies = [
+        {"assembly-version": "1.0.1-19023", "id": "old-base", "created": "2026-09-10T12:00:00.000Z"},
+        {"assembly-version": "1.0.2-1", "id": "first", "created": "2026-09-10T13:00:00.000Z"},
+        {"assembly-version": "1.0.2-2", "id": "second", "created": "2026-09-10T14:00:00.000Z"},
+    ]
+    for _ in range(3):
+        transport.add("GET", f"{API}/projects/p1/assemblies", list(assemblies))
+    assert client.latest_assembly("p1", base_version="1.0.2")["id"] == "second"
+    assert client.latest_assembly("p1", base_version="1.0.3") is None
+    assert client.latest_assembly("p1")["id"] == "second"
+
+
 def test_extract_assembly_id_order():
     assert extract_assembly_id({"image-id": "i", "assembly-id": "a", "id": "d"}) == "i"
     assert extract_assembly_id({"assembly-id": "a", "id": "d"}) == "a"

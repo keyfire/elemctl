@@ -23,22 +23,44 @@ def version_counter(version):
         return 0
 
 
+def version_base(version):
+    """The base of a version - the text before the last hyphen ("" without one)."""
+    text = str(version or "")
+    head, sep, _tail = text.rpartition("-")
+    return head if sep else ""
+
+
 def next_version(base_version, last_version=None):
-    """The next build version: "{base}-{N+1}" from the last one, otherwise "{base}-1"."""
+    """The next build version: "{base}-{N+1}" from the last build of the same base.
+
+    Without a last build - or with a last build of ANOTHER base - the answer is
+    "{base}-1": a project bumped to a new base version starts counting again, whatever
+    counters the old base reached.
+    """
     base = (base_version or "1.0").strip()
-    if not last_version:
+    if not last_version or version_base(last_version) != base:
         return f"{base}-1"
     return f"{base}-{version_counter(last_version) + 1}"
 
 
-def pick_latest(assemblies, version_key="assembly-version"):
-    """Pick the latest assembly from the list by the numeric version counter."""
+def pick_latest(assemblies, version_key="assembly-version", base_version=None):
+    """Pick the latest assembly from the list by the numeric version counter.
+
+    With base_version only the assemblies of that base take part ("1.0.2-7" for the
+    base "1.0.2"): the counter of one base says nothing about another, and a stray high
+    number of an old base must not push the numbering of a freshly bumped project.
+    None when nothing qualifies.
+    """
+    base = (base_version or "").strip()
     best = None
     best_counter = -1
     for item in assemblies or []:
         if not isinstance(item, dict):
             continue
-        counter = version_counter(item.get(version_key))
+        version = item.get(version_key)
+        if base and version_base(version) != base:
+            continue
+        counter = version_counter(version)
         if counter > best_counter:
             best = item
             best_counter = counter

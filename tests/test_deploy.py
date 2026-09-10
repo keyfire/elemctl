@@ -35,12 +35,14 @@ class FakeDeployClient:
         self._upload_response = upload_response or {"image-id": "asm-777"}
         self.apply_calls = []
         self.upload_kwargs = None
+        self.latest_base = None
 
     def resolve_app_id(self, name_or_id):
         # deploy addresses an application by id or by name, like the other commands
         return name_or_id
 
-    def latest_assembly(self, project_id):
+    def latest_assembly(self, project_id, base_version=None):
+        self.latest_base = base_version
         return self._latest
 
     def upload_assembly(self, data, **kwargs):
@@ -575,3 +577,19 @@ def test_a_multiline_problem_is_logged_as_an_indented_block(project_factory, tmp
 
     assert "Отказ:" in lines[0]
     assert lines[1] == "        вторая строка"
+
+
+def test_deploy_counts_the_version_within_the_project_base(project_factory, tmp_path):
+    """The auto-increment asks for the latest build of the project's OWN base version, so a
+    stray high counter of an old base does not leak into a freshly bumped project."""
+    client = FakeDeployClient(latest=None, applied_version="1.0-1")
+    report = deploy_from_sources(
+        client,
+        "app-1",
+        "proj-1",
+        project_dir=project_factory(),
+        output_dir=tmp_path / "dist",
+        log=lambda _line: None,
+    )
+    assert client.latest_base == "1.0"
+    assert report.version == "1.0-1"

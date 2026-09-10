@@ -7,6 +7,20 @@ day are named in the heading. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2026-09-10 – 0.37.0
+
+### Changed
+- **`--latest-build` picks the newest build by its created stamp**, not by the highest counter:
+  after a base version bump the old base keeps the higher numbers, and an application created
+  "from the latest build" would have got an old one.
+
+### Fixed
+- **The build counter restarts when the project's base version changes.** The auto-increment
+  took the highest counter of all the project's builds: one stray `1.0.1-19001` pushed every
+  later build to 19xxx, and bumping the project to `1.0.2` would have continued at 19024. The
+  counter is now taken among the builds of the project's own base version, so a bumped project
+  starts from `1.0.2-1`.
+
 ## 2026-09-09 – 0.36.0
 
 ### Changed
