@@ -1064,8 +1064,18 @@ MESSAGES = {
         "en": "do not create a development environment",
     },
     "cli.help.create-wait": {
-        "ru": "дождаться готовности приложения",
-        "en": "wait until the application is ready",
+        "ru": "дождаться готовности приложения (заодно проверяет, что стоит нужная сборка)",
+        "en": "wait until the application is ready (and verify the assembly it runs)",
+    },
+    "cli.help.create-verify": {
+        "ru": "проверить, что приложение правда работает на запрошенной сборке"
+              " (подразумевает --wait); при неудаче код возврата 1",
+        "en": "verify that the application really runs the requested assembly"
+              " (implies --wait); exit code 1 when it does not",
+    },
+    "cli.help.create-no-verify": {
+        "ru": "не проверять применённую сборку – только дождаться готовности",
+        "en": "do not verify the applied assembly – only wait until ready",
     },
     "cli.help.spaces": {
         "ru": "пространства",

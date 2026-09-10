@@ -214,11 +214,16 @@ def create_server(config=None):
             return {"id": None, "found": False}
         return {"id": app.get("id"), "found": True, "application": app}
 
-    def _create_app(name, project_id, version_id, space_id, development_mode, env_file=""):
+    def _create_app(
+        name, project_id, version_id, space_id, development_mode, env_file="", verify=False
+    ):
         """Create an application (the logic shared by create_app and ensure_app).
 
         The source is version_id (an assembly id) or the latest assembly of
         project_id (creating from a whole project can yield an empty skeleton).
+        Returns (card, report): with verify it waits for the application and
+        checks that the assembly asked for is the one it really runs, otherwise
+        report is None.
         """
         source_version_id = version_id
         if not source_version_id:
@@ -230,12 +235,26 @@ def create_server(config=None):
                     i18n.t("mcp.project-has-no-builds", project_id=project_id)
                 )
             source_version_id = extract_assembly_id(latest)
-        return client(env_file).create_app(
+        started_at = datetime.now(timezone.utc)
+        card = client(env_file).create_app(
             name,
             project_version_id=source_version_id,
             development_mode=development_mode,
             space_id=space_id or None,
         )
+        if not verify:
+            return card, None
+        app_id = (card or {}).get("id")
+        if not app_id:
+            return card, None
+        card = client(env_file).wait_app_ready(app_id)
+        report = _verify_deploy(
+            client(env_file),
+            app_id,
+            expected_assembly_id=source_version_id or "",
+            since=started_at,
+        )
+        return card, report
 
     @server.tool()
     def create_app(
@@ -244,18 +263,31 @@ def create_server(config=None):
         version_id: str = "",
         space_id: str = "",
         development_mode: bool = True,
+        verify: bool = False,
         env_file: str = "",
     ) -> dict:
         """Создать приложение. При задании только project_id источником берётся последняя сборка проекта (создание из проекта целиком может дать пустой каркас).
+
+        verify=True дожидается готовности приложения и проверяет, что оно правда
+        работает на сборке-источнике: при неудачном применении платформа МОЛЧА
+        откатывает приложение на прежнюю сборку, а статус Running этого не
+        показывает. Итог – поле verify ответа (ok, problems, applied-version-id);
+        ожидание удлиняет вызов на минуты, поэтому такой вызов лучше делать
+        командой elemctl фоновым процессом.
 
         К карточке добавляется поле sign-in – способ войти в новое приложение:
         адрес и учётная запись ПАНЕЛИ УПРАВЛЕНИЯ (учётные записи, которыми
         входят в другие приложения, в новом не работают).
         """
-        card = _create_app(name, project_id, version_id, space_id, development_mode, env_file)
+        card, report = _create_app(
+            name, project_id, version_id, space_id, development_mode, env_file, verify
+        )
         if not isinstance(card, dict):
             return card
-        return {**card, "sign-in": sign_in_hint(card)}
+        answer = {**card, "sign-in": sign_in_hint(card)}
+        if report is not None:
+            answer["verify"] = report.to_dict()
+        return answer
 
     @server.tool()
     def ensure_app(
@@ -264,6 +296,7 @@ def create_server(config=None):
         version_id: str = "",
         space_id: str = "",
         development_mode: bool = True,
+        verify: bool = False,
         env_file: str = "",
     ) -> dict:
         """Идемпотентно создать приложение по имени, если его ещё нет.
@@ -279,10 +312,16 @@ def create_server(config=None):
         – какая стоит на самом деле. Применить – инструментом apply_build (долгая
         операция) либо командой elemctl apps apply.
 
+        verify=True проверяет созданное приложение (или сборку существующего) по
+        полной: применение при сбое платформа МОЛЧА откатывает, и созданное
+        приложение отвечало applied: true на веру. Итог – поле verify ответа;
+        ожидание готовности удлиняет вызов на минуты.
+
         Поле sign-in обоих ответов говорит, как войти в приложение: адрес и
         учётная запись ПАНЕЛИ УПРАВЛЕНИЯ (учётные записи, которыми входят в
         другие приложения, в новом не работают).
         """
+        started_at = datetime.now(timezone.utc)
         existing = client(env_file).find_app(name)
         if existing is not None:
             answer = {
@@ -294,13 +333,28 @@ def create_server(config=None):
                 applied = str((existing.get("source") or {}).get("project-version-id") or "")
                 answer["applied"] = applied == version_id
                 answer["applied-version-id"] = applied
+                if verify and answer["applied"]:
+                    report = _verify_deploy(
+                        client(env_file),
+                        str(existing.get("id") or ""),
+                        expected_assembly_id=version_id,
+                        since=started_at,
+                    )
+                    answer["applied"] = bool(report.ok)
+                    answer["verify"] = report.to_dict()
             return answer
-        card = _create_app(name, project_id, version_id, space_id, development_mode, env_file)
-        return {
+        card, report = _create_app(
+            name, project_id, version_id, space_id, development_mode, env_file, verify
+        )
+        answer = {
             "id": (card or {}).get("id"),
             "created": True,
+            "applied": True if report is None else bool(report.ok),
             "sign-in": sign_in_hint(card),
         }
+        if report is not None:
+            answer["verify"] = report.to_dict()
+        return answer
 
     @server.tool()
     def start_app(app_id: str, env_file: str = "") -> dict:
