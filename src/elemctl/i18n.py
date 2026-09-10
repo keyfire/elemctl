@@ -255,13 +255,13 @@ MESSAGES = {
         "en": "{shown} of {total} shown – every build the project has on the platform",
     },
     "client.builds-summary-capped": {
-        "ru": "показано {shown} из {total} – столько сборок платформа хранит на проект: "
-              "более старые сняты при загрузке новых (сборка работающего приложения "
-              "остаётся), страниц у перечня нет. Это НЕ вся история сборок проекта",
-        "en": "{shown} of {total} shown – that is all the platform keeps for one project: "
-              "older builds were pushed out as new ones arrived (a build an application "
-              "runs stays), and the listing has no pages. This is NOT the project's whole "
-              "build history",
+        "ru": "показано {shown} из {total} – столько сборок у проекта осталось: платформа "
+              "сама удаляет те, которыми никто не пользуется (сборка работающего "
+              "приложения остаётся), страниц у перечня нет. Это НЕ вся история сборок "
+              "проекта",
+        "en": "{shown} of {total} shown – that is what the project has left: the platform "
+              "deletes builds nobody uses (a build an application runs stays), and the "
+              "listing has no pages. This is NOT the project's whole build history",
     },
     "client.app-not-found": {
         "ru": "приложение '{name}' не найдено (ни по ид, ни по точному имени)",
