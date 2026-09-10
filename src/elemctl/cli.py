@@ -17,7 +17,7 @@ import argparse
 import contextlib
 import json
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from . import __version__, i18n, plugins
@@ -308,6 +308,35 @@ def cmd_apps_apply(args):
         _require(_app_ref(args), config.app_id, i18n.t("cli.require.app-id-arg"))
     )
     report = _apply_and_verify(client, app_id, args.version_id)
+    _emit(report.to_dict())
+    return 0 if report.ok else 1
+
+
+def cmd_verify_deploy(args):
+    """Check that a build really landed on an application - without deploying anything.
+
+    The apply of a failed build is rolled back by the platform silently: the
+    application goes on running the previous build, and its status says Running all
+    the same. The proof is the pair "the applied build id equals the uploaded one"
+    plus the application tasks in an error status, whose error-message carries the
+    file and the line of the compilation error. The library and the MCP tool have
+    done this since the beginning; a script that creates an application in CI had to
+    reproduce it out of `apps get` and `tasks list` by hand.
+    """
+    config = _config(args)
+    client = make_client(config)
+    app_id = client.resolve_app_id(
+        _require(_app_ref(args), config.app_id, i18n.t("cli.require.app-id-arg"))
+    )
+    since = datetime.now(timezone.utc) - timedelta(minutes=max(0, args.since_minutes))
+    report = verify_deploy(
+        client,
+        app_id,
+        expected_version=args.expected_version or "",
+        expected_assembly_id=args.version_id or "",
+        since=since,
+        log=_progress,
+    )
     _emit(report.to_dict())
     return 0 if report.ok else 1
 
@@ -1474,6 +1503,15 @@ def build_parser():
         help=i18n.t("cli.help.probe-require-clean"),
     )
     p.set_defaults(handler=cmd_probe)
+
+    # verify-deploy -------------------------------------------------------
+    p = sub.add_parser("verify-deploy", help=i18n.t("cli.help.verify-deploy"))
+    _add_app_ref(p)
+    p.add_argument("--version-id", help=i18n.t("cli.help.verify-version-id"))
+    p.add_argument("--expected-version", help=i18n.t("cli.help.verify-expected-version"))
+    p.add_argument("--since-minutes", type=int, default=30,
+                   help=i18n.t("cli.help.verify-since-minutes"))
+    p.set_defaults(handler=cmd_verify_deploy)
 
     # branches ----------------------------------------------------------------
     branches = sub.add_parser("branches", help=i18n.t("cli.help.branches"))

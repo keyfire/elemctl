@@ -268,6 +268,15 @@ Commands (significant flags in parentheses):
   --branch --commit --commit-message --dry-run --require-clean]` –
   the full cycle: build -> upload -> apply -> restart -> verification of the actual apply (section 6.1). Output – a JSON report with fields: `app-id`, `uri`, `status`, `version`, `assembly-id`, `applied-version`, `applied` (true/false/null – null when the actual version could not be determined), `uri-status`, `problems` (list of strings, the platform's texts as they came), `problems-lines` (the same broken into plain lines: JSON escapes a multi-line refusal into `
 ` and `	` exactly where it has to be read), `ok` (boolean), `dirty`/`dirty-files` (uncommitted changes of the project directory at build time – the build captures the current disk state, so the divergence from HEAD must be visible; a warning also goes to stderr; null when git is unavailable). Return code 0 only when `ok`. `--dry-run` – build only. `--require-clean` – abort before building on a dirty tree.
+- `verify-deploy [APP_ID] [--app-id --version-id --expected-version --since-minutes]` –
+  the verification of section 6.1 on its own, deploying nothing: the application tasks
+  in an error status raised over the last `--since-minutes` minutes (their
+  `error-message` carries the file and the position of a compilation error), the
+  applied build compared with the expected one (`--version-id` – the id of the uploaded
+  build, the reliable comparison; `--expected-version` – the version string, the
+  fallback) and a control GET on the address. The same report as `deploy`, return code
+  0 only when `ok`. It is what a CI script needs after `apps create`: a build that
+  failed to apply is rolled back silently, and a status of `Running` proves nothing.
 - `probe [--project-dir --output --build-version --name --space-id --keep
   --require-clean]` – an isolated compilation check of the sources: build ->
   upload -> a THROWAWAY application (that is the compilation, section 6.10) ->

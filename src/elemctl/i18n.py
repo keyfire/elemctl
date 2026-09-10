@@ -1145,9 +1145,36 @@ MESSAGES = {
         "ru": "удалить сборку по версии либо ид",
         "en": "delete an assembly by version or id",
     },
+    "cli.help.verify-deploy": {
+        "ru": "проверить, что сборка ПРАВДА применилась к приложению: задачи с ошибками "
+              "(в них файл и позиция ошибки компиляции), сверка применённой сборки, "
+              "доступность адреса; ничего не деплоит",
+        "en": "check that a build REALLY landed on an application: tasks in an error "
+              "status (they carry the file and position of a compilation error), the "
+              "applied build compared with the expected one, the address answering; "
+              "deploys nothing",
+    },
+    "cli.help.verify-version-id": {
+        "ru": "ид загруженной сборки, которую ждём применённой – надёжная сверка "
+              "(строка версии у нового приложения нумеруется заново)",
+        "en": "id of the uploaded build expected to be applied – the reliable comparison "
+              "(a new application renumbers the version string from scratch)",
+    },
+    "cli.help.verify-expected-version": {
+        "ru": "строка версии вместо ид сборки – запасная сверка",
+        "en": "the version string instead of the build id – the fallback comparison",
+    },
+    "cli.help.verify-since-minutes": {
+        "ru": "за сколько последних минут считать ошибки задач своими (по умолчанию 30)",
+        "en": "how many last minutes of task failures count as ours (default 30)",
+    },
     "cli.help.build": {
-        "ru": "локально собрать архив сборки из исходников",
-        "en": "build an assembly archive locally from sources",
+        "ru": "локально собрать архив сборки из исходников (к платформе не обращается: "
+              "реквизиты подключения и --env-file команде не нужны, номер версии на "
+              "сервере не занимается)",
+        "en": "build an assembly archive locally from sources (does not call the platform: "
+              "the connection credentials and --env-file are not used, and no version "
+              "number is reserved on the server)",
     },
     "cli.help.build-project-dir": {
         "ru": "каталог проекта (по умолчанию ищется вглубь от текущего)",

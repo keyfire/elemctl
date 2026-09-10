@@ -45,11 +45,12 @@ usage: elemctl [-h] [--base-url BASE_URL] [--client-id CLIENT_ID] [--client-secr
 | `spaces` | spaces |
 | `projects` | projects |
 | `builds` | project assemblies on the platform |
-| `build` | build an assembly archive locally from sources |
+| `build` | build an assembly archive locally from sources (does not call the platform: the connection credentials and `--env-file` are not used, and no version number is reserved on the server) |
 | `inspect` | inspect a prebuilt assembly archive (.xasm/.xlib) |
 | `deploy` | full cycle: build -&gt; upload -&gt; apply -&gt; restart -&gt; verify the apply |
 | `user-lists` | user lists and their sign-in settings |
 | `probe` | isolated compilation check: build -&gt; throwaway application -&gt; errors with file and position -&gt; cleanup; the project directory must follow the {repository}/{Vendor}/{Name}/Project.yaml layout – the Vendor+Name pair is how the platform identifies the project |
+| `verify-deploy` | check that a build REALLY landed on an application: tasks in an error status (they carry the file and position of a compilation error), the applied build compared with the expected one, the address answering; deploys nothing |
 | `branches` | development-environment branches |
 | `dumps` | application dumps |
 | `tasks` | application tasks (the listing – tasks list [`--app-id` ID]) |
@@ -714,6 +715,30 @@ usage: elemctl probe [-h] [--project-dir PROJECT_DIR] [--output OUTPUT]
 | `--space-id SPACE_ID` | the space for the project and the application (ELEMENT_SPACE_ID) |
 | `--keep` | skip the cleanup: leave the application and the build for a hands-on look |
 | `--require-clean` | abort the check if the project directory has uncommitted changes |
+
+## `elemctl verify-deploy`
+
+```bash
+usage: elemctl verify-deploy [-h] [--app-id APP_ID] [--version-id VERSION_ID]
+                             [--expected-version EXPECTED_VERSION] [--since-minutes SINCE_MINUTES]
+                             [APP_ID]
+```
+
+**Arguments**
+
+| Option | Description |
+|---|---|
+| `APP_ID` | the application id (UUID) or its exact name (default: ELEMENT_APP_ID) |
+
+**Options**
+
+| Option | Description |
+|---|---|
+| `-h, --help` | show this help message and exit |
+| `--app-id APP_ID` | the same application as an option: deploy and apps ensure take this form only |
+| `--version-id VERSION_ID` | id of the uploaded build expected to be applied – the reliable comparison (a new application renumbers the version string from scratch) |
+| `--expected-version EXPECTED_VERSION` | the version string instead of the build id – the fallback comparison |
+| `--since-minutes SINCE_MINUTES` | how many last minutes of task failures count as ours (default 30) |
 
 ## `elemctl branches`
 

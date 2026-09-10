@@ -1277,3 +1277,50 @@ def test_the_hint_keeps_quiet_where_it_would_be_noise(capsys):
     assert cli._action_first_hint(parser, ["deploy", "--app-id", "a"]) == ""
     assert cli._action_first_hint(parser, ["tasks", "list", "--app-id", "a"]) == ""
     assert "elemctl apps list" in cli._action_first_hint(parser, ["apps", "--brief"])
+
+
+# -- verify-deploy --------------------------------------------------------------
+
+
+def test_verify_deploy_checks_without_deploying(monkeypatch, capsys):
+    """The check the library and MCP had, and the CLI did not: a script in CI
+    rebuilt it out of `apps get` and `tasks list` by hand."""
+    seen = {}
+
+    class Report:
+        ok = True
+
+        def to_dict(self):
+            return {"ok": True, "applied": True}
+
+    def fake_verify(client, app_id, **kwargs):
+        seen.update({"app-id": app_id, **kwargs})
+        return Report()
+
+    fake = FakeApplyClient(applied="asm-1")
+    monkeypatch.setattr(cli, "make_client", lambda config: fake)
+    monkeypatch.setattr(cli, "verify_deploy", fake_verify)
+
+    rc = cli.main(["verify-deploy", "--app-id", "app-7", "--version-id", "asm-1"])
+
+    assert rc == 0
+    assert json.loads(capsys.readouterr().out)["applied"] is True
+    assert seen["app-id"] == "app-7"
+    assert seen["expected_assembly_id"] == "asm-1"
+    # Nothing was deployed: the command only reads.
+    assert fake.applied_calls == []
+
+
+def test_verify_deploy_fails_when_the_build_did_not_land(monkeypatch, capsys):
+    """A silent rollback must cost the exit code, otherwise CI calls the deploy green."""
+    class Report:
+        ok = False
+
+        def to_dict(self):
+            return {"ok": False, "problems": ["Модуль.xbsl:12 – ошибка компиляции"]}
+
+    monkeypatch.setattr(cli, "make_client", lambda config: FakeApplyClient(applied="asm-old"))
+    monkeypatch.setattr(cli, "verify_deploy", lambda *args, **kwargs: Report())
+
+    assert cli.main(["verify-deploy", "app-7", "--version-id", "asm-1"]) == 1
+    assert "ошибка компиляции" in capsys.readouterr().out

@@ -25,6 +25,13 @@ day are named in the heading. The format follows
   builds}` instead of a bare array.
 
 ### Added
+- **The `verify-deploy` command – the verification apart from the deploy.** The library
+  and the MCP tool had the mechanism; the CLI did not, so a CI script creating an
+  application out of an uploaded build rebuilt the same check by hand from `apps get`
+  and `tasks list`. `elemctl verify-deploy --app-id ... --version-id ...` now answers
+  with the report `deploy` gives (tasks in an error status, where the file and the
+  position of a compilation error live; the applied build compared with the expected
+  one; the address answering) and exits 1 on a failure. It deploys nothing.
 - **The `--json` flag – machine-readable output as a guarantee, not as a promise.** CI scripts
   parsed the answer by hunting for the first brace: one stray line ahead of the JSON broke the
   parse, and the trick itself had to live in a module of its own. With `--json`, stdout is
