@@ -910,6 +910,12 @@ MESSAGES = {
         "ru": "язык вывода (по умолчанию: env ELEMCTL_LANG / локаль системы / ru)",
         "en": "output language (default: env ELEMCTL_LANG / system locale / ru)",
     },
+    "cli.help.json": {
+        "ru": "машиночитаемый вывод: в stdout только JSON ответа, всё остальное "
+              "(ход работы, предупреждения, ошибки) – в stderr",
+        "en": "machine-readable output: stdout carries the JSON answer alone, "
+              "everything else (progress, warnings, errors) goes to stderr",
+    },
     "cli.help.command-metavar": {
         "ru": "команда",
         "en": "command",

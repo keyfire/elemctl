@@ -91,6 +91,8 @@ elemctl branches merge <branch-id>
 
 All commands output JSON to stdout; progress of long-running operations goes to stderr. Errors are returned as a JSON object with an `error` field and exit code 1.
 
+The `--json` flag (accepted in any position) turns that convention into a guarantee a script may lean on: while the command runs, stdout is swapped for stderr, so the only thing that reaches the real stdout is the JSON answer - no stray line of a plugin or a library can slip in. Parse the stream whole (`json.load`) instead of hunting for the first brace in it. A failure goes to stderr with `--json` as well and stdout stays empty: a document in the machine channel would be read by a pipeline as an answer.
+
 For the full list of commands: `elemctl --help`, and by group: `elemctl apps --help`, `elemctl deploy --help`, etc.
 
 ## Nearby

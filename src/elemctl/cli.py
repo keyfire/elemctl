@@ -3,11 +3,18 @@
 Output conventions: the result is JSON on stdout (ensure_ascii=False, indent 2);
 the progress of long operations is lines on stderr; an error is JSON with an
 error field on stderr and exit code 1.
+
+--json turns that convention into a guarantee a script may lean on: while the
+handler runs, stdout is swapped for stderr, so the only thing that can reach the
+real stdout is the answer _emit prints there. A caller then parses stdout whole,
+instead of hunting for the first brace in a stream where anything could have
+printed a line of its own.
 """
 
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import sys
 from datetime import datetime, timezone
@@ -47,8 +54,30 @@ def make_client(config):
 # -- output --------------------------------------------------------------------
 
 
+#: The real stdout while --json holds sys.stdout redirected to stderr; None otherwise.
+_answer_stream = None
+
+
 def _emit(data):
-    print(json.dumps(data, ensure_ascii=False, indent=2))
+    print(json.dumps(data, ensure_ascii=False, indent=2), file=_answer_stream or sys.stdout)
+
+
+@contextlib.contextmanager
+def _json_only():
+    """--json: only the answer reaches stdout, everything else goes to stderr.
+
+    The promise is kept by the streams themselves rather than by discipline: a
+    print of a plugin command, a warning of a library, a stray debug line – all of
+    them land on stderr, because for the duration of the call sys.stdout IS stderr.
+    _emit keeps writing to the real stdout, which is remembered here.
+    """
+    global _answer_stream
+    _answer_stream = sys.stdout
+    try:
+        with contextlib.redirect_stdout(sys.stderr):
+            yield
+    finally:
+        _answer_stream = None
 
 
 def _progress(message):
@@ -1098,6 +1127,9 @@ _GLOBAL_OPTIONS = (
     "--lang",
 )
 
+# The same, for the global options that take no value: they are hoisted as a single token.
+_GLOBAL_FLAGS = ("--json",)
+
 
 def _hoist_global_options(argv):
     """Move the global options standing after the subcommand to the front of argv.
@@ -1115,6 +1147,10 @@ def _hoist_global_options(argv):
         if arg == "--":
             rest.extend(argv[index:])
             break
+        if arg in _GLOBAL_FLAGS:
+            hoisted.append(arg)
+            index += 1
+            continue
         if arg in _GLOBAL_OPTIONS and index + 1 < len(argv):
             hoisted.extend([arg, argv[index + 1]])
             index += 2
@@ -1143,6 +1179,7 @@ def build_parser():
         choices=i18n.LANGS,
         help=i18n.t("cli.help.lang"),
     )
+    parser.add_argument("--json", action="store_true", help=i18n.t("cli.help.json"))
     parser.add_argument("--version", action="version", help=i18n.t("cli.help.version"),
                         version=f"elemctl {__version__}")
 
@@ -1514,8 +1551,13 @@ def main(argv=None):
     if handler is None:
         parser.print_help(sys.stderr)
         return 1
+    # An error keeps going to stderr with --json as well, and stdout stays empty:
+    # a failure that answered the machine channel with a document would be read by
+    # a pipeline as an answer, and the exit code alone would be left to say otherwise.
+    guard = _json_only() if getattr(args, "json", False) else contextlib.nullcontext()
     try:
-        result = handler(args)
+        with guard:
+            result = handler(args)
         return 0 if result is None else int(result)
     except ApiError as error:
         return _fail(error.to_dict())

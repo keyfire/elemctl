@@ -7,6 +7,17 @@ day are named in the heading. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Added
+- **The `--json` flag – machine-readable output as a guarantee, not as a promise.** CI scripts
+  parsed the answer by hunting for the first brace: one stray line ahead of the JSON broke the
+  parse, and the trick itself had to live in a module of its own. With `--json`, stdout is
+  swapped for stderr while the command runs, so the only thing reaching the real stdout is the
+  answer – no line of a plugin, no warning of a library can slip in, and the stream parses
+  whole. The flag is global and accepted in any position; a failure keeps to stderr in this
+  mode too, and stdout stays empty.
+
 ## 2026-09-10 – 0.37.0
 
 ### Changed

@@ -1124,3 +1124,89 @@ def test_hoisting_does_not_touch_tokens_after_a_double_dash():
 
     argv = ["probe", "--", "--env-file", "not-ours"]
     assert _hoist_global_options(argv) == argv
+
+
+# -- --json: the machine-readable channel --------------------------------------
+
+
+def test_json_flag_is_accepted_after_the_subcommand():
+    """A global flag takes no value, so it is hoisted as a single token."""
+    from elemctl.cli import _hoist_global_options
+
+    assert _hoist_global_options(["apps", "get", "--json", "--app-id", "a"]) == [
+        "--json", "apps", "get", "--app-id", "a",
+    ]
+    assert _hoist_global_options(["probe", "--", "--json"]) == ["probe", "--", "--json"]
+
+
+def test_json_keeps_a_stray_print_out_of_stdout(monkeypatch, capsys):
+    """The promise of --json is kept by the streams, not by the discipline of handlers.
+
+    A command that prints a line of its own – a plugin's report, a library's warning –
+    used to leave that line in stdout ahead of the JSON, which is exactly what made
+    callers hunt for the first brace instead of parsing the stream whole.
+    """
+    class FakeClient:
+        def list_spaces(self):
+            print("a line nobody asked for")
+            return [{"id": "s1"}]
+
+    monkeypatch.setattr(cli, "make_client", lambda config: FakeClient())
+    assert cli.main(["--json", "spaces", "list"]) == 0
+    captured = capsys.readouterr()
+    assert json.loads(captured.out) == [{"id": "s1"}]
+    assert "a line nobody asked for" in captured.err
+
+
+def test_without_json_a_stray_print_still_lands_in_stdout(monkeypatch, capsys):
+    """The counter-check: without the flag nothing is redirected, so the flag does work."""
+    class FakeClient:
+        def list_spaces(self):
+            print("a line nobody asked for")
+            return [{"id": "s1"}]
+
+    monkeypatch.setattr(cli, "make_client", lambda config: FakeClient())
+    assert cli.main(["spaces", "list"]) == 0
+    assert capsys.readouterr().out.startswith("a line nobody asked for")
+
+
+def test_json_leaves_progress_lines_on_stderr(monkeypatch, capsys):
+    """The summary of apps list goes to stderr as before – stdout holds the cards alone."""
+    cards = [{"id": "a1", "name": "crm-dev", "status": "Running"}]
+
+    class FakeClient:
+        def list_apps_counted(self, name="", status="", include_deleted=False):
+            return {"items": cards, "total": 2, "live": 1, "shown": 1}
+
+    monkeypatch.setattr(cli, "make_client", lambda config: FakeClient())
+    assert cli.main(["--json", "apps", "list"]) == 0
+    captured = capsys.readouterr()
+    assert [card["name"] for card in json.loads(captured.out)] == ["crm-dev"]
+    assert captured.err.strip()
+
+
+def test_json_leaves_stdout_empty_on_a_failure(monkeypatch, capsys):
+    """A failure answers stderr and the exit code; a document in stdout would read as an answer."""
+    class FakeClient:
+        def list_spaces(self):
+            raise ApiError("Console API ответил 500", status=500)
+
+    monkeypatch.setattr(cli, "make_client", lambda config: FakeClient())
+    assert cli.main(["--json", "spaces", "list"]) == 1
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert json.loads(captured.err)["error"]
+
+
+def test_json_survives_an_exception_and_restores_stdout(monkeypatch, capsys):
+    """After a failed call the streams are back: the guard restores them in finally."""
+    class FakeClient:
+        def list_spaces(self):
+            raise ApiError("Console API ответил 500", status=500)
+
+    monkeypatch.setattr(cli, "make_client", lambda config: FakeClient())
+    cli.main(["--json", "spaces", "list"])
+    capsys.readouterr()
+    assert cli._answer_stream is None
+    print("back to stdout")
+    assert capsys.readouterr().out.strip() == "back to stdout"

@@ -199,9 +199,11 @@ Compatibility is checked against the `РежимСовместимости` prop
 
 ## 7. CLI requirements
 
-Common flags (in any position – they are accepted after the subcommand too): `--base-url`, `--client-id`, `--client-secret`, `--env-file`, `--timeout` (seconds, default 60), `--version`.
+Common flags (in any position – they are accepted after the subcommand too): `--base-url`, `--client-id`, `--client-secret`, `--env-file`, `--timeout` (seconds, default 60), `--json`, `--version`.
 
 Output: the result is JSON on stdout (`ensure_ascii=False`, indent 2); progress of long operations – lines on stderr; errors – JSON with an `error` field on stderr and return code 1.
+
+`--json` makes that a guarantee rather than a convention: for the duration of the call stdout is redirected to stderr, and the answer alone is written to the real stdout. A caller then parses stdout whole; without the flag anything a handler or a plugin prints stays in the stream ahead of the answer. A failure keeps to stderr and leaves stdout empty in this mode too.
 
 Commands (significant flags in parentheses):
 
