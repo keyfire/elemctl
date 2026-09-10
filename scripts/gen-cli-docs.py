@@ -98,6 +98,29 @@ def run(args: list[str], lang: str) -> str:
     return (out.stdout or out.stderr).rstrip()
 
 
+def glue(prev: str, tail: str) -> str:
+    """Join a wrapped line to the previous one, honouring argparse's hyphen break.
+
+    argparse wraps a long word on a hyphen (a command name, a flag), so a plain join
+    with a space breaks the very name the text is about. A trailing ASCII hyphen at a
+    wrap point is always such a break: a dash in the prose of this repository is an en
+    dash, never a hyphen.
+    """
+    if not prev:
+        return tail
+    if prev.endswith("-") and tail[:1].isalnum():
+        return prev + tail
+    return prev + " " + tail
+
+
+def join_wrapped(parts) -> str:
+    """The same rule for a whole paragraph collected line by line."""
+    text = ""
+    for part in parts:
+        text = glue(text, part)
+    return text
+
+
 def parse(help_text: str) -> dict:
     """Parse the argparse output: the usage line, the description and the sections with entries."""
     lines = help_text.split("\n")
@@ -132,19 +155,15 @@ def parse(help_text: str) -> dict:
                 # Text at zero indent is already the parser epilog and not a wrapped
                 # description: otherwise it gets glued to the last entry of the table.
                 if epilog and epilog[-1]:
-                    epilog[-1] += " " + line.strip()
+                    epilog[-1] = glue(epilog[-1], line.strip())
                 else:
                     epilog.append(line.strip())
             elif entries:                                  # wrapped description of the previous entry
-                prev, tail = entries[-1][1], line.strip()
-                # argparse wraps a long word on a hyphen (`--write-\nbaseline`) – such a wrap
-                # is glued without a space, otherwise the flag inside the description breaks.
-                glue = "" if prev.endswith("-") and tail[:1].isalnum() else " "
-                entries[-1][1] = (prev + glue + tail).strip()
+                entries[-1][1] = glue(entries[-1][1], line.strip()).strip()
         i += 1
     if current:
         sections.append((current, entries))
-    return {"usage": "\n".join(usage), "description": " ".join(description),
+    return {"usage": "\n".join(usage), "description": join_wrapped(description),
             "sections": sections, "epilog": epilog}
 
 

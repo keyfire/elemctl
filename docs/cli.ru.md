@@ -904,7 +904,7 @@ usage: elemctl dumps get [-h] APP_ID DUMP_ID
 
 ## `elemctl tasks`
 
-Задачи приложений. Формы: elemctl tasks list [`--app-id` ИД] – перечень задач; elemctl tasks get- group TASK_ID – статус групповой задачи. Ключ `--app-id` принадлежит действию list и ставится ПОСЛЕ него.
+Задачи приложений. Формы: elemctl tasks list [`--app-id` ИД] – перечень задач; elemctl tasks get-group TASK_ID – статус групповой задачи. Ключ `--app-id` принадлежит действию list и ставится ПОСЛЕ него.
 
 ```bash
 usage: elemctl tasks [-h] действие ...

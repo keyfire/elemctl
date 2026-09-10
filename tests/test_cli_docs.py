@@ -121,3 +121,24 @@ def test_committed_pages_are_current(generated):
         assert committed == text, (
             f"{fname} устарел: перегенерируйте python scripts/gen-cli-docs.py"
         )
+
+
+def test_a_word_wrapped_on_its_hyphen_is_joined_back(generated):
+    """argparse wraps a long word on a hyphen; a join with a space breaks the name.
+
+    The reference showed "elemctl tasks get- group TASK_ID" – a command nobody can
+    type. The rule already guarded the descriptions of the flag tables; it now guards
+    the description of a parser and its epilog as well.
+    """
+    spec = importlib.util.spec_from_file_location(
+        "gen_cli_docs", ROOT / "scripts" / "gen-cli-docs.py"
+    )
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    assert mod.join_wrapped(["формы: elemctl tasks get-", "group TASK_ID"]) == (
+        "формы: elemctl tasks get-group TASK_ID"
+    )
+    assert mod.join_wrapped(["первая строка", "вторая строка"]) == "первая строка вторая строка"
+    for text in generated.values():
+        assert "get- group" not in text
