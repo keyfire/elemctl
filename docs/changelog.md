@@ -13,47 +13,42 @@ day are named in the heading. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+Every entry ends with a link to the pull request it came from –
+`([#12](https://github.com/keyfire/elemctl/pull/12))`. That is why changes come in through pull
+requests: an entry without such a link is unfinished, because the reader has no way from the line
+to the code and the reasoning behind it. Internal identifiers of the platform have no place in an
+entry either – say what the behaviour was, not which id or response field was compared with what.
 
-### Changed
-- **A group called straight with a flag gets a hint about the action.** argparse answered
-  `elemctl tasks --app-id ...` with "invalid choice: '<value>'" – the reader went looking for
-  the mistake in the value, while the missing word was `list`. A line naming the form of the
-  call and the actions of the group is now printed after the refusal, and `tasks --help`
-  spells both forms out, saying that `--app-id` belongs to the `list` action.
-- **`builds list` says what kind of listing the reader is looking at.** "30 of 30" read as
-  the project's whole history while builds kept vanishing from it. Live calls settled it: the
-  method has no pages (`limit`, `page`, `offset`, `size`, `top` and the rest are ignored, and
-  no counter comes back either), but the platform caps how many builds a project keeps and
-  pushes an old one out when a new one arrives – a build an application runs stays. The count
-  line is now printed every time and says outright whether the listing is complete or has hit
-  the store limit; the MCP tool `list_builds` answers with an object `{total, shown, summary,
-  builds}` instead of a bare array.
+## 2026-09-10 – 0.37.0, 0.38.0
 
 ### Added
-- **The `verify-deploy` command – the verification apart from the deploy.** The library
-  and the MCP tool had the mechanism; the CLI did not, so a CI script creating an
-  application out of an uploaded build rebuilt the same check by hand from `apps get`
-  and `tasks list`. `elemctl verify-deploy --app-id ... --version-id ...` now answers
-  with the report `deploy` gives (tasks in an error status, where the file and the
-  position of a compilation error live; the applied build compared with the expected
-  one; the address answering) and exits 1 on a failure. It deploys nothing.
-- **The `--json` flag – machine-readable output as a guarantee, not as a promise.** CI scripts
-  parsed the answer by hunting for the first brace: one stray line ahead of the JSON broke the
-  parse, and the trick itself had to live in a module of its own. With `--json`, stdout is
-  swapped for stderr while the command runs, so the only thing reaching the real stdout is the
-  answer – no line of a plugin, no warning of a library can slip in, and the stream parses
-  whole. The flag is global and accepted in any position; a failure keeps to stderr in this
-  mode too, and stdout stays empty.
-
-## 2026-09-10 – 0.37.0
+- **The `verify-deploy` command – the verification apart from the deploy.** The library and the
+  MCP tool had the mechanism; the CLI did not, so CI scripts rebuilt the same check by hand out
+  of `apps get` and `tasks list`. The command now answers with the report `deploy` gives and
+  exits 1 on a failure; it deploys nothing itself.
+- **The `--json` flag: the answer alone reaches stdout.** Scripts parsed the output by hunting
+  for the first brace, and one stray line ahead of the JSON broke the parse. While a command
+  runs, stdout is now swapped for stderr – no line of a plugin, no warning of a library slips
+  into the stream. The flag is global and accepted in any position.
 
 ### Changed
+- **`builds list` says what kind of listing the reader is looking at.** "30 of 30" read as the
+  project's whole history, while the platform keeps only so many builds per project. The count
+  line now says whether the listing is complete or has hit the store limit. **A behaviour change:**
+  the MCP tool `list_builds` answers with `{total, shown, summary, builds}`, not a bare array.
+- **A group called straight with a flag gets a hint about the action.** argparse answered
+  `elemctl tasks --app-id ...` with "invalid choice", and the reader went looking for the mistake
+  in the value while the missing word was `list`. The refusal now prints the form of the call and
+  the actions of the group, and `tasks --help` spells both forms out.
 - **`--latest-build` picks the newest build by its created stamp**, not by the highest counter:
   after a base version bump the old base keeps the higher numbers, and an application created
   "from the latest build" would have got an old one.
 
 ### Fixed
+- **The command reference no longer breaks a word wrapped on its hyphen.** argparse wraps a long
+  word on the hyphen, and joining the lines with a space broke the very name under discussion:
+  the reference read `elemctl tasks get- group TASK_ID`. The joining rule is now shared – it
+  covers the parser's description and its epilogue too.
 - **The build counter restarts when the project's base version changes.** The auto-increment
   took the highest counter of all the project's builds: one stray `1.0.1-19001` pushed every
   later build to 19xxx, and bumping the project to `1.0.2` would have continued at 19024. The
