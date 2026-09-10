@@ -1171,6 +1171,46 @@ def _hoist_global_options(argv):
     return hoisted + rest
 
 
+def _choices_of(parser, dest):
+    """The named subcommands of a parser: {name: parser} ({} when it has none).
+
+    The commands of the root are declared with dest="command", the actions of a
+    group with dest="subcommand" - that is what tells a group from a plain command
+    with a positional argument of its own.
+    """
+    for item in getattr(parser, "_actions", []):
+        if getattr(item, "dest", "") == dest and getattr(item, "choices", None):
+            return dict(item.choices)
+    return {}
+
+
+def _action_first_hint(parser, argv):
+    """The hint for "elemctl <group> --flag": the action comes first, its flags after it.
+
+    argparse answers such a call with "invalid choice: '<value>'" naming the VALUE of
+    the flag - and the reader starts looking for the mistake in the value, while the
+    missing word is the action. The trap is not hypothetical: documents and agents
+    write `tasks --app-id ...`, and the flag belongs to `tasks list`. Returns "" when
+    the call is not of that shape.
+    """
+    commands = _choices_of(parser, "command")
+    for index, token in enumerate(argv):
+        if token in commands:
+            actions = list(_choices_of(commands[token], "subcommand"))
+            following = argv[index + 1] if index + 1 < len(argv) else ""
+            if not actions or not following.startswith("-"):
+                return ""
+            if following in ("-h", "--help"):
+                return ""
+            return i18n.t(
+                "cli.action-first",
+                group=token, first=actions[0], actions=", ".join(actions),
+            )
+        if not token.startswith("-"):
+            return ""
+    return ""
+
+
 def build_parser():
     parser = i18n.ArgumentParser(
         prog="elemctl",
@@ -1482,7 +1522,11 @@ def build_parser():
     p.set_defaults(handler=cmd_dumps_get)
 
     # tasks ----------------------------------------------------------------
-    tasks = sub.add_parser("tasks", help=i18n.t("cli.help.tasks"))
+    # The description spells the forms out: the group is asked for by documents and by
+    # agents as "tasks --app-id ...", and the flag belongs to the action, not to the group.
+    tasks = sub.add_parser(
+        "tasks", help=i18n.t("cli.help.tasks"), description=i18n.t("cli.help.tasks-forms")
+    )
     tasks_sub = tasks.add_subparsers(dest="subcommand", metavar=action, required=True)
 
     p = tasks_sub.add_parser("list", help=i18n.t("cli.help.tasks-list"))
@@ -1549,7 +1593,16 @@ def main(argv=None):
         # A broken plugin must not fall out as a traceback: the parser is built
         # before any command runs, so its errors need the same JSON treatment.
         return _fail({"error": str(error)})
-    args = parser.parse_args(argv)
+    try:
+        args = parser.parse_args(argv)
+    except SystemExit as refusal:
+        # argparse has already said its piece and is leaving; the hint about the
+        # shape of the call is added on the way out, where it is still readable.
+        if refusal.code:
+            hint = _action_first_hint(parser, argv)
+            if hint:
+                _progress(hint)
+        raise
     # Pin the language again, now out of the parsed arguments: argparse also accepts
     # abbreviations (--lan en), which the prescan does not catch; for the runtime this is the
     # authoritative source.

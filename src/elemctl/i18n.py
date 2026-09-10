@@ -1408,8 +1408,22 @@ MESSAGES = {
         "en": "dump status",
     },
     "cli.help.tasks": {
-        "ru": "задачи приложений",
-        "en": "application tasks",
+        "ru": "задачи приложений (перечень – tasks list [--app-id ИД])",
+        "en": "application tasks (the listing – tasks list [--app-id ID])",
+    },
+    "cli.help.tasks-forms": {
+        "ru": "Задачи приложений. Формы: elemctl tasks list [--app-id ИД] – перечень задач; "
+              "elemctl tasks get-group TASK_ID – статус групповой задачи. Ключ --app-id "
+              "принадлежит действию list и ставится ПОСЛЕ него.",
+        "en": "Application tasks. The forms: elemctl tasks list [--app-id ID] – the listing "
+              "of tasks; elemctl tasks get-group TASK_ID – the status of a task group. The "
+              "--app-id flag belongs to the list action and goes AFTER it.",
+    },
+    "cli.action-first": {
+        "ru": "подсказка: у группы \"{group}\" сначала действие, потом его ключи – "
+              "например elemctl {group} {first} ... (действия: {actions})",
+        "en": "hint: the action of the \"{group}\" group comes first and its flags after "
+              "it – elemctl {group} {first} ..., say (actions: {actions})",
     },
     "cli.help.tasks-list": {
         "ru": "список задач приложений",

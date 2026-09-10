@@ -16,6 +16,11 @@ day are named in the heading. The format follows
 ## Unreleased
 
 ### Changed
+- **A group called straight with a flag gets a hint about the action.** argparse answered
+  `elemctl tasks --app-id ...` with "invalid choice: '<value>'" – the reader went looking for
+  the mistake in the value, while the missing word was `list`. A line naming the form of the
+  call and the actions of the group is now printed after the refusal, and `tasks --help`
+  spells both forms out, saying that `--app-id` belongs to the `list` action.
 - **`builds list` says what kind of listing the reader is looking at.** "30 of 30" read as
   the project's whole history while builds kept vanishing from it. Live calls settled it: the
   method has no pages (`limit`, `page`, `offset`, `size`, `top` and the rest are ignored, and

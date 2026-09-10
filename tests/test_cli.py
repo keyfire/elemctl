@@ -1243,3 +1243,37 @@ def test_json_survives_an_exception_and_restores_stdout(monkeypatch, capsys):
     assert cli._answer_stream is None
     print("back to stdout")
     assert capsys.readouterr().out.strip() == "back to stdout"
+
+
+# -- the shape of a group call --------------------------------------------------
+
+
+def test_tasks_help_names_the_whole_form():
+    """The documents asked for `tasks --app-id`; the flag belongs to `tasks list`.
+
+    The group help now spells both forms out, so the reader does not have to infer
+    where the flag goes from a table of action names.
+    """
+    parser = cli.build_parser()
+    tasks = cli._choices_of(parser, "command")["tasks"]
+    assert "tasks list [--app-id" in (tasks.description or "")
+    assert "tasks get-group TASK_ID" in tasks.description
+
+
+def test_a_group_called_with_a_flag_gets_the_action_first_hint(capsys):
+    """argparse blames the VALUE of the flag; the missing word is the action."""
+    with pytest.raises(SystemExit):
+        cli.main(["tasks", "--app-id", "app-1"])
+    err = capsys.readouterr().err
+    assert "invalid choice" in err
+    assert "elemctl tasks list" in err
+    assert "list, get-group" in err
+
+
+def test_the_hint_keeps_quiet_where_it_would_be_noise(capsys):
+    """Not every refusal is that mistake: a plain command and a help call get no hint."""
+    parser = cli.build_parser()
+    assert cli._action_first_hint(parser, ["tasks", "--help"]) == ""
+    assert cli._action_first_hint(parser, ["deploy", "--app-id", "a"]) == ""
+    assert cli._action_first_hint(parser, ["tasks", "list", "--app-id", "a"]) == ""
+    assert "elemctl apps list" in cli._action_first_hint(parser, ["apps", "--brief"])

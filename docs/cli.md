@@ -52,7 +52,7 @@ usage: elemctl [-h] [--base-url BASE_URL] [--client-id CLIENT_ID] [--client-secr
 | `probe` | isolated compilation check: build -&gt; throwaway application -&gt; errors with file and position -&gt; cleanup; the project directory must follow the {repository}/{Vendor}/{Name}/Project.yaml layout – the Vendor+Name pair is how the platform identifies the project |
 | `branches` | development-environment branches |
 | `dumps` | application dumps |
-| `tasks` | application tasks |
+| `tasks` | application tasks (the listing – tasks list [`--app-id` ID]) |
 | `tech` | technology version |
 | `debug-adapter` | path to the platform debug adapter from the plugin (for the VS Code extension) |
 | `plugins` | elemctl plugin diagnostics (extension points) |
@@ -903,6 +903,8 @@ usage: elemctl dumps get [-h] APP_ID DUMP_ID
 | `-h, --help` | show this help message and exit |
 
 ## `elemctl tasks`
+
+Application tasks. The forms: elemctl tasks list [`--app-id` ID] – the listing of tasks; elemctl tasks get-group TASK_ID – the status of a task group. The `--app-id` flag belongs to the list action and goes AFTER it.
 
 ```bash
 usage: elemctl tasks [-h] action ...
