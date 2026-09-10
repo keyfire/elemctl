@@ -19,14 +19,14 @@ entry either – say what the behaviour was, not which id or response field was 
 - **`--verify` for `apps create` and `apps ensure`, and a `verify` parameter of the MCP tools
   `create_app` and `ensure_app`.** The proof that a build really landed lived in `deploy`,
   `apps apply` and `verify-deploy`; raising a stand had to call it separately afterwards. The
-  report now comes in the `verify` field of the answer.
+  report now comes in the `verify` field of the answer. ([#5](https://github.com/keyfire/elemctl/pull/5))
 
 ### Changed
 - **Waiting means verifying: `--wait` no longer hands back a card on trust.** A failed apply is
   rolled back to the previous build and the application comes up running all the same, so the
   card said nothing about the build being served. **A behaviour change:** `--wait` ends with the
   check and exits 1 when it does not pass, `--no-verify` brings the plain wait back, and an
-  application `ensure` created stops answering `applied: true` unchecked.
+  application `ensure` created stops answering `applied: true` unchecked. ([#5](https://github.com/keyfire/elemctl/pull/5))
 
 ## 2026-09-10 – 0.37.0, 0.38.0
 
