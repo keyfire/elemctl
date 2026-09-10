@@ -295,6 +295,9 @@ def brief_assembly(assembly):
 #: How many builds a project keeps on the platform – measured on a live installation,
 #: not read anywhere: an upload past that number pushes an older build out (one an
 #: application runs stays), so a build that was in the list yesterday can be gone today.
+#: The measured number is around this one (30 and 31 were both seen; the extra record
+#: lives until the next upload), so the constant is a THRESHOLD for the count line, not
+#: a promise about the platform.
 #: The list endpoint has no paging at all – limit, page, size, offset, skip, top and the
 #: rest are ignored, and neither the body nor the headers carry a total – so what comes
 #: back is the whole store rather than a page of it, and a listing at that number has to
