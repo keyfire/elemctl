@@ -214,13 +214,29 @@ def cmd_apps_find(args):
     return 0
 
 
+def _verification_wanted(args):
+    """Whether a freshly created application has to be verified.
+
+    Waiting means verifying: an application that came up Running on the PREVIOUS
+    build is not the application that was asked for, and the status does not say
+    so. --verify asks for the check on its own (and waits, because there is
+    nothing to check on an application still being created), --no-verify brings
+    back the plain wait for whoever wants the old behaviour.
+    """
+    if getattr(args, "no_verify", False):
+        return False
+    return bool(getattr(args, "verify", False) or args.wait)
+
+
 def _create_app_from_args(client, config, args):
-    """Create an application from the creation flags; return its card.
+    """Create an application from the creation flags; return (card, report).
 
     The logic shared by apps create and apps ensure. The source is the given
     assembly (--version-id), the project's latest assembly (--latest-build) or
     the project as a whole (--project-id, which risks an empty skeleton). With
-    --wait it waits until the application is ready.
+    --wait it waits until the application is ready and checks that the assembly
+    asked for is the one the application really runs; report is None when no
+    check ran (no --wait and no --verify, or the card carries no id).
     """
     project_id = args.project_id or config.project_id
     version_id = args.version_id
@@ -240,6 +256,7 @@ def _create_app_from_args(client, config, args):
         "space_id": args.space_id or config.space_id or None,
         "technology_version": args.tech_version or None,
     }
+    started_at = datetime.now(timezone.utc)
     if version_id:
         card = client.create_app(args.name, project_version_id=version_id, **kwargs)
     elif project_id:
@@ -248,11 +265,23 @@ def _create_app_from_args(client, config, args):
     else:
         raise ConfigError(i18n.t("cli.app-source-required"))
 
-    if args.wait:
-        app_id = (card or {}).get("id")
-        if app_id:
-            card = client.wait_app_ready(app_id, log=_progress)
-    return card
+    verify = _verification_wanted(args)
+    if not (args.wait or verify):
+        return card, None
+    app_id = (card or {}).get("id")
+    if not app_id:
+        return card, None
+    card = client.wait_app_ready(app_id, log=_progress)
+    if not verify:
+        return card, None
+    report = verify_deploy(
+        client,
+        app_id,
+        expected_assembly_id=version_id or "",
+        since=started_at,
+        log=_progress,
+    )
+    return card, report
 
 
 def _report_sign_in(card):
@@ -271,12 +300,22 @@ def _report_sign_in(card):
 
 
 def cmd_apps_create(args):
+    """Create an application and, when asked to wait, prove it runs the right build.
+
+    Waiting alone is not proof: an apply that fails is rolled back by the platform
+    to the previous build, and the fresh application comes up Running all the same.
+    That is why --wait now verifies as well and answers with a non-zero exit code
+    when the check does not pass; --no-verify keeps the plain wait.
+    """
     config = _config(args)
     client = make_client(config)
-    card = _create_app_from_args(client, config, args)
+    card, report = _create_app_from_args(client, config, args)
     hint = _report_sign_in(card)
-    _emit({**card, "sign-in": hint} if isinstance(card, dict) else card)
-    return 0
+    answer = {**card, "sign-in": hint} if isinstance(card, dict) else card
+    if report is not None and isinstance(answer, dict):
+        answer["verify"] = report.to_dict()
+    _emit(answer)
+    return 0 if report is None or report.ok else 1
 
 
 def _applied_assembly_id(card):
@@ -362,9 +401,15 @@ def cmd_apps_ensure(args):
     Both answers end with the way into the application (the sign-in field and
     the same on stderr): the caller of ensure is usually raising a stand, and a
     stand nobody can sign in to is not raised yet.
+
+    A created application used to answer applied: true on trust alone - it was
+    created from the assembly, so what else could it be running? A failed apply,
+    rolled back to the previous build without a word. With --wait (or --verify)
+    the field now carries a checked verdict and a verify report beside it.
     """
     config = _config(args)
     client = make_client(config)
+    started_at = datetime.now(timezone.utc)
     existing = client.find_app(args.name)
     if existing is not None:
         answer = {
@@ -372,23 +417,40 @@ def cmd_apps_ensure(args):
             "created": False,
             "sign-in": _report_sign_in(existing),
         }
-        answer.update(_ensure_build_state(client, existing, args))
+        answer.update(_ensure_build_state(client, existing, args, since=started_at))
         _emit(answer)
-        return 0
-    card = _create_app_from_args(client, config, args)
-    _emit({
+        # An existing application whose build merely DIFFERS is still exit code 0:
+        # ensure did what it was asked and said what it found. A verification that
+        # ran and did not pass is another matter - that one has to reach a script.
+        return _verify_exit_code(answer)
+    card, report = _create_app_from_args(client, config, args)
+    answer = {
         "id": (card or {}).get("id"),
         "created": True,
-        "applied": True,
+        "applied": True if report is None else bool(report.ok),
         "sign-in": _report_sign_in(card),
-    })
+    }
+    if report is not None:
+        answer["verify"] = report.to_dict()
+    _emit(answer)
+    return _verify_exit_code(answer)
+
+
+def _verify_exit_code(answer):
+    """1 when a verification ran and did not pass, 0 otherwise."""
+    report = answer.get("verify") if isinstance(answer, dict) else None
+    if isinstance(report, dict) and not report.get("ok"):
+        return 1
     return 0
 
 
-def _ensure_build_state(client, existing, args):
+def _ensure_build_state(client, existing, args, *, since=None):
     """What ensure has to say about the ASSEMBLY of an application it did not create.
 
     Nothing when no assembly was asked for - ensure was then about existence alone.
+    The card of the application already answers the main question - which assembly
+    it runs - so the comparison costs no requests; --verify adds the rest of the
+    check (the application tasks and the uri) to it.
     """
     requested = str(args.version_id or "")
     if not requested:
@@ -397,7 +459,16 @@ def _ensure_build_state(client, existing, args):
     applied = _applied_assembly_id(existing)
     if applied and applied == requested:
         _progress(i18n.t("cli.ensure.build-already", requested=requested))
-        return {"applied": True, "applied-version-id": applied}
+        if not getattr(args, "verify", False):
+            return {"applied": True, "applied-version-id": applied}
+        report = verify_deploy(
+            client, app_id, expected_assembly_id=requested, since=since, log=_progress
+        )
+        return {
+            "applied": bool(report.ok),
+            "applied-version-id": applied,
+            "verify": report.to_dict(),
+        }
     if args.apply:
         report = _apply_and_verify(client, app_id, requested)
         return {"applied": bool(report.ok), "verify": report.to_dict()}
@@ -1148,6 +1219,10 @@ def _add_create_flags(p):
     p.add_argument("--tech-version", help=i18n.t("cli.help.create-tech-version"))
     p.add_argument("--no-dev-mode", action="store_true", help=i18n.t("cli.help.create-no-dev-mode"))
     p.add_argument("--wait", action="store_true", help=i18n.t("cli.help.create-wait"))
+    p.add_argument("--verify", action="store_true", help=i18n.t("cli.help.create-verify"))
+    p.add_argument(
+        "--no-verify", action="store_true", help=i18n.t("cli.help.create-no-verify")
+    )
 
 
 # The global options are declared on the root parser, so argparse only accepts them

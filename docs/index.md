@@ -62,6 +62,7 @@ elemctl apps get <app-id>
 
 # create the application only if it does not exist yet:
 # {"id": ..., "created": true|false, "sign-in": ...} - the last field is the way in
+# --wait waits for the application AND verifies the build it really runs
 elemctl apps ensure acme-crm-dev --project-id <project-id> --latest-build --wait
 
 # full deploy cycle from sources with apply verification
@@ -109,7 +110,7 @@ For the full list of commands: `elemctl --help`, and by group: `elemctl apps --h
 - The tool is **unofficial** and not affiliated with 1C Company; the Console API may change without notice.
 - Only the documented Console API v2 is used – the tool does not call or describe the platform console's internal APIs.
 - Creating an application from `--project-id` alone produces, on some platform configurations, an empty skeleton without project data. The reliable path is a build source: `elemctl apps create <name> --project-id <id> --latest-build` (the `create_app` MCP tool substitutes the latest build automatically), followed by `elemctl deploy` after creation.
-- An application created with an `Error` status is described by the platform only as "Неизвестная ошибка. Обратитесь к администратору"; the details - files, lines and columns of the compilation errors - live in the application's task. `apps create --wait` and `apps ensure` print them after the generic text, the way `deploy` and `verify` have long done, so there is no need to dig through the server log.
+- An application created with an `Error` status is described by the platform only as "Неизвестная ошибка. Обратитесь к администратору"; the details - files, lines and columns of the compilation errors - live in the application's task. `apps create --wait` and `apps ensure` print them after the generic text, the way `deploy` and `verify` have long done, so there is no need to dig through the server log. Not every failure ends in `Error`, though: a failed apply is rolled back to the previous build and the application comes up `Running`, so `--wait` also verifies the build the application really runs and answers with exit code 1 when it is not the one asked for (`--no-verify` brings back the plain wait).
 - There is no way to compile the sources without creating something on the platform: compilation is the server's and it happens when a build is applied. That is what `probe` is for – it takes the hit on a throwaway application instead of the working one. A probe run costs as long as creating an application does (minutes), so it belongs before a deploy or in CI, not in a per-keystroke loop.
 - A platform project is identified by the `Vendor` + `Name` pair of the manifest, not by the `Ид` of `Проект.yaml`: a build upload without a project id lands in the project that already owns the pair, and a second project for the same pair is refused with a 409.
 - A freshly created application is signed in to with a CONTROL PANEL account: it gets its OWN, empty user list, password sign-in is off and no account service is attached, so the accounts used to sign in to other applications do not work here – and neither connecting another application's user list nor enabling the local sign-in changes it. `apps create` and `apps ensure` say so themselves: the `sign-in` field of the answer plus the same on stderr.

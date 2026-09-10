@@ -419,6 +419,118 @@ def test_create_app_adds_the_way_in_to_the_card(monkeypatch):
     assert payload["sign-in"]["url"] == "https://host/apps/new"
 
 
+def _stub_mcp_verify(monkeypatch, ok=True):
+    """Stub the verification of the server and keep what it was called with."""
+    from elemctl import mcp_server
+
+    calls = []
+
+    class Report:
+        def __init__(self):
+            self.ok = ok
+
+        def to_dict(self):
+            return {"ok": ok, "applied": ok}
+
+    def fake(client, app_id, **kwargs):
+        calls.append((app_id, kwargs))
+        return Report()
+
+    monkeypatch.setattr(mcp_server, "_verify_deploy", fake)
+    return calls
+
+
+class FakeCreatingClient:
+    """Creates an application and reports what it was asked to wait for."""
+
+    def __init__(self, exists=None):
+        self.exists = exists
+        self.waited = []
+
+    def find_app(self, name, *, include_deleted=False):
+        return self.exists
+
+    def create_app(self, display_name, **kwargs):
+        return {"id": "app-new", "display-name": display_name, "status": "Creating"}
+
+    def wait_app_ready(self, app_id, log=None):
+        self.waited.append(app_id)
+        return {"id": app_id, "status": "Running", "uri": "https://host/apps/new"}
+
+
+def test_create_app_verify_proves_the_build_really_landed(monkeypatch):
+    """A card is not proof: a failed apply is rolled back and the status still says Running."""
+    fake = FakeCreatingClient()
+    server = _server_on(monkeypatch, fake)
+    calls = _stub_mcp_verify(monkeypatch, ok=False)
+
+    result = asyncio.run(
+        server.call_tool(
+            "create_app", {"name": "crm-dev", "version_id": "asm-1", "verify": True}
+        )
+    )
+    payload = json.loads(call_result_content(result)[0].text)
+
+    assert payload["verify"]["ok"] is False
+    assert fake.waited == ["app-new"]
+    assert calls[0][1]["expected_assembly_id"] == "asm-1"
+
+
+def test_create_app_without_verify_neither_waits_nor_checks(monkeypatch):
+    fake = FakeCreatingClient()
+    server = _server_on(monkeypatch, fake)
+
+    result = asyncio.run(
+        server.call_tool("create_app", {"name": "crm-dev", "version_id": "asm-1"})
+    )
+    payload = json.loads(call_result_content(result)[0].text)
+
+    assert "verify" not in payload
+    assert fake.waited == []
+
+
+def test_ensure_app_created_application_no_longer_claims_applied_on_trust(monkeypatch):
+    fake = FakeCreatingClient()
+    server = _server_on(monkeypatch, fake)
+    _stub_mcp_verify(monkeypatch, ok=False)
+
+    result = asyncio.run(
+        server.call_tool(
+            "ensure_app", {"name": "crm-dev", "version_id": "asm-1", "verify": True}
+        )
+    )
+    payload = json.loads(call_result_content(result)[0].text)
+
+    assert payload["created"] is True
+    assert payload["applied"] is False
+    assert payload["verify"]["ok"] is False
+
+
+def test_ensure_app_verify_checks_the_application_it_found(monkeypatch):
+    """The card of an existing application matches – --verify asks whether it is alive."""
+    existing = {
+        "id": "app-7",
+        "display-name": "crm-dev",
+        "uri": "https://host/apps/crm-dev",
+        "source": {"project-version-id": "asm-1"},
+    }
+    fake = FakeCreatingClient(exists=existing)
+    server = _server_on(monkeypatch, fake)
+    calls = _stub_mcp_verify(monkeypatch, ok=False)
+
+    result = asyncio.run(
+        server.call_tool(
+            "ensure_app", {"name": "crm-dev", "version_id": "asm-1", "verify": True}
+        )
+    )
+    payload = json.loads(call_result_content(result)[0].text)
+
+    assert payload["created"] is False
+    assert payload["applied"] is False
+    assert payload["verify"]["ok"] is False
+    assert calls[0][0] == "app-7"
+
+
 # --- Tools brought by a plugin -----------------------------------------------------
 
 def _plugin_command(**overrides):
@@ -499,7 +611,9 @@ EXPECTED_TOOL_PARAMETERS = {
     "apply_build": ("app_id env_file version_id", "app_id version_id"),
     "build_assembly": ("output_dir project_dir version", ""),
     "configure_user_list": ("app_id env_file list_id password_login self_registration", ""),
-    "create_app": ("development_mode env_file name project_id space_id version_id", "name"),
+    "create_app": (
+        "development_mode env_file name project_id space_id verify version_id", "name"
+    ),
     "debug_adapter": ("", ""),
     "debug_info": ("app_id env_file", "app_id"),
     "delete_app": ("app_id env_file", "app_id"),
@@ -507,7 +621,9 @@ EXPECTED_TOOL_PARAMETERS = {
         "app_id branch env_file project_dir project_id version",
         "app_id project_id",
     ),
-    "ensure_app": ("development_mode env_file name project_id space_id version_id", "name"),
+    "ensure_app": (
+        "development_mode env_file name project_id space_id verify version_id", "name"
+    ),
     "find_app": ("env_file include_deleted name", "name"),
     "get_app": ("app_id env_file", "app_id"),
     "inspect_assembly": ("file", "file"),

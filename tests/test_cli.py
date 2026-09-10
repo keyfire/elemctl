@@ -394,6 +394,194 @@ def test_sign_in_address_is_not_invented_before_the_application_has_one(monkeypa
     assert "ПАНЕЛИ УПРАВЛЕНИЯ" in captured.err
 
 
+class FakeCreateClient:
+    """A platform that creates an application and reports what it was asked to do."""
+
+    def __init__(self, exists=None):
+        self.exists = exists
+        self.waited = []
+
+    def find_app(self, name, *, include_deleted=False):
+        return self.exists
+
+    def create_app(self, display_name, **kwargs):
+        return {"id": "app-new", "display-name": display_name, "status": "Creating"}
+
+    def wait_app_ready(self, app_id, log=None):
+        self.waited.append(app_id)
+        return {
+            "id": app_id,
+            "display-name": "crm-dev",
+            "status": "Running",
+            "uri": "https://host/apps/crm-dev",
+        }
+
+
+def _record_verify(monkeypatch, ok=True):
+    """Stub the verification and keep the arguments it was called with."""
+    calls = []
+
+    class Report:
+        ok_flag = ok
+
+        def __init__(self):
+            self.ok = ok
+
+        def to_dict(self):
+            return {"ok": ok, "applied": ok}
+
+    def fake(client, app_id, **kwargs):
+        calls.append((app_id, kwargs))
+        return Report()
+
+    monkeypatch.setattr(cli, "verify_deploy", fake)
+    return calls
+
+
+def test_apps_create_wait_now_proves_the_build_really_landed(monkeypatch, capsys):
+    """--wait used to report a Running application and nothing more.
+
+    A failed apply is rolled back by the platform to the previous build, and the
+    application comes up Running all the same – so waiting without checking hands
+    back a card that says success on a stand that has none.
+    """
+    fake = FakeCreateClient()
+    monkeypatch.setattr(cli, "make_client", lambda config: fake)
+    calls = _record_verify(monkeypatch, ok=False)
+
+    rc = cli.main(["apps", "create", "crm-dev", "--version-id", "asm-9", "--wait"])
+
+    assert rc == 1
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["verify"]["ok"] is False
+    # The check is made against the assembly asked for, not against a version string.
+    assert calls[0][0] == "app-new"
+    assert calls[0][1]["expected_assembly_id"] == "asm-9"
+    assert calls[0][1]["since"] is not None
+
+
+def test_apps_create_wait_that_passes_keeps_the_card_and_exit_code(monkeypatch, capsys):
+    fake = FakeCreateClient()
+    monkeypatch.setattr(cli, "make_client", lambda config: fake)
+    _record_verify(monkeypatch, ok=True)
+
+    rc = cli.main(["apps", "create", "crm-dev", "--version-id", "asm-9", "--wait"])
+
+    assert rc == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["uri"] == "https://host/apps/crm-dev"
+    assert payload["verify"]["ok"] is True
+    assert payload["sign-in"]["url"] == "https://host/apps/crm-dev"
+
+
+def test_apps_create_no_verify_brings_the_plain_wait_back(monkeypatch, capsys):
+    """The old behaviour stays reachable: wait, and take the card on trust."""
+    fake = FakeCreateClient()
+    monkeypatch.setattr(cli, "make_client", lambda config: fake)
+
+    def refuse(*args, **kwargs):
+        raise AssertionError("проверка не должна вызываться при --no-verify")
+
+    monkeypatch.setattr(cli, "verify_deploy", refuse)
+
+    rc = cli.main(
+        ["apps", "create", "crm-dev", "--version-id", "asm-9", "--wait", "--no-verify"]
+    )
+
+    assert rc == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert "verify" not in payload
+    assert fake.waited == ["app-new"]
+
+
+def test_apps_create_verify_waits_by_itself(monkeypatch, capsys):
+    """There is nothing to check on an application still being created – --verify waits."""
+    fake = FakeCreateClient()
+    monkeypatch.setattr(cli, "make_client", lambda config: fake)
+    _record_verify(monkeypatch, ok=True)
+
+    rc = cli.main(["apps", "create", "crm-dev", "--version-id", "asm-9", "--verify"])
+
+    assert rc == 0
+    assert fake.waited == ["app-new"]
+    assert json.loads(capsys.readouterr().out)["verify"]["ok"] is True
+
+
+def test_apps_create_without_wait_checks_nothing(monkeypatch, capsys):
+    """Without --wait the command is as it was: no waiting, no requests, no verdict."""
+    fake = FakeCreateClient()
+    monkeypatch.setattr(cli, "make_client", lambda config: fake)
+
+    def refuse(*args, **kwargs):
+        raise AssertionError("без --wait проверка не запускается")
+
+    monkeypatch.setattr(cli, "verify_deploy", refuse)
+
+    rc = cli.main(["apps", "create", "crm-dev", "--version-id", "asm-9"])
+
+    assert rc == 0
+    assert fake.waited == []
+    assert "verify" not in json.loads(capsys.readouterr().out)
+
+
+def test_apps_ensure_created_application_stops_claiming_applied_on_trust(monkeypatch, capsys):
+    """ensure answered applied: true for an application it had just created.
+
+    It was created FROM the assembly, so what else could it be running? The build
+    that the apply rolled back without a word.
+    """
+    fake = FakeCreateClient()
+    monkeypatch.setattr(cli, "make_client", lambda config: fake)
+    _record_verify(monkeypatch, ok=False)
+
+    rc = cli.main(["apps", "ensure", "crm-dev", "--version-id", "asm-9", "--wait"])
+
+    assert rc == 1
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["created"] is True
+    assert payload["applied"] is False
+    assert payload["verify"]["ok"] is False
+
+
+def test_apps_ensure_verify_checks_the_application_it_found(monkeypatch, capsys):
+    """--verify over an existing application: the card matches, but is it alive?
+
+    The comparison out of the card is free and answers the main question; the rest
+    of the check – the failed tasks and the uri – is what --verify adds to it.
+    """
+    fake = FakeApplyClient(applied="asm-1")
+    monkeypatch.setattr(cli, "make_client", lambda config: fake)
+    calls = _record_verify(monkeypatch, ok=False)
+
+    rc = cli.main(["apps", "ensure", "demo-app", "--version-id", "asm-1", "--verify"])
+
+    assert rc == 1
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["created"] is False
+    assert payload["applied"] is False
+    assert payload["verify"]["ok"] is False
+    assert calls[0][1]["expected_assembly_id"] == "asm-1"
+    assert fake.applied_calls == []  # nothing was applied: ensure did not touch the build
+
+
+def test_apps_ensure_existing_verdict_without_verify_costs_no_requests(monkeypatch, capsys):
+    """Without --verify the answer about the build comes out of the card, as before."""
+    fake = FakeApplyClient(applied="asm-1")
+    monkeypatch.setattr(cli, "make_client", lambda config: fake)
+
+    def refuse(*args, **kwargs):
+        raise AssertionError("без --verify проверка не запускается")
+
+    monkeypatch.setattr(cli, "verify_deploy", refuse)
+
+    rc = cli.main(["apps", "ensure", "demo-app", "--version-id", "asm-1"])
+
+    assert rc == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["applied"] is True
+    assert "verify" not in payload
+
+
 def test_apps_ensure_request_failure_is_an_error(monkeypatch, capsys):
     """A request failure in ensure: exit code 1, an empty stdout, error on stderr."""
 

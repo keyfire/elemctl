@@ -158,7 +158,7 @@ usage: elemctl apps find [-h] [--include-deleted] NAME
 ```bash
 usage: elemctl apps create [-h] [--project-id PROJECT_ID] [--version-id VERSION_ID]
                            [--latest-build] [--space-id SPACE_ID] [--tech-version TECH_VERSION]
-                           [--no-dev-mode] [--wait]
+                           [--no-dev-mode] [--wait] [--verify] [--no-verify]
                            NAME
 ```
 
@@ -179,14 +179,16 @@ usage: elemctl apps create [-h] [--project-id PROJECT_ID] [--version-id VERSION_
 | `--space-id SPACE_ID` | space |
 | `--tech-version TECH_VERSION` | technology version |
 | `--no-dev-mode` | do not create a development environment |
-| `--wait` | wait until the application is ready |
+| `--wait` | wait until the application is ready (and verify the assembly it runs) |
+| `--verify` | verify that the application really runs the requested assembly (implies `--wait`); exit code 1 when it does not |
+| `--no-verify` | do not verify the applied assembly – only wait until ready |
 
 ### `elemctl apps ensure`
 
 ```bash
 usage: elemctl apps ensure [-h] [--project-id PROJECT_ID] [--version-id VERSION_ID]
                            [--latest-build] [--space-id SPACE_ID] [--tech-version TECH_VERSION]
-                           [--no-dev-mode] [--wait] [--apply]
+                           [--no-dev-mode] [--wait] [--verify] [--no-verify] [--apply]
                            NAME
 ```
 
@@ -207,7 +209,9 @@ usage: elemctl apps ensure [-h] [--project-id PROJECT_ID] [--version-id VERSION_
 | `--space-id SPACE_ID` | space |
 | `--tech-version TECH_VERSION` | technology version |
 | `--no-dev-mode` | do not create a development environment |
-| `--wait` | wait until the application is ready |
+| `--wait` | wait until the application is ready (and verify the assembly it runs) |
+| `--verify` | verify that the application really runs the requested assembly (implies `--wait`); exit code 1 when it does not |
+| `--no-verify` | do not verify the applied assembly – only wait until ready |
 | `--apply` | when the application already exists, apply the given assembly to it (otherwise the answer only says that it was not applied) |
 
 ### `elemctl apps apply`
