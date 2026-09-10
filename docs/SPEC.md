@@ -91,7 +91,7 @@ Application statuses: stable `Running`, `Stopped`, `Error`; transitional `Starti
   - `POST /projects` – create a new project from a build.
   The only query parameter (optional): `SpaceId`; note that its name is in PascalCase. The method has NO `BranchName`/`CommitId`/`CommitMessage` parameters: the Console API reference does not list them, and the server ignores them when sent (a direct POST with a real hash answers `commit-id: null`) - the commit on a build card only comes from the project's link to its repository. The client does not send them. The response contains the id of the created build in one of the fields: `image-id`, `assembly-id`, or `id` (check in this order), and an `artifact` object describing the project the build landed in: `artifact-id` (the project id – it opens as a project card), `configuration-id` (the `Ид` of `Проект.yaml`) and `name` (the project presentation). The console shows a project under the name of the last uploaded build (the manifest `Name`), so a build uploaded into a project under a different name renames that project and its group, and deleting the build does not undo it. The client refuses such an upload, naming the price; a deliberate upload of a foreign build takes `--force-rename`. The check is best effort: when the names cannot be compared (an unreadable manifest, an unreachable project card) the upload proceeds as before – not being able to compare is no proof of danger.
 - **A project is identified by the pair `Vendor` + `Name` of the manifest** (section 6.8). `POST /projects` therefore does not always create a project: when a project with that pair already exists, the build is added to it and its `artifact-id` comes back in the response. Two ways to hit a 409 `ALREADY_EXISTS`: uploading a version that is already there ("Версия сборки ... уже присутствует в группе проекта") and registering the same vendor+name under another project ("Сборка с именем поставщика ... уже зарегистрирована в другом проекте") – the latter even with a freshly generated `Ид` in `Проект.yaml`.
-- `GET /projects/{id}/assemblies` – list of builds. Each element contains `assembly-version` (a string like `1.0-42`) and an id (`id` or `image-id`). The response may be either an array or an object with the list in the `items` or `assemblies` field.
+- `GET /projects/{id}/assemblies` – list of builds. Each element contains `assembly-version` (a string like `1.0-42`) and an id (`id` or `image-id`). The response may be either an array or an object with the list in the `items` or `assemblies` field. **The method has no pages and reports no total:** `limit`, `size`, `pageSize`, `count`, `top`, `maxResults`, `page`, `pageNumber`, `offset`, `skip`, `from` and `start` are all ignored – the answers to every one of them match byte for byte, and neither the headers nor the body carry a counter or a cursor (verified by live calls on two installations). **The number of builds per project is capped by the platform:** on 10.0.1 it is 30, and uploading a new build pushes an old one out – a build an application runs stays (seen live: `1.0.2-3` left the listing the moment `1.0.2-4` appeared, and during the upload the listing briefly showed 31 records). Hence the requirement on the client: a listing of that size must be called what it is – what survived, not the project's history.
 - `GET /projects/{id}/assemblies/{assembly-id}` – build card; `DELETE .../{assembly-id}` – delete. The API addresses a build ONLY by UUID: a version gets a 400 "Version is not a valid UUID". The client must also accept a version (that is what the user sees), resolving it to an id via the build list (`assembly-version`/`project-version`); note that the platform renumbers the manifest version on upload. Deleting a build is rejected with a 500 while an application created from it still exists (section 6.9); once that application is really gone, the same request succeeds.
 
 Comparing build versions: by the numeric suffix after the last hyphen (`1.0-10` is newer than `1.0-9`; lexicographic comparison gives the wrong order).
@@ -239,7 +239,7 @@ Commands (significant flags in parentheses):
   there sends no request.
 - `projects list [--name --include-deleted]`, `projects get [PROJECT_ID]`, `projects delete PROJECT_ID`.
   - `projects list --name` filters by a case-insensitive name substring on the client (section 4.3: the platform answers the full list); the projects marked deleted are hidden unless `--include-deleted` is given – a stand a few months old keeps hundreds of them in the list against a handful of live ones, and a check for a project name must not cost the full listing.
-- `builds list [--project-id]`, `builds get VERSION [--project-id]`,
+- `builds list [--project-id --limit --brief]`, `builds get VERSION [--project-id]`,
   `builds upload FILE [--project-id --new-project --force-rename --space-id
   --branch --commit --commit-message]`, `builds delete VERSION [--project-id]`.
   `builds upload` reports the chosen target in the output (`project-id`,
@@ -248,6 +248,11 @@ Commands (significant flags in parentheses):
   always creates a new project (mutually exclusive with `--project-id`);
   `--force-rename` allows uploading an assembly whose name differs, which renames
   the target project.
+  `builds list` shows the ten newest builds (`--limit 0` – all of them) and ends with a
+  count line on stderr saying which of the two cuts the reader is looking at: the tool's
+  `--limit`, or the platform's store (section 4.4 – a project keeps a limited number of
+  builds and pushes the older ones out). "30 of 30" without that line was read as the
+  project's whole history.
 - `build [--project-dir --output --build-version --last-build --commit
   --branch --kind {application,library} --require-clean]` – build the archive locally.
   Output: `file`, `name`, `vendor`, `version`, `version-source`
@@ -328,7 +333,9 @@ operation that does not call the platform), `delete_app(app_id)`
 (the docstring – a warning about irreversibility and URL change), `list_spaces()`,
 `app_id` of `get_app`/`delete_app`/`start_app`/`stop_app`/`debug_info` is the
 id (UUID) or the exact application name (resolved like the CLI does),
-`list_projects(name="", include_deleted=False)` – the filters of `projects list` (section 7), `list_builds(project_id)`,
+`list_projects(name="", include_deleted=False)` – the filters of `projects list` (section 7),
+`list_builds(project_id, limit=10, brief=True)` – an object `{total, shown, summary, builds}`:
+the listing has to say whether it is the whole store (section 4.4),
 `build_assembly(project_dir="", output_dir="", version="")`,
 `inspect_assembly(file)` – parsing of a built archive (section 5.1; a local operation),
 `deploy(app_id, project_id, project_dir="", version="", branch="",

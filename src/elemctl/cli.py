@@ -36,6 +36,7 @@ from .client import (
     apps_summary,
     brief_app,
     brief_assembly,
+    builds_summary,
     extract_assembly_id,
     sign_in_hint,
 )
@@ -448,11 +449,16 @@ def cmd_projects_delete(args):
 def cmd_builds_list(args):
     """The project's assemblies, newest first and limited by default.
 
-    A long-lived project alone holds over a thousand assemblies: printing them all
-    made the answer to "which commit is the applied build from" a matter of
-    piping through head and hoping the right card made the cut. The default
-    shows the latest ten; --limit 0 brings the whole list back, and the cut is
-    never silent - the count of what was left out goes to stderr.
+    Printing them all made the answer to "which commit is the applied build from"
+    a matter of piping through head and hoping the right card made the cut. The
+    default shows the latest ten; --limit 0 brings the whole answer back.
+
+    Neither cut is silent, and there are two of them. The tool's own is the limit.
+    The platform's is the store: it keeps a limited number of builds per project
+    and pushes the older ones out, so a listing at that number is not the project's
+    history - it is what survived. The count line says which of the two is in
+    front of the reader (builds_summary), and it is printed always: a listing
+    without it was read as "the project has exactly these builds".
     """
     config = _config(args)
     client = make_client(config)
@@ -463,7 +469,8 @@ def cmd_builds_list(args):
     total = len(assemblies)
     if args.limit > 0 and total > args.limit:
         assemblies = assemblies[: args.limit]
-        _progress(i18n.t("cli.builds-list-truncated", shown=len(assemblies), total=total))
+        _progress(i18n.t("cli.builds-list-truncated"))
+    _progress(builds_summary(total, len(assemblies)))
     if args.brief:
         assemblies = [brief_assembly(assembly) for assembly in assemblies]
     _emit(assemblies)

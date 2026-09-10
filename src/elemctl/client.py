@@ -292,6 +292,29 @@ def brief_assembly(assembly):
     }
 
 
+#: How many builds a project keeps on the platform – measured on a live installation,
+#: not read anywhere: an upload past that number pushes an older build out (one an
+#: application runs stays), so a build that was in the list yesterday can be gone today.
+#: The list endpoint has no paging at all – limit, page, size, offset, skip, top and the
+#: rest are ignored, and neither the body nor the headers carry a total – so what comes
+#: back is the whole store rather than a page of it, and a listing at that number has to
+#: say so instead of reading like the project's whole history.
+ASSEMBLY_STORE_LIMIT = 30
+
+
+def builds_summary(total, shown):
+    """The count line of a build listing: how many are shown, and is that all there is.
+
+    Two different truths hide behind one number. Under the store limit the platform
+    answered with every build the project has; at the limit the older ones have been
+    pushed out, and "30 of 30" reads as the whole history while it is only what
+    survived. The CLI prints the line, the MCP tool carries it in the answer.
+    """
+    key = ("client.builds-summary-full" if total < ASSEMBLY_STORE_LIMIT
+           else "client.builds-summary-capped")
+    return i18n.t(key, shown=shown, total=total)
+
+
 #: The account a freshly created application can be signed in with. It is a code,
 #: not a text: the human wording lives in the message catalog.
 CONTROL_PANEL_ACCOUNT = "control-panel"

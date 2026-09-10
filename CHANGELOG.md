@@ -9,6 +9,16 @@ day are named in the heading. The format follows
 
 ## Unreleased
 
+### Changed
+- **`builds list` says what kind of listing the reader is looking at.** "30 of 30" read as
+  the project's whole history while builds kept vanishing from it. Live calls settled it: the
+  method has no pages (`limit`, `page`, `offset`, `size`, `top` and the rest are ignored, and
+  no counter comes back either), but the platform caps how many builds a project keeps and
+  pushes an old one out when a new one arrives – a build an application runs stays. The count
+  line is now printed every time and says outright whether the listing is complete or has hit
+  the store limit; the MCP tool `list_builds` answers with an object `{total, shown, summary,
+  builds}` instead of a bare array.
+
 ### Added
 - **The `--json` flag – machine-readable output as a guarantee, not as a promise.** CI scripts
   parsed the answer by hunting for the first brace: one stray line ahead of the JSON broke the

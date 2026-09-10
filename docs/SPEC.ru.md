@@ -159,7 +159,17 @@ Windows) с TTL 1 час; ключ кеша должен различать па
 - `GET /projects/{id}/assemblies` - список сборок. Элемент содержит
   `assembly-version` (строка вида `1.0-42`) и id (`id` либо `image-id`).
   Ответ может быть как массивом, так и объектом со списком в поле `items`
-  или `assemblies`.
+  или `assemblies`. **Страниц у метода нет и общего числа он не сообщает:**
+  параметры `limit`, `size`, `pageSize`, `count`, `top`, `maxResults`, `page`,
+  `pageNumber`, `offset`, `skip`, `from`, `start` метод игнорирует - ответ на
+  все эти запросы совпадает побайтно, а в заголовках и в теле нет ни счётчика,
+  ни курсора (проверено живыми вызовами на двух установках). **Число сборок на
+  проект платформа ограничивает:** на 10.0.1 их не больше 30, и загрузка новой
+  снимает старую - сборка, на которой работает приложение, при этом остаётся
+  (наблюдалось живьём: `1.0.2-3` пропала из перечня, как только появилась
+  `1.0.2-4`, а в момент загрузки перечень мельком показывал 31 запись). Отсюда
+  требование к клиенту: перечень из предельного числа сборок называть тем, что
+  он есть - остатком, а не историей проекта.
 - `GET /projects/{id}/assemblies/{assembly-id}` - карточка сборки; `DELETE
   .../{assembly-id}` - удаление. API адресует сборку ТОЛЬКО UUID: на версию
   отвечает 400 "Version is not a valid UUID". Клиент обязан принимать и версию
@@ -511,7 +521,7 @@ stderr и код возврата 1.
     удаления скрыты, пока не задан `--include-deleted`, – на стенде, живущем не
     первый месяц, их в перечне сотни против единиц живых, и проверка "нет ли
     проекта с таким именем" не должна стоить полного перечня.
-- `builds list [--project-id]`, `builds get VERSION [--project-id]`,
+- `builds list [--project-id --limit --brief]`, `builds get VERSION [--project-id]`,
   `builds upload FILE [--project-id --new-project --force-rename --space-id
   --branch --commit --commit-message]`, `builds delete VERSION [--project-id]`.
   `builds upload` сообщает выбранную цель в выводе (`project-id`,
@@ -519,6 +529,11 @@ stderr и код возврата 1.
   `ELEMENT_PROJECT_ID`; `--new-project` отключает привязку из окружения и
   всегда создаёт новый проект (несовместим с `--project-id`); `--force-rename`
   разрешает загрузку сборки с чужим именем, которая переименует проект-цель.
+  `builds list` показывает десять свежих сборок (`--limit 0` - все) и заканчивается
+  строкой итога в stderr: она называет, какой из двух срезов перед читателем - срез
+  инструмента (`--limit`) или предел хранения платформы (раздел 4.4: число сборок на
+  проект ограничено, старые снимаются). "30 из 30" без этой строки читалось как вся
+  история проекта.
 - `build [--project-dir --output --build-version --last-build --commit
   --branch --kind {application,library} --require-clean]` - локально собрать
   архив. Вывод: `file`, `name`, `vendor`, `version`, `version-source`
@@ -629,7 +644,8 @@ development_mode=True)` - при задании только project_id исто
 `app_id` у `get_app`/`delete_app`/`start_app`/`stop_app`/`debug_info` - ид
 (UUID) либо точное имя приложения (резолв как в CLI); `list_spaces()`,
 `list_projects(name="", include_deleted=False)` – фильтры `projects list` (п. 7),
-`list_builds(project_id)`,
+`list_builds(project_id, limit=10, brief=True)` – объект `{total, shown, summary, builds}`:
+перечень обязан сказать, весь ли это запас платформы (п. 4.4),
 `build_assembly(project_dir="", output_dir="", version="")`,
 `inspect_assembly(file)` - разбор готового архива (п. 5.1; локальная операция),
 `deploy(app_id, project_id, project_dir="", version="", branch="",

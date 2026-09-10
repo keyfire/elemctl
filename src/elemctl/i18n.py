@@ -114,8 +114,8 @@ MESSAGES = {
         "en": "--latest-build requires --project-id (or ELEMENT_PROJECT_ID)",
     },
     "cli.builds-list-truncated": {
-        "ru": "показаны {shown} из {total} сборок (свежие первыми); все – флаг --limit 0",
-        "en": "showing {shown} of {total} assemblies (newest first); --limit 0 shows them all",
+        "ru": "перечень сокращён флагом --limit (свежие первыми); все – --limit 0",
+        "en": "the listing is cut by --limit (newest first); --limit 0 shows them all",
     },
     "cli.upload-new-project-conflict": {
         "ru": "флаги --new-project и --project-id несовместимы: либо новый проект, "
@@ -249,6 +249,19 @@ MESSAGES = {
     "client.apps-summary-shown": {
         "ru": "живых {live} из {total}, показано {shown}",
         "en": "{live} live of {total}, {shown} shown",
+    },
+    "client.builds-summary-full": {
+        "ru": "показано {shown} из {total} – это все сборки проекта на платформе",
+        "en": "{shown} of {total} shown – every build the project has on the platform",
+    },
+    "client.builds-summary-capped": {
+        "ru": "показано {shown} из {total} – столько сборок платформа хранит на проект: "
+              "более старые сняты при загрузке новых (сборка работающего приложения "
+              "остаётся), страниц у перечня нет. Это НЕ вся история сборок проекта",
+        "en": "{shown} of {total} shown – that is all the platform keeps for one project: "
+              "older builds were pushed out as new ones arrived (a build an application "
+              "runs stays), and the listing has no pages. This is NOT the project's whole "
+              "build history",
     },
     "client.app-not-found": {
         "ru": "приложение '{name}' не найдено (ни по ид, ни по точному имени)",

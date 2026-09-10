@@ -143,6 +143,60 @@ def test_list_builds_is_brief_and_limited_by_default():
     assert properties.get("limit", {}).get("default") == 10
 
 
+def test_list_builds_says_whether_the_listing_is_the_whole_store(monkeypatch):
+    """An agent sees the JSON alone, so the answer carries the counters and the verdict.
+
+    The platform keeps a limited number of builds per project and pushes the older ones
+    out; a bare array of cards let that read as "the project has these builds".
+    """
+    from elemctl.client import ASSEMBLY_STORE_LIMIT
+
+    cards = [
+        {
+            "id": f"asm-{number}",
+            "assembly-version": f"1.0-{number}",
+            "project-version": f"1.0-{number}",
+            "created": f"2026-01-01T10:00:{number:02d}.000Z",
+            "branch-name": None,
+            "commit-id": f"c{number}",
+            "project-name": "crm",
+        }
+        for number in range(1, ASSEMBLY_STORE_LIMIT + 1)
+    ]
+
+    class FakeClient:
+        def list_assemblies(self, project_id):
+            assert project_id == "proj-1"
+            return cards
+
+    server = _server_on(monkeypatch, FakeClient())
+
+    result = asyncio.run(server.call_tool("list_builds", {"project_id": "proj-1"}))
+    payload = json.loads(call_result_content(result)[0].text)
+
+    assert payload["total"] == ASSEMBLY_STORE_LIMIT
+    assert payload["shown"] == 10
+    assert "НЕ вся история" in payload["summary"]
+    assert len(payload["builds"]) == 10
+    assert set(payload["builds"][0]) == {
+        "id", "assembly-version", "project-version", "created", "branch-name", "commit-id",
+    }
+
+
+def test_list_builds_calls_a_short_listing_complete(monkeypatch):
+    class FakeClient:
+        def list_assemblies(self, project_id):
+            return [{"id": "asm-1", "assembly-version": "1.0-1", "created": "2026-01-01"}]
+
+    server = _server_on(monkeypatch, FakeClient())
+
+    result = asyncio.run(server.call_tool("list_builds", {"project_id": "proj-1"}))
+    payload = json.loads(call_result_content(result)[0].text)
+
+    assert payload["total"] == payload["shown"] == 1
+    assert "все сборки проекта" in payload["summary"]
+
+
 def test_brief_assembly_keeps_only_the_identifying_fields():
     card = {
         "id": "asm-1",

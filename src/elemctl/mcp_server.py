@@ -46,6 +46,7 @@ from .client import (
     apps_summary,
     brief_app,
     brief_assembly,
+    builds_summary,
     extract_assembly_id,
     sign_in_hint,
 )
@@ -375,20 +376,32 @@ def create_server(config=None):
     @server.tool()
     def list_builds(
         project_id: str, limit: int = 10, brief: bool = True, env_file: str = ""
-    ) -> list:
-        """Список сборок проекта, свежие первыми; limit – сколько показать (по умолчанию 10, 0 – все).
+    ) -> dict:
+        """Сборки проекта, свежие первыми; ответ – объект {total, shown, summary, builds}, сами карточки в builds.
 
-        brief (по умолчанию) оставляет от карточки ид, версии, дату, ветку и коммит;
-        brief=false отдаёт карточки целиком. У старого проекта сборок бывают тысячи –
-        полный список без limit переполняет ответ. env_file – путь к .env другого
-        окружения.
+        Перечень платформы – НЕ вся история сборок проекта: платформа хранит их
+        ограниченное число на проект и при загрузке новой снимает старую (сборка,
+        на которой работает приложение, остаётся), а страниц у перечня нет. Поэтому
+        рядом с карточками идут счётчики: total – сколько сборок отдала платформа,
+        shown – сколько осталось после limit; summary – та же мысль строкой, и она
+        прямо говорит, полный это перечень или упёршийся в предел хранения.
+
+        limit – сколько показать (по умолчанию 10, 0 – все). brief (по умолчанию)
+        оставляет от карточки ид, версии, дату, ветку и коммит; brief=false отдаёт
+        карточки целиком. env_file – путь к .env другого окружения.
         """
         assemblies = newest_first(client(env_file).list_assemblies(project_id))
+        total = len(assemblies)
         if limit > 0:
             assemblies = assemblies[:limit]
-        if not brief:
-            return assemblies
-        return [brief_assembly(assembly) for assembly in assemblies]
+        if brief:
+            assemblies = [brief_assembly(assembly) for assembly in assemblies]
+        return {
+            "total": total,
+            "shown": len(assemblies),
+            "summary": builds_summary(total, len(assemblies)),
+            "builds": assemblies,
+        }
 
     # The function name differs from the tool name so that it does not shadow
     # build_assembly imported from the build module.
