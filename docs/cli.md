@@ -45,8 +45,8 @@ usage: elemctl [-h] [--base-url BASE_URL] [--client-id CLIENT_ID] [--client-secr
 | `spaces` | spaces |
 | `projects` | projects |
 | `builds` | project assemblies on the platform |
-| `build` | build an assembly archive locally from sources (does not call the platform: the connection credentials and `--env-file` are not used, and no version number is reserved on the server) |
-| `inspect` | inspect a prebuilt assembly archive (.xasm/.xlib) |
+| `build` | build an assembly archive locally from sources (does not call the platform: the connection options, `--env-file` among them, are refused, and no version number is reserved on the server) |
+| `inspect` | inspect a prebuilt assembly archive (.xasm/.xlib); does not call the platform – the connection options, `--env-file` among them, are refused |
 | `deploy` | full cycle: build -&gt; upload -&gt; apply -&gt; restart -&gt; verify the apply |
 | `user-lists` | user lists and their sign-in settings |
 | `probe` | isolated compilation check: build -&gt; throwaway application -&gt; errors with file and position -&gt; cleanup; the project directory must follow the {repository}/{Vendor}/{Name}/Project.yaml layout – the Vendor+Name pair is how the platform identifies the project |
