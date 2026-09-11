@@ -12,6 +12,7 @@ not be the one the check calls, and the sabotage would prove nothing while still
 
 import importlib.util
 import shutil
+import sys
 from pathlib import Path
 
 import pytest
@@ -24,7 +25,14 @@ def guard():
     spec = importlib.util.spec_from_file_location(
         "elemctl_check_docs", ROOT / "scripts" / "check_docs.py")
     mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    # Registered before it runs: a module loaded from a path this way is not in sys.modules, and
+    # a dataclass inside it then fails to resolve its own annotations while being built.
+    sys.modules[spec.name] = mod
+    try:
+        spec.loader.exec_module(mod)
+    except Exception:
+        del sys.modules[spec.name]
+        raise
     return mod
 
 
@@ -115,6 +123,38 @@ def test_guard_notices_a_stale_changelog_mirror(sabotage):
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     found = sabotage(documents={"CHANGELOG.md": changelog + "\na line nobody mirrored\n"})
     assert any("changelog" in problem.lower() for problem in found)
+
+
+def test_guard_notices_a_place_that_stopped_telling_a_shared_claim(sabotage):
+    # the failure the claim table exists for: a correction reaches the pages and leaves the tool
+    # hints, the requirements and the comments in the code telling the model it replaced
+    found = sabotage(
+        lambda name, text: text.replace("никто не пользуется", "никто не трогает")
+        if name == "mcp.ru.md" else text)
+    assert any("docs/mcp.ru.md" in problem and "nobody uses" in problem for problem in found)
+
+
+def test_guard_notices_the_superseded_wording_coming_back(sabotage):
+    # a page that copied the old sentence, or one the correction simply never reached
+    found = sabotage(
+        lambda name, text: text + "\nAPI адресует сборку ТОЛЬКО UUID.\n"
+        if name == "platform.ru.md" else text)
+    assert any("docs/platform.ru.md" in problem and "superseded" in problem for problem in found)
+
+
+def test_guard_notices_a_claim_that_names_a_place_it_has_not_got(guard, monkeypatch):
+    # a renamed file must not turn a claim into a check of nothing
+    invented = guard.Claim(name="invented", told_in=("docs/no-such-page.md",), wording=("x",))
+    monkeypatch.setattr(guard, "CLAIMS", (invented,))
+    assert any("no-such-page.md" in problem for problem in guard.check_claims())
+
+
+def test_a_claim_is_a_fact_told_in_several_places(guard):
+    # one place is just a sentence - the table is for what is said in many and corrected in one
+    assert guard.CLAIMS
+    for claim in guard.CLAIMS:
+        assert len(claim.told_in) > 1, claim.name
+        assert claim.wording and claim.retired, claim.name
 
 
 def test_a_stale_mirror_names_the_command_that_rebuilds_it(sabotage):
