@@ -39,6 +39,13 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
   `client.builds-summary-trimmed`. ([#13](https://github.com/keyfire/elemctl/pull/13))
 
 ### Documentation
+- **The claim mechanics moved into the shared guard.** One fact told in several documents at
+  once is not an elemctl problem – the engine and the bridge keep their documentation the same
+  way and have the same defect waiting – so `Claim`, `claim_texts` and `claim_problems` now come
+  from the `docsguard` package, and the table of statements stays here, where the facts are
+  known. A place is still written the way a reader writes it, the changelog is still left out of
+  the search, and the guard finds exactly what it found before – the same wordings on the same
+  data.
 - **One command rebuilds every generated page.** Two generators write four pages – the command
   reference from `elemctl --help`, the mirrored changelog and the README sections from the root
   editions – and each generator was a thing to remember on its own. The mirrors were the first to

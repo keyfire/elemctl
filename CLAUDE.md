@@ -62,7 +62,9 @@ up carrying both at the same time. Such statements are listed as `CLAIMS` in
 stating it, and the spellings of the SUPERSEDED model, which may appear nowhere but the
 changelog (an entry about a correction quotes what it corrected). Correcting such a fact means
 correcting every place the claim names – the guard says which one was missed. A fact that
-starts living in more than one place gets a row of its own.
+starts living in more than one place gets a row of its own. The judging itself comes from the
+shared `docsguard` package – the neighbouring repositories keep their documentation the same
+way and have the same defect waiting – and what lives here is the table.
 
 ## Tests
 
