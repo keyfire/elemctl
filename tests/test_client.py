@@ -136,22 +136,88 @@ def test_assemblies_list_normalization(api):
     assert client.list_assemblies("p1") == [{"assembly-version": "1.0-3"}]
 
 
-def test_assembly_resolved_by_version(api):
-    """Assembly get/delete accept a version: the API addresses an assembly by UUID only, so a
-    non-UUID argument is resolved to an id through the assembly list (the platform renumbers
-    versions)."""
-    client, transport = api
-    assembly_id = "0a1b2c3d-4e5f-4a6b-8c9d-0e1f2a3b4c5d"
+ASSEMBLY_ID = "0a1b2c3d-4e5f-4a6b-8c9d-0e1f2a3b4c5d"
+
+
+def _assembly_list(transport, project="p1", version="1.0-39", assembly_id=ASSEMBLY_ID):
     transport.add(
-        "GET", f"{API}/projects/p1/assemblies",
-        [{"assembly-version": "1.0-39", "project-version": "1.0-39", "id": assembly_id}],
+        "GET", f"{API}/projects/{project}/assemblies",
+        [{"assembly-version": version, "project-version": version, "id": assembly_id}],
     )
-    transport.add("DELETE", f"{API}/projects/p1/assemblies/{assembly_id}", {"deleted": True})
-    assert client.delete_assembly("p1", "1.0-39") == {"deleted": True}
-    # A UUID goes straight through, without fetching the list.
-    transport.add("DELETE", f"{API}/projects/p1/assemblies/{assembly_id}", {"deleted": True})
-    assert client.delete_assembly("p1", assembly_id) == {"deleted": True}
-    assert len(transport.calls_to("GET", f"{API}/projects/p1/assemblies")) == 1
+
+
+def test_assembly_card_is_addressed_by_the_version(api):
+    """The card is addressed by the VERSION - that is what the path segment is called.
+
+    The pages used to claim the opposite (a UUID only), and following them left the card
+    unreachable: both installations we could reach answer a UUID with a 404 "Assembly with
+    version <uuid> not found".
+    """
+    client, transport = api
+    _assembly_list(transport)
+    transport.add("GET", f"{API}/projects/p1/assemblies/1.0-39", {"assembly-version": "1.0-39"})
+
+    assert client.get_assembly("p1", "1.0-39") == {"assembly-version": "1.0-39"}
+    assert transport.calls_to("GET", f"{API}/projects/p1/assemblies/1.0-39")
+
+
+def test_assembly_given_by_id_is_addressed_by_its_version(api):
+    """An id is an address a caller holds too - builds list prints it, an upload answers with
+    it - so it is translated into the version the method takes."""
+    client, transport = api
+    _assembly_list(transport)
+    transport.add("DELETE", f"{API}/projects/p1/assemblies/1.0-39", {"deleted": True})
+
+    assert client.delete_assembly("p1", ASSEMBLY_ID) == {"deleted": True}
+    assert transport.calls_to("DELETE", f"{API}/projects/p1/assemblies/1.0-39")
+    assert not transport.calls_to("DELETE", f"{API}/projects/p1/assemblies/{ASSEMBLY_ID}")
+
+
+def test_assembly_falls_back_to_the_id_when_the_version_is_refused(api):
+    """An installation that answers a version with a 400 gets the id - the second spelling.
+
+    That 400 ("Version is not a valid UUID") is what our pages described, so an installation
+    behaving that way is served rather than declared impossible.
+    """
+    client, transport = api
+    _assembly_list(transport)
+    transport.add(
+        "GET", f"{API}/projects/p1/assemblies/1.0-39",
+        {"message": "Version is not a valid UUID"}, status=400,
+    )
+    transport.add(
+        "GET", f"{API}/projects/p1/assemblies/{ASSEMBLY_ID}", {"assembly-version": "1.0-39"}
+    )
+
+    assert client.get_assembly("p1", "1.0-39") == {"assembly-version": "1.0-39"}
+    assert transport.calls_to("GET", f"{API}/projects/p1/assemblies/{ASSEMBLY_ID}")
+
+
+def test_assembly_real_refusal_is_not_retried_away(api):
+    """A 500 is the answer, not a misunderstood address: no second spelling, no other error.
+
+    The platform rejects deleting a build while the application created from it is alive.
+    Retrying that with another spelling would hand the caller a 404 instead of the reason.
+    """
+    client, transport = api
+    _assembly_list(transport)
+    transport.add(
+        "DELETE", f"{API}/projects/p1/assemblies/1.0-39",
+        {"message": "используется приложением"}, status=500,
+    )
+
+    with pytest.raises(ApiError) as excinfo:
+        client.delete_assembly("p1", "1.0-39")
+    assert excinfo.value.status == 500
+    assert not transport.calls_to("DELETE", f"{API}/projects/p1/assemblies/{ASSEMBLY_ID}")
+
+
+def test_assembly_unknown_id_is_a_config_error(api):
+    """An id that is in no card is named as missing, not passed on to become a 404."""
+    client, transport = api
+    _assembly_list(transport)
+    with pytest.raises(ConfigError, match="не найдена"):
+        client.get_assembly("p1", "11111111-2222-4333-8444-555555555555")
 
 
 def test_assembly_unknown_version_is_config_error(api):
