@@ -25,6 +25,7 @@ from docsguard import (
     box_headlines,
     claim_problems,
     claim_texts,
+    coverage_problems,
     front_description,
     image_problems,
     injected,
@@ -175,16 +176,19 @@ def allowed_extensions() -> set[str]:
 
 
 def check_tools() -> list[str]:
+    """Every registered tool has a row, and no row names a tool that is gone.
+
+    Both directions and the empty reader come from `coverage_problems`: the set difference was
+    written out by hand here three times over, once per check, and the third copy had already
+    lost the empty-reader guard the first one had. What stays is what the sources are and where
+    the document is.
+    """
     tools = registered_tools()
-    if not tools:
-        return ["no MCP tool found in the sources - has the registration changed?"]
-    problems = []
+    problems: list[str] = []
     for name in ("mcp.md", "mcp.ru.md"):
-        listed = set(_TOOL_ROW.findall(LAYOUT.page(name)))
-        for missing in sorted(tools - listed):
-            problems.append(f"{name}: {missing} has no row in the tool table")
-        for phantom in sorted(listed - tools):
-            problems.append(f"{name}: {phantom} is documented but not registered")
+        problems += coverage_problems(
+            tools, set(_TOOL_ROW.findall(LAYOUT.page(name))), what="tool", where=name,
+        )
     return problems
 
 
@@ -195,34 +199,42 @@ def check_environment() -> list[str]:
     variable of the ELEMENT_ family belongs there, while the CI, locale and plugin knobs do
     not. Judged apart for that reason - a contribution with three new TLS variables passed this
     guard green while the specification knew nothing about them.
+
+    Only one direction is judged: a page quotes the variables of the neighbouring tooling beside
+    its own, and demanding a source for every one of them would make the check noise.
     """
     variables = env_variables()
-    problems = []
+    problems: list[str] = []
     for name in ("config.md", "config.ru.md"):
-        documented = set(_INLINE.findall(LAYOUT.page(name)))
-        for missing in sorted(variables - documented):
-            problems.append(f"{name}: {missing} is read by the code and documented nowhere")
+        problems += coverage_problems(
+            variables, set(_INLINE.findall(LAYOUT.page(name))),
+            what="variable", where=name, phantoms=False,
+        )
     contract = {name for name in variables if name.startswith("ELEMENT_")}
     for name in ("SPEC.md", "SPEC.ru.md"):
-        documented = set(_INLINE.findall(LAYOUT.page(name)))
-        for missing in sorted(contract - documented):
-            problems.append(
-                f"{name}: {missing} is part of the platform contract and the specification "
-                "does not name it"
-            )
+        problems += coverage_problems(
+            contract, set(_INLINE.findall(LAYOUT.page(name))),
+            what="contract variable", where=name, phantoms=False,
+        )
     return problems
 
 
 def check_extensions() -> list[str]:
+    """The archive's allowlist against what the platform page tells a reader it packs.
+
+    One direction again: the page quotes file names and paths in the same backticks, so the
+    other side of the difference is prose, not a claim about the allowlist.
+    """
     extensions = allowed_extensions()
-    problems = []
+    problems: list[str] = []
     for name in ("platform.md", "platform.ru.md"):
         documented = {
             item for quoted in _EXTENSION.findall(LAYOUT.page(name))
             for item in re.findall(r"\.[a-z0-9]+", quoted)
         }
-        for missing in sorted(extensions - documented):
-            problems.append(f"{name}: the archive takes {missing} and the page does not say so")
+        problems += coverage_problems(
+            extensions, documented, what="extension", where=name, phantoms=False,
+        )
     return problems
 
 
