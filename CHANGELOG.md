@@ -17,6 +17,29 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
 
 ## Unreleased
 
+### Fixed
+- **`scripts/changelog-link.py` was rewriting both changelog editions with the platform's line
+  ending, and the mirrors with them.** Appending one link to one entry handed back four whole
+  files with every line changed, because `write_text` in text mode translates the line feed into
+  whatever the machine uses. `core.autocrlf=input` normalizes that away on commit and hides it,
+  which is the trouble: on a machine without the setting it goes to a public repository as a
+  line-ending change nobody asked for. `scripts/render-diagrams.py` had the same omission, as did
+  the token cache, the pipx metadata rewrite and the adapter index – while `gen-cli-docs.py` and
+  `release-notes.py` beside them were already spelling `newline=""` out, which is the only reason
+  the rule was recognizable as a convention rather than a taste.
+  ([#22](https://github.com/keyfire/elemctl/pull/22))
+
+### Added
+- **The second convention of the sources is a test.** `tests/test_conventions.py` fails on a text
+  file written without naming `newline`, anywhere under `src/`, `scripts/` or `tools/`, the way it
+  already fails on a process read as text without an encoding. The reading comes from the shared
+  `docsguard` package and parses with `ast` – a write is `write_text` or an `open` in a text write
+  mode, while bytes and reads are left alone. The folders are a shorter list than the process
+  convention takes, deliberately: a test writes into a temporary directory that outlives nothing,
+  and a fixture carrying the other line ending on purpose is a test in its own right. The fix
+  itself carries a test of its own – both editions come back with the ending they had.
+  ([#22](https://github.com/keyfire/elemctl/pull/22))
+
 ### Documentation
 - **The shared guard is pinned to `docsguard@v0.5.0`.** The release adds the second convention of
   the sources – a text file written without naming `newline` takes the platform's line ending –

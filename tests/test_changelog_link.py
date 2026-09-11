@@ -155,3 +155,23 @@ def test_the_repository_changelog_is_read_as_entries(name):
     for first, last in blocks:
         assert lines[first].startswith("- ")
         assert lines[last].strip()
+
+
+def test_the_editions_keep_the_line_ending_they_had(tmp_path):
+    """The failure this was found by: on Windows the whole file came back rewritten.
+
+    `write_text` in text mode translates the line feed into the platform's ending, so appending
+    one link to one entry handed back both editions with every line changed - and the mirrors
+    rebuilt from them in the same run took the change with them. A checkout with
+    `core.autocrlf=input` normalizes that away and hides it; on a machine without the setting
+    four whole files go to a public repository as a line-ending change nobody asked for.
+    """
+    for name in changelog_link.EDITIONS:
+        (tmp_path / name).write_text(CHANGELOG, encoding="utf-8", newline="")
+
+    changelog_link.write_links(tmp_path, 12)
+
+    for name in changelog_link.EDITIONS:
+        written = (tmp_path / name).read_bytes()
+        assert b"/pull/12" in written, name
+        assert b"\r\n" not in written, name

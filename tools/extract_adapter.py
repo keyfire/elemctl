@@ -84,7 +84,7 @@ def update_index(output: Path, version: str) -> None:
     data["available"].sort()
     data["default"] = version
     index.write_text(
-        json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+        json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8", newline=""
     )
 
 

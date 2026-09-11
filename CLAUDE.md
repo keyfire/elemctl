@@ -102,6 +102,23 @@ from the shared `docsguard` package – the neighbouring repositories start proc
 and have the same silent failure waiting – and what stays here is the list of folders: which of
 them hold code that starts processes is a fact about this repository.
 
+## Writing a file
+
+A text file written from here names `newline=""`. Without it `write_text` and `open` in text mode
+translate the line feed into the platform's ending, so a generator that rewrites a page on Windows
+hands back a file with every line changed. `core.autocrlf=input` normalizes that away on commit
+and hides it, which is exactly the trouble: on a machine without the setting, the whole file goes
+to this public repository as a line-ending change nobody asked for. That is what the script which
+appends a pull request link to both changelog editions was doing – and the mirrors it rebuilds in
+the same run took the change with them – while the two generators beside it were already spelling
+the keyword out.
+
+The same `tests/test_conventions.py` fails on a text write that does not name it, and reads the
+sources with `ast` again: a write is `p.write_text(...)` or an `open` in a text write mode, while
+bytes and reads are left alone. The folders are a SHORTER list than the process convention takes –
+a test writes into a temporary directory that is gone when the run ends, and a fixture carrying
+the other line ending on purpose is a test in its own right.
+
 ## Tests
 
 `python -m pytest -q` – the suite runs without network access, the transport is stubbed.
