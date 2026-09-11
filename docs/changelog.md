@@ -45,6 +45,15 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
   `client.builds-summary-trimmed`. ([#13](https://github.com/keyfire/elemctl/pull/13))
 
 ### Documentation
+- **A process read as text has to name its encoding, and a check says so.** Every call in the
+  repository already did – and then a new script did not, and the failure was the silent kind:
+  the output of a generator naming the Russian pages it writes was decoded with the code page of
+  the console, the names came back as replacement characters, the text was lost, and the exit
+  code went on saying the run had gone well. The convention is written down in `CLAUDE.md` with
+  both of its halves – the reader names `encoding="utf-8"`, and a Python script started from
+  here is given `PYTHONIOENCODING=utf-8` so that it writes what the reader reads – and
+  `tests/test_conventions.py` reads the sources with `ast` and fails on a call without it. It
+  found two test helpers still decoding with the code page of the machine; both are fixed.
 - **The claim mechanics moved into the shared guard.** One fact told in several documents at
   once is not an elemctl problem – the engine and the bridge keep their documentation the same
   way and have the same defect waiting – so `Claim`, `claim_texts` and `claim_problems` now come

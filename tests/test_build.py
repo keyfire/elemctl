@@ -657,7 +657,8 @@ def _repository(project_dir, *, detach=False):
 
     root = project_dir.parents[1]
     run = lambda *args: subprocess.run(  # noqa: E731 - a local shorthand, three lines below
-        ["git", "-C", str(root), *args], capture_output=True, text=True, check=True
+        ["git", "-C", str(root), *args], capture_output=True, text=True, check=True,
+        encoding="utf-8", errors="replace",
     )
     run("init", "-b", "master")
     run("config", "user.email", "build@example.test")
