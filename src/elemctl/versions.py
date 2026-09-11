@@ -67,6 +67,37 @@ def pick_latest(assemblies, version_key="assembly-version", base_version=None):
     return best
 
 
+def missing_counters(assemblies, version_key="assembly-version"):
+    """How many build numbers the listing has NOT got - what says its housekeeping has run.
+
+    The platform hands out the numbers itself, one after another within a base version
+    ("1.0.2-1", "1.0.2-2", ...), so the numbers of a base run unbroken while nothing is taken
+    away. A hole in them - or a base whose first numbers are simply not there - is a build the
+    platform has deleted, and that is a FACT OF THE ANSWER rather than a guess from its length.
+
+    The proof only works one way, and only as a yes or no. Gaps say the listing is not
+    everything the project ever numbered; an unbroken run says nothing beyond itself - the
+    last build of a base can be deleted without leaving a hole. And the COUNT is not a count
+    of deleted builds: a number can also be one nobody ever used, the way a live project ended
+    up with a build numbered 1.0.1-19001 because the auto-increment of the day took the
+    counters of another base (fixed in 0.38.0) - the whole run below it was never built, and
+    counting those numbers as losses would make twenty thousand of them. A version the platform
+    did not number this way (no hyphen, a non-numeric tail) takes no part at all.
+    """
+    seen = {}
+    for item in assemblies or []:
+        if not isinstance(item, dict):
+            continue
+        version = item.get(version_key)
+        counter = version_counter(version)
+        if counter <= 0:
+            continue
+        seen.setdefault(version_base(version), set()).add(counter)
+    # Within a base the numbers run 1..max, so what is absent is the difference between the
+    # highest number and how many of them the listing actually carries.
+    return sum(max(counters) - len(counters) for counters in seen.values())
+
+
 def newest_first(assemblies):
     """The assemblies sorted newest first, ready for a limited listing.
 

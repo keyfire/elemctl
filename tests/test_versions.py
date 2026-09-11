@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from elemctl.versions import (
+    missing_counters,
     newest_first,
     next_version,
     pick_latest,
@@ -84,3 +85,47 @@ def test_pick_latest_by_base():
     assert pick_latest(assemblies, base_version="1.0.2")["id"] == "third"
     assert pick_latest(assemblies, base_version="1.0.3") is None
     assert pick_latest(assemblies)["id"] == "old-base"
+
+
+def test_missing_counters_sees_a_hole_in_the_numbering():
+    """The platform hands out the numbers of a base one after another; a hole is a deletion."""
+    assemblies = [
+        {"assembly-version": "1.0-1"},
+        {"assembly-version": "1.0-2"},
+        {"assembly-version": "1.0-5"},
+    ]
+    assert missing_counters(assemblies) == 2
+
+
+def test_missing_counters_sees_a_base_whose_beginning_is_gone():
+    """The numbering of a base starts at 1, so a listing that starts at 15 has lost fourteen."""
+    assert missing_counters([{"assembly-version": "1.0.2-15"}]) == 14
+
+
+def test_missing_counters_counts_every_base_apart():
+    """A bumped project starts counting again - the bases say nothing about each other."""
+    assemblies = [
+        {"assembly-version": "1.0.1-1"},
+        {"assembly-version": "1.0.1-2"},
+        {"assembly-version": "1.0.2-1"},
+        {"assembly-version": "1.0.2-3"},
+    ]
+    assert missing_counters(assemblies) == 1
+
+
+def test_an_unbroken_listing_has_nothing_missing_however_long():
+    """The case the retired threshold of thirty called a remnant on its length alone."""
+    assert missing_counters([{"assembly-version": f"1.0-{n}"} for n in range(1, 41)]) == 0
+
+
+def test_missing_counters_ignores_what_the_platform_did_not_number():
+    """A version without a numeric tail says nothing either way and must not invent a gap."""
+    assemblies = [
+        {"assembly-version": "1.0-1"},
+        {"assembly-version": "release"},
+        {"assembly-version": None},
+        "not-a-card",
+    ]
+    assert missing_counters(assemblies) == 0
+    assert missing_counters([]) == 0
+    assert missing_counters(None) == 0

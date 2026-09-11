@@ -442,23 +442,24 @@ def create_server(config=None):
         страниц у перечня нет. Поэтому рядом с карточками идут счётчики: total –
         сколько сборок отдала платформа, shown – сколько осталось после limit;
         summary – та же мысль строкой, и она прямо говорит, вся это история или
-        то, что от неё осталось.
+        то, что от неё осталось. Судит она по фактам ответа: платформа нумерует
+        сборки базовой версии подряд, поэтому пропуск в номерах – это сборка,
+        которую уборка уже сняла.
 
         limit – сколько показать (по умолчанию 10, 0 – все). brief (по умолчанию)
         оставляет от карточки ид, версии, дату, ветку и коммит; brief=false отдаёт
         карточки целиком. env_file – путь к .env другого окружения.
         """
         assemblies = newest_first(client(env_file).list_assemblies(project_id))
-        total = len(assemblies)
-        if limit > 0:
-            assemblies = assemblies[:limit]
-        if brief:
-            assemblies = [brief_assembly(assembly) for assembly in assemblies]
+        shown = assemblies[:limit] if limit > 0 else assemblies
+        cards = [brief_assembly(assembly) for assembly in shown] if brief else shown
         return {
-            "total": total,
-            "shown": len(assemblies),
-            "summary": builds_summary(total, len(assemblies)),
-            "builds": assemblies,
+            "total": len(assemblies),
+            "shown": len(cards),
+            # The whole answer is what the verdict is read off - the numbering of every
+            # card the platform returned, not of the ones that survived the limit.
+            "summary": builds_summary(assemblies, len(cards)),
+            "builds": cards,
         }
 
     # The function name differs from the tool name so that it does not shadow

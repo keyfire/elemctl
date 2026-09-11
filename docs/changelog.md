@@ -23,6 +23,20 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
 
 ## Unreleased
 
+### Changed
+- **What kind of build listing the reader is looking at is judged by the numbering, not by the
+  length.** The line under a listing was chosen by a threshold of thirty – a number measured
+  once on one installation, back when we believed the platform capped the store. It does not:
+  it deletes the builds nobody uses. The answer now judges itself – the platform hands out the
+  numbers of a base version one after another, so a number the listing has not got is a build
+  already taken away. Thirty-one builds in a row are no longer called a remnant, and a short
+  listing with a hole in it no longer passes for the whole history. Whether there are gaps is
+  said, never how many numbers are missing - a live listing showed twenty thousand of them,
+  left by an auto-increment that once jumped a base, and a count of "deleted builds" would have
+  been a fabrication. `ASSEMBLY_STORE_LIMIT` is gone, `builds_summary` takes the builds
+  themselves instead of their count, and the message key `client.builds-summary-capped` is now
+  `client.builds-summary-trimmed`. ([#13](https://github.com/keyfire/elemctl/pull/13))
+
 ### Documentation
 - **The guard now catches one fact told in two different ways.** A statement about the platform
   lives in the specification, on the Console API page, in the MCP page, in the README and in the

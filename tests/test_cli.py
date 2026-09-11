@@ -682,21 +682,24 @@ def test_builds_list_limit_zero_prints_everything(monkeypatch, capsys):
 
 
 def test_builds_list_says_the_listing_is_only_what_survived(monkeypatch, capsys):
-    """"30 of 30" used to read as the project's whole history while builds kept vanishing.
+    """A hole in the numbering is a build the platform has already taken away.
 
-    The platform deletes the builds nobody uses, whatever their age (the list endpoint
-    honours no paging parameter at all and carries no total), so a long listing is what
-    survived rather than everything ever built - and it has to say so out loud.
+    "30 of 30" used to read as the project's whole history, and the line that said otherwise
+    was chosen by the LENGTH of the listing - a threshold of thirty, measured once, from the
+    days when we believed the platform capped the store. It does not: the platform numbers
+    the builds of a base version one after another, so what is missing from the numbering is
+    the proof, and it works on a listing of any length.
     """
-    cards = _assembly_cards(client_module.ASSEMBLY_STORE_LIMIT)
+    cards = [card for card in _assembly_cards(12) if card["assembly-version"] != "1.0-7"]
     monkeypatch.setattr(cli, "make_client", lambda config: FakeAssembliesClient(cards))
 
     rc = cli.main(["builds", "list", "--project-id", "proj-1", "--limit", "0"])
 
     assert rc == 0
     captured = capsys.readouterr()
-    assert len(json.loads(captured.out)) == client_module.ASSEMBLY_STORE_LIMIT
+    assert len(json.loads(captured.out)) == 11
     assert "НЕ вся история" in captured.err
+    assert "есть пропуски" in captured.err
 
 
 def test_builds_list_calls_the_short_listing_complete(monkeypatch, capsys):
@@ -704,6 +707,22 @@ def test_builds_list_calls_the_short_listing_complete(monkeypatch, capsys):
     monkeypatch.setattr(cli, "make_client", lambda config: FakeAssembliesClient(_assembly_cards(3)))
 
     assert cli.main(["builds", "list", "--project-id", "proj-1"]) == 0
+    captured = capsys.readouterr()
+    assert "все сборки проекта" in captured.err
+    assert "НЕ вся история" not in captured.err
+
+
+def test_builds_list_calls_an_unbroken_listing_complete_however_long(monkeypatch, capsys):
+    """The case the threshold judged wrong: thirty-one builds in a row are thirty-one builds.
+
+    Past thirty the old line declared the listing a remnant on the strength of its length
+    alone - a project that really had built that many and deleted none was told its history
+    was gone.
+    """
+    monkeypatch.setattr(
+        cli, "make_client", lambda config: FakeAssembliesClient(_assembly_cards(31)))
+
+    assert cli.main(["builds", "list", "--project-id", "proj-1", "--limit", "0"]) == 0
     captured = capsys.readouterr()
     assert "все сборки проекта" in captured.err
     assert "НЕ вся история" not in captured.err
