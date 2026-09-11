@@ -184,6 +184,15 @@ def check_mirrors() -> list[str]:
     problems += mirror_problems(LAYOUT, [
         (Path(mirrored).name, source) for source, mirrored in _MIRROR.findall(sync)
     ])
+    if problems:
+        # The finding says "regenerate the mirrors" and the reader has to go looking for how.
+        # Naming the command here costs a line and saves that walk - and for the case this
+        # keeps happening in, the changelog link, one command does both halves of the step.
+        problems.append(
+            "rebuild the mirrors with `node scripts/sync-docs.mjs`; when the change is a "
+            "pull request link in the changelog, `python scripts/changelog-link.py <number>` "
+            "writes it into both editions and rebuilds them in one run"
+        )
     return problems
 
 

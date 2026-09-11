@@ -41,6 +41,12 @@ them by hand:
 - `docs/cli.md` / `docs/cli.ru.md` – `python scripts/gen-cli-docs.py`;
 - `docs/changelog.md` / `docs/changelog.ru.md` – `node scripts/sync-docs.mjs`.
 
+The pull request link that every changelog entry ends with is written by
+`python scripts/changelog-link.py <number>`, not by hand: it appends the link to every entry
+of the topmost section in both editions and rebuilds the mirrored pages in the same run. The
+link and the rebuild are two halves of one step, and doing the first by hand is how the second
+gets forgotten – that is exactly what turned `main` red on the guard.
+
 ## Tests
 
 `python -m pytest -q` – the suite runs without network access, the transport is stubbed.
