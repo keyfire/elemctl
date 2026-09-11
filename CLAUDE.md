@@ -95,10 +95,12 @@ The other half of the agreement belongs to the child: a plain Python script enco
 stream with that same code page, so a script started from here is given `PYTHONIOENCODING=utf-8`
 (the elemctl CLI reconfigures its streams itself, a script does not).
 
-`tests/test_conventions.py` reads the sources with `ast` and fails on a process read as text
-without an encoding – the `(run or subprocess.run)(...)` shape of a runner seam included, which
-is the shape the offending call had and which a search for the text of a call looks straight
-past.
+`tests/test_conventions.py` fails on a process read as text without an encoding – the
+`(run or subprocess.run)(...)` shape of a runner seam included, which is the shape the offending
+call had and which a search for the text of a call looks straight past. The reading itself comes
+from the shared `docsguard` package – the neighbouring repositories start processes the same way
+and have the same silent failure waiting – and what stays here is the list of folders: which of
+them hold code that starts processes is a fact about this repository.
 
 ## Tests
 
