@@ -22,7 +22,7 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
   card was not, so an agent after the manifest name, the vendor or the comment of a build had to
   fall back to the CLI. The tool is addressed by the build VERSION – an id is accepted as well
   and looked up in the listing, because the id of a card is not an address the platform's method
-  understands.
+  understands. ([#14](https://github.com/keyfire/elemctl/pull/14))
 
 ### Changed
 - **What kind of build listing the reader is looking at is judged by the numbering, not by the
