@@ -21,7 +21,7 @@ jobs:
       # The same tag the CI workflow pins: a publication run judging the documentation by a
       # different version of the guard than the pull request did is the difference nobody looks
       # for. `tests/test_workflows.py` fails when the two drift apart.
-      - run: pip install "git+https://github.com/keyfire/docsguard@v0.4.0"
+      - run: pip install "git+https://github.com/keyfire/docsguard@v0.5.0"
       - run: python -m pytest -q
 
   build:
