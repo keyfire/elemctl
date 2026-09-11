@@ -15,6 +15,20 @@ entry either – say what the behaviour was, not which id or response field was 
 The link is written by `python scripts/changelog-link.py <number>`, which rebuilds the generated
 pages of the site in the same run – writing it by hand is how the mirrors get left behind.
 
+## Unreleased
+
+### Changed
+- **The three coverage checks of the documentation guard stopped writing the same set difference
+  out by hand.** What the sources offer against what one document lists – the registered tools,
+  the environment variables, the extensions the archive packs – was spelled out three times
+  inside one file, and the copies had already drifted: only the tool check noticed a reader that
+  had stopped finding anything, and it said so once for both pages. A reader whose set comes back
+  empty finds no gap and reads exactly like a repository in order, so the check has been passing
+  for free ever since the shape it knew changed – and the variables and the extensions had no
+  such guard at all. All three now judge through `coverage_problems` from the shared `docsguard`
+  package, which says it for every page. The findings on the same data are the same findings,
+  page for page and name for name; only the wording is the shared one now.
+
 ## 2026-09-11 – 0.39.0, 0.40.0
 
 ### Added

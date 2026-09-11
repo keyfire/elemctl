@@ -89,14 +89,15 @@ def test_extensions_are_the_ones_the_build_packs(guard):
 
 def test_guard_notices_a_tool_without_a_row(sabotage):
     found = sabotage(lambda name, text: text.replace("| `list_spaces` |", "|  |"))
-    assert any("list_spaces has no row" in problem for problem in found)
+    assert "mcp.md: the tool list_spaces is named nowhere here" in found
+    assert "mcp.ru.md: the tool list_spaces is named nowhere here" in found
 
 
 def test_guard_notices_a_row_without_a_tool(sabotage):
     found = sabotage(
         lambda name, text: text + "\n| `list_planets` | a tool nobody registered |\n"
         if name in ("mcp.md", "mcp.ru.md") else text)
-    assert any("list_planets is documented" in problem for problem in found)
+    assert any("list_planets is named here as a tool" in problem for problem in found)
 
 
 def test_guard_notices_an_undocumented_variable(guard, monkeypatch):
@@ -104,9 +105,46 @@ def test_guard_notices_an_undocumented_variable(guard, monkeypatch):
     assert any("ELEMCTL_INVENTED" in problem for problem in guard.problems())
 
 
+def test_a_variable_of_the_contract_is_asked_of_the_specification_as_well(guard, monkeypatch):
+    # the failure this second pass exists for: three new TLS variables passed the guard green
+    # because the configuration page described them and the specification knew nothing
+    monkeypatch.setattr(guard, "env_variables", lambda: {"ELEMENT_INVENTED"})
+    named = [problem for problem in guard.check_environment() if "ELEMENT_INVENTED" in problem]
+
+    assert len(named) == 4
+    assert any(problem.startswith("SPEC.md: the contract variable") for problem in named)
+    assert any(problem.startswith("SPEC.ru.md: the contract variable") for problem in named)
+
+
 def test_guard_notices_an_extension_the_page_omits(guard, monkeypatch):
     monkeypatch.setattr(guard, "allowed_extensions", lambda: {".invented"})
     assert any(".invented" in problem for problem in guard.problems())
+
+
+@pytest.mark.parametrize(
+    "reader, pages",
+    [
+        ("registered_tools", ("mcp.md", "mcp.ru.md")),
+        ("env_variables", ("config.md", "config.ru.md", "SPEC.md", "SPEC.ru.md")),
+        ("allowed_extensions", ("platform.md", "platform.ru.md")),
+    ],
+)
+def test_a_reader_that_has_stopped_finding_anything_is_a_finding(guard, monkeypatch, reader,
+                                                                 pages):
+    """The third failure of a coverage check, and the one it used to be blind to.
+
+    A reader whose set comes back empty finds no gap and reads exactly like a repository in
+    order - the check has simply been passing for free since the shape it knew changed. Only
+    the tool reader used to say so, and it said it once for both pages; the variables and the
+    extensions had no such guard at all. All three come from `coverage_problems` now, so all
+    three say it, per page.
+    """
+    monkeypatch.setattr(guard, reader, set)
+    found = guard.problems()
+
+    for page in pages:
+        assert any(problem.startswith(f"{page}: no ") and "the sources" in problem
+                   for problem in found), page
 
 
 def test_guard_notices_a_stale_readme_block(sabotage):
