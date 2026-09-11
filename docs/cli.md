@@ -6,7 +6,7 @@ sidebar:
   order: 3
 ---
 
-<!-- Собрано из вывода `elemctl --help` скриптом scripts/gen-cli-docs.py. Не редактировать вручную. -->
+<!-- Собрано из вывода `elemctl --help`; пересборка – python scripts/rebuild-docs.py. Не редактировать вручную. -->
 
 This reference is generated from the tool itself – the same text `elemctl --help` prints, gathered on one page.
 

@@ -6,7 +6,7 @@ sidebar:
   order: 7
 ---
 
-<!-- Assembled from CHANGELOG.md by scripts/sync-docs.mjs. Do not edit by hand. -->
+<!-- Assembled from CHANGELOG.md; rebuilt by python scripts/rebuild-docs.py. Do not edit by hand. -->
 
 Notable changes to elemctl, newest first. Entries are grouped by day; the versions released that
 day are named in the heading. The format follows
@@ -18,7 +18,7 @@ Every entry ends with a link to the pull request it came from –
 requests: an entry without such a link is unfinished, because the reader has no way from the line
 to the code and the reasoning behind it. Internal identifiers of the platform have no place in an
 entry either – say what the behaviour was, not which id or response field was compared with what.
-The link is written by `python scripts/changelog-link.py <number>`, which rebuilds the mirrored
+The link is written by `python scripts/changelog-link.py <number>`, which rebuilds the generated
 pages of the site in the same run – writing it by hand is how the mirrors get left behind.
 
 ## Unreleased
@@ -45,6 +45,15 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
   `client.builds-summary-trimmed`. ([#13](https://github.com/keyfire/elemctl/pull/13))
 
 ### Documentation
+- **One command rebuilds every generated page.** Two generators write four pages – the command
+  reference from `elemctl --help`, the mirrored changelog and the README sections from the root
+  editions – and each generator was a thing to remember on its own. The mirrors were the first to
+  be forgotten, which turned `main` red on the guard; the fix tied them to the changelog link and
+  left the command reference as the last "do not forget" of exactly the same shape.
+  `python scripts/rebuild-docs.py` runs both generators, reports each half and answers with an
+  exit code – one failing generator no longer hides the other. The changelog link step calls that
+  one step, and the guard's finding, the note in the head of a generated page and the repository
+  conventions all name it.
 - **The guard now catches one fact told in two different ways.** A statement about the platform
   lives in the specification, on the Console API page, in the MCP page, in the README and in the
   docstrings at once, and it is corrected in one of them – twice that left the rest telling the
