@@ -39,7 +39,7 @@ jobs:
       # repository second, stayed in somebody's head. Raising the pin: docsguard tags
       # `v<version>` after its own merge, and the line below goes up here in a pull request of
       # its own. Every workflow names the same tag; `tests/test_workflows.py` says so.
-      - run: pip install "git+https://github.com/keyfire/docsguard@v0.3.0"
+      - run: pip install "git+https://github.com/keyfire/docsguard@v0.4.0"
       - if: matrix.mcp-major == '1'
         run: python -m pip install "mcp<2"
       - run: python -m pytest -q
@@ -57,5 +57,5 @@ jobs:
       # The shared parts of the guard live in their own repository – three repositories were
       # keeping the same readers in triplicate – and it runs in checks only, so it is
       # installed from git rather than released, by the tag the test job pins.
-      - run: pip install "git+https://github.com/keyfire/docsguard@v0.3.0"
+      - run: pip install "git+https://github.com/keyfire/docsguard@v0.4.0"
       - run: python scripts/check_docs.py
