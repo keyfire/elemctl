@@ -29,6 +29,7 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
   beside the one about the encoding of a started process. The pin is raised in a change of its
   own, ahead of anything that uses it, which is what the order in `CLAUDE.md` asks for: a run
   that goes red on a change made there goes red in the repository that asked for the change.
+  ([#21](https://github.com/keyfire/elemctl/pull/21))
 
 ### Changed
 - **The three coverage checks of the documentation guard stopped writing the same set difference
