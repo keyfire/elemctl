@@ -101,10 +101,10 @@ def test_both_editions_are_linked_and_the_pages_rebuilt(tmp_path, monkeypatch):
 
     for name in changelog_link.EDITIONS:
         assert "/pull/12" in (tmp_path / name).read_text(encoding="utf-8")
-    # One step, and it is the one that rebuilds every generated page: calling a single
+    # One step, and it is the one that rebuilds EVERY generated page: calling a single
     # generator here is how the other one became a thing to remember
-    assert calls and calls[0][0] == list(changelog_link.REBUILD)
-    assert calls[0][0][-1] == "scripts/rebuild-docs.py"
+    assert [command[-1] for command, _ in calls] == ["scripts/gen-cli-docs.py",
+                                                     "scripts/sync-docs.mjs"]
     assert calls[0][1]["cwd"] == str(tmp_path)
     # The generators name the Russian pages they write; with the system code page the reader
     # thread died on the first Cyrillic byte and the output vanished, exit code 0 and all
@@ -140,7 +140,8 @@ def test_the_pages_are_rebuilt_even_when_no_entry_needed_a_link(tmp_path, monkey
         return type("Done", (), {"returncode": 0, "stdout": "", "stderr": ""})()
 
     assert changelog_link.main(["12"], run=fake_run) == 0
-    assert calls == [list(changelog_link.REBUILD)]
+    assert [command[-1] for command in calls] == ["scripts/gen-cli-docs.py",
+                                                  "scripts/sync-docs.mjs"]
 
 
 @pytest.mark.parametrize("name", changelog_link.EDITIONS)

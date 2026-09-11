@@ -64,6 +64,21 @@ def test_a_generator_is_read_as_utf8_from_the_repository_root():
         assert kwargs["cwd"] == str(rebuild_docs.ROOT)
 
 
+def test_a_python_generator_is_told_to_write_utf8():
+    """Reading UTF-8 from a child that writes the console code page is the same mangling.
+
+    A plain Python script encodes its stream in the code page of the console, so the Russian
+    page names arrive as replacement characters - which is exactly what a nested run of this
+    script produced before the two halves of the agreement were spelled out.
+    """
+    calls, run = recorder()
+
+    rebuild_docs.main([], run=run)
+
+    for _, kwargs in calls:
+        assert kwargs["env"]["PYTHONIOENCODING"] == "utf-8"
+
+
 def test_a_generator_that_failed_makes_the_whole_step_fail():
     """A rebuild that did not happen must not look like a finished step."""
     calls, run = recorder(done(1, stderr="cli.md: the generator gave up"))

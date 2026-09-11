@@ -22,7 +22,7 @@ like a finished step.
 from __future__ import annotations
 
 import argparse
-import subprocess
+import importlib.util
 import sys
 from pathlib import Path
 
@@ -33,7 +33,7 @@ EDITIONS = ("CHANGELOG.md", "CHANGELOG.ru.md")
 #: The one step that rebuilds every generated page - the command reference and the mirrors
 #: both. Named rather than repeated here: a second list of generators is a second thing to
 #: forget, which is the failure this script was written for.
-REBUILD = (sys.executable, "scripts/rebuild-docs.py")
+REBUILD = ROOT / "scripts" / "rebuild-docs.py"
 DEFAULT_REPO = "keyfire/elemctl"
 #: The width the changelog is wrapped to; a link that does not fit goes on a line of its own,
 #: indented like a continuation line - the way the long entries already carry it.
@@ -131,27 +131,29 @@ def write_links(root: Path, number: int, repo: str = DEFAULT_REPO) -> dict[str, 
     return taken
 
 
+def rebuild_step():
+    """The one rebuild step, loaded as a module.
+
+    Imported rather than started as another Python process: a nested script writes its output
+    in the console code page while the parent reads it as UTF-8, and the Russian page names
+    come back as replacement characters - the very mangling the generators are careful about.
+    Loaded by path because a file name with a hyphen is no import name.
+    """
+    spec = importlib.util.spec_from_file_location("rebuild_docs", REBUILD)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 def rebuild_pages(root: Path, run=None) -> tuple[bool, str]:
     """Every generated page rebuilt by the one step; (did it work, what it said).
 
-    A step that cannot start at all is reported like any other failure instead of raising: the
-    answer the caller needs is the same - the pages are not rebuilt and the commit is not ready.
     `run` is the process runner, the test's way in - a default bound at definition time would
-    leave the real generators running under it.
+    leave the real generators running under it. A generator that cannot start at all is
+    reported by the step like any other failure instead of raising: the answer the caller needs
+    is the same - the pages are not rebuilt and the commit is not ready.
     """
-    try:
-        # The encoding is spelled out on purpose: the generators name the Russian pages they
-        # write, and on a Windows console Python would decode that with the system code page -
-        # the reader thread then dies on the first Cyrillic byte and the output is lost while
-        # the exit code still says everything went well.
-        done = (run or subprocess.run)(
-            list(REBUILD), cwd=str(root), capture_output=True, text=True,
-            encoding="utf-8", errors="replace",
-        )
-    except OSError as error:
-        return False, f"{' '.join(REBUILD)}: {error}"
-    output = (done.stdout or "") + (done.stderr or "")
-    return done.returncode == 0, output.strip()
+    return rebuild_step().rebuild(root, run)
 
 
 def main(argv=None, run=None) -> int:

@@ -19,6 +19,7 @@ schedule of steps: nothing here is a second implementation of what they do.
 from __future__ import annotations
 
 import argparse
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -31,6 +32,12 @@ STEPS = (
     ("the command reference", (sys.executable, "scripts/gen-cli-docs.py")),
     ("the mirrored pages", ("node", "scripts/sync-docs.mjs")),
 )
+
+#: Both halves of the encoding agreement: the output below is READ as UTF-8, so a generator
+#: that is a Python script has to WRITE it as UTF-8 - a plain script otherwise encodes its
+#: stream in the console code page, and the Russian page names come back as replacement
+#: characters. (The elemctl CLI reconfigures its own streams; a script does not.)
+ENV = {"PYTHONIOENCODING": "utf-8"}
 
 
 def rebuild(root: Path = ROOT, run=None) -> tuple[bool, str]:
@@ -54,7 +61,7 @@ def rebuild(root: Path = ROOT, run=None) -> tuple[bool, str]:
             # lost while the exit code still says everything went well.
             done = (run or subprocess.run)(
                 list(command), cwd=str(root), capture_output=True, text=True,
-                encoding="utf-8", errors="replace",
+                encoding="utf-8", errors="replace", env={**os.environ, **ENV},
             )
         except OSError as error:
             ok = False
