@@ -137,7 +137,7 @@ CLAIMS = (
         told_in=(
             "docs/SPEC.md", "docs/SPEC.ru.md",
             "docs/platform.md", "docs/platform.ru.md",
-            "src/elemctl/client.py",
+            "src/elemctl/client.py", "src/elemctl/mcp_server.py",
         ),
         wording=("assemblies/{version}", "assemblies/{:Version}"),
         retired=(

@@ -462,6 +462,22 @@ def create_server(config=None):
             "builds": cards,
         }
 
+    @server.tool()
+    def get_build(project_id: str, version: str, env_file: str = "") -> dict:
+        """Карточка сборки проекта целиком; version – ВЕРСИЯ сборки (`1.0-42`), ид тоже принимается.
+
+        Метод платформы – `/projects/{id}/assemblies/{version}`, и последний сегмент
+        адреса он называет версией: ид карточки адресом не является, на UUID платформа
+        отвечает 404. Поэтому значение сначала ищется в перечне сборок проекта и версия
+        берётся оттуда, а на отказ по адресу пробуется и ид – на случай установки,
+        которой нужна та форма. Сборка, которой в перечне нет, названа отсутствующей, а
+        не превращается в отказ из глубины платформы.
+
+        Перечень сборок с краткими карточками – list_builds; здесь карточка одна и
+        целиком. env_file – путь к .env другого окружения.
+        """
+        return client(env_file).get_assembly(project_id, version)
+
     # The function name differs from the tool name so that it does not shadow
     # build_assembly imported from the build module.
     @server.tool(name="build_assembly")

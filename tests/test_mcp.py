@@ -37,6 +37,7 @@ EXPECTED_TOOLS = {
     "list_spaces",
     "list_projects",
     "list_builds",
+    "get_build",
     "build_assembly",
     "inspect_assembly",
     "deploy",
@@ -196,6 +197,42 @@ def test_list_builds_calls_a_short_listing_complete(monkeypatch):
 
     assert payload["total"] == payload["shown"] == 1
     assert "все сборки проекта" in payload["summary"]
+
+
+def test_get_build_asks_the_client_for_the_card_by_version(monkeypatch):
+    """The card of one build, whole - the listing only ever carried the brief cards.
+
+    The address is the VERSION: the value goes to the client as it came, and the client is
+    the one that looks it up in the listing (an id is an address a caller holds too).
+    """
+    asked = []
+
+    class FakeClient:
+        def get_assembly(self, project_id, version):
+            asked.append((project_id, version))
+            return {"id": "asm-42", "assembly-version": "1.0-42", "project-developer": "acme"}
+
+    server = _server_on(monkeypatch, FakeClient())
+
+    result = asyncio.run(
+        server.call_tool("get_build", {"project_id": "proj-1", "version": "1.0-42"}))
+    payload = json.loads(call_result_content(result)[0].text)
+
+    assert asked == [("proj-1", "1.0-42")]
+    assert payload["project-developer"] == "acme"
+
+
+def test_get_build_says_the_address_is_the_version(monkeypatch):
+    """An agent reads the hint and nothing else, and this is where the wrong form cost a day."""
+    server = create_server()
+    tools = asyncio.run(server.list_tools())
+    tool = next(tool for tool in tools if tool.name == "get_build")
+    description = tool.description or ""
+
+    assert "ВЕРСИЯ" in description
+    assert "404" in description
+    properties = tool_input_schema(tool).get("properties") or {}
+    assert set(properties) >= {"project_id", "version", "env_file"}
 
 
 def test_brief_assembly_keeps_only_the_identifying_fields():
@@ -627,6 +664,7 @@ EXPECTED_TOOL_PARAMETERS = {
     ),
     "find_app": ("env_file include_deleted name", "name"),
     "get_app": ("app_id env_file", "app_id"),
+    "get_build": ("env_file project_id version", "project_id version"),
     "inspect_assembly": ("file", "file"),
     "list_app_tasks": ("app_id env_file", ""),
     "list_apps": ("brief env_file include_deleted name status", ""),
