@@ -21,19 +21,7 @@ entry either – say what the behaviour was, not which id or response field was 
 The link is written by `python scripts/changelog-link.py <number>`, which rebuilds the generated
 pages of the site in the same run – writing it by hand is how the mirrors get left behind.
 
-## Unreleased
-
-### Fixed
-- **`scripts/changelog-link.py` was rewriting both changelog editions with the platform's line
-  ending, and the mirrors with them.** Appending one link to one entry handed back four whole
-  files with every line changed, because `write_text` in text mode translates the line feed into
-  whatever the machine uses. `core.autocrlf=input` normalizes that away on commit and hides it,
-  which is the trouble: on a machine without the setting it goes to a public repository as a
-  line-ending change nobody asked for. `scripts/render-diagrams.py` had the same omission, as did
-  the token cache, the pipx metadata rewrite and the adapter index – while `gen-cli-docs.py` and
-  `release-notes.py` beside them were already spelling `newline=""` out, which is the only reason
-  the rule was recognizable as a convention rather than a taste.
-  ([#22](https://github.com/keyfire/elemctl/pull/22))
+## 2026-09-12 – 0.40.1
 
 ### Added
 - **The second convention of the sources is a test.** `tests/test_conventions.py` fails on a text
@@ -45,14 +33,6 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
   and a fixture carrying the other line ending on purpose is a test in its own right. The fix
   itself carries a test of its own – both editions come back with the ending they had.
   ([#22](https://github.com/keyfire/elemctl/pull/22))
-
-### Documentation
-- **The shared guard is pinned to `docsguard@v0.5.0`.** The release adds the second convention of
-  the sources – a text file written without naming `newline` takes the platform's line ending –
-  beside the one about the encoding of a started process. The pin is raised in a change of its
-  own, ahead of anything that uses it, which is what the order in `CLAUDE.md` asks for: a run
-  that goes red on a change made there goes red in the repository that asked for the change.
-  ([#21](https://github.com/keyfire/elemctl/pull/21))
 
 ### Changed
 - **The three coverage checks of the documentation guard stopped writing the same set difference
@@ -66,6 +46,26 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
   package, which says it for every page. The findings on the same data are the same findings,
   page for page and name for name; only the wording is the shared one now.
   ([#20](https://github.com/keyfire/elemctl/pull/20))
+
+### Fixed
+- **`scripts/changelog-link.py` was rewriting both changelog editions with the platform's line
+  ending, and the mirrors with them.** Appending one link to one entry handed back four whole
+  files with every line changed, because `write_text` in text mode translates the line feed into
+  whatever the machine uses. `core.autocrlf=input` normalizes that away on commit and hides it,
+  which is the trouble: on a machine without the setting it goes to a public repository as a
+  line-ending change nobody asked for. `scripts/render-diagrams.py` had the same omission, as did
+  the token cache, the pipx metadata rewrite and the adapter index – while `gen-cli-docs.py` and
+  `release-notes.py` beside them were already spelling `newline=""` out, which is the only reason
+  the rule was recognizable as a convention rather than a taste.
+  ([#22](https://github.com/keyfire/elemctl/pull/22))
+
+### Documentation
+- **The shared guard is pinned to `docsguard@v0.5.0`.** The release adds the second convention of
+  the sources – a text file written without naming `newline` takes the platform's line ending –
+  beside the one about the encoding of a started process. The pin is raised in a change of its
+  own, ahead of anything that uses it, which is what the order in `CLAUDE.md` asks for: a run
+  that goes red on a change made there goes red in the repository that asked for the change.
+  ([#21](https://github.com/keyfire/elemctl/pull/21))
 
 ## 2026-09-11 – 0.39.0, 0.40.0
 
