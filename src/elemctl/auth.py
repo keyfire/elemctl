@@ -107,7 +107,7 @@ class TokenManager:
             self._cache_dir.mkdir(parents=True, exist_ok=True)
             payload = {"token": self._token, "expires": self._expires_at}
             self._cache_path().write_text(
-                json.dumps(payload), encoding="utf-8"
+                json.dumps(payload), encoding="utf-8", newline=""
             )
         except OSError:
             # The cache is only a speedup; its unavailability must not break the work.

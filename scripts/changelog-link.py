@@ -126,7 +126,7 @@ def write_links(root: Path, number: int, repo: str = DEFAULT_REPO) -> dict[str, 
         text = path.read_text(encoding="utf-8")
         linked, added = add_link(text, number, repo)
         if added:
-            path.write_text(linked, encoding="utf-8")
+            path.write_text(linked, encoding="utf-8", newline="")
         taken[name] = added
     return taken
 
