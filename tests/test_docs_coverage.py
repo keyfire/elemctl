@@ -49,6 +49,9 @@ def sabotage(guard, tmp_path, monkeypatch):
             for name in ("README.md", "README.ru.md", "CHANGELOG.md", "CHANGELOG.ru.md",
                          "pyproject.toml"):
                 shutil.copy(ROOT / name, tmp_path / name)
+            # The claims name source files as well, and a copy without them would turn every
+            # claim into a finding about a place the repository has not got.
+            shutil.copytree(ROOT / "src", tmp_path / "src")
             for name, text in documents.items():
                 (tmp_path / name).write_text(text, encoding="utf-8")
         for name, text in (extra or {}).items():

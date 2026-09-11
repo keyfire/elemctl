@@ -2,10 +2,12 @@
 """Does the documentation still cover elemctl: tools, variables, extensions, mirrors, images.
 
 What is elemctl's own business stays here - which MCP tools it registers, which environment
-variables it reads, what the archive packs, and where its mirroring script carries which page.
-Everything underneath (reading a page, the block between the injection markers, the annotations
-a repository states about itself, the runner) comes from the `docsguard` package, which three
-repositories were keeping in triplicate until the copies drifted.
+variables it reads, what the archive packs, which statements about the platform have to be told
+in the same words everywhere, and where its mirroring script carries which page. Everything
+underneath (reading a page, the block between the injection markers, the annotations a
+repository states about itself, the machinery behind the claim table, the runner) comes from the
+`docsguard` package, which three repositories were keeping in triplicate until the copies
+drifted.
 
 Run: `python scripts/check_docs.py`; the exit code is what CI reads.
 """
@@ -14,13 +16,15 @@ from __future__ import annotations
 
 import re
 import sys
-from dataclasses import dataclass
 from pathlib import Path
 
 from docsguard import (
+    Claim,
     Layout,
     PitchItem,
     box_headlines,
+    claim_problems,
+    claim_texts,
     front_description,
     image_problems,
     injected,
@@ -91,25 +95,6 @@ PITCH_ITEMS = (
 )
 
 
-@dataclass(frozen=True)
-class Claim:
-    """One statement about the platform that several pages and the code all have to make.
-
-    name     - the fact in a few words, the way a finding will name it.
-    told_in  - the places that must state it: pages (`docs/...`), repository documents and
-               source files. The list is kept by hand, because being told in this many places
-               is a property of the fact, not something a reader can derive.
-    wording  - the spellings that count as stating it; one of them has to occur.
-    retired  - the spellings of the SUPERSEDED model, in the form they really had. Those must
-               be nowhere outside the changelog, whoever copies them.
-    """
-
-    name: str
-    told_in: tuple[str, ...]
-    wording: tuple[str, ...]
-    retired: tuple[str, ...] = ()
-
-
 #: The statements that live in more than one place at once. Both of them are here because they
 #: really did drift: the correction reached the Console API sections and left the tool hints,
 #: the CLI requirements and the comments in the code telling the model it replaced - one
@@ -149,18 +134,6 @@ CLAIMS = (
 )
 
 
-def claim_text(where: str) -> str | None:
-    """The text of a place a claim is told in; None when the repository has no such file."""
-    try:
-        if where.startswith("docs/"):
-            return LAYOUT.page(where[len("docs/"):])
-        if where.startswith("src/"):
-            return (ROOT / where).read_text(encoding="utf-8")
-        return LAYOUT.document(where)
-    except FileNotFoundError:
-        return None
-
-
 def searched_texts() -> dict[str, str]:
     """Everywhere a superseded wording could be hiding: the pages, the READMEs, the sources.
 
@@ -168,16 +141,12 @@ def searched_texts() -> dict[str, str]:
     the model it corrected, and that quote is the record of the fix, not a relapse. The tests
     are out for the same reason - a guard's own provocation has to spell the wording out.
     """
-    texts = {
-        f"docs/{path.name}": path.read_text(encoding="utf-8")
-        for path in sorted(LAYOUT.docs.glob("*.md"))
-        if not path.name.startswith("changelog")
-    }
-    for name in ("README.md", "README.ru.md"):
-        texts[name] = LAYOUT.document(name)
-    for path in sorted(SRC.glob("*.py")):
-        texts[f"src/elemctl/{path.name}"] = path.read_text(encoding="utf-8")
-    return texts
+    return claim_texts(
+        LAYOUT,
+        exclude=("changelog*",),
+        documents=("README.md", "README.ru.md"),
+        sources=("src/elemctl/*.py",),
+    )
 
 
 def registered_tools() -> set[str]:
@@ -264,38 +233,10 @@ def check_claims() -> list[str]:
     MCP page, in the README and in the docstrings of the code at once, and it gets corrected in
     one of them. Both times this happened the rest stayed behind: the pages told the new model
     and the tool hints, the requirements and the comments the old one - inside one document.
-
-    Two halves, because the failure has two shapes. A place the claim names must still STATE it,
-    which catches the page a correction never reached. And the SUPERSEDED wording, in the
-    spelling it really had, must be nowhere, which catches both the copy that kept living and a
-    new page that copied it. Spellings, not meaning: a checker cannot read, and the wordings are
-    taken from the diff of the correction itself.
+    The mechanics of that judgement are shared with the neighbouring repositories, which have
+    the same shape of documentation and the same defect waiting; what stays here is the table.
     """
-    problems = []
-    for claim in CLAIMS:
-        for where in claim.told_in:
-            text = claim_text(where)
-            if text is None:
-                problems.append(
-                    f'{where}: the claim "{claim.name}" names a place that is not in the '
-                    "repository"
-                )
-                continue
-            if not any(word.lower() in text.lower() for word in claim.wording):
-                problems.append(
-                    f'{where}: the claim "{claim.name}" is stated everywhere else and not here '
-                    f"- say it in the words the other places use ({', '.join(claim.wording)})"
-                )
-    for where, text in searched_texts().items():
-        lowered = text.lower()
-        for claim in CLAIMS:
-            for phrase in claim.retired:
-                if phrase.lower() in lowered:
-                    problems.append(
-                        f'{where}: "{phrase}" is the superseded wording of the claim '
-                        f'"{claim.name}" - the correction did not reach here'
-                    )
-    return problems
+    return claim_problems(LAYOUT, CLAIMS, searched_texts())
 
 
 def check_mirrors() -> list[str]:
