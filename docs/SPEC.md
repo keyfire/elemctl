@@ -358,6 +358,8 @@ id (UUID) or the exact application name (resolved like the CLI does),
 `list_builds(project_id, limit=10, brief=True)` – an object `{total, shown, summary, builds}`:
 the listing has to say whether it is the whole store, judged by the gaps in the build
 numbering (section 4.4),
+`get_build(project_id, version)` – the whole card of one build, addressed by the build
+version (section 4.4; an id is accepted and resolved through the listing),
 `build_assembly(project_dir="", output_dir="", version="")`,
 `inspect_assembly(file)` – parsing of a built archive (section 5.1; a local operation),
 `deploy(app_id, project_id, project_dir="", version="", branch="",

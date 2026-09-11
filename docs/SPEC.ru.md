@@ -702,6 +702,8 @@ development_mode=True, verify=False)` - при задании только proje
 `list_builds(project_id, limit=10, brief=True)` – объект `{total, shown, summary, builds}`:
 перечень обязан сказать, весь ли это запас платформы, и судит об этом по пропускам в
 нумерации сборок (п. 4.4),
+`get_build(project_id, version)` - карточка одной сборки целиком, адресуется версией
+сборки (п. 4.4; ид принимается и разрешается через перечень),
 `build_assembly(project_dir="", output_dir="", version="")`,
 `inspect_assembly(file)` - разбор готового архива (п. 5.1; локальная операция),
 `deploy(app_id, project_id, project_dir="", version="", branch="",
