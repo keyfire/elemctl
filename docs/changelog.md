@@ -53,7 +53,7 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
   `python scripts/rebuild-docs.py` runs both generators, reports each half and answers with an
   exit code – one failing generator no longer hides the other. The changelog link step calls that
   one step, and the guard's finding, the note in the head of a generated page and the repository
-  conventions all name it.
+  conventions all name it. ([#15](https://github.com/keyfire/elemctl/pull/15))
 - **The guard now catches one fact told in two different ways.** A statement about the platform
   lives in the specification, on the Console API page, in the MCP page, in the README and in the
   docstrings at once, and it is corrected in one of them – twice that left the rest telling the
