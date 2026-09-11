@@ -66,6 +66,25 @@ starts living in more than one place gets a row of its own. The judging itself c
 shared `docsguard` package – the neighbouring repositories keep their documentation the same
 way and have the same defect waiting – and what lives here is the table.
 
+## Starting a process
+
+A process started from here is read as TEXT, and the text is decoded explicitly:
+`capture_output=True, text=True, encoding="utf-8"` – plus `errors="replace"` wherever the output
+only goes to a human. Without `encoding` Python decodes with the code page of the console, and
+the failure is silent in the worst way: a generator named the Russian pages it writes, the names
+came back as replacement characters, the output was lost – and the exit code went on saying that
+everything had gone well. A call that asks for no text at all – bytes in, bytes out – decodes
+nothing and needs neither.
+
+The other half of the agreement belongs to the child: a plain Python script encodes its own
+stream with that same code page, so a script started from here is given `PYTHONIOENCODING=utf-8`
+(the elemctl CLI reconfigures its streams itself, a script does not).
+
+`tests/test_conventions.py` reads the sources with `ast` and fails on a process read as text
+without an encoding – the `(run or subprocess.run)(...)` shape of a runner seam included, which
+is the shape the offending call had and which a search for the text of a call looks straight
+past.
+
 ## Tests
 
 `python -m pytest -q` – the suite runs without network access, the transport is stubbed.

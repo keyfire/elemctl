@@ -63,7 +63,8 @@ def test_module_entry_point():
     import_root = Path(elemctl.__file__).resolve().parent.parent
     env = {**os.environ, "PYTHONPATH": str(import_root)}
     result = subprocess.run([sys.executable, "-m", "elemctl", "--version"],
-                            capture_output=True, text=True, env=env)
+                            capture_output=True, text=True, env=env,
+                            encoding="utf-8", errors="replace")
     assert result.returncode == 0, result.stderr
     assert f"elemctl {elemctl.__version__}" in result.stdout
 
