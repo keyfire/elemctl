@@ -48,6 +48,7 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
   here is given `PYTHONIOENCODING=utf-8` so that it writes what the reader reads – and
   `tests/test_conventions.py` reads the sources with `ast` and fails on a call without it. It
   found two test helpers still decoding with the code page of the machine; both are fixed.
+  ([#17](https://github.com/keyfire/elemctl/pull/17))
 - **The claim mechanics moved into the shared guard.** One fact told in several documents at
   once is not an elemctl problem – the engine and the bridge keep their documentation the same
   way and have the same defect waiting – so `Claim`, `claim_texts` and `claim_problems` now come
