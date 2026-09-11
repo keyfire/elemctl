@@ -103,6 +103,9 @@ def test_both_editions_are_linked_and_the_mirrors_rebuilt(tmp_path, monkeypatch)
         assert "/pull/12" in (tmp_path / name).read_text(encoding="utf-8")
     assert calls and calls[0][0] == list(changelog_link.SYNC)
     assert calls[0][1]["cwd"] == str(tmp_path)
+    # The mirroring script names the Russian pages it writes; with the system code page the
+    # reader thread died on the first Cyrillic byte and the output vanished, exit code 0 and all
+    assert calls[0][1]["encoding"] == "utf-8"
 
 
 def test_a_rebuild_that_did_not_happen_is_an_error(tmp_path, monkeypatch):

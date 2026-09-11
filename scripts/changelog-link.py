@@ -139,7 +139,14 @@ def rebuild_mirrors(root: Path, run=None) -> tuple[bool, str]:
     node running under it.
     """
     try:
-        done = (run or subprocess.run)(list(SYNC), cwd=str(root), capture_output=True, text=True)
+        # The encoding is spelled out on purpose: the mirroring script names the Russian pages
+        # it writes, and on a Windows console Python would decode that with the system code
+        # page - the reader thread then dies on the first Cyrillic byte and the output is lost
+        # while the exit code still says everything went well.
+        done = (run or subprocess.run)(
+            list(SYNC), cwd=str(root), capture_output=True, text=True,
+            encoding="utf-8", errors="replace",
+        )
     except OSError as error:
         return False, f"{' '.join(SYNC)}: {error}"
     output = (done.stdout or "") + (done.stderr or "")

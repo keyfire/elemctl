@@ -30,6 +30,7 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
   guard. `python scripts/changelog-link.py <number>` does both halves: it appends the link to the
   entries of the topmost section in both editions and rebuilds the mirrors right after, and the
   guard's finding now names the command instead of saying "regenerate the mirrors".
+  ([#11](https://github.com/keyfire/elemctl/pull/11))
 
 ## 2026-09-11 – 0.39.0
 
