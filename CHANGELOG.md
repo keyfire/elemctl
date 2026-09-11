@@ -48,7 +48,7 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
   this repository. The findings are the same ones on the same data: every process start of every
   Python file here, plus nineteen provocations, was snapshotted before and after the move and
   the two snapshots are identical. The pin goes up to `v0.4.0` with it, the way `CLAUDE.md` says
-  a pin is raised.
+  a pin is raised. ([#19](https://github.com/keyfire/elemctl/pull/19))
 - **The shared documentation guard is installed by tag, and raising that pin is a change of its
   own.** On `@main` a commit in `docsguard` reached a run here in the middle of unrelated work: a
   red run caused by no commit of this repository, and one nobody reads. The order of merging –
