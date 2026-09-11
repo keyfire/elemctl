@@ -18,6 +18,14 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
 ## Unreleased
 
 ### Documentation
+- **The guard now catches one fact told in two different ways.** A statement about the platform
+  lives in the specification, on the Console API page, in the MCP page, in the README and in the
+  docstrings at once, and it is corrected in one of them – twice that left the rest telling the
+  model it replaced, once inside a single document. The statements that live in many places are
+  listed as `CLAIMS` in `scripts/check_docs.py`: every place the claim names has to state it,
+  and the superseded wording – in the spelling it really had – may appear nowhere but the
+  changelog. The two that drifted are covered: automatic deletion of unused builds and the
+  address of a build card. ([#12](https://github.com/keyfire/elemctl/pull/12))
 - **The pull request link and the mirror rebuild are one step now.** A link can only be written
   once the pull request exists, so it arrives in a commit of its own – and the mirrored
   `docs/changelog*.md` pages kept being left behind, which turned `main` red on the documentation

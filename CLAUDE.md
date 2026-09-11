@@ -47,6 +47,18 @@ of the topmost section in both editions and rebuilds the mirrored pages in the s
 link and the rebuild are two halves of one step, and doing the first by hand is how the second
 gets forgotten – that is exactly what turned `main` red on the guard.
 
+## One fact, one wording
+
+A statement about the platform is told in several places at once – the specification, the
+Console API page, the MCP page, the README, the docstrings of the code – and it gets corrected
+in one of them. Twice that left the rest telling the model it replaced, and one document ended
+up carrying both at the same time. Such statements are listed as `CLAIMS` in
+`scripts/check_docs.py`: the places that must state the fact, the spellings that count as
+stating it, and the spellings of the SUPERSEDED model, which may appear nowhere but the
+changelog (an entry about a correction quotes what it corrected). Correcting such a fact means
+correcting every place the claim names – the guard says which one was missed. A fact that
+starts living in more than one place gets a row of its own.
+
 ## Tests
 
 `python -m pytest -q` – the suite runs without network access, the transport is stubbed.
