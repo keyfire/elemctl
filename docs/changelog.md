@@ -21,7 +21,7 @@ entry either – say what the behaviour was, not which id or response field was 
 The link is written by `python scripts/changelog-link.py <number>`, which rebuilds the generated
 pages of the site in the same run – writing it by hand is how the mirrors get left behind.
 
-## Unreleased
+## 2026-09-11 – 0.39.0, 0.40.0
 
 ### Added
 - **`get_build` on the MCP surface: the whole card of one build.** The listing was there and the
@@ -29,6 +29,10 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
   fall back to the CLI. The tool is addressed by the build VERSION – an id is accepted as well
   and looked up in the listing, because the id of a card is not an address the platform's method
   understands. ([#14](https://github.com/keyfire/elemctl/pull/14))
+- **`--verify` for `apps create` and `apps ensure`, and a `verify` parameter of the MCP tools
+  `create_app` and `ensure_app`.** The proof that a build really landed lived in `deploy`,
+  `apps apply` and `verify-deploy`; raising a stand had to call it separately afterwards. The
+  report now comes in the `verify` field of the answer. ([#5](https://github.com/keyfire/elemctl/pull/5))
 
 ### Changed
 - **What kind of build listing the reader is looking at is judged by the numbering, not by the
@@ -43,6 +47,41 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
   been a fabrication. `ASSEMBLY_STORE_LIMIT` is gone, `builds_summary` takes the builds
   themselves instead of their count, and the message key `client.builds-summary-capped` is now
   `client.builds-summary-trimmed`. ([#13](https://github.com/keyfire/elemctl/pull/13))
+- **A command that only works locally no longer accepts the connection options.** `build` and
+  `inspect` took `--env-file`, `--base-url` and the credentials and dropped them without a word –
+  a call then LOOKED like a build bound to a stand, and twice it sent the reader looking for
+  whether a local build goes to the server. **A behaviour change:** that is a refusal with exit
+  code 1 now, and it says outright that a local build never calls the platform and reserves no
+  version number there, and which commands do. Only the OPTIONS are refused: the environment
+  variables and a `.env` next to the project still change nothing about a build.
+  ([#7](https://github.com/keyfire/elemctl/pull/7))
+- **The build listing is described as it really works.** We believed the platform capped builds
+  per project and pushed old ones out; in fact it deletes the ones nobody uses, and age plays no
+  part – the build an application runs, the project's first build and a release build stay, the
+  rest goes. The listing's summary and the Console API pages were rewritten. ([#6](https://github.com/keyfire/elemctl/pull/6))
+- **Waiting means verifying: `--wait` no longer hands back a card on trust.** A failed apply is
+  rolled back to the previous build and the application comes up running all the same, so the
+  card said nothing about the build being served. **A behaviour change:** `--wait` ends with the
+  check and exits 1 when it does not pass, `--no-verify` brings the plain wait back, and an
+  application `ensure` created stops answering `applied: true` unchecked. ([#5](https://github.com/keyfire/elemctl/pull/5))
+
+### Fixed
+- **The correction about automatic build deletion reached the rest of the pages.** The Console API
+  sections describe the listing as it really works, while the CLI requirements, the MCP server
+  pages, the hint of the `list_builds` tool and the comments in the code still told of a store
+  limit and of older builds being pushed out – two different models inside one document. There is
+  one now: the platform deletes the builds nobody uses, and age plays no part.
+  ([#9](https://github.com/keyfire/elemctl/pull/9))
+- **`builds get` did not work at all: a build card is addressed by its version.** Our pages
+  claimed the method takes a UUID only and answers a version with a 400 – so the command dutifully
+  turned a version into an id, and the platform answered 404 "no build with that version". Live
+  calls on two installations of different ages say the opposite: the last segment of the address
+  is the version, the way the method names it, and the id of a card is not an address. The command
+  now takes both forms – the value is looked up in the build list and the version taken from
+  there, and a refused address is retried with the id, for an installation that wants that form. A
+  refusal on the merits (a 500 on deleting a build a live application was created from, say) is
+  never retried with another spelling. The Console API pages were corrected.
+  ([#8](https://github.com/keyfire/elemctl/pull/8))
 
 ### Documentation
 - **The process-encoding convention is judged by the shared guard.** A process read as text has
@@ -104,51 +143,6 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
   entries of the topmost section in both editions and rebuilds the mirrors right after, and the
   guard's finding now names the command instead of saying "regenerate the mirrors".
   ([#11](https://github.com/keyfire/elemctl/pull/11))
-
-## 2026-09-11 – 0.39.0
-
-### Added
-- **`--verify` for `apps create` and `apps ensure`, and a `verify` parameter of the MCP tools
-  `create_app` and `ensure_app`.** The proof that a build really landed lived in `deploy`,
-  `apps apply` and `verify-deploy`; raising a stand had to call it separately afterwards. The
-  report now comes in the `verify` field of the answer. ([#5](https://github.com/keyfire/elemctl/pull/5))
-
-### Changed
-- **A command that only works locally no longer accepts the connection options.** `build` and
-  `inspect` took `--env-file`, `--base-url` and the credentials and dropped them without a word –
-  a call then LOOKED like a build bound to a stand, and twice it sent the reader looking for
-  whether a local build goes to the server. **A behaviour change:** that is a refusal with exit
-  code 1 now, and it says outright that a local build never calls the platform and reserves no
-  version number there, and which commands do. Only the OPTIONS are refused: the environment
-  variables and a `.env` next to the project still change nothing about a build.
-  ([#7](https://github.com/keyfire/elemctl/pull/7))
-- **The build listing is described as it really works.** We believed the platform capped builds
-  per project and pushed old ones out; in fact it deletes the ones nobody uses, and age plays no
-  part – the build an application runs, the project's first build and a release build stay, the
-  rest goes. The listing's summary and the Console API pages were rewritten. ([#6](https://github.com/keyfire/elemctl/pull/6))
-- **Waiting means verifying: `--wait` no longer hands back a card on trust.** A failed apply is
-  rolled back to the previous build and the application comes up running all the same, so the
-  card said nothing about the build being served. **A behaviour change:** `--wait` ends with the
-  check and exits 1 when it does not pass, `--no-verify` brings the plain wait back, and an
-  application `ensure` created stops answering `applied: true` unchecked. ([#5](https://github.com/keyfire/elemctl/pull/5))
-
-### Fixed
-- **The correction about automatic build deletion reached the rest of the pages.** The Console API
-  sections describe the listing as it really works, while the CLI requirements, the MCP server
-  pages, the hint of the `list_builds` tool and the comments in the code still told of a store
-  limit and of older builds being pushed out – two different models inside one document. There is
-  one now: the platform deletes the builds nobody uses, and age plays no part.
-  ([#9](https://github.com/keyfire/elemctl/pull/9))
-- **`builds get` did not work at all: a build card is addressed by its version.** Our pages
-  claimed the method takes a UUID only and answers a version with a 400 – so the command dutifully
-  turned a version into an id, and the platform answered 404 "no build with that version". Live
-  calls on two installations of different ages say the opposite: the last segment of the address
-  is the version, the way the method names it, and the id of a card is not an address. The command
-  now takes both forms – the value is looked up in the build list and the version taken from
-  there, and a refused address is retried with the id, for an installation that wants that form. A
-  refusal on the merits (a 500 on deleting a build a live application was created from, say) is
-  never retried with another spelling. The Console API pages were corrected.
-  ([#8](https://github.com/keyfire/elemctl/pull/8))
 
 ## 2026-09-10 – 0.37.0, 0.38.0
 
