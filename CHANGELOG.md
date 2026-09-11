@@ -12,6 +12,18 @@ Every entry ends with a link to the pull request it came from –
 requests: an entry without such a link is unfinished, because the reader has no way from the line
 to the code and the reasoning behind it. Internal identifiers of the platform have no place in an
 entry either – say what the behaviour was, not which id or response field was compared with what.
+The link is written by `python scripts/changelog-link.py <number>`, which rebuilds the mirrored
+pages of the site in the same run – writing it by hand is how the mirrors get left behind.
+
+## Unreleased
+
+### Documentation
+- **The pull request link and the mirror rebuild are one step now.** A link can only be written
+  once the pull request exists, so it arrives in a commit of its own – and the mirrored
+  `docs/changelog*.md` pages kept being left behind, which turned `main` red on the documentation
+  guard. `python scripts/changelog-link.py <number>` does both halves: it appends the link to the
+  entries of the topmost section in both editions and rebuilds the mirrors right after, and the
+  guard's finding now names the command instead of saying "regenerate the mirrors".
 
 ## 2026-09-11 – 0.39.0
 

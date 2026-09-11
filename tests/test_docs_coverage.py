@@ -117,6 +117,14 @@ def test_guard_notices_a_stale_changelog_mirror(sabotage):
     assert any("changelog" in problem.lower() for problem in found)
 
 
+def test_a_stale_mirror_names_the_command_that_rebuilds_it(sabotage):
+    # "regenerate the mirrors" left the reader looking for how, and the mirror that goes stale
+    # is almost always the changelog one - where a single command does the whole step
+    changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+    found = sabotage(documents={"CHANGELOG.md": changelog + "\na line nobody mirrored\n"})
+    assert any("changelog-link.py" in problem for problem in found)
+
+
 def test_guard_notices_a_page_without_a_translation(sabotage):
     found = sabotage(extra={"invented.md": "---\ntitle: \"Invented\"\n---\n\ntext\n"})
     assert any("invented.md: has no invented.ru.md" in problem for problem in found)
