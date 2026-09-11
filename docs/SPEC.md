@@ -256,7 +256,10 @@ Commands (significant flags in parentheses):
   count line on stderr saying which of the two cuts the reader is looking at: the tool's
   `--limit`, or the platform's housekeeping (section 4.4 – it deletes the builds nobody
   uses, whatever their age). "30 of 30" without that line was read as the project's whole
-  history.
+  history. The housekeeping is judged by the FACTS OF THE ANSWER, not by the length of the
+  listing: the platform hands out the numbers of a base version one after another, so a
+  number the listing has not got is a build already taken away, and the line says how many
+  are missing.
 - `build [--project-dir --output --build-version --last-build --commit
   --branch --kind {application,library} --require-clean]` – build the archive locally.
   Output: `file`, `name`, `vendor`, `version`, `version-source`
@@ -353,7 +356,8 @@ operation that does not call the platform), `delete_app(app_id)`
 id (UUID) or the exact application name (resolved like the CLI does),
 `list_projects(name="", include_deleted=False)` – the filters of `projects list` (section 7),
 `list_builds(project_id, limit=10, brief=True)` – an object `{total, shown, summary, builds}`:
-the listing has to say whether it is the whole store (section 4.4),
+the listing has to say whether it is the whole store, judged by the gaps in the build
+numbering (section 4.4),
 `build_assembly(project_dir="", output_dir="", version="")`,
 `inspect_assembly(file)` – parsing of a built archive (section 5.1; a local operation),
 `deploy(app_id, project_id, project_dir="", version="", branch="",

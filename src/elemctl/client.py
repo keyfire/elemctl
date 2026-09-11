@@ -15,7 +15,7 @@ from . import i18n
 from .auth import TokenManager
 from .errors import ApiError, ConfigError
 from .transport import UrllibTransport
-from .versions import newest_first, pick_latest
+from .versions import missing_counters, newest_first, pick_latest
 
 API_PREFIX = "/console/api/v2"
 
@@ -292,31 +292,31 @@ def brief_assembly(assembly):
     }
 
 
-#: The length of a build listing past which it is not read as the project's history.
-#: The platform deletes the builds nobody uses, whatever their age, so a build that was
-#: in the list yesterday can be gone today – and a long listing is what survived, not
-#: everything that was ever built. The number was measured on a live installation
-#: (listings of 30 and 31 were both seen) and is a THRESHOLD for the count line, not a
-#: promise about the platform: nothing documents a cap, and the collector is what decides.
-#: The list endpoint has no paging at all – limit, page, size, offset, skip, top and the
-#: rest are ignored, and neither the body nor the headers carry a total – so what comes
-#: back is the whole store rather than a page of it, and a listing at that number has to
-#: say so instead of reading like the project's whole history.
-ASSEMBLY_STORE_LIMIT = 30
-
-
-def builds_summary(total, shown):
+def builds_summary(assemblies, shown):
     """The count line of a build listing: how many are shown, and is that all there is.
 
-    Two different truths hide behind one number. A short listing is every build the
-    project has; a long one is what the platform's housekeeping left of them - it
-    deletes the builds nobody uses - and "30 of 30" reads as the whole history while
-    it is only what survived. The CLI prints the line, the MCP tool carries it in the
-    answer.
+    Two different truths can hide behind the same listing. It may be every build the
+    project has; it may be what the platform's housekeeping left of them - it deletes
+    the builds nobody uses - and then "30 of 30" reads as the whole history while it is
+    only what survived.
+
+    Which of the two it is comes from the ANSWER, not from its length: the platform
+    numbers the builds of a base version one after another, so a gap in those numbers is
+    a build it has already taken away (`missing_counters`). Until 0.40.0 the line was
+    picked by a threshold of thirty instead - a number measured on one installation, at a
+    time when we believed the platform capped the store. It does not: there is no cap, a
+    listing of any length can be what survived, and thirty said nothing about either.
+
+    Only whether there are gaps is said, never how many numbers are missing: a live
+    listing showed twenty thousand of them, because one build had once been numbered
+    1.0.1-19001 by an auto-increment that read the counters of another base. The verdict
+    survives that; a count of "deleted builds" would have been a fabrication.
+
+    The CLI prints the line, the MCP tool carries it in the answer.
     """
-    key = ("client.builds-summary-full" if total < ASSEMBLY_STORE_LIMIT
-           else "client.builds-summary-capped")
-    return i18n.t(key, shown=shown, total=total)
+    key = ("client.builds-summary-trimmed" if missing_counters(assemblies)
+           else "client.builds-summary-full")
+    return i18n.t(key, shown=shown, total=len(assemblies))
 
 
 #: The account a freshly created application can be signed in with. It is a code,
@@ -958,7 +958,13 @@ class ElementClient:
         )
 
     def list_assemblies(self, project_id):
-        """The list of the project's assemblies (normalized to a list)."""
+        """The list of the project's assemblies (normalized to a list).
+
+        The whole store, not a page of it: the method has no paging at all - limit, page,
+        size, offset, skip, top and the rest are ignored, and neither the body nor the
+        headers carry a total. What it leaves out is what the platform has deleted, and
+        `builds_summary` says so out loud.
+        """
         payload = self._api("GET", f"/projects/{project_id}/assemblies")
         return _as_list(payload, "items", "assemblies")
 

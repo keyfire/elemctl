@@ -147,10 +147,10 @@ def test_list_builds_says_whether_the_listing_is_all_there_is(monkeypatch):
     """An agent sees the JSON alone, so the answer carries the counters and the verdict.
 
     The platform deletes the builds nobody uses, whatever their age; a bare array of cards
-    let a listing read as "the project has these builds".
+    let a listing read as "the project has these builds". The verdict is read off the
+    numbering of the WHOLE answer, not of the cards that survived the limit - here the
+    missing number is far below the ten that come back.
     """
-    from elemctl.client import ASSEMBLY_STORE_LIMIT
-
     cards = [
         {
             "id": f"asm-{number}",
@@ -161,7 +161,8 @@ def test_list_builds_says_whether_the_listing_is_all_there_is(monkeypatch):
             "commit-id": f"c{number}",
             "project-name": "crm",
         }
-        for number in range(1, ASSEMBLY_STORE_LIMIT + 1)
+        for number in range(1, 21)
+        if number != 3
     ]
 
     class FakeClient:
@@ -174,7 +175,7 @@ def test_list_builds_says_whether_the_listing_is_all_there_is(monkeypatch):
     result = asyncio.run(server.call_tool("list_builds", {"project_id": "proj-1"}))
     payload = json.loads(call_result_content(result)[0].text)
 
-    assert payload["total"] == ASSEMBLY_STORE_LIMIT
+    assert payload["total"] == 19
     assert payload["shown"] == 10
     assert "НЕ вся история" in payload["summary"]
     assert len(payload["builds"]) == 10

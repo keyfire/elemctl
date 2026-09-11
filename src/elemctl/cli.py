@@ -599,10 +599,10 @@ def cmd_builds_list(args):
 
     Neither cut is silent, and there are two of them. The tool's own is the limit.
     The platform's is its housekeeping: it deletes the builds nobody uses, whatever
-    their age, so a long listing is not the project's history - it is what survived.
-    The count line says which of the two is in front of the reader (builds_summary),
-    and it is printed always: a listing without it was read as "the project has
-    exactly these builds".
+    their age, so a listing is not the project's history - it is what survived. The
+    count line says which of the two is in front of the reader (builds_summary reads
+    that off the gaps in the build numbering), and it is printed always: a listing
+    without it was read as "the project has exactly these builds".
     """
     config = _config(args)
     client = make_client(config)
@@ -610,14 +610,16 @@ def cmd_builds_list(args):
         args.project_id, config.project_id, i18n.t("cli.require.project-id-flag")
     )
     assemblies = newest_first(client.list_assemblies(project_id))
-    total = len(assemblies)
-    if args.limit > 0 and total > args.limit:
-        assemblies = assemblies[: args.limit]
+    shown = assemblies
+    if args.limit > 0 and len(assemblies) > args.limit:
+        shown = assemblies[: args.limit]
         _progress(i18n.t("cli.builds-list-truncated"))
-    _progress(builds_summary(total, len(assemblies)))
+    # The whole answer, not the cut one: what the platform left out is judged by the
+    # numbering of everything it did return.
+    _progress(builds_summary(assemblies, len(shown)))
     if args.brief:
-        assemblies = [brief_assembly(assembly) for assembly in assemblies]
-    _emit(assemblies)
+        shown = [brief_assembly(assembly) for assembly in shown]
+    _emit(shown)
     return 0
 
 
