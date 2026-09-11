@@ -681,13 +681,12 @@ def test_builds_list_limit_zero_prints_everything(monkeypatch, capsys):
     assert "все сборки проекта" in captured.err
 
 
-def test_builds_list_says_the_platform_keeps_no_more(monkeypatch, capsys):
+def test_builds_list_says_the_listing_is_only_what_survived(monkeypatch, capsys):
     """"30 of 30" used to read as the project's whole history while builds kept vanishing.
 
-    The platform keeps a limited number of builds per project and pushes the older ones
-    out as new ones arrive (measured on a live installation; the list endpoint honours no
-    paging parameter at all and carries no total). At that number the listing has to say
-    so out loud.
+    The platform deletes the builds nobody uses, whatever their age (the list endpoint
+    honours no paging parameter at all and carries no total), so a long listing is what
+    survived rather than everything ever built - and it has to say so out loud.
     """
     cards = _assembly_cards(client_module.ASSEMBLY_STORE_LIMIT)
     monkeypatch.setattr(cli, "make_client", lambda config: FakeAssembliesClient(cards))
@@ -701,7 +700,7 @@ def test_builds_list_says_the_platform_keeps_no_more(monkeypatch, capsys):
 
 
 def test_builds_list_calls_the_short_listing_complete(monkeypatch, capsys):
-    """The counter-check: under the limit nothing was pushed out, and the line says so."""
+    """The counter-check: a short listing is the whole of it, and the line says so."""
     monkeypatch.setattr(cli, "make_client", lambda config: FakeAssembliesClient(_assembly_cards(3)))
 
     assert cli.main(["builds", "list", "--project-id", "proj-1"]) == 0
