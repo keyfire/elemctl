@@ -2,10 +2,11 @@
 """Generation of the command reference (docs/cli.md and docs/cli.ru.md) from the CLI itself.
 
 The source of truth is the output of `elemctl ... --help`, so the reference never drifts
-away from the implementation: a flag added – a page regenerated. Run it after the set of
-commands or their options changes:
+away from the implementation: a flag added – a page regenerated. It is one of the generators
+`scripts/rebuild-docs.py` runs, and that is the command to remember after the set of commands
+or their options changes:
 
-    python scripts/gen-cli-docs.py
+    python scripts/rebuild-docs.py
 
 The result is committed to the repository: the site build does not need Python.
 
@@ -268,8 +269,8 @@ def page(lang: str) -> str:
         f'---\ntitle: "{t["title"]}"\ndescription: "{t["desc"]}"\n'
         f'sidebar:\n  label: {t["label"]}\n  order: 3\n---\n\n'
     )
-    out.write("<!-- Собрано из вывода `elemctl --help` скриптом scripts/gen-cli-docs.py. "
-              "Не редактировать вручную. -->\n\n")
+    out.write("<!-- Собрано из вывода `elemctl --help`; пересборка – "
+              "python scripts/rebuild-docs.py. Не редактировать вручную. -->\n\n")
     out.write(t["intro"] + "\n\n")
     out.write(f"## {t['common']}\n\n" + render(root_help, t))
     for name in subcommands(root_help):

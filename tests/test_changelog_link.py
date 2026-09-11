@@ -1,9 +1,9 @@
 """The step that writes a pull request link into the changelog and rebuilds the mirrors.
 
-The failure this script exists for: the link arrives in a commit of its own, the mirrored
-`docs/changelog*.md` pages are rebuilt by another command, and the second half was forgotten -
-`main` went red on the documentation guard. So the test asks for both halves of one run: the
-link where it belongs and nowhere else, and the rebuild called every time.
+The failure this script exists for: the link arrives in a commit of its own, the generated
+pages are rebuilt by another command, and the second half was forgotten - `main` went red on
+the documentation guard. So the test asks for both halves of one run: the link where it belongs
+and nowhere else, and the rebuild called every time.
 """
 
 import importlib.util
@@ -84,7 +84,7 @@ def test_a_long_entry_takes_the_link_on_a_line_of_its_own():
     assert all(len(line) <= changelog_link.WIDTH for line in text.split("\n"))
 
 
-def test_both_editions_are_linked_and_the_mirrors_rebuilt(tmp_path, monkeypatch):
+def test_both_editions_are_linked_and_the_pages_rebuilt(tmp_path, monkeypatch):
     """One run covers the whole step - that is the point of having the script at all."""
     for name in changelog_link.EDITIONS:
         (tmp_path / name).write_text(CHANGELOG, encoding="utf-8")
@@ -101,10 +101,13 @@ def test_both_editions_are_linked_and_the_mirrors_rebuilt(tmp_path, monkeypatch)
 
     for name in changelog_link.EDITIONS:
         assert "/pull/12" in (tmp_path / name).read_text(encoding="utf-8")
-    assert calls and calls[0][0] == list(changelog_link.SYNC)
+    # One step, and it is the one that rebuilds EVERY generated page: calling a single
+    # generator here is how the other one became a thing to remember
+    assert [command[-1] for command, _ in calls] == ["scripts/gen-cli-docs.py",
+                                                     "scripts/sync-docs.mjs"]
     assert calls[0][1]["cwd"] == str(tmp_path)
-    # The mirroring script names the Russian pages it writes; with the system code page the
-    # reader thread died on the first Cyrillic byte and the output vanished, exit code 0 and all
+    # The generators name the Russian pages they write; with the system code page the reader
+    # thread died on the first Cyrillic byte and the output vanished, exit code 0 and all
     assert calls[0][1]["encoding"] == "utf-8"
 
 
@@ -121,8 +124,8 @@ def test_a_rebuild_that_did_not_happen_is_an_error(tmp_path, monkeypatch):
     assert changelog_link.main(["12"], run=fake_run) == 1
 
 
-def test_the_mirrors_are_rebuilt_even_when_no_entry_needed_a_link(tmp_path, monkeypatch):
-    """Running it twice is not a mistake: the second run still proves the mirrors are current."""
+def test_the_pages_are_rebuilt_even_when_no_entry_needed_a_link(tmp_path, monkeypatch):
+    """Running it twice is not a mistake: the second run still proves the pages are current."""
     already = CHANGELOG.replace(
         "Nothing to see here.",
         "Nothing to see here. ([#12](https://github.com/keyfire/elemctl/pull/12))",
@@ -137,7 +140,8 @@ def test_the_mirrors_are_rebuilt_even_when_no_entry_needed_a_link(tmp_path, monk
         return type("Done", (), {"returncode": 0, "stdout": "", "stderr": ""})()
 
     assert changelog_link.main(["12"], run=fake_run) == 0
-    assert calls == [list(changelog_link.SYNC)]
+    assert [command[-1] for command in calls] == ["scripts/gen-cli-docs.py",
+                                                  "scripts/sync-docs.mjs"]
 
 
 @pytest.mark.parametrize("name", changelog_link.EDITIONS)

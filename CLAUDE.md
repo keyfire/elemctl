@@ -35,17 +35,22 @@ applications `crm-dev`, `demo-app`.
 
 English and Russian pages go together: `README.md` / `README.ru.md`, `docs/SPEC.md` /
 `docs/SPEC.ru.md`, `CHANGELOG.md` / `CHANGELOG.ru.md` and the rest of `docs/*.md`. A change
-to one side without the other is an unfinished change. Two pages are generated – never edit
+to one side without the other is an unfinished change. Four pages are generated – never edit
 them by hand:
 
-- `docs/cli.md` / `docs/cli.ru.md` – `python scripts/gen-cli-docs.py`;
-- `docs/changelog.md` / `docs/changelog.ru.md` – `node scripts/sync-docs.mjs`.
+- `docs/cli.md` / `docs/cli.ru.md` – from the output of `elemctl ... --help`;
+- `docs/changelog.md` / `docs/changelog.ru.md` – from the root `CHANGELOG` editions.
+
+One command rebuilds all of them – `python scripts/rebuild-docs.py` – and it is the only one to
+remember. Every generator used to carry a command of its own, and each of them in turn became a
+"do not forget": the mirrors were the first to be left behind, and `main` went red on the guard
+for it.
 
 The pull request link that every changelog entry ends with is written by
 `python scripts/changelog-link.py <number>`, not by hand: it appends the link to every entry
-of the topmost section in both editions and rebuilds the mirrored pages in the same run. The
+of the topmost section in both editions and rebuilds the generated pages in the same run. The
 link and the rebuild are two halves of one step, and doing the first by hand is how the second
-gets forgotten – that is exactly what turned `main` red on the guard.
+gets forgotten.
 
 ## One fact, one wording
 

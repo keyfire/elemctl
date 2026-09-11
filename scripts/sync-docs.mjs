@@ -19,7 +19,7 @@ const PAGES = [
   {
     from: 'CHANGELOG.md',
     to: 'docs/changelog.md',
-    note: (from) => `Assembled from ${from} by scripts/sync-docs.mjs. Do not edit by hand.`,
+    note: (from) => `Assembled from ${from}; rebuilt by python scripts/rebuild-docs.py. Do not edit by hand.`,
     front: {
       title: 'Changelog',
       description: 'What changed in elemctl from release to release, grouped by day.',
@@ -30,7 +30,7 @@ const PAGES = [
   {
     from: 'CHANGELOG.ru.md',
     to: 'docs/changelog.ru.md',
-    note: (from) => `Собрано из ${from} скриптом scripts/sync-docs.mjs. Не редактировать вручную.`,
+    note: (from) => `Собрано из ${from}; пересборка – python scripts/rebuild-docs.py. Не редактировать вручную.`,
     front: {
       title: 'История изменений',
       description: 'Что менялось в elemctl от версии к версии, с разбивкой по дням.',
