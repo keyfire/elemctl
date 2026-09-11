@@ -27,6 +27,7 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
   the token cache, the pipx metadata rewrite and the adapter index – while `gen-cli-docs.py` and
   `release-notes.py` beside them were already spelling `newline=""` out, which is the only reason
   the rule was recognizable as a convention rather than a taste.
+  ([#22](https://github.com/keyfire/elemctl/pull/22))
 
 ### Added
 - **The second convention of the sources is a test.** `tests/test_conventions.py` fails on a text
@@ -37,6 +38,7 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
   convention takes, deliberately: a test writes into a temporary directory that outlives nothing,
   and a fixture carrying the other line ending on purpose is a test in its own right. The fix
   itself carries a test of its own – both editions come back with the ending they had.
+  ([#22](https://github.com/keyfire/elemctl/pull/22))
 
 ### Documentation
 - **The shared guard is pinned to `docsguard@v0.5.0`.** The release adds the second convention of
