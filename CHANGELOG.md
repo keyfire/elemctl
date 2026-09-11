@@ -29,7 +29,7 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
   left by an auto-increment that once jumped a base, and a count of "deleted builds" would have
   been a fabrication. `ASSEMBLY_STORE_LIMIT` is gone, `builds_summary` takes the builds
   themselves instead of their count, and the message key `client.builds-summary-capped` is now
-  `client.builds-summary-trimmed`.
+  `client.builds-summary-trimmed`. ([#13](https://github.com/keyfire/elemctl/pull/13))
 
 ### Documentation
 - **The guard now catches one fact told in two different ways.** A statement about the platform
