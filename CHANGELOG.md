@@ -28,6 +28,7 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
   such guard at all. All three now judge through `coverage_problems` from the shared `docsguard`
   package, which says it for every page. The findings on the same data are the same findings,
   page for page and name for name; only the wording is the shared one now.
+  ([#20](https://github.com/keyfire/elemctl/pull/20))
 
 ## 2026-09-11 – 0.39.0, 0.40.0
 
