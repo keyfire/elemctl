@@ -117,6 +117,18 @@ MESSAGES = {
         "ru": "перечень сокращён флагом --limit (свежие первыми); все – --limit 0",
         "en": "the listing is cut by --limit (newest first); --limit 0 shows them all",
     },
+    "cli.local-command-connection-options": {
+        "ru": "команда '{command}' работает только локально – к платформе не "
+              "обращается и номер версии на сервере не занимает. Ей переданы ключи "
+              "подключения: {options}; на результат они не влияют, уберите их. "
+              "Сервер – это другие команды: 'deploy' (сборка, загрузка, применение) "
+              "и 'builds upload' (загрузка готового архива)",
+        "en": "the '{command}' command works locally: it never calls the platform "
+              "and reserves no version number on the server – yet it was given "
+              "connection options: {options}. They change nothing about the result, "
+              "drop them. The server is other commands: 'deploy' (build, upload, "
+              "apply) and 'builds upload' (upload a prebuilt archive)",
+    },
     "cli.upload-new-project-conflict": {
         "ru": "флаги --new-project и --project-id несовместимы: либо новый проект, "
               "либо конкретный",
@@ -1180,10 +1192,10 @@ MESSAGES = {
     },
     "cli.help.build": {
         "ru": "локально собрать архив сборки из исходников (к платформе не обращается: "
-              "реквизиты подключения и --env-file команде не нужны, номер версии на "
+              "ключи подключения, включая --env-file, команда отвергает, номер версии на "
               "сервере не занимается)",
         "en": "build an assembly archive locally from sources (does not call the platform: "
-              "the connection credentials and --env-file are not used, and no version "
+              "the connection options, --env-file among them, are refused, and no version "
               "number is reserved on the server)",
     },
     "cli.help.build-project-dir": {
@@ -1219,8 +1231,10 @@ MESSAGES = {
         "en": "abort the build if the project directory has uncommitted changes",
     },
     "cli.help.inspect": {
-        "ru": "разобрать готовый архив сборки (.xasm/.xlib)",
-        "en": "inspect a prebuilt assembly archive (.xasm/.xlib)",
+        "ru": "разобрать готовый архив сборки (.xasm/.xlib); к платформе не обращается – "
+              "ключи подключения, включая --env-file, команда отвергает",
+        "en": "inspect a prebuilt assembly archive (.xasm/.xlib); does not call the platform "
+              "– the connection options, --env-file among them, are refused",
     },
     "cli.help.inspect-file": {
         "ru": "файл архива сборки",

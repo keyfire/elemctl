@@ -136,6 +136,50 @@ def _require_with_source(explicit, fallback, what):
     raise ConfigError(i18n.t("cli.not-set", what=what))
 
 
+#: The connection options of the root parser: they configure the talk to the platform.
+#: dest of the argument, the spelling the reader typed.
+_CONNECTION_OPTIONS = (
+    ("base_url", "--base-url"),
+    ("client_id", "--client-id"),
+    ("client_secret", "--client-secret"),
+    ("env_file", "--env-file"),
+    ("timeout", "--timeout"),
+)
+
+
+def _refuse_connection_options(args, command):
+    """Refuse a command that works locally when it is given connection options.
+
+    `build` and `inspect` never reach the platform: the archive is assembled from
+    the sources on disk, and no version number is reserved on the server. The
+    options used to be accepted and quietly dropped – and a call that carries
+    `--env-file` LOOKS like a build bound to a stand, which twice left the reader
+    asking whether the build talks to the server after all.
+
+    A refusal rather than a warning, for three reasons. Nothing stops working:
+    the options changed nothing, so the only calls it breaks are the ones that
+    already meant something else. A warning would land on stderr, next to the
+    progress lines, where a CI log buries it – and silence of exactly that kind is
+    what caused the doubt. And the refusal answers the question the caller really
+    had: it says outright that a local build does not go to the platform, and
+    names the commands that do.
+
+    Only the options are refused, never the environment: ELEMENT_* variables and a
+    `.env` lying next to the project are always there, and a build must not depend
+    on whether the developer has one.
+    """
+    given = [
+        flag for attribute, flag in _CONNECTION_OPTIONS
+        if getattr(args, attribute, None) not in (None, "")
+    ]
+    if given:
+        raise ElemctlError(i18n.t(
+            "cli.local-command-connection-options",
+            command=command,
+            options=", ".join(given),
+        ))
+
+
 def _ensure_clean_tree(project_dir):
     """Abort the work when the project directory has uncommitted changes.
 
@@ -706,6 +750,7 @@ def _build_result_dict(result):
 
 
 def cmd_build(args):
+    _refuse_connection_options(args, "build")
     if args.require_clean:
         _ensure_clean_tree(args.project_dir)
     result = build_assembly(
@@ -730,6 +775,7 @@ def cmd_build(args):
 
 
 def cmd_inspect(args):
+    _refuse_connection_options(args, "inspect")
     _emit(inspect_assembly(args.file))
     return 0
 

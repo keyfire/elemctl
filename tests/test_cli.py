@@ -1078,6 +1078,80 @@ def test_build_require_clean_clean_tree_builds(project_factory, tmp_path, capsys
     assert Path(json.loads(capsys.readouterr().out)["file"]).exists()
 
 
+def test_build_refuses_connection_options(project_factory, tmp_path, capsys):
+    """--env-file on a local build is a refusal, not a silently dropped option.
+
+    The option changed nothing, and a call carrying it read as a build bound to a
+    stand – twice that left the reader asking whether the build talks to the server.
+    The refusal comes BEFORE the work: no archive is written.
+    """
+    env_file = tmp_path / "stand.env"
+    env_file.write_text("ELEMENT_BASE_URL=https://example.invalid", encoding="utf-8")
+    out_dir = tmp_path / "dist"
+
+    rc = cli.main(
+        ["build", "--project-dir", str(project_factory()), "--output", str(out_dir),
+         "--env-file", str(env_file)]
+    )
+
+    assert rc == 1
+    error = json.loads(capsys.readouterr().err)["error"]
+    assert "--env-file" in error and "build" in error
+    # The refusal names where the platform IS reached from.
+    assert "deploy" in error
+    assert not out_dir.exists()
+
+
+def test_build_refuses_every_connection_option(project_factory, tmp_path, capsys):
+    """Not only --env-file: --base-url and the credentials are just as inert here."""
+    project_dir = project_factory()
+    for option, value in (
+        ("--base-url", "https://example.invalid"),
+        ("--client-id", "someone"),
+        ("--client-secret", "secret"),
+        ("--timeout", "5"),
+    ):
+        rc = cli.main(
+            ["build", "--project-dir", str(project_dir), "--output",
+             str(tmp_path / "dist"), option, value]
+        )
+        assert rc == 1, option
+        assert option in json.loads(capsys.readouterr().err)["error"]
+
+
+def test_inspect_refuses_connection_options(project_factory, tmp_path, capsys):
+    rc = cli.main(
+        ["build", "--project-dir", str(project_factory()), "--output", str(tmp_path / "dist")]
+    )
+    assert rc == 0
+    archive = json.loads(capsys.readouterr().out)["file"]
+
+    rc = cli.main(["inspect", archive, "--base-url", "https://example.invalid"])
+
+    assert rc == 1
+    error = json.loads(capsys.readouterr().err)["error"]
+    assert "--base-url" in error and "inspect" in error
+
+
+def test_build_still_works_with_the_environment_around(project_factory, tmp_path, capsys,
+                                                       monkeypatch):
+    """Only the OPTIONS are refused: a .env on disk and ELEMENT_* variables change nothing.
+
+    A developer always has a configured environment around, and a local build must not
+    start depending on whether it is there.
+    """
+    monkeypatch.setenv("ELEMENT_BASE_URL", "https://example.invalid")
+    monkeypatch.setenv("ELEMENT_CLIENT_ID", "someone")
+    (tmp_path / ".env").write_text("ELEMENT_CLIENT_SECRET=secret", encoding="utf-8")
+
+    rc = cli.main(
+        ["build", "--project-dir", str(project_factory()), "--output", str(tmp_path / "dist")]
+    )
+
+    assert rc == 0
+    assert Path(json.loads(capsys.readouterr().out)["file"]).exists()
+
+
 def test_deploy_require_clean_checked_before_any_work(
     project_factory, tmp_path, capsys, monkeypatch
 ):

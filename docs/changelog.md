@@ -28,10 +28,11 @@ entry either – say what the behaviour was, not which id or response field was 
   report now comes in the `verify` field of the answer. ([#5](https://github.com/keyfire/elemctl/pull/5))
 
 ### Changed
+- **A command that only works locally no longer accepts the connection options.** `build` and `inspect` took `--env-file`, `--base-url` and the credentials and dropped them without a word – a call then LOOKED like a build bound to a stand, and twice it sent the reader looking for whether a local build goes to the server. **A behaviour change:** that is a refusal with exit code 1 now, and it says outright that a local build never calls the platform and reserves no version number there, and which commands do. Only the OPTIONS are refused: the environment variables and a `.env` next to the project still change nothing about a build.
 - **The build listing is described as it really works.** We believed the platform capped builds
   per project and pushed old ones out; in fact it deletes the ones nobody uses, and age plays no
   part – the build an application runs, the project's first build and a release build stay, the
-  rest goes. The listing's summary and the Console API pages were rewritten.
+  rest goes. The listing's summary and the Console API pages were rewritten. ([#6](https://github.com/keyfire/elemctl/pull/6))
 - **Waiting means verifying: `--wait` no longer hands back a card on trust.** A failed apply is
   rolled back to the previous build and the application comes up running all the same, so the
   card said nothing about the build being served. **A behaviour change:** `--wait` ends with the

@@ -201,6 +201,8 @@ Compatibility is checked against the `РежимСовместимости` prop
 
 Common flags (in any position – they are accepted after the subcommand too): `--base-url`, `--client-id`, `--client-secret`, `--env-file`, `--timeout` (seconds, default 60), `--json`, `--version`.
 
+The connection flags are about talking to the platform, so the commands that never do it – `build` and `inspect` – REFUSE them instead of dropping them quietly. A call carrying `--env-file` reads as a build bound to a stand, and twice that left the reader asking whether a local build goes to the server after all; silence of that kind is what misleads. Nothing that worked stops working, because the flags changed nothing, and the refusal names the commands that do reach the platform (`deploy`, `builds upload`). It covers the FLAGS only: `ELEMENT_*` variables and a `.env` next to the project are always around, and whether a build runs must not depend on them.
+
 Output: the result is JSON on stdout (`ensure_ascii=False`, indent 2); progress of long operations – lines on stderr; errors – JSON with an `error` field on stderr and return code 1.
 
 `--json` makes that a guarantee rather than a convention: for the duration of the call stdout is redirected to stderr, and the answer alone is written to the real stdout. A caller then parses stdout whole; without the flag anything a handler or a plugin prints stays in the stream ahead of the answer. A failure keeps to stderr and leaves stdout empty in this mode too.
@@ -266,6 +268,8 @@ Commands (significant flags in parentheses):
   defaults based on `ВидПроекта`. `--require-clean` aborts before building when the
   project directory has uncommitted changes (git unavailable also aborts: there is
   nothing to confirm a clean tree with).
+- `inspect FILE` – parse a prebuilt archive (section 5.1). Local as well: the platform is
+  not called, and the connection flags are refused the same way.
 - `deploy [--app-id --project-id --project-dir --output --build-version
   --branch --commit --commit-message --dry-run --require-clean]` –
   the full cycle: build -> upload -> apply -> restart -> verification of the actual apply (section 6.1). Output – a JSON report with fields: `app-id`, `uri`, `status`, `version`, `assembly-id`, `applied-version`, `applied` (true/false/null – null when the actual version could not be determined), `uri-status`, `problems` (list of strings, the platform's texts as they came), `problems-lines` (the same broken into plain lines: JSON escapes a multi-line refusal into `
