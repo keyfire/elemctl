@@ -39,6 +39,13 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
   `client.builds-summary-trimmed`. ([#13](https://github.com/keyfire/elemctl/pull/13))
 
 ### Documentation
+- **The shared documentation guard is installed by tag, and raising that pin is a change of its
+  own.** On `@main` a commit in `docsguard` reached a run here in the middle of unrelated work: a
+  red run caused by no commit of this repository, and one nobody reads. The order of merging –
+  the shared package first, the consumer second – stayed in somebody's head as well. Every
+  workflow now names the same tag, `CLAUDE.md` says how it goes up, and `tests/test_workflows.py`
+  fails when the workflows drift apart: a suite green against one version of the guard while the
+  publication runs against another is the difference nobody looks for.
 - **A process read as text has to name its encoding, and a check says so.** Every call in the
   repository already did – and then a new script did not, and the failure was the silent kind:
   the output of a generator naming the Russian pages it writes was decoded with the code page of
