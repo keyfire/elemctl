@@ -254,9 +254,9 @@ Commands (significant flags in parentheses):
   the target project.
   `builds list` shows the ten newest builds (`--limit 0` – all of them) and ends with a
   count line on stderr saying which of the two cuts the reader is looking at: the tool's
-  `--limit`, or the platform's store (section 4.4 – a project keeps a limited number of
-  builds and pushes the older ones out). "30 of 30" without that line was read as the
-  project's whole history.
+  `--limit`, or the platform's housekeeping (section 4.4 – it deletes the builds nobody
+  uses, whatever their age). "30 of 30" without that line was read as the project's whole
+  history.
 - `build [--project-dir --output --build-version --last-build --commit
   --branch --kind {application,library} --require-clean]` – build the archive locally.
   Output: `file`, `name`, `vendor`, `version`, `version-source`

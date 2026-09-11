@@ -598,11 +598,11 @@ def cmd_builds_list(args):
     default shows the latest ten; --limit 0 brings the whole answer back.
 
     Neither cut is silent, and there are two of them. The tool's own is the limit.
-    The platform's is the store: it keeps a limited number of builds per project
-    and pushes the older ones out, so a listing at that number is not the project's
-    history - it is what survived. The count line says which of the two is in
-    front of the reader (builds_summary), and it is printed always: a listing
-    without it was read as "the project has exactly these builds".
+    The platform's is its housekeeping: it deletes the builds nobody uses, whatever
+    their age, so a long listing is not the project's history - it is what survived.
+    The count line says which of the two is in front of the reader (builds_summary),
+    and it is printed always: a listing without it was read as "the project has
+    exactly these builds".
     """
     config = _config(args)
     client = make_client(config)

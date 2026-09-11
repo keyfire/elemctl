@@ -143,11 +143,11 @@ def test_list_builds_is_brief_and_limited_by_default():
     assert properties.get("limit", {}).get("default") == 10
 
 
-def test_list_builds_says_whether_the_listing_is_the_whole_store(monkeypatch):
+def test_list_builds_says_whether_the_listing_is_all_there_is(monkeypatch):
     """An agent sees the JSON alone, so the answer carries the counters and the verdict.
 
-    The platform keeps a limited number of builds per project and pushes the older ones
-    out; a bare array of cards let that read as "the project has these builds".
+    The platform deletes the builds nobody uses, whatever their age; a bare array of cards
+    let a listing read as "the project has these builds".
     """
     from elemctl.client import ASSEMBLY_STORE_LIMIT
 
