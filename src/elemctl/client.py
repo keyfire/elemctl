@@ -961,34 +961,83 @@ class ElementClient:
         payload = self._api("GET", f"/projects/{project_id}/assemblies")
         return _as_list(payload, "items", "assemblies")
 
-    def resolve_assembly_id(self, project_id, version_or_id):
-        """The assembly id by its version or by the id itself.
+    def find_assembly(self, project_id, version_or_id):
+        """The card of an assembly out of the project list, by its version or by its id.
 
-        The API addresses an assembly by UUID only (to a version it answers 400 "Version
-        is not a valid UUID"); the version, on top of that, is renumbered the platform's
-        own way on upload. A non-UUID argument is looked up in the list of assemblies by
-        assembly-version / project-version.
+        Both are addresses a caller may hold: the version is what a person reads, the id
+        is what `builds list` prints and what an upload answers with. Neither is trusted
+        blindly - the card is looked up in the list, so an assembly that is not there is
+        named as missing instead of turning into a 404 from the depths of the platform.
         """
-        if _looks_like_uuid(version_or_id):
-            return version_or_id
         for assembly in self.list_assemblies(project_id):
+            if not isinstance(assembly, dict):
+                continue
             if version_or_id in (
-                assembly.get("assembly-version"), assembly.get("project-version")
+                assembly.get("assembly-version"),
+                assembly.get("project-version"),
+                assembly.get("id"),
             ):
-                return assembly.get("id")
+                return assembly
         raise ConfigError(i18n.t(
             "client.assembly-not-found", version=version_or_id, project=project_id
         ))
 
+    def resolve_assembly_id(self, project_id, version_or_id):
+        """The assembly id by its version or by the id itself."""
+        if _looks_like_uuid(version_or_id):
+            return version_or_id
+        return self.find_assembly(project_id, version_or_id).get("id")
+
+    def assembly_path_segments(self, project_id, version_or_id):
+        """The spellings of the last path segment of an assembly card, in the order to try.
+
+        The method is `/projects/{id}/assemblies/{:Version}` and the segment is what its
+        name says - the VERSION. Both installations we could reach answer a UUID there
+        with a 404 "Assembly with version <uuid> not found": the id of a card is not an
+        address. Our own pages used to claim the opposite (a UUID only, a version getting
+        a 400 "Version is not a valid UUID"), and following them left `builds get` failing
+        on every call, whichever form it was given.
+
+        The version therefore comes first. The id is kept as the second candidate on
+        purpose: the 400 the pages described had to come from somewhere, so an installation
+        that really wants an id stays served instead of being declared impossible.
+        """
+        card = self.find_assembly(project_id, version_or_id)
+        segments = []
+        for value in (
+            card.get("assembly-version"), card.get("project-version"), card.get("id")
+        ):
+            if value and value not in segments:
+                segments.append(value)
+        return segments or [version_or_id]
+
+    def _assembly_request(self, method, project_id, version_or_id):
+        """A request to the assembly card, trying every spelling of its address.
+
+        Only a 400 and a 404 move on to the next spelling - those are the answers of a
+        platform that did not understand the address. Anything else is the real answer and
+        is raised as it is: a delete rejected with a 500 while the application created from
+        the assembly is still alive (section 6.9) must not be retried away into a different
+        error. When no spelling works, the first refusal is the one raised - it comes from
+        the form the method is documented to take.
+        """
+        refusal = None
+        for segment in self.assembly_path_segments(project_id, version_or_id):
+            try:
+                return self._api(method, f"/projects/{project_id}/assemblies/{segment}")
+            except ApiError as error:
+                if error.status not in (400, 404):
+                    raise
+                refusal = refusal or error
+        raise refusal
+
     def get_assembly(self, project_id, version):
         """The assembly card by version or by id."""
-        assembly_id = self.resolve_assembly_id(project_id, version)
-        return self._api("GET", f"/projects/{project_id}/assemblies/{assembly_id}")
+        return self._assembly_request("GET", project_id, version)
 
     def delete_assembly(self, project_id, version):
         """Delete an assembly by version or by id."""
-        assembly_id = self.resolve_assembly_id(project_id, version)
-        return self._api("DELETE", f"/projects/{project_id}/assemblies/{assembly_id}")
+        return self._assembly_request("DELETE", project_id, version)
 
     def latest_assembly(self, project_id, base_version=None):
         """The project's latest assembly, or None.
