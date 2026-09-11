@@ -13,7 +13,7 @@ requests: an entry without such a link is unfinished, because the reader has no 
 to the code and the reasoning behind it. Internal identifiers of the platform have no place in an
 entry either – say what the behaviour was, not which id or response field was compared with what.
 
-## Unreleased
+## 2026-09-11 – 0.39.0
 
 ### Added
 - **`--verify` for `apps create` and `apps ensure`, and a `verify` parameter of the MCP tools
