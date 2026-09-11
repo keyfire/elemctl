@@ -66,6 +66,21 @@ starts living in more than one place gets a row of its own. The judging itself c
 shared `docsguard` package – the neighbouring repositories keep their documentation the same
 way and have the same defect waiting – and what lives here is the table.
 
+## The shared guard
+
+The parts of the documentation guard that three repositories were keeping in triplicate live in
+the `docsguard` package, which the workflows install from git. It is pinned to a TAG, never to
+`@main`: on a branch a change made there reaches a run here in the middle of unrelated work –
+a red run caused by no commit of ours is a red run nobody reads – and the order of merging, the
+shared package first and this repository second, was left to be remembered rather than written
+down.
+
+Raising the pin is therefore a change of its own, with its own pull request: `docsguard` tags
+`v<version>` right after its own merge, and the tag goes up here. Every workflow names the same
+tag – `tests/test_workflows.py` fails when they drift apart, because a suite passing against one
+version of the guard while the publication runs against another is exactly the difference nobody
+looks for.
+
 ## Starting a process
 
 A process started from here is read as TEXT, and the text is decoded explicitly:
