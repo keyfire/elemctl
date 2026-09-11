@@ -52,6 +52,7 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
   workflow now names the same tag, `CLAUDE.md` says how it goes up, and `tests/test_workflows.py`
   fails when the workflows drift apart: a suite green against one version of the guard while the
   publication runs against another is the difference nobody looks for.
+  ([#18](https://github.com/keyfire/elemctl/pull/18))
 - **A process read as text has to name its encoding, and a check says so.** Every call in the
   repository already did – and then a new script did not, and the failure was the silent kind:
   the output of a generator naming the Russian pages it writes was decoded with the code page of
