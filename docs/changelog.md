@@ -23,6 +23,13 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
 
 ## Unreleased
 
+### Documentation
+- **The shared guard is pinned to `docsguard@v0.5.0`.** The release adds the second convention of
+  the sources – a text file written without naming `newline` takes the platform's line ending –
+  beside the one about the encoding of a started process. The pin is raised in a change of its
+  own, ahead of anything that uses it, which is what the order in `CLAUDE.md` asks for: a run
+  that goes red on a change made there goes red in the repository that asked for the change.
+
 ### Changed
 - **The three coverage checks of the documentation guard stopped writing the same set difference
   out by hand.** What the sources offer against what one document lists – the registered tools,
