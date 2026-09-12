@@ -26,6 +26,16 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
   `docs/*.ru.md` by itself, and the root documents are named in `scripts/check_docs.py`:
   `README.ru.md`, `CHANGELOG.ru.md` and `CLAUDE.md`. A word in backticks or inside a fenced
   block is not a finding. ([#26](https://github.com/keyfire/elemctl/pull/26))
+- **The shared guard is pinned to `docsguard@v0.8.0`.** The dictionary of borrowed words grew
+  by six: `дашборд`, `бэкенд`, `лаунчер`, `мейнтейнер`, `топ-объект`, `легаси`.
+- **The guard reads the Russian strings of the sources against that dictionary too.** The help
+  of a command and the text of an error reach a reader the way a page reaches the site: they
+  land in a terminal the moment somebody runs the tool. Two files are named, the message catalog
+  `src/elemctl/i18n.py` and `src/elemctl/mcp_server.py`, whose tool docstrings an MCP client
+  shows as the description of each tool.
+- **The word `лаунчер` left the entry about `self-update --stop-holders`.** It is about the
+  program that starts the command, and the command runs as its child. The same word is corrected
+  in `tests/test_selfupdate.py`.
 - **The words the changelog names are in backticks now.** The entry of 12 September lists the
   words that left the text, and the guard read them as jargon. The Russian page writes the XBSL
   button caption the same way, as the name of a command.
