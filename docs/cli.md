@@ -50,7 +50,7 @@ usage: elemctl [-h] [--base-url BASE_URL] [--client-id CLIENT_ID] [--client-secr
 | `deploy` | full cycle: build -&gt; upload -&gt; apply -&gt; restart -&gt; verify the apply |
 | `user-lists` | user lists and their sign-in settings |
 | `probe` | isolated compilation check: build -&gt; throwaway application -&gt; errors with file and position -&gt; cleanup; the project directory must follow the {repository}/{Vendor}/{Name}/Project.yaml layout – the Vendor+Name pair is how the platform identifies the project |
-| `verify-deploy` | check that a build REALLY landed on an application: tasks in an error status (they carry the file and position of a compilation error), the applied build compared with the expected one, the address answering; deploys nothing |
+| `verify-deploy` | check that a build really landed on an application: tasks in an error status (they carry the file and position of a compilation error), the applied build compared with the expected one, the address answering; deploys nothing |
 | `branches` | development-environment branches |
 | `dumps` | application dumps |
 | `tasks` | application tasks (the listing – tasks list [`--app-id` ID]) |
@@ -484,7 +484,7 @@ usage: elemctl builds upload [-h] [--project-id PROJECT_ID] [--new-project] [--f
 | Option | Description |
 |---|---|
 | `-h, --help` | show this help message and exit |
-| `--project-id PROJECT_ID` | project; WITHOUT it the platform creates a new project – the only way to create a project through the Console API |
+| `--project-id PROJECT_ID` | project; without it the platform creates a new project, which is the only way to create a project through the Console API |
 | `--new-project` | upload the build as a new project, ignoring ELEMENT_PROJECT_ID from the environment and the .env file |
 | `--force-rename` | allow uploading an assembly whose name differs: the console renames the target project and its group after the assembly |
 | `--space-id SPACE_ID` | the space to create the project in – needed when `--project-id` is omitted |
@@ -933,7 +933,7 @@ usage: elemctl dumps get [-h] APP_ID DUMP_ID
 
 ## `elemctl tasks`
 
-Application tasks. The forms: elemctl tasks list [`--app-id` ID] – the listing of tasks; elemctl tasks get-group TASK_ID – the status of a task group. The `--app-id` flag belongs to the list action and goes AFTER it.
+Application tasks. The forms: elemctl tasks list [`--app-id` ID] – the listing of tasks; elemctl tasks get-group TASK_ID – the status of a task group. The `--app-id` flag belongs to the list action and goes after it.
 
 ```bash
 usage: elemctl tasks [-h] action ...

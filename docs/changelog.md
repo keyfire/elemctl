@@ -30,6 +30,10 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
   ([#22](https://github.com/keyfire/elemctl/pull/22))
 
 ### Changed
+- **The `--help` strings no longer shout in capitals.** `verify-deploy`, `--project-id`,
+  `--force-rename` and the `tasks` epilogue used capitals for emphasis, which reads as shouting
+  on a page. The Russian strings dropped two borrowed words along the way, "таймаут" and
+  "деплой". The command reference is rebuilt from the same strings.
 - **The three coverage checks of the documentation guard share one set difference.** Tools,
   environment variables and archive extensions were each checked against the docs by a copy of the
   same code, and a copy that had gone stale passed in silence. All three now judge through
@@ -42,6 +46,11 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
   ([#22](https://github.com/keyfire/elemctl/pull/22))
 
 ### Documentation
+- **The documentation is rewritten in plain language.** Long sentences were cut, and the stock
+  turns of phrase, the parenthetical asides and the words in capitals are gone. The English
+  edition now reads as English rather than a word-for-word translation of the Russian one, and
+  the Russian changelog lost the borrowed words the dictionary lists.
+  ([#24](https://github.com/keyfire/elemctl/pull/24))
 - **The shared guard is pinned to `docsguard@v0.5.0`.** That release adds a second convention for
   the sources: a text file written without an explicit `newline` takes the platform's line ending.
   The pin goes up on its own, ahead of anything that uses it.
