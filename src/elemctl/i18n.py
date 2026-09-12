@@ -930,7 +930,7 @@ MESSAGES = {
         "en": "path to the .env file (default: .env in the current directory)",
     },
     "cli.help.timeout": {
-        "ru": "таймаут запросов в секундах (по умолчанию 60)",
+        "ru": "срок ожидания запроса в секундах (по умолчанию 60)",
         "en": "request timeout in seconds (default 60)",
     },
     "cli.help.lang": {
@@ -1154,26 +1154,26 @@ MESSAGES = {
               "the environment and the .env file",
     },
     "cli.help.builds-upload-force-rename": {
-        "ru": "разрешить загрузку сборки с ЧУЖИМ именем: панель переименует "
+        "ru": "разрешить загрузку сборки с чужим именем: панель переименует "
               "проект-цель и его группу именем сборки",
         "en": "allow uploading an assembly whose name differs: the console renames "
               "the target project and its group after the assembly",
     },
     "cli.help.builds-upload-project-id": {
-        "ru": "проект; БЕЗ него платформа заводит новый проект – это единственный "
+        "ru": "проект; без него платформа заводит новый проект, и это единственный "
               "способ создать проект через Console API",
-        "en": "project; WITHOUT it the platform creates a new project – the only way "
-              "to create a project through the Console API",
+        "en": "project; without it the platform creates a new project, which is the "
+              "only way to create a project through the Console API",
     },
     "cli.help.builds-delete": {
         "ru": "удалить сборку по версии либо ид",
         "en": "delete an assembly by version or id",
     },
     "cli.help.verify-deploy": {
-        "ru": "проверить, что сборка ПРАВДА применилась к приложению: задачи с ошибками "
-              "(в них файл и позиция ошибки компиляции), сверка применённой сборки, "
-              "доступность адреса; ничего не деплоит",
-        "en": "check that a build REALLY landed on an application: tasks in an error "
+        "ru": "проверить, что сборка действительно применилась к приложению: задачи с "
+              "ошибками (в них файл и позиция ошибки компиляции), сверка применённой "
+              "сборки, доступность адреса; сама ничего не разворачивает",
+        "en": "check that a build really landed on an application: tasks in an error "
               "status (they carry the file and position of a compilation error), the "
               "applied build compared with the expected one, the address answering; "
               "deploys nothing",
@@ -1267,12 +1267,12 @@ MESSAGES = {
         "en": "build only, no upload",
     },
     "cli.help.deploy-require-clean": {
-        "ru": "прервать деплой, если в каталоге проекта есть незакоммиченные изменения",
+        "ru": "прервать развёртывание, если в каталоге проекта есть незакоммиченные изменения",
         "en": "abort the deploy if the project directory has uncommitted changes",
     },
     "cli.help.deploy-allow-data-loss": {
         "ru": "разрешить применение, пересоздающее данные объектов (сужение длины, смена типа "
-              "реквизита); без флага такой деплой отклоняется до сборки",
+              "реквизита); без флага такое развёртывание отклоняется до сборки",
         "en": "allow an apply that recreates the data of the objects (a narrowed length, a changed "
               "attribute type); without the flag such a deploy is refused before the build",
     },
@@ -1467,10 +1467,10 @@ MESSAGES = {
     "cli.help.tasks-forms": {
         "ru": "Задачи приложений. Формы: elemctl tasks list [--app-id ИД] – перечень задач; "
               "elemctl tasks get-group TASK_ID – статус групповой задачи. Ключ --app-id "
-              "принадлежит действию list и ставится ПОСЛЕ него.",
+              "принадлежит действию list и ставится после него.",
         "en": "Application tasks. The forms: elemctl tasks list [--app-id ID] – the listing "
               "of tasks; elemctl tasks get-group TASK_ID – the status of a task group. The "
-              "--app-id flag belongs to the list action and goes AFTER it.",
+              "--app-id flag belongs to the list action and goes after it.",
     },
     "cli.action-first": {
         "ru": "подсказка: у группы \"{group}\" сначала действие, потом его ключи – "
