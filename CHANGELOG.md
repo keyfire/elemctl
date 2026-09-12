@@ -17,6 +17,13 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
 
 ## Unreleased
 
+### Added
+- **`tests/test_conventions.py` catches a test shadowed by a namesake.** A test that arrives
+  under the name of an existing one takes its place: Python keeps the last definition, and the
+  number of tests goes up, because the newcomer was added. The check reads `tests/` and names
+  the line of the newcomer, which is the definition to rename. It comes from the shared
+  `docsguard` package.
+
 ### Documentation
 - **The shared guard is pinned to `docsguard@v0.7.1`.** That release adds a dictionary of the
   borrowed words the Russian edition keeps drifting into: `пин`, `прогон`, `билд`, `дефолт` and
@@ -41,6 +48,10 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
 - **The word `лаунчер` left the entry about `self-update --stop-holders`.** It is about the
   program that starts the command, and the command runs as its child. The same word is corrected
   in `tests/test_selfupdate.py`. ([#27](https://github.com/keyfire/elemctl/pull/27))
+- **The shared guard is pinned to `docsguard@v0.9.0`.** In that release the source checks
+  stopped falling over on a file that begins with a byte-order mark. Editors on Windows write
+  the mark without being asked, `ast` answered it with a `SyntaxError`, and the findings from
+  every other file went down with it. The shadowed-test guard comes from the same release.
 
 ## 2026-09-12 – 0.40.1
 
