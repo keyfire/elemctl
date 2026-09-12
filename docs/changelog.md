@@ -28,7 +28,7 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
   under the name of an existing one takes its place: Python keeps the last definition, and the
   number of tests goes up, because the newcomer was added. The check reads `tests/` and names
   the line of the newcomer, which is the definition to rename. It comes from the shared
-  `docsguard` package.
+  `docsguard` package. ([#28](https://github.com/keyfire/elemctl/pull/28))
 
 ### Fixed
 - **`.gitattributes` holds the line ending for the whole repository.** The line
@@ -36,6 +36,7 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
   machine is set to. `newline=""` in the Python generators does not reach that far: it says how
   a file is written, while `scripts/sync-docs.mjs` splices a section of one document into
   another by copying bytes, which is how the READMEs came out mixed.
+  ([#28](https://github.com/keyfire/elemctl/pull/28))
 
 ### Documentation
 - **The shared guard is pinned to `docsguard@v0.7.1`.** That release adds a dictionary of the
@@ -65,6 +66,7 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
   stopped falling over on a file that begins with a byte-order mark. Editors on Windows write
   the mark without being asked, `ast` answered it with a `SyntaxError`, and the findings from
   every other file went down with it. The shadowed-test guard comes from the same release.
+  ([#28](https://github.com/keyfire/elemctl/pull/28))
 
 ## 2026-09-12 – 0.40.1
 
