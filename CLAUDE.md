@@ -24,6 +24,20 @@ Applies to English text as well:
 - quotes – straight `"` and `'`, never guillemets or curly quotes;
 - ellipsis – three dots `...`, never the `…` character.
 
+## Russian without borrowed words
+
+The Russian edition kept drifting into English written in Cyrillic letters. An entry said that
+a `пин` had been raised after a `прогон`, and the reader had to translate both before the
+sentence meant anything. The words and the Russian to write instead live in the `docsguard`
+package. This repository only says which of its documents are Russian, in
+`scripts/check_docs.py`: the pages under `docs/` are found by pattern, the README, the changelog
+and this file by name.
+
+A word quoted as a word goes in backticks. `пин` inside them is a name being discussed rather
+than a word being used, and the guard reads it as a name, the way it reads a fenced block, a
+link target and a file name. The caption of a command is written the same way, whoever the
+command belongs to.
+
 ## Nothing internal
 
 The repository is public. It must not carry internal project identifiers, stand names, real

@@ -15,6 +15,20 @@ entry either – say what the behaviour was, not which id or response field was 
 The link is written by `python scripts/changelog-link.py <number>`, which rebuilds the generated
 pages of the site in the same run – writing it by hand is how the mirrors get left behind.
 
+## Unreleased
+
+### Documentation
+- **The shared guard is pinned to `docsguard@v0.7.1`.** That release adds a dictionary of the
+  borrowed words the Russian edition keeps drifting into: `пин`, `прогон`, `билд`, `дефолт` and
+  eleven more. The pin went up on its own, ahead of anything that uses it.
+- **The documentation guard reads the Russian texts against that dictionary.** It finds
+  `docs/*.ru.md` by itself, and the root documents are named in `scripts/check_docs.py`:
+  `README.ru.md`, `CHANGELOG.ru.md` and `CLAUDE.md`. A word in backticks or inside a fenced
+  block is not a finding.
+- **The words the changelog names are in backticks now.** The entry of 12 September lists the
+  words that left the text, and the guard read them as jargon. The Russian page writes the XBSL
+  button caption the same way, as the name of a command.
+
 ## 2026-09-12 – 0.40.1
 
 ### Added
