@@ -39,6 +39,7 @@ from docsguard import (
     section_body,
     site_description,
     site_pages,
+    source_jargon_problems,
     translation_problems,
 )
 
@@ -142,6 +143,19 @@ CLAIMS = (
 #: in English and is read all the same, because it quotes the Russian conventions and a quote is
 #: where a borrowed word comes back.
 RUSSIAN_DOCUMENTS = ("README.ru.md", "CHANGELOG.ru.md", "CLAUDE.md")
+
+#: The sources whose Russian strings a person reads. The catalog is one file by design: the
+#: help of the parser is routed through `t()` as well, so `--help` and every error of every
+#: command are in it and nowhere else - `cli.py` has not a single Russian literal left. The
+#: MCP server is the second surface and is not a catalog: its instructions and the docstring
+#: of every tool travel to a client as the description of that tool, and a reader meets them
+#: in a tool list the way another reader meets a page.
+#:
+#: The Cyrillic elsewhere in the package is the platform's vocabulary, not ours. `Проект.yaml`
+#: and `Ресурсы` name files inside an archive, `Длина` and `Реквизиты` are keys of a metadata
+#: file, and "занято" is matched against what the platform itself writes back. Naming those
+#: files here would judge identifiers by a dictionary written about prose.
+RUSSIAN_SOURCES = ("src/elemctl/i18n.py", "src/elemctl/mcp_server.py")
 
 
 def searched_texts() -> dict[str, str]:
@@ -345,8 +359,14 @@ def check_jargon() -> list[str]:
     beside the pages rather than in the test suite alone: a root that loses a letter finds
     nothing and reads exactly like a repository in order, and a pinned version would keep that
     silence here for as long as the tag stays where it is.
+
+    The pages are half of the reading. The help of a command and the text of an error are
+    Russian as well, and they live in the sources rather than under `docs/`: they reach a
+    terminal the moment somebody runs the tool. Same reader, other surface, one dictionary.
     """
-    return jargon_self_check() + jargon_problems(LAYOUT, documents=RUSSIAN_DOCUMENTS)
+    return (jargon_self_check()
+            + jargon_problems(LAYOUT, documents=RUSSIAN_DOCUMENTS)
+            + source_jargon_problems(LAYOUT, RUSSIAN_SOURCES))
 
 
 CHECKS = (check_tools, check_environment, check_extensions, check_claims, check_mirrors,

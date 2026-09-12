@@ -30,6 +30,17 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
   words that left the text, and the guard read them as jargon. The Russian page writes the XBSL
   button caption the same way, as the name of a command.
   ([#26](https://github.com/keyfire/elemctl/pull/26))
+- **The shared guard is pinned to `docsguard@v0.8.0`.** The dictionary of borrowed words grew
+  by six: `дашборд`, `бэкенд`, `лаунчер`, `мейнтейнер`, `топ-объект`, `легаси`.
+  ([#27](https://github.com/keyfire/elemctl/pull/27))
+- **The guard reads the Russian strings of the sources against that dictionary too.** The help
+  of a command and the text of an error reach a reader the way a page reaches the site: they
+  land in a terminal the moment somebody runs the tool. Two files are named, the message catalog
+  `src/elemctl/i18n.py` and `src/elemctl/mcp_server.py`, whose tool docstrings an MCP client
+  shows as the description of each tool. ([#27](https://github.com/keyfire/elemctl/pull/27))
+- **The word `лаунчер` left the entry about `self-update --stop-holders`.** It is about the
+  program that starts the command, and the command runs as its child. The same word is corrected
+  in `tests/test_selfupdate.py`. ([#27](https://github.com/keyfire/elemctl/pull/27))
 
 ## 2026-09-12 – 0.40.1
 
