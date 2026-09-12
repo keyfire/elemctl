@@ -197,7 +197,8 @@ def _process_listing() -> list[tuple[int, int, str, str]]:
         command = ["ps", "-eo", "pid=,ppid=,comm=,args="]
     try:
         out = subprocess.run(
-            command, capture_output=True, text=True, timeout=30, encoding="utf-8", errors="replace"
+            command, capture_output=True, text=True, timeout=30, encoding="utf-8",
+            errors="replace", stdin=subprocess.DEVNULL,
         ).stdout
     except (OSError, subprocess.SubprocessError):
         return []
@@ -275,7 +276,8 @@ def stop_holders(processes: list[dict], log) -> list[dict]:
         pid = int(process["pid"])
         try:
             if sys.platform == "win32":
-                subprocess.run(["taskkill", "/PID", str(pid), "/F"], capture_output=True, timeout=30)
+                subprocess.run(["taskkill", "/PID", str(pid), "/F"], capture_output=True,
+                               stdin=subprocess.DEVNULL, timeout=30)
             else:
                 os.kill(pid, 15)
             log(i18n.t("selfupdate.holder-stopped", name=process.get("name") or "", pid=pid))
@@ -341,9 +343,12 @@ def verify_install(site: Path) -> str:
     code = "import elemctl, sys; sys.stdout.write(elemctl.__version__)"
     env = {**os.environ, "PYTHONPATH": str(site)}
     try:
+        # stdin=DEVNULL: started from the MCP server, an interpreter that inherits the
+        # stdin the client speaks over never reaches its own exit on Windows.
         result = subprocess.run(
             [sys.executable, "-c", code], capture_output=True, text=True, timeout=120,
             cwd=str(site), env=env, encoding="utf-8", errors="replace",
+            stdin=subprocess.DEVNULL,
         )
     except (OSError, subprocess.SubprocessError):
         return ""

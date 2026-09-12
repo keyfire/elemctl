@@ -18,6 +18,9 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
 ## Unreleased
 
 ### Added
+- **The conventions guard requires a process started from `src` to name its stdin.** The check
+  reads the shipped package alone. A script, a tool and a test run from a console, and a console
+  stdin is safe to hand on. ([#29](https://github.com/keyfire/elemctl/pull/29))
 - **`tests/test_conventions.py` catches a test shadowed by a namesake.** A test that arrives
   under the name of an existing one takes its place: Python keeps the last definition, and the
   number of tests goes up, because the newcomer was added. The check reads `tests/` and names
@@ -25,6 +28,13 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
   `docsguard` package. ([#28](https://github.com/keyfire/elemctl/pull/28))
 
 ### Fixed
+- **A child process no longer inherits the stdin of the MCP server.** That handle is the pipe the
+  client speaks over, and on Windows a child holding it never reaches its own exit.
+  `git status --porcelain` finished its work in milliseconds and then sat out the whole
+  fifteen-second timeout, so the build called git unavailable and said nothing about the
+  uncommitted files. Six process starts in `src` pass `stdin=subprocess.DEVNULL` now. Inside a
+  live server the same tool call went from 47 seconds to 0.8.
+  ([#29](https://github.com/keyfire/elemctl/pull/29))
 - **`.gitattributes` holds the line ending for the whole repository.** The line
   `* text=auto eol=lf` stores and checks out every text file with line feeds, whatever the
   machine is set to. `newline=""` in the Python generators does not reach that far: it says how
