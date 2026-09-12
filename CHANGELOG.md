@@ -28,6 +28,7 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
   `--force-rename` and the `tasks` epilogue used capitals for emphasis, which reads as shouting
   on a page. The Russian strings dropped two borrowed words along the way, "таймаут" and
   "деплой". The command reference is rebuilt from the same strings.
+  ([#25](https://github.com/keyfire/elemctl/pull/25))
 - **The three coverage checks of the documentation guard share one set difference.** Tools,
   environment variables and archive extensions were each checked against the docs by a copy of the
   same code, and a copy that had gone stale passed in silence. All three now judge through
