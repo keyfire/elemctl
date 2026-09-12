@@ -36,31 +36,37 @@ def guard():
     return mod
 
 
+#: The documents of the root the guard reads beside the pages, copied for every sabotage. The
+#: claims name source files too, and a copy without them would turn every claim into a finding
+#: about a place the repository has not got.
+COPIED = ("README.md", "README.ru.md", "CHANGELOG.md", "CHANGELOG.ru.md", "CLAUDE.md",
+          "pyproject.toml")
+
+
 @pytest.fixture()
 def sabotage(guard, tmp_path, monkeypatch):
-    """Run the guard over a COPY of the pages (and, when asked, of the root documents)."""
+    """Run the guard over a COPY of the pages and of the documents at the root.
+
+    The root moves to the copy as well, and not only for the tests that edit a document: a
+    jargon finding names a page by its path FROM the root, so a root left pointing at the real
+    repository makes that reading fail on a page that does not live under it.
+    """
     def run(edit=lambda name, text: text, *, documents: dict[str, str] | None = None,
             extra: dict[str, str] | None = None):
         docs = tmp_path / "docs"
         shutil.copytree(ROOT / "docs", docs)
-        root = ROOT
-        if documents is not None:
-            root = tmp_path
-            for name in ("README.md", "README.ru.md", "CHANGELOG.md", "CHANGELOG.ru.md",
-                         "pyproject.toml"):
-                shutil.copy(ROOT / name, tmp_path / name)
-            # The claims name source files as well, and a copy without them would turn every
-            # claim into a finding about a place the repository has not got.
-            shutil.copytree(ROOT / "src", tmp_path / "src")
-            for name, text in documents.items():
-                (tmp_path / name).write_text(text, encoding="utf-8")
+        shutil.copytree(ROOT / "src", tmp_path / "src")
+        for name in COPIED:
+            shutil.copy(ROOT / name, tmp_path / name)
+        for name, text in (documents or {}).items():
+            (tmp_path / name).write_text(text, encoding="utf-8")
         for name, text in (extra or {}).items():
             (docs / name).write_text(text, encoding="utf-8")
         for path in sorted(docs.glob("*.md")):
             path.write_text(edit(path.name, path.read_text(encoding="utf-8")), encoding="utf-8")
         monkeypatch.setattr(
             guard, "LAYOUT",
-            guard.Layout(root=root, docs=docs, site_config=guard.LAYOUT.site_config,
+            guard.Layout(root=tmp_path, docs=docs, site_config=guard.LAYOUT.site_config,
                          pyproject=guard.LAYOUT.pyproject, raw_prefix=guard.LAYOUT.raw_prefix),
         )
         return guard.problems()
@@ -257,6 +263,45 @@ def test_guard_notices_a_headline_no_row_names(sabotage):
 def test_guard_notices_a_row_the_page_dropped(sabotage):
     found = sabotage(lambda name, text: text.replace("- **Dumps**", "- **Dumped**"))
     assert any("Dumps" in problem for problem in found)
+
+
+def test_guard_notices_a_borrowed_word_in_a_russian_page(sabotage):
+    # the failure the dictionary exists for: an entry telling the reader that a пин was raised
+    # after a прогон, both of which have to be translated before the sentence means anything
+    found = sabotage(
+        lambda name, text: text + "\nПин подняли после красного прогона.\n"
+        if name == "index.ru.md" else text)
+
+    assert any("docs/index.ru.md" in problem and "Пин" in problem for problem in found)
+    assert any("docs/index.ru.md" in problem and "прогона" in problem for problem in found)
+
+
+def test_a_word_in_backticks_is_a_name(sabotage):
+    # the entry about the replacement QUOTES the words it replaced, and a quote is not a relapse
+    found = sabotage(
+        lambda name, text: text + "\nСлова `пин` и `прогон` ушли из текста.\n"
+        if name == "index.ru.md" else text)
+
+    assert not any("docs/index.ru.md" in problem and "jargon" in problem for problem in found)
+
+
+def test_the_russian_documents_of_the_root_are_read_as_well(sabotage):
+    # the pages come by pattern; the README, the changelog and CLAUDE.md have to be named, and
+    # the changelog is where the borrowed words kept turning up
+    changelog = (ROOT / "CHANGELOG.ru.md").read_text(encoding="utf-8")
+    found = sabotage(documents={"CHANGELOG.ru.md": changelog + "\nБилд собрали заново.\n"})
+
+    assert any(problem.startswith("CHANGELOG.ru.md:") and "Билд" in problem
+               for problem in found)
+
+
+def test_the_dictionary_proves_itself_beside_the_pages(guard, monkeypatch):
+    # a root that loses a letter finds nothing, and a repository with nothing to find looks
+    # exactly the same - so the samples of the package run here, with the pages
+    monkeypatch.setattr(guard, "jargon_self_check",
+                        lambda: ["the dictionary reads straight past it"])
+
+    assert any("reads straight past it" in problem for problem in guard.problems())
 
 
 def test_the_annotations_are_read_as_annotations(guard):

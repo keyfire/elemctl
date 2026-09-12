@@ -24,12 +24,32 @@ Applies to English text as well:
 - quotes – straight `"` and `'`, never guillemets or curly quotes;
 - ellipsis – three dots `...`, never the `…` character.
 
+## Russian without borrowed words
+
+The Russian edition kept drifting into English written in Cyrillic letters. An entry said that
+a `пин` had been raised after a `прогон`, and the reader had to translate both before the
+sentence meant anything. The words and the Russian to write instead live in the `docsguard`
+package. This repository only says which of its documents are Russian, in
+`scripts/check_docs.py`: the pages under `docs/` are found by pattern, the README, the changelog
+and this file by name.
+
+A word quoted as a word goes in backticks. `пин` inside them is a name being discussed rather
+than a word being used, and the guard reads it as a name, the way it reads a fenced block, a
+link target and a file name. The caption of a command is written the same way, whoever the
+command belongs to.
+
 ## Nothing internal
 
 The repository is public. It must not carry internal project identifiers, stand names, real
 application or assembly ids, internal hosts, issue keys or machine paths. That holds for the
 code, for comments and for test fixtures alike. Use neutral examples: vendors `acme` and
 `globex`, applications `crm-dev` and `demo-app`.
+
+A text also says what was wrong, never who asked for the change. Reviews and decisions happen
+off the page, and the person who writes the code here is the person who owns it, so a line
+about an owner asking for something reads as if there were someone else above the author.
+"The sentences ran to five lines and the words read as transliteration" says the same thing and
+survives being read by a stranger.
 
 ## Documentation pairs
 

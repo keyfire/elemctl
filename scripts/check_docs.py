@@ -30,6 +30,8 @@ from docsguard import (
     image_problems,
     injected,
     injection_problems,
+    jargon_problems,
+    jargon_self_check,
     mirror_problems,
     pitch_problems,
     pyproject_description,
@@ -133,6 +135,13 @@ CLAIMS = (
         ),
     ),
 )
+
+
+#: The Russian documents at the root. Pages are found under `docs/` by the pattern the jargon
+#: check uses by default; these three are not pages and have to be named. CLAUDE.md is written
+#: in English and is read all the same, because it quotes the Russian conventions and a quote is
+#: where a borrowed word comes back.
+RUSSIAN_DOCUMENTS = ("README.ru.md", "CHANGELOG.ru.md", "CLAUDE.md")
 
 
 def searched_texts() -> dict[str, str]:
@@ -323,8 +332,25 @@ def check_pitches() -> list[str]:
     )
 
 
+def check_jargon() -> list[str]:
+    """Transliterated English in the Russian documentation, and the dictionary proving itself.
+
+    The Russian edition kept drifting into English written in Cyrillic letters. An entry said
+    that a "пин" had been raised after a "прогон", and the reader had to translate both before
+    the sentence meant anything. The word is invisible to the person writing it, because it is
+    the word that person says out loud all day, so a review does not catch it either.
+
+    The dictionary lives in `docsguard`, with the neighbouring repositories that are written the
+    same way; what stays here is which documents of this one are Russian. The self-check runs
+    beside the pages rather than in the test suite alone: a root that loses a letter finds
+    nothing and reads exactly like a repository in order, and a pinned version would keep that
+    silence here for as long as the tag stays where it is.
+    """
+    return jargon_self_check() + jargon_problems(LAYOUT, documents=RUSSIAN_DOCUMENTS)
+
+
 CHECKS = (check_tools, check_environment, check_extensions, check_claims, check_mirrors,
-          check_translations, check_images, check_pitches)
+          check_translations, check_images, check_pitches, check_jargon)
 
 
 def problems() -> list[str]:

@@ -21,9 +21,9 @@ spec.loader.exec_module(relnotes)
 def newest_version(text: str) -> str:
     """The last version named in the first RELEASED `## ` heading of the changelog.
 
-    An `## Unreleased` buffer may sit on top between releases - work merged ahead of the
-    owner's release call lives there until the tag renames it into a day heading. The release
-    card is asked for the newest RELEASED version, so the buffer is skipped, not an error.
+    An `## Unreleased` buffer may sit on top between releases - work merged before a release is
+    called lives there until the tag renames it into a day heading. The release card is asked
+    for the newest RELEASED version, so the buffer is skipped, not an error.
     """
     for line in text.splitlines():
         if line.startswith("## "):

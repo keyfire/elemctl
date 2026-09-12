@@ -480,7 +480,7 @@ elemctl plugins
 
 - [XBSL](https://marketplace.visualstudio.com/items?itemName=keyfire.xbsl) (проект
   [xbsl](https://github.com/keyfire/xbsl)) – подсветка, линтер, конструктор форм и дерево
-  метаданных. Кнопка "XBSL: деплой на стенд" запускает `elemctl deploy` терминальной
+  метаданных. Кнопка `XBSL: деплой на стенд` запускает `elemctl deploy` терминальной
   задачей и проверяет применение. Там же отладка приложений 1С:Элемента штатным
   DAP-адаптером платформы, данные сессии для которой даёт `elemctl apps debug`. Раньше
   отладка была отдельным расширением *XBSL Debug* в репозитории elemctl. С версии
