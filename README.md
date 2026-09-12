@@ -6,9 +6,11 @@
 
 A command-line tool, MCP server and Python library for managing applications on the **1C:Enterprise.Element** cloud platform (1cmycloud.com) through Console API v2.
 
-elemctl covers an application's lifecycle on the platform without the web console: create an application, build a `.xasm`/`.xlib` build archive from project sources, upload the build, apply it to the application and make sure the apply actually happened (the platform can silently roll back), check compilation with a probe that never touches the working application, and manage development-environment branches, dumps and the technology version. The same engine is available in three ways: the `elemctl` command for the terminal and CI, an MCP server for AI agents (Claude Code and other MCP clients), and the `elemctl` Python module for your own scripts.
+elemctl runs an application's whole life on the platform, and you never have to open the web console. It creates the application, builds a `.xasm`/`.xlib` archive from project sources, uploads that build and applies it. Then it checks that the apply really happened, because the platform can roll back without saying so. A probe checks compilation and leaves the working application alone. Other commands handle development-environment branches, dumps and the technology version.
 
-*elemctl is a CLI tool, MCP server and Python library for the 1C:Enterprise.Element (1cmycloud) Console API: manage applications, upload builds, deploy with honest apply verification and check compilation with a probe. The CLI output is plain JSON.*
+One engine, three ways to reach it. The `elemctl` command works in a terminal and in CI. The MCP server serves AI agents: Claude Code and other MCP clients. The `elemctl` Python module goes into scripts of your own.
+
+*elemctl is a CLI tool, MCP server and Python library for the 1C:Enterprise.Element (1cmycloud) Console API: manage applications, upload builds, deploy with a verified apply and check compilation with a probe. The CLI output is plain JSON.*
 
 Development notes and updates (in Russian): the [1C × AI: engineering workshop](https://t.me/ceh_1c_ai) Telegram channel.
 
@@ -18,28 +20,28 @@ Development notes and updates (in Russian): the [1C × AI: engineering workshop]
 
 <!-- features:start -->
 
-- **Applications**: list (with a client-side name filter and `--brief` cards), details, create, start, stop, delete, technology version, debug-session data (`apps debug`). Commands addressing one application accept its id or its exact name.
+- **Applications**: list, details, create, start, stop, delete, technology version, debug-session data (`apps debug`). The list filters by name on the client side and prints short cards with `--brief`. Commands that address one application take its id or its exact name.
 - **Projects and builds**: upload `.xasm`/`.xlib`, list builds, delete.
-- **Build from sources**: package a project directory (`Проект.yaml` + modules) into a build archive with a manifest and git metadata. The version comes from the flag, the last build's counter or the CI run number in the environment (`CI_PIPELINE_IID` / `GITHUB_RUN_NUMBER` / `BUILD_NUMBER`), and the output carries it as a field. Descriptors written with English key spellings (`Name`/`Vendor`/`Version`) are read as well as Russian ones.
-- **One-command deploy**: build -> upload -> apply -> restart -> **verification that the apply actually took effect**. Uncommitted changes of the project directory are reported (`dirty` in the report); `--require-clean` aborts on a dirty tree.
-- **Compilation check without risking the application** (`elemctl probe`): the sources are compiled by the SERVER through a throwaway application, the errors come back with file, line and column, and the probe removes what it created. The working application is out of reach on purpose – `ELEMENT_APP_ID` and `ELEMENT_PROJECT_ID` are not used.
-- **User lists**: the sign-in settings a control panel usually holds – self-registration and signing in with a login and a password (`elemctl user-lists`). The list is addressed by id, by presentation or by the application whose own list it is.
+- **Build from sources**: elemctl packs a project directory into a build archive with a manifest and git metadata. That directory holds `Проект.yaml` and the modules. The version comes from the flag, from the last build's counter or from the CI run number in the environment: `CI_PIPELINE_IID`, `GITHUB_RUN_NUMBER`, `BUILD_NUMBER`. The output carries it as a field. Descriptors written with English key spellings `Name`/`Vendor`/`Version` are read as well as Russian ones.
+- **One-command deploy**: build -> upload -> apply -> restart -> **verification that the apply actually took effect**. Uncommitted changes in the project directory show up in the report as `dirty`. Pass `--require-clean` to stop on a dirty tree.
+- **Compilation check without risking the application** (`elemctl probe`): the server compiles the sources, and it does so inside a throwaway application. Errors come back with file, line and column, and the probe deletes what it created. The working application stays out of reach on purpose: the probe never reads `ELEMENT_APP_ID` or `ELEMENT_PROJECT_ID`.
+- **User lists** (`elemctl user-lists`): the sign-in settings you would normally open the control panel for, namely self-registration and signing in with a login and a password. Address a list by id, by presentation or by the application that owns it.
 - **Development-environment branches**: list, create, bind to an application, merge.
 - **Dumps**: create and check readiness.
-- **MCP server**: the same operations exposed as tools for AI agents (Claude Code and other MCP clients).
-- **Plugins**: `importlib.metadata` entry points – an external package supplies the platform debug adapter (`elemctl debug-adapter`) and commands of its own without bloating the core. One `Command` declaration becomes both a CLI subcommand and an MCP tool, so a command that knows about your own environment lives in your package rather than in a public core.
-- **Self-update**: `elemctl self-update` – update the package by unpacking the wheel, even while `elemctl.exe` is held by a running MCP server (where plain pipx/pip would break the install).
-- **In VS Code**: deploy and debugging live in the [XBSL](https://github.com/keyfire/xbsl) extension – it calls elemctl: `elemctl deploy` behind the deploy button, `elemctl apps debug` for the debug-session coordinates.
+- **MCP server**: the same operations, exposed as tools for AI agents – Claude Code and other MCP clients.
+- **Plugins**: `importlib.metadata` entry points. An external package supplies the platform debug adapter (`elemctl debug-adapter`) and commands of its own, and the core stays small. One `Command` declaration becomes both a CLI subcommand and an MCP tool, so a command that knows your own environment lives in your package instead of a public core.
+- **Self-update**: `elemctl self-update` updates the package by unpacking the wheel. It works even while a running MCP server holds `elemctl.exe`, which is exactly where plain pipx or pip breaks the install.
+- **In VS Code**: deploy and debugging live in the [XBSL](https://github.com/keyfire/xbsl) extension, which calls elemctl. The deploy button runs `elemctl deploy`, and the debug-session coordinates come from `elemctl apps debug`.
 
-### Honest apply verification
+### Checking that the build was applied
 
-A platform quirk: if a project apply fails, the platform **silently rolls back** the application to the previous build – the `Running` status says nothing about whether the deploy succeeded. `elemctl deploy` therefore does not trust the status and, after the deploy, checks:
+A platform quirk: when a project apply fails, the platform **silently rolls back** the application to the previous build. The `Running` status then says nothing about whether the deploy worked. So `elemctl deploy` does not trust the status, and once the work is done it checks three things:
 
-1. application tasks with the `Error`/`Failed` status that started after the deploy began (old errors from the history are ignored);
-2. the application's actual project version (`source.project-version`) – it must match the build that was just uploaded;
-3. the application uri's availability via a health-check HTTP request (informational, the `uri-status` field in the report: 401/403 are normal for closed applications).
+1. Application tasks with an `Error` or `Failed` status that started after the deploy began. Older errors from the history are ignored.
+2. The application's actual project version, the `source.project-version` field. It has to match the build that was just uploaded.
+3. Whether the application uri answers a health-check HTTP request. The result lands in the report's `uri-status` field and changes nothing: 401 and 403 are normal for closed applications.
 
-The `deploy` exit code is zero only if the build was actually applied.
+The `deploy` exit code is zero only when the build really was applied.
 
 <!-- features:end -->
 
@@ -52,7 +54,7 @@ pipx install elemctl            # or: pip install elemctl
 pip install "elemctl[mcp]"      # with the MCP server
 ```
 
-Python 3.10+ is required. The core and CLI have no external dependencies (standard library only).
+You need Python 3.10 or newer. The core and the CLI have no external dependencies: the standard library is enough.
 
 <!-- installation:end -->
 
@@ -60,7 +62,7 @@ Python 3.10+ is required. The core and CLI have no external dependencies (standa
 
 <!-- configuration:start -->
 
-Connection credentials are taken from environment variables or from a `.env` file in the current directory (environment variables take priority):
+elemctl takes the connection credentials from environment variables or from a `.env` file in the current directory. An environment variable wins over the file.
 
 | Variable | Purpose |
 |---|---|
@@ -74,7 +76,7 @@ Connection credentials are taken from environment variables or from a `.env` fil
 | `ELEMENT_TLS_STRICT` | strict RFC 5280 certificate checks; `true` by default |
 | `ELEMENT_TLS_VERIFY` | certificate and hostname verification; `true` by default |
 
-Client-Id/Client-Secret are issued in the 1cmycloud control panel (the Console API integrations section). A file template is [.env.example](https://github.com/keyfire/elemctl/blob/main/.env.example).
+Client-Id and Client-Secret are issued in the 1cmycloud control panel, in the Console API integrations section. A file template is [.env.example](https://github.com/keyfire/elemctl/blob/main/.env.example).
 
 ### Configuring with `.env`
 
@@ -93,10 +95,11 @@ ELEMENT_CLIENT_SECRET=client-secret
 ```
 
 Without `--env-file`, the tool looks for a file named exactly `.env` in the
-**current working directory**. That is not necessarily the project directory or
-the directory where `elemctl` is installed. The `elemctl` repository excludes
-`.env` from Git; if you create one in another repository, add `.env` to its
-`.gitignore`. The file contains a secret and must stay out of commits and logs.
+**current working directory**. That is not necessarily the project directory,
+and not the directory `elemctl` is installed into. The `elemctl` repository
+excludes `.env` from Git. If you create one in another repository, add `.env`
+to its `.gitignore`: the file holds a secret and has no business in commits or
+logs.
 
 When the configuration lives elsewhere, pass it explicitly. An absolute path is
 more reliable for the MCP server, background jobs and CI:
@@ -112,7 +115,7 @@ elemctl apps list --env-file /opt/elemctl/cloud.env
 ```
 
 A relative path is resolved from the current working directory. Separate files
-let one installation address multiple stands without changing process variables:
+let one installation address several stands, and no process variable has to change:
 
 ```bash
 elemctl --env-file ./env/public-cloud.env apps list
@@ -131,22 +134,23 @@ ELEMENT_TLS_STRICT=false
 
 For an internal CA that is trusted but rejected by Python 3.13 with
 `Basic Constraints of CA cert not marked critical`, set
-`ELEMENT_TLS_STRICT=false`. This keeps certificate-chain, validity, signature,
-and hostname verification enabled; it only relaxes OpenSSL's strict RFC 5280
-profile. Prefer fixing or reissuing the CA certificate when possible.
+`ELEMENT_TLS_STRICT=false`. Certificate-chain, validity, signature and hostname
+verification all stay on. Only OpenSSL's strict RFC 5280 profile is relaxed.
+Where you can, fix or reissue the CA certificate instead.
 
 Use `ELEMENT_CA_FILE=/path/to/internal-ca.pem` when the private CA is not in the
-system trust store. `ELEMENT_TLS_VERIFY=false` disables both certificate and
-hostname verification and is intended only as a last resort in an isolated test
-network. With verification off every command prints a warning to stderr - stdout
-keeps the answer, so a piped JSON output is not spoiled by it. Boolean values
-accept `true`/`false`, `yes`/`no`, `on`/`off`, or `1`/`0`.
+system trust store. `ELEMENT_TLS_VERIFY=false` turns off both certificate and
+hostname verification. It is a last resort, and only for an isolated test
+network. With verification off, every command prints a warning to stderr while
+stdout still carries the answer alone, so piped JSON survives intact. Boolean
+values accept `true`/`false`, `yes`/`no`, `on`/`off`, or `1`/`0`.
 
 `ELEMCTL_NO_PROXY` solves a different problem: it routes requests past the
-environment's proxy. It can help when the proxy cannot reach an internal address
-or replaces its certificate, but it does not disable server-certificate
-verification. If the direct connection reaches the server and ends with
-`CERTIFICATE_VERIFY_FAILED`, configure the trusted CA or `ELEMENT_TLS_*` options.
+environment's proxy. It helps when the proxy cannot reach an internal address or
+replaces its certificate. Server-certificate verification stays on either way.
+If the direct connection reaches the server and ends with
+`CERTIFICATE_VERIFY_FAILED`, configure the trusted CA or the `ELEMENT_TLS_*`
+options.
 
 ### Behaviour of the tool
 
@@ -156,17 +160,17 @@ These are set through the environment only – a connection `.env` is not their 
 |---|---|
 | `ELEMCTL_LANG` | language of the messages and the help (`ru`, `en`); the `--lang` flag wins over it |
 | `ELEMCTL_NO_PROXY` | set it to bypass the environment's proxy for every call (loopback and private addresses are bypassed anyway) |
-| `ELEMCTL_NO_PLUGINS` | do not look for plugins: a run with the core capabilities only |
+| `ELEMCTL_NO_PLUGINS` | do not look for plugins: work with the core capabilities only |
 
 ### The CI environment
 
-The build declares no variables of its own, but it reads the ones CI sets itself – which is why a pipeline needs neither a version flag nor an edit of the sources:
+The build declares no variables of its own, but it reads the ones CI sets itself. That is why a pipeline needs neither a version flag nor an edit of the sources:
 
 | Variable | Purpose |
 |---|---|
 | `CI_PIPELINE_IID` | run number; the build version suffix comes from it when there is neither `--build-version` nor a previous build |
 | `GITHUB_RUN_NUMBER` | the same, second in order |
-| `BUILD_NUMBER` | the same, third in order (the first NUMERIC value wins) |
+| `BUILD_NUMBER` | the same, third in order; the first numeric value wins |
 | `CI_COMMIT_BRANCH` | the branch name for the manifest when git is in a detached `HEAD` |
 | `CI_COMMIT_REF_NAME` | the same, second in order |
 | `GITHUB_REF_NAME` | the same, third in order; the value `HEAD` is discarded and the field stays empty |
@@ -214,11 +218,11 @@ elemctl user-lists self-registration --app crm-dev --disable
 elemctl branches merge <branch-id>
 ```
 
-All commands output JSON to stdout; progress of long-running operations goes to stderr. Errors are returned as a JSON object with an `error` field and exit code 1.
+Every command writes JSON to stdout, and progress of long-running operations goes to stderr. An error comes back as a JSON object with an `error` field and exit code 1.
 
-The `--json` flag (accepted in any position) turns that convention into a guarantee a script may lean on: while the command runs, stdout is swapped for stderr, so the only thing that reaches the real stdout is the JSON answer - no stray line of a plugin or a library can slip in. Parse the stream whole (`json.load`) instead of hunting for the first brace in it. A failure goes to stderr with `--json` as well and stdout stays empty: a document in the machine channel would be read by a pipeline as an answer.
+The `--json` flag turns that convention into a guarantee a script can lean on, and it is accepted in any position. While the command runs, stdout is swapped for stderr, so the real stdout receives nothing but the JSON answer. No stray line from a plugin or a library can slip in. Parse the stream whole with `json.load` instead of hunting for the first brace. With `--json` a failure also goes to stderr and stdout stays empty, because a pipeline would read anything in the machine channel as the answer.
 
-For the full list of commands: `elemctl --help`, and by group: `elemctl apps --help`, `elemctl deploy --help`, etc.
+For the full list of commands run `elemctl --help`, and for one group `elemctl apps --help`, `elemctl deploy --help` and so on.
 
 <!-- quickstart:end -->
 
@@ -226,7 +230,7 @@ For the full list of commands: `elemctl --help`, and by group: `elemctl apps --h
 
 <!-- language:start -->
 
-Error and progress messages, and the `--help` text, come in Russian and English (the JSON result is language-neutral). The language is picked by `--lang ru|en` > the `ELEMCTL_LANG` env var > the system locale (`LC_ALL`, then `LANG`) > Russian; `--lang` is read before the parser is built, so `elemctl --lang en --help` prints English help.
+Error and progress messages, and the `--help` text, come in Russian and English. The JSON result is language-neutral. The language is picked in this order: `--lang ru|en`, then the `ELEMCTL_LANG` env var, then the system locale (`LC_ALL`, then `LANG`), then Russian. `--lang` is read before the parser is built, so `elemctl --lang en --help` prints English help.
 
 <!-- language:end -->
 
@@ -254,17 +258,17 @@ The server reads connection credentials from the same `ELEMENT_*` variables / `.
 | `ensure_app` | create an application by name only if it does not exist yet; an existing one is not recreated (`created: false`); `verify` checks the build the application really runs |
 | `start_app` | start the application |
 | `stop_app` | stop the application |
-| `delete_app` | delete the application. IRREVERSIBLE: the data is lost, and a recreated application gets a different URL |
+| `delete_app` | delete the application. This cannot be undone: the data is lost, and a recreated application gets a different URL |
 | `list_app_tasks` | tasks of the applications; `app_id` is an optional filter |
 | `debug_info` | debug-session data: `debug-token` and `debug-address` (debugging must be enabled on the server) |
 | `list_spaces` | list of spaces |
 | `list_projects` | list of projects; `name` filters by a substring of the name on the client, the deleted ones are hidden unless `include_deleted` is set; `brief` (the default) – id, name, project kind, space, application count, deletion flag |
 | `list_builds` | a project's builds, newest first; the answer is an object `{total, shown, summary, builds}`; `limit` (default 10, 0 – all), `brief` (the default) keeps id, versions, date, branch and commit |
-| `get_build` | the whole card of one build; `version` is the build VERSION (`1.0-42`), an id is accepted too and resolved through the listing |
+| `get_build` | the whole card of one build; `version` is the build's version (`1.0-42`), an id is accepted too and resolved through the listing |
 | `build_assembly` | build a `.xasm`/`.xlib` archive from the sources locally (does not talk to the platform) |
 | `inspect_assembly` | parse a built archive: manifest, project properties, subsystems and global types with qualified names (local) |
-| `deploy` | the whole cycle from sources with the honest apply verification; the verdict is `ok`, the details are `problems` and `log` |
-| `probe` | check the compilation with the server compiler WITHOUT touching the working application; errors with file, line and column, cleans up after itself |
+| `deploy` | the whole cycle from sources, with a check that the build was applied; the verdict is `ok`, the details are `problems` and `log` |
+| `probe` | check the compilation with the server compiler without touching the working application; errors with file, line and column, cleans up after itself |
 | `apply_build` | apply an uploaded build to the application by its id |
 | `verify_deploy` | verify the apply actually took effect: failed tasks, the applied build, the availability of the uri |
 | `list_user_lists` | user lists; `name` filters by a substring of the presentation |
@@ -273,9 +277,21 @@ The server reads connection credentials from the same `ELEMENT_*` variables / `.
 | `merge_branch` | accept the changes of a development-environment branch |
 | `debug_adapter` | the path to the platform debug adapter from a plugin; a missing plugin is an answer (`found: false`), not an error (local) |
 
-The tools a plugin brings stand next to these (see below).
+The tools a plugin brings stand next to these, described below.
 
-A single environment is not a limit: every tool that talks to the platform takes an optional `env_file` - a path to another installation's `.env`. One server thus serves both the cloud and a local installation without a restart with different credentials. `list_apps` returns brief cards by default (id, name, status, uri, applied version): full cards of a whole space are tens of thousands of characters in an agent's response - pass `brief=false` for them; its `name` parameter filters by a case-insensitive substring on the client (the platform ignores the query parameter) and `status` by the whole status word. The deleted applications are hidden unless `include_deleted` asks for them – a stand a few months old answers with hundreds of cards of which a handful are alive – and the answer says as much instead of hiding it: `total` (how many cards the platform gave), `live` (how many of those are not deleted), `shown` and a ready `summary` line ("7 live of 324"), with the cards themselves under `applications`. `list_projects` behaves the same way (id, name, project kind, space, application count, deletion flag) and takes `name` too; on top of that it hides the projects marked deleted unless `include_deleted` is set – a stand a few months old keeps hundreds of them in the list against a handful of live ones. `list_builds` answers with brief cards as well (id, versions, date, branch, commit) – and with the ten newest assemblies unless `limit` says otherwise (0 lifts the cut), the cards themselves under `builds`. Next to them are the counters `total` (how many builds the platform returned) and `shown`, plus a `summary` line: the platform's listing is not the project's whole history – it deletes the builds nobody uses, whatever their age (the build an application runs, the project's first build and a release build stay), the listing has no pages, and a listing that is only what survived is called so out loud. The verdict is read off the answer itself: the platform hands out the numbers of a base version one after another, so a number the listing has not got is a build already taken away. `get_build` hands back one card whole and takes the build VERSION for the address - an id is accepted as well and looked up in the listing, because the id of a card is not an address the method understands. `get_app`, `delete_app`, `start_app`, `stop_app` and `debug_info` accept the application id (UUID) or its exact name - a non-UUID value is resolved through the list, and several matches are an error rather than a guess. `create_app` and `ensure_app` add a `sign-in` field to the answer – the address and the account that gets into a freshly created application (a CONTROL PANEL one; the accounts of an external provider do not work there) – because an agent sees only the JSON. Their `verify` parameter waits for the application and checks that the build asked for is the one it really runs: a failed apply is rolled back by the platform without a word, and a created application used to be reported as ready on trust. The report lands in the `verify` field of the answer; the waiting costs minutes, so such a call belongs in a background `elemctl` run.
+A single environment is not a limit. Every tool that talks to the platform takes an optional `env_file`, a path to another installation's `.env`. One server then serves both the cloud and a local installation, with no restart under different credentials.
+
+`list_apps` returns brief cards by default: id, name, status, uri, applied version. Full cards of a whole space run to tens of thousands of characters in an agent's response, so ask for them with `brief=false`. The `name` parameter filters by a case-insensitive substring, and it does so on the client because the platform ignores the query parameter. The `status` parameter filters by the whole status word. Deleted applications stay hidden until `include_deleted` asks for them: a stand a few months old answers with hundreds of cards of which a handful are alive. Nothing is cut silently. The answer carries `total` (how many cards the platform gave), `live` (how many of those are not deleted), `shown` and a ready `summary` line such as "7 live of 324", with the cards themselves under `applications`.
+
+`list_projects` behaves the same way and returns id, name, project kind, space, application count and the deletion flag. Its `name` filters by a substring too, and projects marked deleted stay hidden until `include_deleted` is set: a stand a few months old keeps hundreds of them against a handful of live ones.
+
+`list_builds` answers with brief cards as well, holding id, versions, date, branch and commit, and with the ten newest builds unless `limit` says otherwise; 0 lifts the cut. The cards sit under `builds`, next to the counters `total` (how many builds the platform returned) and `shown`, plus a `summary` line. The platform's listing is not the project's whole history: it deletes the builds nobody uses, whatever their age. The build an application runs, the project's first build and a release build stay. The listing has no pages, and `summary` says plainly that what you see is the remainder of the history. It reads that off the answer itself: the platform hands out the numbers of one base version consecutively, so a number missing from the listing is a build already taken away.
+
+`get_build` hands back one card whole and is addressed by the build version. An id is accepted as well and looked up in the listing, because the address the method understands is the version, not the id of a card.
+
+`get_app`, `delete_app`, `start_app`, `stop_app` and `debug_info` accept the application id (UUID) or its exact name. A value that is not a UUID is resolved through the list, and several matches are an error rather than a guess.
+
+`create_app` and `ensure_app` add a `sign-in` field to the answer: the address and the account that gets into a freshly created application. That account comes from the control panel, the accounts used in other applications do not work there, and an agent sees only the JSON. The `verify` parameter of both waits for the application and checks that it really runs the build that was asked for: the platform rolls a failed apply back without a word, and a created application used to be reported ready on trust. The report lands in the `verify` field of the answer. The waiting costs minutes, so such a call belongs in a background `elemctl` run.
 
 <!-- mcp:end -->
 
@@ -283,11 +299,11 @@ A single environment is not a limit: every tool that talks to the platform takes
 
 <!-- plugins:start -->
 
-elemctl discovers external packages through `importlib.metadata` entry points: it declares nothing about plugins in its own `pyproject.toml` and reads them on demand. This keeps non-publishable vendor artifacts in a separate package while the elemctl core stays clean and public.
+elemctl discovers external packages through `importlib.metadata` entry points. Its own `pyproject.toml` declares nothing about plugins, and it reads them on demand. Non-publishable vendor artifacts then live in a separate package, and the elemctl core stays clean and public.
 
-**`elemctl.debug_adapter`** – a plugin package declares the directory of the platform debug adapter (proprietary 1C jars, not shipped with elemctl). The entry-point value is a path or a zero-argument callable returning a path; the path points to a directory that contains a `repo/` subdirectory with the adapter jars.
+**`elemctl.debug_adapter`**: a plugin package declares the directory of the platform debug adapter. Those are proprietary 1C jars and elemctl does not ship them. The entry-point value is a path, or a zero-argument callable that returns one. The path points to a directory holding a `repo/` subdirectory with the adapter jars.
 
-**`elemctl.commands`** – a plugin package brings commands of its own. The entry-point value is a `Command`, a list of them, or a zero-argument callable returning either. ONE declaration gives both surfaces: elemctl builds a CLI subcommand out of it and an MCP tool with a proper schema, and knows nothing about what the command does. That is where a command belongs when it is about your own environment – internal circuits, other systems, your stands – and therefore has no place in a public core.
+**`elemctl.commands`**: a plugin package brings commands of its own. The entry-point value is a `Command`, a list of them, or a zero-argument callable returning either. One declaration covers both surfaces: elemctl builds a CLI subcommand and an MCP tool with a proper schema out of it, and knows nothing about what the command does. That is where a command belongs when it is about your own environment: internal circuits, other systems, your stands. A public core is no place for it.
 
 ```toml
 # a plugin package's pyproject.toml
@@ -316,7 +332,7 @@ def commands():
     )]
 ```
 
-The result of a handler has to be JSON-serializable: the CLI prints it, the MCP tool returns it. A result that is a dict with `"ok": false` gives exit code 1 in the CLI – the same convention the reports of `deploy` and `probe` follow. Argument types are `str`, `int`, `float` and `bool` (a flag); `env_file` is added to the MCP tool by elemctl, so a plugin command reaches other environments exactly like the core tools do. A command may not take over a name the core already occupies – that is an error, not a silent override.
+The result of a handler has to be JSON-serializable: the CLI prints it, the MCP tool returns it. A dict result with `"ok": false` gives exit code 1 in the CLI, the same convention the `deploy` and `probe` reports follow. Argument types are `str`, `int`, `float` and `bool` for a flag. elemctl adds `env_file` to the MCP tool itself, so a plugin command reaches other environments exactly like the core tools do. A command may not take over a name the core already occupies: that is an error, not a silent override.
 
 ```bash
 # the adapter path from the installed plugin (for the VS Code extension):
@@ -327,9 +343,9 @@ elemctl debug-adapter
 elemctl plugins
 ```
 
-The adapter itself (proprietary 1C jars) is extracted from the platform distribution by `tools/extract_adapter.py` – into a directory for a manual `xbsl.debug.adapterPath`, or for building the plugin package. The script is not shipped in the package distribution.
+The adapter itself, those proprietary 1C jars, is extracted from the platform distribution by `tools/extract_adapter.py`. Point `xbsl.debug.adapterPath` at the resulting directory by hand, or build the plugin package from it. The script is not shipped in the package distribution.
 
-Plugin discovery is disabled by `ELEMCTL_NO_PLUGINS=1` (a run with the core capabilities only).
+`ELEMCTL_NO_PLUGINS=1` turns plugin discovery off: only the core capabilities are left.
 
 <!-- plugins:end -->
 
@@ -340,12 +356,13 @@ Plugin discovery is disabled by `ELEMCTL_NO_PLUGINS=1` (a run with the core capa
 A companion extension integrates elemctl into the editor:
 
 - [XBSL](https://marketplace.visualstudio.com/items?itemName=keyfire.xbsl) (the
-  [xbsl](https://github.com/keyfire/xbsl) project) – highlighting, linting, the form designer,
-  the metadata tree, the *XBSL: deploy the project* button that runs `elemctl deploy` as a
-  terminal task with the apply verification, and debugging 1C:Element applications with the
-  platform's DAP adapter, whose session data comes from `elemctl apps debug`. Debugging used
-  to be a separate *XBSL Debug* extension living in the elemctl repository; since XBSL 0.57 it
-  is part of the one extension, and the repository keeps only the elemctl side of it.
+  [xbsl](https://github.com/keyfire/xbsl) project) – highlighting, linting, the form designer
+  and the metadata tree. The *XBSL: deploy the project* button runs `elemctl deploy` as a
+  terminal task and verifies the apply. The same extension debugs 1C:Element applications
+  with the platform's DAP adapter, whose session data comes from `elemctl apps debug`.
+  Debugging used to be a separate *XBSL Debug* extension living in the elemctl repository.
+  Since XBSL 0.57 it is part of the one extension, and the repository keeps only the
+  elemctl side of it.
 
 It is also published to [Open VSX](https://open-vsx.org/namespace/keyfire).
 
@@ -372,14 +389,14 @@ report = deploy_from_sources(
 assert report.ok, report.problems
 ```
 
-`list_apps()` answers with the live applications: the deleted ones stay in the
+`list_apps()` answers with the live applications. Deleted ones stay in the
 platform list under the `Deleted` status, and a stand a few months old carries
-hundreds of them – pass `include_deleted=True` for the full list.
-`list_apps_counted()` returns the same list under `items` together with the
-counters the CLI and the MCP tool report – `total`, `live` and `shown`.
+hundreds of them; pass `include_deleted=True` for the full list.
+`list_apps_counted()` returns the same list under `items` and adds the counters
+the CLI and the MCP tool report: `total`, `live` and `shown`.
 
-A compilation check that does not touch the working application – the same cycle
-the `probe` command runs:
+To check compilation without touching the working application, run the same
+cycle the `probe` command does:
 
 ```python
 from elemctl.probe import probe_project
@@ -396,14 +413,14 @@ assert report.ok, report.messages
 
 <!-- buildformat:start -->
 
-`.xasm` (application) and `.xlib` (library) are a ZIP archive:
+`.xasm` for an application and `.xlib` for a library are both ZIP archives:
 
 ```
 Assembly.yaml            # manifest: ProjectKind, Vendor, Name, Version, ...
 {vendor}/{name}/...      # project files: .yaml, .xbsl, resources
 ```
 
-The project directory must follow the `{repo}/{vendor}/{name}/Проект.yaml` layout – paths inside the archive are built relative to the repository root. The project kind (application/library) is determined by the `ВидПроекта` field in `Проект.yaml`. When an application references libraries whose source projects are present under the same repository root, their files are included in the application archive automatically (including transitive local dependencies). A referenced library that is not present locally remains an external platform dependency.
+The project directory must follow the `{repo}/{vendor}/{name}/Проект.yaml` layout, because paths inside the archive are built relative to the repository root. The `ВидПроекта` field in `Проект.yaml` says whether the project is an application or a library. When an application references libraries whose source projects sit under the same repository root, their files go into the application archive on their own, transitive local dependencies included. A referenced library that is not present locally remains an external platform dependency.
 
 <!-- buildformat:end -->
 
@@ -411,22 +428,22 @@ The project directory must follow the `{repo}/{vendor}/{name}/Проект.yaml`
 
 <!-- limitations:start -->
 
-- The tool is **unofficial** and not affiliated with 1C Company; the Console API may change without notice.
-- Only the documented Console API v2 is used – the tool does not call or describe the platform console's internal APIs.
-- Creating an application from `--project-id` alone produces, on some platform configurations, an empty skeleton without project data. The reliable path is a build source: `elemctl apps create <name> --project-id <id> --latest-build` (the `create_app` MCP tool substitutes the latest build automatically), followed by `elemctl deploy` after creation.
-- An application created with an `Error` status is described by the platform only as "Неизвестная ошибка. Обратитесь к администратору"; the details - files, lines and columns of the compilation errors - live in the application's task. `apps create --wait` and `apps ensure` print them after the generic text, the way `deploy` and `verify` have long done, so there is no need to dig through the server log. Not every failure ends in `Error`, though: a failed apply is rolled back to the previous build and the application comes up `Running`, so `--wait` also verifies the build the application really runs and answers with exit code 1 when it is not the one asked for (`--no-verify` brings back the plain wait).
-- There is no way to compile the sources without creating something on the platform: compilation is the server's and it happens when a build is applied. That is what `probe` is for – it takes the hit on a throwaway application instead of the working one. A probe run costs as long as creating an application does (minutes), so it belongs before a deploy or in CI, not in a per-keystroke loop.
-- A platform project is identified by the `Vendor` + `Name` pair of the manifest, not by the `Ид` of `Проект.yaml`: a build upload without a project id lands in the project that already owns the pair, and a second project for the same pair is refused with a 409.
-- A freshly created application is signed in to with a CONTROL PANEL account: it gets its OWN, empty user list, password sign-in is off and no account service is attached, so the accounts used to sign in to other applications do not work here – and neither connecting another application's user list nor enabling the local sign-in changes it. `apps create` and `apps ensure` say so themselves: the `sign-in` field of the answer plus the same on stderr.
-- Deleted applications remain in the platform's list with a `Deleted` status and their former `id`, on which `apps get` and `deploy` return 404. `apps find` and `apps ensure` skip them; to restore the previous search behavior, use `apps find --include-deleted`.
-- The platform will not let you delete an application that has unpublished changes in the development environment (HTTP 400 `FAILED_PRECONDITION`), and there is no forced deletion in the Console API – only through the control panel; elemctl points this out in the error message.
-- Recreating an application (delete + create) changes its URL – external settings tied to the address (OIDC redirect, etc.) will need to be updated. There is no "soft" wipe of application data in the Console API; it is done in the management console.
+- The tool is **unofficial** and not affiliated with 1C Company. The Console API may change without notice.
+- elemctl uses only the documented Console API v2. It neither calls nor describes the platform console's internal APIs.
+- On some platform configurations an application created from `--project-id` alone comes out as an empty skeleton with no project data. Create it from a build instead: `elemctl apps create <name> --project-id <id> --latest-build`. The `create_app` MCP tool substitutes the latest build for you. Run `elemctl deploy` once the application exists.
+- The platform describes an application created with an `Error` status only as "Неизвестная ошибка. Обратитесь к администратору". The details live in the application's task: the files, lines and columns of the compilation errors. `apps create --wait` and `apps ensure` print them after the generic text, the way `deploy` and `verify` have long done, so you do not have to dig through the server log. Not every failure ends in `Error`, though. A failed apply is rolled back to the previous build and the application comes up `Running`, so `--wait` also verifies which build the application really runs and answers with exit code 1 when it is not the one you asked for. Use `--no-verify` for the plain wait.
+- You cannot compile the sources without creating something on the platform: compilation belongs to the server and happens when a build is applied. That is what `probe` is for, and it takes the hit on a throwaway application instead of the working one. One probe costs as much time as creating an application does, so minutes. Its place is before a deploy or in CI, not in a per-keystroke loop.
+- A platform project is identified by the `Vendor` + `Name` pair in the manifest, not by the `Ид` in `Проект.yaml`. A build uploaded without a project id lands in the project that already owns the pair, and a second project for the same pair is refused with a 409.
+- You sign in to a freshly created application with a control-panel account. The application gets its own empty user list, password sign-in is off and no account service is attached, so the accounts that work in other applications do not work here. Connecting another application's user list does not change that, and neither does enabling the local sign-in. `apps create` and `apps ensure` say so themselves: the `sign-in` field of the answer, and the same text on stderr.
+- Deleted applications stay in the platform's list with a `Deleted` status and their former `id`. On that id `apps get` and `deploy` return 404. `apps find` and `apps ensure` skip them; `apps find --include-deleted` brings the previous search behaviour back.
+- The platform refuses to delete an application that has unpublished changes in the development environment and answers HTTP 400 `FAILED_PRECONDITION`. The Console API has no forced deletion, so the control panel is the only way out. elemctl points this out in the error message.
+- Recreating an application, meaning delete and then create, changes its URL. External settings tied to that address, an OIDC redirect for instance, will need updating. The Console API has no "soft" wipe of application data; that is done in the management console.
 
 <!-- limitations:end -->
 
 ## Origin and legal notes
 
-The code is written from scratch against the platform's external interface specification – the process and guarantees are described in [ORIGIN.md](ORIGIN.md). Trademarks and the absence of affiliation with 1C Company are covered in the [NOTICE](NOTICE) file.
+The code is written from scratch against the platform's external interface specification. [ORIGIN.md](ORIGIN.md) describes the process and the guarantees. Trademarks and the absence of affiliation with 1C Company are covered in the [NOTICE](NOTICE) file.
 
 ## License
 
