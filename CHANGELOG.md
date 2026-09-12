@@ -18,170 +18,96 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
 ## 2026-09-12 – 0.40.1
 
 ### Added
-- **The second convention of the sources is a test.** `tests/test_conventions.py` fails on a text
-  file written without naming `newline`, anywhere under `src/`, `scripts/` or `tools/`, the way it
-  already fails on a process read as text without an encoding. The reading comes from the shared
-  `docsguard` package and parses with `ast` – a write is `write_text` or an `open` in a text write
-  mode, while bytes and reads are left alone. The folders are a shorter list than the process
-  convention takes, deliberately: a test writes into a temporary directory that outlives nothing,
-  and a fixture carrying the other line ending on purpose is a test in its own right. The fix
-  itself carries a test of its own – both editions come back with the ending they had.
+- **`tests/test_conventions.py` catches a text file written without an explicit `newline`.** It
+  scans `src/`, `scripts/` and `tools/`, parses the sources with `ast`, and counts `write_text` or
+  an `open` in text write mode as a write. The reading comes from the shared `docsguard` package.
   ([#22](https://github.com/keyfire/elemctl/pull/22))
 
 ### Changed
-- **The three coverage checks of the documentation guard stopped writing the same set difference
-  out by hand.** What the sources offer against what one document lists – the registered tools,
-  the environment variables, the extensions the archive packs – was spelled out three times
-  inside one file, and the copies had already drifted: only the tool check noticed a reader that
-  had stopped finding anything, and it said so once for both pages. A reader whose set comes back
-  empty finds no gap and reads exactly like a repository in order, so the check has been passing
-  for free ever since the shape it knew changed – and the variables and the extensions had no
-  such guard at all. All three now judge through `coverage_problems` from the shared `docsguard`
-  package, which says it for every page. The findings on the same data are the same findings,
-  page for page and name for name; only the wording is the shared one now.
-  ([#20](https://github.com/keyfire/elemctl/pull/20))
+- **The three coverage checks of the documentation guard share one set difference.** Tools,
+  environment variables and archive extensions were each checked against the docs by a copy of the
+  same code, and a copy that had gone stale passed in silence. All three now judge through
+  `coverage_problems` from `docsguard`. ([#20](https://github.com/keyfire/elemctl/pull/20))
 
 ### Fixed
-- **`scripts/changelog-link.py` was rewriting both changelog editions with the platform's line
-  ending, and the mirrors with them.** Appending one link to one entry handed back four whole
-  files with every line changed, because `write_text` in text mode translates the line feed into
-  whatever the machine uses. `core.autocrlf=input` normalizes that away on commit and hides it,
-  which is the trouble: on a machine without the setting it goes to a public repository as a
-  line-ending change nobody asked for. `scripts/render-diagrams.py` had the same omission, as did
-  the token cache, the pipx metadata rewrite and the adapter index – while `gen-cli-docs.py` and
-  `release-notes.py` beside them were already spelling `newline=""` out, which is the only reason
-  the rule was recognizable as a convention rather than a taste.
+- **`scripts/changelog-link.py` no longer rewrites the changelog with the platform's line
+  ending.** One appended link handed back four files with every line changed. The same omission is
+  fixed in `render-diagrams.py`, the token cache, the pipx metadata and the adapter index.
   ([#22](https://github.com/keyfire/elemctl/pull/22))
 
 ### Documentation
-- **The shared guard is pinned to `docsguard@v0.5.0`.** The release adds the second convention of
-  the sources – a text file written without naming `newline` takes the platform's line ending –
-  beside the one about the encoding of a started process. The pin is raised in a change of its
-  own, ahead of anything that uses it, which is what the order in `CLAUDE.md` asks for: a run
-  that goes red on a change made there goes red in the repository that asked for the change.
+- **The shared guard is pinned to `docsguard@v0.5.0`.** That release adds a second convention for
+  the sources: a text file written without an explicit `newline` takes the platform's line ending.
+  The pin goes up on its own, ahead of anything that uses it.
   ([#21](https://github.com/keyfire/elemctl/pull/21))
 
 ## 2026-09-11 – 0.39.0, 0.40.0
 
 ### Added
-- **`get_build` on the MCP surface: the whole card of one build.** The listing was there and the
-  card was not, so an agent after the manifest name, the vendor or the comment of a build had to
-  fall back to the CLI. The tool is addressed by the build VERSION – an id is accepted as well
-  and looked up in the listing, because the id of a card is not an address the platform's method
-  understands. ([#14](https://github.com/keyfire/elemctl/pull/14))
-- **`--verify` for `apps create` and `apps ensure`, and a `verify` parameter of the MCP tools
-  `create_app` and `ensure_app`.** The proof that a build really landed lived in `deploy`,
-  `apps apply` and `verify-deploy`; raising a stand had to call it separately afterwards. The
-  report now comes in the `verify` field of the answer. ([#5](https://github.com/keyfire/elemctl/pull/5))
+- **`get_build` returns the card of a single build over MCP.** The listing was there, the card was
+  not, so an agent after a manifest name, a vendor or a build comment had to drop to the CLI. The
+  tool is addressed by build version, and an id works too.
+  ([#14](https://github.com/keyfire/elemctl/pull/14))
+- **`apps create` and `apps ensure` verify the apply themselves, through `--verify` and the
+  `verify` parameter over MCP.** The check used to live only in `deploy`, `apps apply` and
+  `verify-deploy`, so a freshly raised stand needed a second call. The report arrives in the
+  `verify` field. ([#5](https://github.com/keyfire/elemctl/pull/5))
 
 ### Changed
-- **What kind of build listing the reader is looking at is judged by the numbering, not by the
-  length.** The line under a listing was chosen by a threshold of thirty – a number measured
-  once on one installation, back when we believed the platform capped the store. It does not:
-  it deletes the builds nobody uses. The answer now judges itself – the platform hands out the
-  numbers of a base version one after another, so a number the listing has not got is a build
-  already taken away. Thirty-one builds in a row are no longer called a remnant, and a short
-  listing with a hole in it no longer passes for the whole history. Whether there are gaps is
-  said, never how many numbers are missing - a live listing showed twenty thousand of them,
-  left by an auto-increment that once jumped a base, and a count of "deleted builds" would have
-  been a fabrication. `ASSEMBLY_STORE_LIMIT` is gone, `builds_summary` takes the builds
-  themselves instead of their count, and the message key `client.builds-summary-capped` is now
-  `client.builds-summary-trimmed`. ([#13](https://github.com/keyfire/elemctl/pull/13))
-- **A command that only works locally no longer accepts the connection options.** `build` and
-  `inspect` took `--env-file`, `--base-url` and the credentials and dropped them without a word –
-  a call then LOOKED like a build bound to a stand, and twice it sent the reader looking for
-  whether a local build goes to the server. **A behaviour change:** that is a refusal with exit
-  code 1 now, and it says outright that a local build never calls the platform and reserves no
-  version number there, and which commands do. Only the OPTIONS are refused: the environment
-  variables and a `.env` next to the project still change nothing about a build.
+- **The summary under a build listing judges by gaps in the numbering, not by a threshold of
+  thirty.** The platform hands out the numbers of one base version in sequence, so a missing
+  number is a build it has already removed. `ASSEMBLY_STORE_LIMIT` went with the threshold.
+  ([#13](https://github.com/keyfire/elemctl/pull/13))
+- **`build` and `inspect` refuse the connection options.** `--env-file`, `--base-url` and the
+  credentials used to be dropped without a word, which made the call look like a build tied to a
+  stand. A behaviour change: it is a refusal with exit code 1 now.
   ([#7](https://github.com/keyfire/elemctl/pull/7))
-- **The build listing is described as it really works.** We believed the platform capped builds
-  per project and pushed old ones out; in fact it deletes the ones nobody uses, and age plays no
-  part – the build an application runs, the project's first build and a release build stay, the
-  rest goes. The listing's summary and the Console API pages were rewritten. ([#6](https://github.com/keyfire/elemctl/pull/6))
-- **Waiting means verifying: `--wait` no longer hands back a card on trust.** A failed apply is
-  rolled back to the previous build and the application comes up running all the same, so the
-  card said nothing about the build being served. **A behaviour change:** `--wait` ends with the
-  check and exits 1 when it does not pass, `--no-verify` brings the plain wait back, and an
-  application `ensure` created stops answering `applied: true` unchecked. ([#5](https://github.com/keyfire/elemctl/pull/5))
+- **The build listing is described the way the platform really works.** We thought it capped
+  builds per project and pushed the old ones out; in fact it deletes the builds nobody uses. The
+  listing summary and the Console API pages were rewritten.
+  ([#6](https://github.com/keyfire/elemctl/pull/6))
+- **`--wait` ends with a check instead of taking the card on trust.** A failed apply rolls back to
+  the previous build and the application comes up running all the same, which the card does not
+  show. A behaviour change: a failed check exits 1, and `--no-verify` brings the plain wait back.
+  ([#5](https://github.com/keyfire/elemctl/pull/5))
 
 ### Fixed
-- **The correction about automatic build deletion reached the rest of the pages.** The Console API
-  sections describe the listing as it really works, while the CLI requirements, the MCP server
-  pages, the hint of the `list_builds` tool and the comments in the code still told of a store
-  limit and of older builds being pushed out – two different models inside one document. There is
-  one now: the platform deletes the builds nobody uses, and age plays no part.
-  ([#9](https://github.com/keyfire/elemctl/pull/9))
-- **`builds get` did not work at all: a build card is addressed by its version.** Our pages
-  claimed the method takes a UUID only and answers a version with a 400 – so the command dutifully
-  turned a version into an id, and the platform answered 404 "no build with that version". Live
-  calls on two installations of different ages say the opposite: the last segment of the address
-  is the version, the way the method names it, and the id of a card is not an address. The command
-  now takes both forms – the value is looked up in the build list and the version taken from
-  there, and a refused address is retried with the id, for an installation that wants that form. A
-  refusal on the merits (a 500 on deleting a build a live application was created from, say) is
-  never retried with another spelling. The Console API pages were corrected.
+- **The correction about automatic build deletion reached the remaining pages and hints.** The CLI
+  requirements, the MCP server pages, the `list_builds` hint and the code comments still told of a
+  store limit. There is one model now. ([#9](https://github.com/keyfire/elemctl/pull/9))
+- **`builds get` works at last: a build card is addressed by its version.** Our pages claimed the
+  method takes a UUID only, so the command turned the version into an id and got a 404 back. Live
+  calls on two installations proved otherwise, and both forms are accepted now.
   ([#8](https://github.com/keyfire/elemctl/pull/8))
 
 ### Documentation
-- **The process-encoding convention is judged by the shared guard.** A process read as text has
-  to name `encoding="utf-8"`, and the reading that says so was written here while belonging
-  nowhere in particular: the engine and the bridge start processes the same way and have the
-  same silent failure waiting. `python_sources`, `process_starts`, `asks_for_text`,
-  `encoding_problems` and `process_encoding_problems` now come from `docsguard`, and what stays
-  here is the list of folders – which of them hold code that starts processes is a fact about
-  this repository. The findings are the same ones on the same data: every process start of every
-  Python file here, plus nineteen provocations, was snapshotted before and after the move and
-  the two snapshots are identical. The pin goes up to `v0.4.0` with it, the way `CLAUDE.md` says
-  a pin is raised. ([#19](https://github.com/keyfire/elemctl/pull/19))
-- **The shared documentation guard is installed by tag, and raising that pin is a change of its
-  own.** On `@main` a commit in `docsguard` reached a run here in the middle of unrelated work: a
-  red run caused by no commit of this repository, and one nobody reads. The order of merging –
-  the shared package first, the consumer second – stayed in somebody's head as well. Every
-  workflow now names the same tag, `CLAUDE.md` says how it goes up, and `tests/test_workflows.py`
-  fails when the workflows drift apart: a suite green against one version of the guard while the
-  publication runs against another is the difference nobody looks for.
-  ([#18](https://github.com/keyfire/elemctl/pull/18))
-- **A process read as text has to name its encoding, and a check says so.** Every call in the
-  repository already did – and then a new script did not, and the failure was the silent kind:
-  the output of a generator naming the Russian pages it writes was decoded with the code page of
-  the console, the names came back as replacement characters, the text was lost, and the exit
-  code went on saying the run had gone well. The convention is written down in `CLAUDE.md` with
-  both of its halves – the reader names `encoding="utf-8"`, and a Python script started from
-  here is given `PYTHONIOENCODING=utf-8` so that it writes what the reader reads – and
-  `tests/test_conventions.py` reads the sources with `ast` and fails on a call without it. It
-  found two test helpers still decoding with the code page of the machine; both are fixed.
+- **The shared `docsguard` package took over the process-encoding check.** It was written here,
+  though the engine and the bridge start processes the same way and face the same silent failure.
+  What stays here is the list of folders; the pin goes up to `v0.4.0`.
+  ([#19](https://github.com/keyfire/elemctl/pull/19))
+- **The shared guard is installed by tag, and raising the pin is a change of its own.** On `@main`
+  a `docsguard` commit landed in a run here in the middle of unrelated work, and a red run caused
+  by no commit of ours is one nobody reads. `tests/test_workflows.py` fails when the workflows
+  name different tags. ([#18](https://github.com/keyfire/elemctl/pull/18))
+- **A process read as text has to name its encoding, and a test now says so.** A new script did
+  not, and the failure was silent: the Russian page names came back as replacement characters
+  while the exit code kept reporting success. The convention is written down in `CLAUDE.md`.
   ([#17](https://github.com/keyfire/elemctl/pull/17))
-- **The claim mechanics moved into the shared guard.** One fact told in several documents at
-  once is not an elemctl problem – the engine and the bridge keep their documentation the same
-  way and have the same defect waiting – so `Claim`, `claim_texts` and `claim_problems` now come
-  from the `docsguard` package, and the table of statements stays here, where the facts are
-  known. A place is still written the way a reader writes it, the changelog is still left out of
-  the search, and the guard finds exactly what it found before – the same wordings on the same
-  data. ([#16](https://github.com/keyfire/elemctl/pull/16))
-- **One command rebuilds every generated page.** Two generators write four pages – the command
-  reference from `elemctl --help`, the mirrored changelog and the README sections from the root
-  editions – and each generator was a thing to remember on its own. The mirrors were the first to
-  be forgotten, which turned `main` red on the guard; the fix tied them to the changelog link and
-  left the command reference as the last "do not forget" of exactly the same shape.
-  `python scripts/rebuild-docs.py` runs both generators, reports each half and answers with an
-  exit code – one failing generator no longer hides the other. The changelog link step calls that
-  one step, and the guard's finding, the note in the head of a generated page and the repository
-  conventions all name it. ([#15](https://github.com/keyfire/elemctl/pull/15))
-- **The guard now catches one fact told in two different ways.** A statement about the platform
-  lives in the specification, on the Console API page, in the MCP page, in the README and in the
-  docstrings at once, and it is corrected in one of them – twice that left the rest telling the
-  model it replaced, once inside a single document. The statements that live in many places are
-  listed as `CLAIMS` in `scripts/check_docs.py`: every place the claim names has to state it,
-  and the superseded wording – in the spelling it really had – may appear nowhere but the
-  changelog. The two that drifted are covered: automatic deletion of unused builds and the
-  address of a build card. ([#12](https://github.com/keyfire/elemctl/pull/12))
-- **The pull request link and the mirror rebuild are one step now.** A link can only be written
-  once the pull request exists, so it arrives in a commit of its own – and the mirrored
-  `docs/changelog*.md` pages kept being left behind, which turned `main` red on the documentation
-  guard. `python scripts/changelog-link.py <number>` does both halves: it appends the link to the
-  entries of the topmost section in both editions and rebuilds the mirrors right after, and the
-  guard's finding now names the command instead of saying "regenerate the mirrors".
+- **The claim mechanics moved into the shared guard.** One fact told in several documents at once
+  is not an elemctl problem: the engine and the bridge keep their documentation the same way.
+  `Claim`, `claim_texts` and `claim_problems` come from `docsguard`.
+  ([#16](https://github.com/keyfire/elemctl/pull/16))
+- **`python scripts/rebuild-docs.py` rebuilds every generated page in one run.** Two generators
+  write four pages, and each was a thing to remember on its own; the mirrors went first. The
+  command answers with an exit code, so a failing generator no longer hides the other.
+  ([#15](https://github.com/keyfire/elemctl/pull/15))
+- **The guard catches one statement told in two different ways.** A fact about the platform lives
+  in the specification, on the Console API and MCP pages, in the README and in the code comments
+  at once, but it gets corrected in one of them. Such facts are listed as `CLAIMS` in
+  `scripts/check_docs.py`. ([#12](https://github.com/keyfire/elemctl/pull/12))
+- **The pull request link and the mirror rebuild are one step.** A link can only be written once
+  the pull request exists, so it arrives in a commit of its own, and the mirrors kept being
+  forgotten. `python scripts/changelog-link.py <number>` does both halves.
   ([#11](https://github.com/keyfire/elemctl/pull/11))
 
 ## 2026-09-10 – 0.37.0, 0.38.0
