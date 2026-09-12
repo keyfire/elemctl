@@ -40,22 +40,37 @@ def guard():
 #: claims name source files too, and a copy without them would turn every claim into a finding
 #: about a place the repository has not got.
 COPIED = ("README.md", "README.ru.md", "CHANGELOG.md", "CHANGELOG.ru.md", "CLAUDE.md",
-          "pyproject.toml")
+          "ORIGIN.md", "pyproject.toml")
+
+#: The folders of Python the guard reads the comments of, beside `src`, which is copied whole
+#: for the claims. Only the `.py` files travel: that is all the attribution check opens, and
+#: the fixtures under `tests/` are megabytes that no check here reads.
+PYTHON_FOLDERS = ("scripts", "tools", "tests")
+
+
+def _python_only(folder, names):
+    """Everything a copy of a source folder leaves behind: whatever is not Python or a folder."""
+    return [name for name in names
+            if not name.endswith(".py") and not (Path(folder) / name).is_dir()]
 
 
 @pytest.fixture()
 def sabotage(guard, tmp_path, monkeypatch):
-    """Run the guard over a COPY of the pages and of the documents at the root.
+    """Run the guard over a COPY of the pages, the documents at the root and the sources.
 
     The root moves to the copy as well, and not only for the tests that edit a document: a
     jargon finding names a page by its path FROM the root, so a root left pointing at the real
-    repository makes that reading fail on a page that does not live under it.
+    repository makes that reading fail on a page that does not live under it. The Python
+    folders travel for the same reason - the attribution check reads the comments of the
+    sources, and a folder it names and cannot find is a finding of its own.
     """
     def run(edit=lambda name, text: text, *, documents: dict[str, str] | None = None,
             extra: dict[str, str] | None = None):
         docs = tmp_path / "docs"
         shutil.copytree(ROOT / "docs", docs)
         shutil.copytree(ROOT / "src", tmp_path / "src")
+        for folder in PYTHON_FOLDERS:
+            shutil.copytree(ROOT / folder, tmp_path / folder, ignore=_python_only)
         for name in COPIED:
             shutil.copy(ROOT / name, tmp_path / name)
         for name, text in (documents or {}).items():

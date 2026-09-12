@@ -18,6 +18,13 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
 ## Unreleased
 
 ### Added
+- **The documentation guard catches a sentence that explains a change by naming who asked for
+  it.** The repository has one author, so that sentence gives the reader nothing to act on and
+  suggests the code was written for somebody else; what belongs there is what the previous
+  behaviour or text got wrong. Both editions of the pages and documents are read, and with them
+  the comments and docstrings of `src`, `scripts`, `tests` and `tools`. The table comes from
+  `docsguard@v0.10.0` and catches a turn of phrase rather than a word, because an owner is a
+  word of the subject as well. ([#30](https://github.com/keyfire/elemctl/pull/30))
 - **The conventions guard requires a process started from `src` to name its stdin.** The check
   reads the shipped package alone. A script, a tool and a test run from a console, and a console
   stdin is safe to hand on. ([#29](https://github.com/keyfire/elemctl/pull/29))
