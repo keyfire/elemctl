@@ -26,14 +26,14 @@ report = deploy_from_sources(
 assert report.ok, report.problems
 ```
 
-`list_apps()` answers with the live applications: the deleted ones stay in the
+`list_apps()` answers with the live applications. Deleted ones stay in the
 platform list under the `Deleted` status, and a stand a few months old carries
-hundreds of them – pass `include_deleted=True` for the full list.
-`list_apps_counted()` returns the same list under `items` together with the
-counters the CLI and the MCP tool report – `total`, `live` and `shown`.
+hundreds of them; pass `include_deleted=True` for the full list.
+`list_apps_counted()` returns the same list under `items` and adds the counters
+the CLI and the MCP tool report: `total`, `live` and `shown`.
 
-A compilation check that does not touch the working application – the same cycle
-the `probe` command runs:
+To check compilation without touching the working application, run the same
+cycle the `probe` command does:
 
 ```python
 from elemctl.probe import probe_project
@@ -47,11 +47,11 @@ assert report.ok, report.messages
 ## Build format
 
 
-`.xasm` (application) and `.xlib` (library) are a ZIP archive:
+`.xasm` for an application and `.xlib` for a library are both ZIP archives:
 
 ```
 Assembly.yaml            # manifest: ProjectKind, Vendor, Name, Version, ...
 {vendor}/{name}/...      # project files: .yaml, .xbsl, resources
 ```
 
-The project directory must follow the `{repo}/{vendor}/{name}/Проект.yaml` layout – paths inside the archive are built relative to the repository root. The project kind (application/library) is determined by the `ВидПроекта` field in `Проект.yaml`. When an application references libraries whose source projects are present under the same repository root, their files are included in the application archive automatically (including transitive local dependencies). A referenced library that is not present locally remains an external platform dependency.
+The project directory must follow the `{repo}/{vendor}/{name}/Проект.yaml` layout, because paths inside the archive are built relative to the repository root. The `ВидПроекта` field in `Проект.yaml` says whether the project is an application or a library. When an application references libraries whose source projects sit under the same repository root, their files go into the application archive on their own, transitive local dependencies included. A referenced library that is not present locally remains an external platform dependency.

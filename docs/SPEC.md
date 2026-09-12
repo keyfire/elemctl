@@ -2,15 +2,15 @@
 
 **English** · [Русский](SPEC.ru.md)
 
-This document describes the Console API v2 contract of the 1C:Enterprise.Element platform (1cmycloud.com), the build file format, and the requirements for the elemctl tool. The specification contains only facts about the platform interface and product requirements – the implementation is designed from scratch.
+This document describes the Console API v2 contract of the 1C:Enterprise.Element platform (1cmycloud.com), the build file format, and the requirements for the elemctl tool. It holds only facts about the platform interface and requirements for the product: the implementation is designed from scratch.
 
 ## 1. Purpose and package composition
 
 The `elemctl` Python package consists of three layers on top of a shared core:
 
-1. **Library** – a programmatic client for Console API v2 and high-level operations (build, deploy). Python standard library only.
-2. **CLI** – the `elemctl` console command (entry point `elemctl` in `[project.scripts]`).
-3. **MCP server** – the same operations exposed as tools for AI agents; stdio transport; the `mcp>=1.2,<3` dependency is included as the optional extra `elemctl[mcp]` (uses the ergonomic server class of the `mcp` package: `FastMCP` in mcp 1.x, `MCPServer` in mcp 2.x).
+1. **Library** – a programmatic client for Console API v2 and high-level operations: build and deploy. Python standard library only.
+2. **CLI** – the `elemctl` console command, entry point `elemctl` in `[project.scripts]`.
+3. **MCP server** – the same operations exposed as tools for AI agents, over the stdio transport. The `mcp>=1.2,<3` dependency comes as the optional extra `elemctl[mcp]`. It uses the ergonomic server class of the `mcp` package: `FastMCP` in mcp 1.x, `MCPServer` in mcp 2.x.
 
 Package requirements: name `elemctl`, version 0.1.0, Python >= 3.10, MIT license, author KeyFire, `src/elemctl/` layout, `dev` extra with pytest. The LICENSE, README.md, .env.example, and .gitignore files are given and are not modified.
 
@@ -36,7 +36,7 @@ Environment variables:
 | `ELEMENT_TLS_STRICT` | strict RFC 5280 certificate checks; `true` by default | no |
 | `ELEMENT_TLS_VERIFY` | certificate and hostname verification; `true` by default | no |
 
-.env format: `KEY=VALUE` lines; empty lines and lines starting with `#` are skipped; a leading `export ` prefix and single/double quotes around the value are allowed; UTF-8 encoding, a BOM is possible (read as `utf-8-sig`). A trailing slash in `ELEMENT_BASE_URL` is trimmed.
+.env format: `KEY=VALUE` lines. Empty lines and lines starting with `#` are skipped. A leading `export ` prefix is allowed, and the value may be wrapped in single or double quotes. The encoding is UTF-8 and a BOM is possible, so read the file as `utf-8-sig`. A trailing slash in `ELEMENT_BASE_URL` is trimmed.
 
 ## 3. Authentication
 
@@ -45,19 +45,19 @@ Obtaining a token: `POST {base}/console/sys/token`
 - header `Authorization: Basic base64(client_id:client_secret)`;
 - body `grant_type=client_credentials`, Content-Type `application/x-www-form-urlencoded`.
 
-The response is a JSON object; the token is in the first non-empty of the fields `id_token`, `token`, `value`, `access_token`. Special case: the `access_token` value may be the string `"Not implemented"` – this is not a token, ignore the field.
+The response is a JSON object, and the token sits in the first non-empty of the fields `id_token`, `token`, `value`, `access_token`. Special case: the `access_token` value can be the string `"Not implemented"`. That is not a token, so skip the field.
 
 All other requests use the header `Authorization: Bearer {token}`.
 
-The token lives for about an hour: cache it in a file in the system temporary directory (`tempfile.gettempdir()`, NOT a hardcoded `/tmp` – the tool also runs on Windows) with a TTL of 1 hour; the cache key must distinguish base_url + client_id pairs. On a 401 response, refresh the token forcibly and retry the request once.
+The token lives for about an hour. Cache it in a file in the system temporary directory that `tempfile.gettempdir()` reports, not in a hardcoded `/tmp`, because the tool also runs on Windows. The cache lives an hour, and its key must distinguish base_url and client_id pairs. On a 401 response, refresh the token forcibly and retry the request once.
 
 ## 4. Console API v2 contract
 
-Common prefix: `{base}/console/api/v2`. Request and response bodies are JSON (except for build upload). Field names are in kebab-case.
+Common prefix: `{base}/console/api/v2`. Request and response bodies are JSON, apart from the build upload. Field names are in kebab-case.
 
 ### 4.1. Applications
 
-- `GET /applications` – list. The `name` query parameter exists but the platform IGNORES it and returns the full list (verified against a live instance) – name filtering must be done client-side.
+- `GET /applications` – list. The `name` query parameter exists, but the platform ignores it and returns the full list. That was verified against a live instance, so filtering by name has to happen on the client.
 - `GET /applications/{id}` – card. Significant response fields: `id`, `status`, `uri` (address of the running application), `error` (error text, if any), `technology-version`, `date-updated`, `display-name`, `publication-context`, `source` (an object with source information, containing among other things `project-version` – the version of the applied build).
 - `POST /applications` – create. Body:
   - `source` – the object `{"type": "repository"}` plus exactly one of the keys: `project-version-id` (id of the source build) or `image-id` (project id);
@@ -82,52 +82,52 @@ Application statuses: stable `Running`, `Stopped`, `Error`; transitional `Starti
 ### 4.3. Spaces and projects
 
 - `GET /spaces` – list of spaces.
-- `GET /projects` – list of projects; `GET /projects/{id}` – card; `DELETE /projects/{id}` – delete. The list is answered in full whatever the query, and deleted projects stay in it under the `deleted` flag with their former id: filtering by name and hiding the deleted ones is the client's work, as with applications (section 4.1).
+- `GET /projects` – list of projects; `GET /projects/{id}` – card; `DELETE /projects/{id}` – delete. The list is answered in full whatever the query, and deleted projects stay in it under the `deleted` flag with their former id. Filtering by name and hiding the deleted ones is the client's work, as with applications (section 4.1).
 
 ### 4.4. Project builds (assemblies)
 
 - Uploading a build file – a binary POST (Content-Type `application/octet-stream`, body – the file bytes):
   - `POST /projects/{id}/assemblies` – add a build to an existing project;
   - `POST /projects` – create a new project from a build.
-  The only query parameter (optional): `SpaceId`; note that its name is in PascalCase. The method has NO `BranchName`/`CommitId`/`CommitMessage` parameters: the Console API reference does not list them, and the server ignores them when sent (a direct POST with a real hash answers `commit-id: null`) - the commit on a build card only comes from the project's link to its repository. The client does not send them. The response contains the id of the created build in one of the fields: `image-id`, `assembly-id`, or `id` (check in this order), and an `artifact` object describing the project the build landed in: `artifact-id` (the project id – it opens as a project card), `configuration-id` (the `Ид` of `Проект.yaml`) and `name` (the project presentation). The console shows a project under the name of the last uploaded build (the manifest `Name`), so a build uploaded into a project under a different name renames that project and its group, and deleting the build does not undo it. The client refuses such an upload, naming the price; a deliberate upload of a foreign build takes `--force-rename`. The check is best effort: when the names cannot be compared (an unreadable manifest, an unreachable project card) the upload proceeds as before – not being able to compare is no proof of danger.
-- **A project is identified by the pair `Vendor` + `Name` of the manifest** (section 6.8). `POST /projects` therefore does not always create a project: when a project with that pair already exists, the build is added to it and its `artifact-id` comes back in the response. Two ways to hit a 409 `ALREADY_EXISTS`: uploading a version that is already there ("Версия сборки ... уже присутствует в группе проекта") and registering the same vendor+name under another project ("Сборка с именем поставщика ... уже зарегистрирована в другом проекте") – the latter even with a freshly generated `Ид` in `Проект.yaml`.
-- `GET /projects/{id}/assemblies` – list of builds. Each element contains `assembly-version` (a string like `1.0-42`) and an id (`id` or `image-id`). The response may be either an array or an object with the list in the `items` or `assemblies` field. **The method has no pages and reports no total:** `limit`, `size`, `pageSize`, `count`, `top`, `maxResults`, `page`, `pageNumber`, `offset`, `skip`, `from` and `start` are all ignored – the answers to every one of them match byte for byte, and neither the headers nor the body carry a counter or a cursor (verified by live calls on two installations). **The platform deletes builds nobody uses,** and age has nothing to do with it – the vendor's help calls this automatic deletion of unused builds. A build an application runs is kept, and so are a library build another project uses, a release build, the project's default build and the build the project's repository was created from; everything else goes when the collector gets to it. Seen live: seventeen builds of one day's series were made and one survived – the one the application runs – while a build from two months earlier is still listed because it is the project's first. So a listing is not the project's history and not a page of it: it is what survived, and the client must say so.
-- `GET /projects/{id}/assemblies/{version}` – build card; `DELETE .../{version}` – delete. The last segment is what the method calls it – the VERSION (`assembly-version`/`project-version`, a string like `1.0-42`), not the id of the card: a UUID there is answered with a 404 "Assembly with version <uuid> not found". Checked live on two installations of different ages – both behave this way; the pages used to claim the opposite (a UUID only, a version getting a 400 "Version is not a valid UUID"), and following that claim left the card unreachable whichever form was given. An id is an address a caller holds all the same – the build list prints it, an upload answers with one – so the client accepts both and looks the value up in the build list to get the version the method takes; a value in no card is named as missing instead of becoming a 404 out of the depths of the platform. A refusal of the address (400 or 404) makes the client try the id as the segment too: no reachable installation wants it, but the 400 the pages described had to come from somewhere, and the second spelling costs one request. Note that the platform renumbers the manifest version on upload. Deleting a build is rejected with a 500 while an application created from it still exists (section 6.9); once that application is really gone, the same request succeeds. A 500 is an answer and not a misunderstood address – it is raised as it is, never retried with another spelling.
+  The only query parameter, and an optional one at that, is `SpaceId`; note that its name is in PascalCase. The method has no `BranchName`, `CommitId` or `CommitMessage` parameters: the Console API reference does not list them, and the server ignores them when sent. A direct POST with a real hash answers `commit-id: null`. The commit on a build card only comes from the project's link to its repository, and the client does not send those parameters. The response carries the id of the created build in one of the fields `image-id`, `assembly-id` or `id`, checked in that order. Next to it sits an `artifact` object describing the project the build landed in: `artifact-id` is the project id and opens as a project card, `configuration-id` is the `Ид` of `Проект.yaml`, and `name` is the project presentation. The console shows a project under the name of the last uploaded build, meaning the manifest `Name`. So a build uploaded into a project under a different name renames that project and its group, and deleting the build does not undo it. The client refuses such an upload and names the price; uploading a foreign build on purpose takes `--force-rename`. The check is best effort: when the names cannot be compared, because the manifest is unreadable or the project card is unreachable, the upload proceeds as before. Not being able to compare is no proof of danger.
+- **A project is identified by the pair `Vendor` + `Name` of the manifest** (section 6.8). `POST /projects` therefore does not always create a project: when a project with that pair already exists, the build is added to it and its `artifact-id` comes back in the response. There are two ways to hit a 409 `ALREADY_EXISTS`. The first is uploading a version that is already there, answered with "Версия сборки ... уже присутствует в группе проекта". The second is registering the same vendor and name under another project, answered with "Сборка с именем поставщика ... уже зарегистрирована в другом проекте"; that one happens even with a freshly generated `Ид` in `Проект.yaml`.
+- `GET /projects/{id}/assemblies` – list of builds. Each element contains `assembly-version`, a string like `1.0-42`, and an id in `id` or `image-id`. The response is either an array or an object with the list in the `items` or `assemblies` field. **The method has no pages and reports no total.** `limit`, `size`, `pageSize`, `count`, `top`, `maxResults`, `page`, `pageNumber`, `offset`, `skip`, `from` and `start` are all ignored: the answers to every one of them match byte for byte, and neither the headers nor the body carry a counter or a cursor. Verified by live calls on two installations. **The platform deletes builds nobody uses,** and age has nothing to do with it: the vendor's help calls this automatic deletion of unused builds. A build an application runs is kept, and so are a library build another project uses, a release build, the project's default build and the build the project's repository was created from. Everything else goes when the collector gets to it. Seen live: seventeen builds of one day's series were made and one survived, the one the application runs, while a build from two months earlier is still listed because it is the project's first. So a listing is not the project's history and not a page of it. It is what survived, and the client must say so.
+- `GET /projects/{id}/assemblies/{version}` – build card, `DELETE .../{version}` – delete. The last segment is what the method calls it: the version, which is `assembly-version` or `project-version`, a string like `1.0-42`. It is not the id of the card: a UUID there is answered with a 404 "Assembly with version <uuid> not found". Checked live on two installations of different ages, both behave this way. The pages used to claim the opposite, that only a UUID works and a version gets a 400 "Version is not a valid UUID"; anyone following that claim was left with an unreachable card whichever form they gave. An id is still an address a caller holds: the build list prints it, and an upload answers with one. So the client accepts both forms and looks the value up in the build list to get the version the method takes. A value in no card is named as missing instead of becoming a 404 out of the depths of the platform. When the address is refused with a 400 or a 404, the client tries the id as the segment too: no reachable installation wants it, but the 400 the pages described had to come from somewhere, and the second spelling costs one request. Note that the platform renumbers the manifest version on upload. Deleting a build is rejected with a 500 while an application created from it still exists (section 6.9); once that application is really gone, the same request succeeds. A 500 is an answer, not a misunderstood address: it is raised as it is and never retried with another spelling.
 
-Comparing build versions: by the numeric suffix after the last hyphen (`1.0-10` is newer than `1.0-9`; lexicographic comparison gives the wrong order).
+Build versions are compared by the numeric suffix after the last hyphen: `1.0-10` is newer than `1.0-9`. Lexicographic comparison gives the wrong order.
 
 ### 4.5. Development environment branches
 
 - `GET /branches` – list; optional queries `project-id`, `name`.
 - `GET /branches/{id}` – card. Fields: `name`, `kind`, `project`, `application`, `source-branch`, `deletion-mark`, `version-stamp`.
 - `POST /branches` – create. Body: `name`, `kind: "development"`, `project: {"id": "<id>"}`, optionally `application: {"id": "<id>"}`.
-- `PUT /branches/{id}` – modify. The platform uses optimistic locking: first read the card, then send a body assembled from the current values – `name`, `kind`, `deletion-mark`, `version-stamp` (must be returned as is), `source-branch` and `application` – collapsed to `{"id": ...}` (or `{"name": ...}` if there is no id). To rebind to an application, replace `application` with `{"id": "<new app-id>"}`.
-- Accepting branch changes (merge) – the same `PUT /branches/{id}` with an additional body key `write-parameters: {"merge": true}`.
+- `PUT /branches/{id}` – modify. The platform uses optimistic locking, so read the card first, then send a body assembled from the current values. Those are `name`, `kind`, `deletion-mark` and `version-stamp`, which has to come back exactly as it was. Collapse `source-branch` and `application` to `{"id": ...}`, or to `{"name": ...}` when there is no id. To rebind to an application, replace `application` with `{"id": "<new app-id>"}`.
+- Branch changes are accepted by that same `PUT /branches/{id}` with an additional body key `write-parameters: {"merge": true}`.
 - `DELETE /branches/{id}` – delete the branch.
 
-The tool works ONLY with the documented Console API v2. Internal (undocumented) platform console APIs are not used and not described.
+The tool works only with the documented Console API v2. It neither uses nor describes the internal, undocumented APIs of the platform console.
 
 ### 4.6. Application tasks
 
-`GET /tasks/application-tasks` – list of tasks for all applications (there is no server-side filter – filter on the client). Task fields: `id`, `application-id`, `status` (including `Error`, `Failed`), `operation-type`, `error-message`, `start-date` (ISO 8601, may end with `Z`).
+`GET /tasks/application-tasks` – list of tasks for all applications. There is no server-side filter, so filter on the client. Task fields: `id`, `application-id`, `status` (including `Error`, `Failed`), `operation-type`, `error-message`, `start-date` (ISO 8601, may end with `Z`).
 
 ### 4.7. User lists
 
-A user list holds the users of an application (an application has one of its own, named after it) or of the control panel (one per installation). What the panel calls the sign-in settings lives here.
+A user list holds either the users of an application, which has a list of its own named after it, or the users of the control panel, which has one list per installation. What the panel calls the sign-in settings lives here.
 
-- `GET /user-lists` – the list of user lists: `id`, `presentation`, `space-id`. There is no server-side name filter – filter on the client.
+- `GET /user-lists` – the list of user lists: `id`, `presentation`, `space-id`. There is no server-side name filter, so filter on the client.
 - `GET /user-lists/{id}` – the full card: `self-registration`, `password-policy`, `password-policy-enabled`, `account-services-settings`, `confirmations`, the gateways, `include-personal-data-in-messages`.
 - `GET|PUT /user-lists/{id}/settings/self-registration` – `{enabled, phone-required, email-required}`. This is the panel's "allow users to register themselves". The PUT wants the whole object.
-- `GET|POST /user-lists/{id}/settings/account-services-settings`, `PUT|DELETE .../{account-service-id}` – the account services of the list. An entry is `{account-service-id, account-service-type, local-id, enabled, create-user-on-auth, additional-settings}`. The type `Local` is the one that authenticates by a password, so the panel's "allow signing in with a login and a password" is that entry being `enabled`; the other types (`OIDC`, `Cas`, `ActiveDirectory`, `Esia`) are external services. The PUT wants the whole entry back.
-- `GET /applications/{id}/userlists` (note: no dash) – the ids of the lists connected to the application; `POST` connects, `DELETE` disconnects. There are NO per-connection settings: the link is a set of ids and nothing more.
-- The application card names the application's own list in `default-user-list` – that is the list of its users, as opposed to the panel list also connected to it.
+- `GET|POST /user-lists/{id}/settings/account-services-settings`, `PUT|DELETE .../{account-service-id}` – the account services of the list. An entry is `{account-service-id, account-service-type, local-id, enabled, create-user-on-auth, additional-settings}`. The type `Local` authenticates by a password, so the panel's "allow signing in with a login and a password" is that entry being `enabled`. The other types are external services: `OIDC`, `Cas`, `ActiveDirectory`, `Esia`. The PUT wants the whole entry back.
+- `GET /applications/{id}/userlists` – the ids of the lists connected to the application; `POST` connects, `DELETE` disconnects. Note the spelling: no dash here. There are no per-connection settings: the link is a set of ids and nothing more.
+- The application card names the application's own list in `default-user-list`. That is the list of its users, and the panel list connected to it is a separate one.
 
-Two things the panel can do and the API cannot, and both therefore stay manual:
+Two things the panel can do and the API cannot, so both stay manual:
 
-- the composition of the authentication FORMS of an application is not in the API at all;
-- the connection setting "users of the list are connected to the application automatically on sign-in" is not represented either – neither in `userlists` (a set of ids) nor in the application's `account-services-settings` (verified on a stand where the setting is on: nothing appears there).
+- the composition of an application's authentication forms is not in the API at all;
+- the connection setting "users of the list are connected to the application automatically on sign-in" is not represented either. It is in neither `userlists`, which is a set of ids, nor the application's `account-services-settings`; on a stand where the setting is on, nothing appears there.
 
-The rules for parsing the response of an account service (`presentation-rule`, `email-rule`, `phone-rule`, `response-kind` – JsonPath/XPath) are accepted in the body of an account service under the key `userPropertiesCalculationRules`. Two traps: the schema of the reference calls the same thing `calculation-rules` and the platform answers 400 to that spelling, and a GET never returns the rules – the setting is write-only, so an API client cannot confirm it applied.
+The rules for parsing the response of an account service are accepted in the body of an account service under the key `userPropertiesCalculationRules`. Those rules are `presentation-rule`, `email-rule`, `phone-rule` and `response-kind`, all of them JsonPath or XPath. There are two traps. The schema of the reference calls the same thing `calculation-rules`, and the platform answers 400 to that spelling. And a GET never returns the rules: the setting is write-only, so an API client cannot confirm it applied.
 
 ## 5. Build file format (.xasm / .xlib)
 
@@ -148,66 +148,66 @@ A build file is a ZIP archive (deflate):
 
   For a library (`ProjectKind: Library`), a `Release:` line (empty value) is added at the end; the file extension is `.xlib`, for an application – `.xasm`.
 
-- then the project files at paths `{vendor}/{name}/...` – relative to the repository root. The project directory must follow the scheme `{repo}/{vendor}/{name}/Проект.yaml`. For an application, locally available libraries declared in `Библиотеки`/`Libraries` are included recursively; a declared library without a project under the same repository root stays an external platform dependency. Unreferenced sibling projects are not included. Path separators in the archive are forward slashes (including on Windows).
+- then the project files at paths `{vendor}/{name}/...` relative to the repository root. The project directory must follow the scheme `{repo}/{vendor}/{name}/Проект.yaml`. For an application, locally available libraries declared in `Библиотеки`/`Libraries` are included recursively. A declared library without a project under the same repository root stays an external platform dependency. Unreferenced sibling projects are not included. Path separators in the archive are forward slashes, on Windows too.
 
 Build file name: `{Имя} {Version}.xasm` (with a space).
 
-Project metadata – from `Проект.yaml` (YAML; parsing flat top-level `key: value` pairs is sufficient, skip nested indented lines). Bilingual sources are a declared platform capability – a descriptor written with English keys deploys fine – so every key is read in both spellings: `Имя`/`Name`, `Поставщик`/`Vendor`, `Версия`/`Version` (base, e.g. `1.0`), `ВидПроекта`/`ProjectKind` (the value `Библиотека`/`Library` means a library, otherwise an application). The Russian spelling wins when both are present. The SERVICE FILE NAMES are bilingual too: the platform converter accepts `Project.yaml`/`Проект.yaml` and `Subsystem.yaml`/`Подсистема.yaml`, so the descriptor is looked up by both names everywhere – project discovery, local library dependencies, the archive inspection, the schema guard's availability probe.
+Project metadata comes from `Проект.yaml`. It is YAML, and parsing the flat top-level "key: value" pairs is enough; skip the nested indented lines. Bilingual sources are a capability the platform declares, and a descriptor written with English keys deploys fine, so every key is read in both spellings: `Имя`/`Name`, `Поставщик`/`Vendor`, `Версия`/`Version` (base, e.g. `1.0`) and `ВидПроекта`/`ProjectKind`. The value `Библиотека` or `Library` means a library; anything else means an application. When both spellings of a key are present, the Russian one wins. The service file names are bilingual too: the platform converter accepts `Project.yaml` and `Проект.yaml`, `Subsystem.yaml` and `Подсистема.yaml`. So the descriptor is looked up by both names everywhere: project discovery, local library dependencies, archive inspection, the schema guard's availability probe.
 
-Build version, if not set explicitly: `{base version}-{N+1}`, where N is the counter from the version of the project's latest build of the same base version – a project bumped to a new base version starts from `-1` again, whatever counters the old base reached. Without a last build of that base, the suffix comes from the CI run number in the environment – the first numeric value of `CI_PIPELINE_IID`, `GITHUB_RUN_NUMBER`, `BUILD_NUMBER` (in that order) – so a clean CI checkout does not produce `-1` on every run; with no CI number either, the version is `{base version}-1`.
+When the build version is not set explicitly, it is built as `{base version}-{N+1}`, where N is the counter from the version of the project's latest build of the same base version. A project bumped to a new base version starts from `-1` again, whatever counters the old base reached. With no last build of that base, the suffix comes from the CI run number in the environment: the first numeric value of `CI_PIPELINE_IID`, `GITHUB_RUN_NUMBER`, `BUILD_NUMBER`, in that order. Otherwise a clean CI checkout would produce `-1` every time. With no CI number either, the version is `{base version}-1`.
 
-Git metadata (commit hash, branch name) – from the git repository containing the project directory; if git is unavailable, leave them empty.
+Git metadata, meaning the commit hash and the branch name, comes from the git repository that contains the project directory. When git is unavailable, the fields stay empty.
 
 File selection for the archive:
 
-- inside resource directories (the literal directory name is `Ресурсы`) – at any level, including their subdirectories – files of ANY extension are included: per the platform documentation a resource is an arbitrary file (`.pdf`, `.htm`, `.mxl`, `.docx`, `.xsd` etc.);
+- inside resource directories, whose literal name is `Ресурсы`, files of any extension are included, at any level and in their subdirectories too: per the platform documentation a resource is an arbitrary file, such as `.pdf`, `.htm`, `.mxl`, `.docx` or `.xsd`;
 - outside resource directories only these extensions are included: `.yaml .xbsl .xbql .md .txt .json` (sources), `.png .svg .jpg .jpeg .gif .webp .ico` (images), `.css .htm .html .js .woff .woff2 .ttf .eot` (web resources);
 - the description files of a SOAP service client are included wherever they lie: `<Client>.Wsdl.<n>` and `<Client>.Xsd`. The platform puts them next to the project element rather than into a resource directory and forbids renaming them, so they are matched by name, not by extension;
 - the directories `.git`, `.claude`, `.github`, `__pycache__`, `node_modules`, `.venv` and all hidden ones (starting with a dot) are excluded;
-- the files `.gitignore`, `.env`, `.DS_Store` and `*.xasm`, `*.xlib` files are excluded – including inside resource directories.
+- the files `.gitignore`, `.env`, `.DS_Store` and any `*.xasm` or `*.xlib` are excluded, inside resource directories too.
 
 ### 5.1. Parsing a built archive
 
-The reverse of a build: given a `.xasm`/`.xlib` file – the manifest, the project properties from its `Проект.yaml` inside the archive, and the contents. It is needed to attach a library to a project without unpacking its sources.
+The reverse of a build: from a `.xasm` or `.xlib` file you get the manifest, the project properties from its `Проект.yaml` inside the archive, and the contents. It is needed to attach a library to a project without unpacking its sources.
 
-The layout inside a project (directories are the only source of truth about the contents):
+The layout inside a project; only the directories tell the truth about the contents:
 
-- a first-level directory is a **subsystem**; `Подсистема.yaml`/`Subsystem.yaml` is **optional** (a library subsystem may have none at all), so it cannot be relied upon when looking for subsystems;
-- a nested directory of a subsystem is a **package**; a package has no description file, every directory contributes a name segment;
+- a first-level directory is a **subsystem**. `Подсистема.yaml` or `Subsystem.yaml` is **optional**, and a library subsystem may have none at all, so it cannot be relied upon when looking for subsystems;
+- a nested directory of a subsystem is a **package**. A package has no description file, and every directory contributes a name segment;
 - the qualified name of a type: `{vendor}::{name}::{subsystem}[::{package}]::{TypeName}`. The same name without the last segment is what `Использование` and `импорт` take.
 
-Only types with `ОбластьВидимости: Глобально` (`VisibilityScope: Global`) are visible outside, in the project that attached the library (the default is `ВПодсистеме`/`InSubsystem`, the global scope is written explicitly). An English descriptor carries English VALUES as well – the enumeration values are read in both spellings.
+Only types with `ОбластьВидимости: Глобально`, in English `VisibilityScope: Global`, are visible outside, in the project that attached the library. The default is `ВПодсистеме`, or `InSubsystem`, and the global scope is written explicitly. An English descriptor carries English enumeration values as well, so those values are read in both spellings.
 
-Compatibility is checked against the `РежимСовместимости` property of `Проект.yaml`. The `ВерсияТехнологии` property **does not exist** in `Проект.yaml` – it belongs to the body of the Console API request that creates an application, not to the project file.
+Compatibility is checked against the `РежимСовместимости` property of `Проект.yaml`. The `ВерсияТехнологии` property **does not exist** in `Проект.yaml`: it belongs to the body of the Console API request that creates an application, not to the project file.
 
-## 6. Platform behavioral specifics (must be accounted for)
+## 6. Platform behaviour you have to account for
 
-1. **Silent rollback of build apply.** If applying a build to the application fails (e.g., a compilation error), the platform silently rolls the application back to the previous build and starts it – the `Running` status does NOT mean success. A reliable check of the deploy result:
-   - application tasks (section 4.6) with status `Error`/`Failed` whose `start-date` is not earlier than the moment the deploy started (do not count old errors from history!);
-   - comparison of the actually applied version (`source.project-version` of the application card) with the version of the uploaded build;
-   - for information – a check GET against the application `uri` (codes 401/403 are normal for closed applications and do not contradict success).
-2. **Empty skeleton on creation.** Creating an application with a "project" source (`image-id` = project id) on some platform configurations yields an empty application without project data. A reliable source is a specific build (`project-version-id`), for example the project's latest build.
-3. **Deletion with drafts.** If the application's development environment has unpublished edits, `DELETE /applications/{id}` returns 400 with `FAILED_PRECONDITION` in the body. There is no forced deletion in the API – only the control panel; the tool must provide a clear hint.
-4. **Readiness of a new application.** After creation, the application is in transitional statuses and without a `uri` for some time – provide for waiting until ready (a `uri` has appeared and the status is stable). An `Error` status while waiting is an immediate error.
-5. **Restart after apply.** `project/update` may restart the application itself. After the call, wait until it leaves the transitional statuses; if the result is not `Running` – stop it (if not `Stopped`), wait for `Stopped`, start it, wait for `Running`. Reasonable timeouts: waiting for stop ~3 min, for start/stabilization ~5 min, polling every ~10 s.
-6. **Error is terminal.** A stable `Error` (e.g., after a failed apply) is an immediate failure: surface the error messages of the application tasks (section 4.6) right away. Do not try to stop/restart such an application and do not keep waiting for another status – from `Error` it does not transition to `Stopped`, and the wait just eats the whole timeout.
-7. **Windows.** Temporary files and caches – only via `tempfile`; switch console output to UTF-8 (`reconfigure` for stdout/stderr), otherwise Cyrillic breaks.
-8. **The project is identified by vendor and name.** The identity of a platform project is the `Vendor` + `Name` pair of the manifest, not the `Ид` of `Проект.yaml`: an upload without a project id lands in the project that already owns that pair, and creating a second project for the same pair is refused with a 409 (section 4.4). A truly separate project can therefore only be had by renaming the sources – which is why an isolated compilation check is built around a throwaway APPLICATION rather than a throwaway project.
-9. **Deletion is asynchronous and ordered.** `DELETE /applications/{id}` returns immediately, and the application lives on for a while with a `DeleteApplication` task. While it exists, deleting the build it was created from is rejected with a 500. The order for cleanup: delete the application, wait until its card answers 404 (or its status becomes `Deleted`), and only then delete the build.
-10. **Compilation is the server's, and it happens on apply.** A local build only packs an archive – the syntax, the types and the visibility of the sources are checked by the server compiler when a build is applied or an application is created out of it. There is no separate "compile" endpoint, so the only way to check the sources without risking the working application is a throwaway application created from the same build (section 7, `probe`).
-11. **Signing in to a freshly created application.** A new application gets its OWN, empty user list (`default-user-list`, section 4.7), password sign-in in it is off, and it has no account service. the accounts used to sign in to other applications therefore do not work here, and connecting another application's user list (`POST /applications/{id}/userlists`) together with enabling the local sign-in does NOT change it – verified. What works is a CONTROL PANEL account: the platform connects its users to the application itself, and the sign-in works right away. The tool has to say so out loud when it creates an application (section 7, `apps create`/`apps ensure`): the way in does not follow from the card, and it cannot be found by trying – a user has a failed-attempt counter.
+1. **Silent rollback of build apply.** When applying a build to the application fails, a compilation error for instance, the platform silently rolls the application back to the previous build and starts it. The `Running` status does not mean success. A reliable check of the result looks like this:
+   - take the application tasks (section 4.6) with status `Error` or `Failed` whose `start-date` is not earlier than the moment the deploy started. Old errors from history do not count;
+   - compare the actually applied version, the `source.project-version` of the application card, with the version of the uploaded build;
+   - for information, make a check GET against the application `uri`. Codes 401 and 403 are normal for closed applications and do not contradict success.
+2. **Empty skeleton on creation.** On some platform configurations an application created with a "project" source, meaning `image-id` set to the project id, comes out empty, with no project data. A reliable source is a specific build in `project-version-id`, for example the project's latest build.
+3. **Deletion with drafts.** If the application's development environment has unpublished edits, `DELETE /applications/{id}` returns 400 with `FAILED_PRECONDITION` in the body. There is no forced deletion in the API, only the control panel, and the tool must provide a clear hint.
+4. **Readiness of a new application.** After creation, the application sits in transitional statuses and without a `uri` for some time, so provide for waiting until it is ready: a `uri` has appeared and the status is stable. An `Error` status while waiting is an immediate error.
+5. **Restart after apply.** `project/update` may restart the application itself. After the call, wait until it leaves the transitional statuses. If the result is not `Running`, stop it unless it is already `Stopped`, wait for `Stopped`, start it and wait for `Running`. Reasonable waits: about 3 minutes for a stop, about 5 minutes for a start and stabilization, polling every 10 seconds or so.
+6. **`Error` is a final status.** A stable `Error`, after a failed apply for instance, is an immediate failure: surface the error messages of the application tasks (section 4.6) right away. Do not stop or restart such an application, and do not keep waiting for another status: from `Error` it never moves to `Stopped`, and the wait just burns the whole time budget.
+7. **Windows.** Temporary files and caches go through `tempfile` only. Switch console output to UTF-8 with `reconfigure` for stdout and stderr, otherwise Cyrillic breaks.
+8. **The project is identified by vendor and name.** A platform project is identified by the `Vendor` + `Name` pair of the manifest, not by the `Ид` of `Проект.yaml`. An upload without a project id lands in the project that already owns that pair, and creating a second project for the same pair is refused with a 409 (section 4.4). A truly separate project can only be had by renaming the sources, which is why an isolated compilation check is built around a throwaway application rather than a throwaway project.
+9. **Deletion runs in the background and in order.** `DELETE /applications/{id}` returns immediately, and the application lives on for a while with a `DeleteApplication` task. While it exists, deleting the build it was created from is rejected with a 500. The order for cleanup is: delete the application, wait until its card answers 404 or its status becomes `Deleted`, and only then delete the build.
+10. **Compilation is the server's, and it happens on apply.** A local build only packs an archive. The syntax, the types and the visibility of the sources are checked by the server compiler when a build is applied or an application is created out of it. There is no separate "compile" endpoint, so the only way to check the sources without risking the working application is a throwaway application created from the same build (section 7, `probe`).
+11. **Signing in to a freshly created application.** A new application gets its own empty user list (`default-user-list`, section 4.7), password sign-in in it is off, and it has no account service. The accounts used to sign in to other applications therefore do not work here, and connecting another application's user list (`POST /applications/{id}/userlists`) together with enabling the local sign-in does not change that; this was verified. What works is a control-panel account: the platform connects its users to the application itself, and the sign-in works right away. The tool has to say so out loud when it creates an application (section 7, `apps create` and `apps ensure`): the way in does not follow from the card, and it cannot be found by trying, because a user has a failed-attempt counter.
 
 ## 7. CLI requirements
 
-Common flags (in any position – they are accepted after the subcommand too): `--base-url`, `--client-id`, `--client-secret`, `--env-file`, `--timeout` (seconds, default 60), `--json`, `--version`.
+Common flags are accepted in any position, after the subcommand too: `--base-url`, `--client-id`, `--client-secret`, `--env-file`, `--timeout` (seconds, default 60), `--json`, `--version`.
 
-The connection flags are about talking to the platform, so the commands that never do it – `build` and `inspect` – REFUSE them instead of dropping them quietly. A call carrying `--env-file` reads as a build bound to a stand, and twice that left the reader asking whether a local build goes to the server after all; silence of that kind is what misleads. Nothing that worked stops working, because the flags changed nothing, and the refusal names the commands that do reach the platform (`deploy`, `builds upload`). It covers the FLAGS only: `ELEMENT_*` variables and a `.env` next to the project are always around, and whether a build runs must not depend on them.
+The connection flags are about talking to the platform. `build` and `inspect` never do that, so they refuse those flags instead of dropping them quietly. A call carrying `--env-file` reads as a build bound to a stand, and twice that left a reader asking whether a local build goes to the server after all; silence of that kind is what misleads. Nothing that worked stops working, because the flags changed nothing, and the refusal names the commands that do reach the platform: `deploy` and `builds upload`. It covers the flags only. `ELEMENT_*` variables and a `.env` next to the project are always around, and whether a build runs must not depend on them.
 
-Output: the result is JSON on stdout (`ensure_ascii=False`, indent 2); progress of long operations – lines on stderr; errors – JSON with an `error` field on stderr and return code 1.
+Output works like this: the result is JSON on stdout (`ensure_ascii=False`, indent 2), progress of long operations comes as lines on stderr, and an error is JSON with an `error` field on stderr plus return code 1.
 
-`--json` makes that a guarantee rather than a convention: for the duration of the call stdout is redirected to stderr, and the answer alone is written to the real stdout. A caller then parses stdout whole; without the flag anything a handler or a plugin prints stays in the stream ahead of the answer. A failure keeps to stderr and leaves stdout empty in this mode too.
+`--json` makes that a guarantee rather than just a convention: for the duration of the call stdout is redirected to stderr, and the answer alone is written to the real stdout. A caller then parses stdout whole. Without the flag, anything a handler or a plugin prints stays in the stream ahead of the answer. A failure keeps to stderr and leaves stdout empty in this mode too.
 
-Commands (significant flags in parentheses):
+Commands, with the significant flags in parentheses:
 
 - `token` – obtain and print the token.
 - `apps list [--name --status --include-deleted --brief]`, `apps get [APP_ID]`, `apps find NAME [--include-deleted]`,
@@ -217,100 +217,101 @@ Commands (significant flags in parentheses):
   --tech-version --no-dev-mode --wait --verify --no-verify --apply]`,
   `apps apply [APP_ID] VERSION_ID`,
   `apps delete APP_ID`, `apps start [APP_ID]`, `apps stop [APP_ID]`.
-  - `apps list --name` filters by a case-insensitive name substring on the client (section 4.1: the platform ignores the query parameter); `--status` selects by the whole status word (several of them separated by commas); `--brief` prints brief cards (id, name, status, uri, applied version) instead of full ones.
-  - `apps list` HIDES the deleted applications: they stay in the platform list under the `Deleted` status, and a stand a few months old answers with hundreds of cards of which a handful are alive. `--include-deleted` brings them back, and so does `--status deleted` – a filter that would answer with nothing is worse than no filter. A cut nobody is told about is a trap of its own, so the command ends with a count line on stderr – "7 live of 324", plus the number shown when a filter narrowed the answer further; stdout stays the JSON array, whatever is cut.
-  - `APP_ID` of `apps get/delete/start/stop/debug` is the application id (UUID) or its exact name: a non-UUID value is resolved through the list by an exact case-insensitive match (deleted applications do not count). No match is an error; several matches are an error listing the ids – destructive commands must not guess.
-  - `apps find` searches by an exact (case-insensitive) name match among the fields `name`, `display-name`, `publication-context`; output `{"id": ..., "found": true|false}`, return code 0 in both cases – the absence of an application is an answer, not an error. A non-zero return code means the request failed and is accompanied by JSON with an `error` field on stderr. In scripts, check the `found` field, not the return code.
-  - Deleted applications remain in the platform list with the `Deleted` status and their former `id`. `apps find` SKIPS them: the found id must be usable, otherwise the caller gets an id on which `apps get` and `deploy` return 404. The `--include-deleted` flag restores the former behavior – searching among all applications, including deleted ones.
-  - `apps ensure` idempotently brings an application with the given name into existence: it searches by the `apps find` rules (deleted ones do not count) and creates only if absent. Output `{"id": ..., "created": true|false, "sign-in": ...}`; `created: false` means the application already existed and was NOT touched. The creation flags are the same as for `apps create` and take effect only when creation happens. An existing application is never recreated: `delete` + `create` produce a new URL and break external bindings to the former one. Because the creation flags include `--version-id`, an existing application gets `applied` (whether it runs the requested assembly) and `applied-version-id` (the one it does run) in the answer: staying silent about that cost a stand that went to work on the previous build. `--apply` brings it to the assembly in the same run; `apps apply` does it separately. `--verify` upgrades the verdict about an application that already runs the requested assembly from the card comparison to the full check. An application `ensure` CREATED used to answer `applied: true` on trust – it was created from the assembly, after all – and now answers with the checked verdict whenever a check ran.
-  - `apps apply [APP_ID] VERSION_ID` applies an already uploaded assembly to an application and VERIFIES the result (section 6.6): an apply is not a fact until it is verified - on a failure the platform silently rolls the application back to the previous build and starts it. The output is the verification report, and the exit code is 1 when the assembly did not land. Until this command applying was reachable through the MCP tool alone, while long operations are the ones that want a CLI run in the background.
-  - `apps create` and `apps ensure` end by saying how to sign in to the application (section 6.11): the `sign-in` field of the output – `{"url", "account": "control-panel", "hint", "note"}` – plus the same two sentences on stderr. `url` is the application address out of the card and is `null` while the application has none yet (without `--wait`); the hint then says where to take it from. `account` is a code, not a text: the way in is a CONTROL PANEL account, and the note says why the accounts used to sign in to other applications do not work here.
-  - `--latest-build` – use the project's latest build as the source (protection against an empty skeleton, section 6.2); `--wait` – wait until ready (section 6.4), verify the result (section 6.6) and output the final card.
-  - Waiting means verifying. A failed apply is rolled back by the platform to the previous build, and the application comes up `Running` all the same, so a card handed back after a wait is not evidence that the build asked for is the one running. `--wait` therefore ends with the same check `apps apply` and `verify-deploy` do – the applied build id against the requested one, the application tasks that failed since the creation started, the uri – puts the report into the `verify` field of the output and answers with exit code 1 when the check does not pass. `--verify` asks for the check on its own (and waits, because there is nothing to check on an application still being created); `--no-verify` brings back the plain wait. Without either flag nothing is waited for and nothing is checked, as before.
+  - `apps list --name` filters by a case-insensitive name substring, and it does so on the client because the platform ignores the query parameter (section 4.1). `--status` selects by the whole status word, several of them separated by commas. `--brief` prints brief cards instead of full ones: id, name, status, uri, applied version.
+  - `apps list` hides the deleted applications. They stay in the platform list under the `Deleted` status, and a stand a few months old answers with hundreds of cards of which a handful are alive. `--include-deleted` brings them back, and so does `--status deleted`: a filter that would answer with nothing is worse than no filter. A cut nobody is told about is a trap of its own, so the command ends with a count line on stderr, "7 live of 324", plus the number shown when a filter narrowed the answer further. Whatever is cut, stdout stays the same JSON array.
+  - `APP_ID` of `apps get`, `delete`, `start`, `stop` and `debug` is the application id (UUID) or its exact name. A value that is not a UUID is resolved through the list by an exact case-insensitive match, and deleted applications do not count. No match is an error, and several matches are an error listing the ids: destructive commands must not guess.
+  - `apps find` searches for an exact, case-insensitive name match among the fields `name`, `display-name` and `publication-context`. Output is `{"id": ..., "found": true|false}` with return code 0 in both cases: the absence of an application is an answer, not an error. A non-zero return code means the request failed and comes with JSON carrying an `error` field on stderr. In scripts, check the `found` field, not the return code.
+  - Deleted applications remain in the platform list with the `Deleted` status and their former `id`. `apps find` skips them: the found id must be usable, otherwise the caller gets an id on which `apps get` and `deploy` return 404. The `--include-deleted` flag restores the former behaviour, searching among all applications including deleted ones.
+  - `apps ensure` idempotently brings an application with the given name into existence: it searches by the `apps find` rules, where deleted ones do not count, and creates only if absent. Output is `{"id": ..., "created": true|false, "sign-in": ...}`, and `created: false` means the application already existed and was left alone. The creation flags are the same as for `apps create` and take effect only when creation happens. An existing application is never recreated: `delete` and `create` produce a new URL and break external bindings to the former one. Because the creation flags include `--version-id`, an existing application gets two more fields in the answer: `applied`, whether it runs the requested assembly, and `applied-version-id`, the one it does run. Staying silent about that cost a stand that went to work on the previous build. `--apply` brings it to the assembly in the same call, and `apps apply` does it separately. `--verify` upgrades the verdict about an application that already runs the requested assembly from the card comparison to the full check. An application `ensure` had created used to answer `applied: true` on trust, since it was created from that assembly, and now answers with the checked verdict whenever a check ran.
+  - `apps apply [APP_ID] VERSION_ID` applies an already uploaded assembly to an application and verifies the result (section 6.6). An apply is not a fact until it is verified: on a failure the platform silently rolls the application back to the previous build and starts it. The output is the verification report, and the exit code is 1 when the assembly did not land. Until this command, applying was reachable through the MCP tool alone, while long operations are the ones that want a CLI run in the background.
+  - `apps create` and `apps ensure` end by saying how to sign in to the application (section 6.11). That is the `sign-in` field of the output, shaped `{"url", "account": "control-panel", "hint", "note"}`, plus the same two sentences on stderr. `url` is the application address out of the card, and it is `null` while the application has none yet, which is the case without `--wait`; the hint then says where to take it from. `account` is a code, not a text: the way in is a control-panel account, and the note says why the accounts used to sign in to other applications do not work here.
+  - `--latest-build` uses the project's latest build as the source and protects against an empty skeleton (section 6.2). `--wait` waits until ready (section 6.4), verifies the result (section 6.6) and outputs the final card.
+  - Waiting means verifying. A failed apply is rolled back by the platform to the previous build, and the application comes up `Running` all the same, so a card handed back after a wait is not evidence that the build asked for is the one running. `--wait` therefore ends with the same check `apps apply` and `verify-deploy` do: the applied build id against the requested one, the application tasks that failed since the creation started, the uri. It puts the report into the `verify` field of the output and answers with exit code 1 when the check does not pass. `--verify` asks for the check on its own, and waits too, because there is nothing to check on an application still being created. `--no-verify` brings back the plain wait. Without either flag nothing is waited for and nothing is checked, as before.
 - `spaces list`.
 - `user-lists list [--name]`, `user-lists get [LIST] [--app]`,
   `user-lists self-registration [LIST] [--app --enable --disable]`,
   `user-lists password-login [LIST] [--app --enable --disable]` – user lists and their
-  sign-in settings (section 4.7). The target is the `LIST` argument (an id or the exact
+  sign-in settings (section 4.7). The target is the `LIST` argument, an id or the exact
   presentation, resolved like an application name: no match is an error, several matches
-  are an error listing the ids) or `--app` – the application's own list out of its
-  `default-user-list`; giving both is an error. Without `--enable`/`--disable` the two
-  setting commands only READ the current state, so the same command answers "how is it
-  now"; both flags at once is an error. `password-login` works on the account service of
-  type `Local`: the output is `{"list-id", "enabled", "changed"}`, where `enabled: null`
-  means the list has no such service at all (nothing signs in by password) and `changed`
-  says whether this very call altered anything – switching to the state that is already
-  there sends no request.
+  are an error listing the ids. The other way to give a target is `--app`, the
+  application's own list out of its `default-user-list`; giving both is an error. Without
+  `--enable` or `--disable` the two setting commands only read the current state, so the
+  same command answers "how is it now". Both flags at once is an error. `password-login`
+  works on the account service of type `Local`. The output is
+  `{"list-id", "enabled", "changed"}`, where `enabled: null` means the list has no such
+  service at all and nothing signs in by password, and `changed` says whether this very
+  call altered anything: switching to the state that is already there sends no request.
 - `projects list [--name --include-deleted]`, `projects get [PROJECT_ID]`, `projects delete PROJECT_ID`.
-  - `projects list --name` filters by a case-insensitive name substring on the client (section 4.3: the platform answers the full list); the projects marked deleted are hidden unless `--include-deleted` is given – a stand a few months old keeps hundreds of them in the list against a handful of live ones, and a check for a project name must not cost the full listing.
+  - `projects list --name` filters by a case-insensitive name substring, and it does so on the client because the platform answers the full list (section 4.3). Projects marked deleted are hidden unless `--include-deleted` is given: a stand a few months old keeps hundreds of them in the list against a handful of live ones, and a check for a project name must not cost the full listing.
 - `builds list [--project-id --limit --brief]`, `builds get VERSION [--project-id]`,
   `builds upload FILE [--project-id --new-project --force-rename --space-id
   --branch --commit --commit-message]`, `builds delete VERSION [--project-id]`.
-  `builds upload` reports the chosen target in the output (`project-id`,
-  `project-id-source`: `flag`/`env`/none) and notes on stderr when the target comes
-  from `ELEMENT_PROJECT_ID`; `--new-project` ignores the environment binding and
-  always creates a new project (mutually exclusive with `--project-id`);
-  `--force-rename` allows uploading an assembly whose name differs, which renames
-  the target project.
-  `builds list` shows the ten newest builds (`--limit 0` – all of them) and ends with a
+  `builds upload` reports the chosen target in the output through `project-id` and
+  `project-id-source` (`flag`, `env` or none) and notes on stderr when the target comes
+  from `ELEMENT_PROJECT_ID`. `--new-project` ignores the environment binding and always
+  creates a new project; it is mutually exclusive with `--project-id`. `--force-rename`
+  allows uploading an assembly whose name differs, which renames the target project.
+  `builds list` shows the ten newest builds, and `--limit 0` lifts the cut. It ends with a
   count line on stderr saying which of the two cuts the reader is looking at: the tool's
-  `--limit`, or the platform's housekeeping (section 4.4 – it deletes the builds nobody
+  `--limit`, or the platform's housekeeping (section 4.4: it deletes the builds nobody
   uses, whatever their age). "30 of 30" without that line was read as the project's whole
-  history. The housekeeping is judged by the FACTS OF THE ANSWER, not by the length of the
+  history. The housekeeping is judged by the facts of the answer, not by the length of the
   listing: the platform hands out the numbers of a base version one after another, so a
   number the listing has not got is a build already taken away, and the line says how many
   are missing.
 - `build [--project-dir --output --build-version --last-build --commit
   --branch --kind {application,library} --require-clean]` – build the archive locally.
   Output: `file`, `name`, `vendor`, `version`, `version-source`
-  (`flag`/`last-build`/the CI variable name/`default`), `kind`, `branch`, `commit`,
-  `dirty` (whether the project directory has uncommitted changes; null when git is
-  unavailable) – the version is a field of its own so CI does not parse the file name.
-  Without `--project-dir`, the project directory is found automatically
-  (the first directory with `Проект.yaml` when descending from the current one). `--kind`
+  (`flag`, `last-build`, the CI variable name or `default`), `kind`, `branch`, `commit`
+  and `dirty`, which says whether the project directory has uncommitted changes and is
+  null when git is unavailable. The version is a field of its own so CI does not parse
+  the file name. Without `--project-dir`, the project directory is found automatically:
+  the first directory with `Проект.yaml` when descending from the current one. `--kind`
   defaults based on `ВидПроекта`. `--require-clean` aborts before building when the
-  project directory has uncommitted changes (git unavailable also aborts: there is
-  nothing to confirm a clean tree with).
+  project directory has uncommitted changes; git being unavailable also aborts, because
+  there is nothing to confirm a clean tree with.
 - `inspect FILE` – parse a prebuilt archive (section 5.1). Local as well: the platform is
   not called, and the connection flags are refused the same way.
 - `deploy [--app-id --project-id --project-dir --output --build-version
   --branch --commit --commit-message --dry-run --require-clean]` –
-  the full cycle: build -> upload -> apply -> restart -> verification of the actual apply (section 6.1). Output – a JSON report with fields: `app-id`, `uri`, `status`, `version`, `assembly-id`, `applied-version`, `applied` (true/false/null – null when the actual version could not be determined), `uri-status`, `problems` (list of strings, the platform's texts as they came), `problems-lines` (the same broken into plain lines: JSON escapes a multi-line refusal into `
-` and `	` exactly where it has to be read), `ok` (boolean), `dirty`/`dirty-files` (uncommitted changes of the project directory at build time – the build captures the current disk state, so the divergence from HEAD must be visible; a warning also goes to stderr; null when git is unavailable). Return code 0 only when `ok`. `--dry-run` – build only. `--require-clean` – abort before building on a dirty tree.
+  the full cycle: build -> upload -> apply -> restart -> verification of the actual apply (section 6.1). Output – a JSON report with fields: `app-id`, `uri`, `status`, `version`, `assembly-id`, `applied-version`, `applied` (true, false or null, where null means the actual version could not be determined), `uri-status`, `problems` (list of strings, the platform's texts as they came), `problems-lines` (the same broken into plain lines: JSON escapes a multi-line refusal into `
+` and `	` exactly where it has to be read), `ok` (boolean), `dirty` and `dirty-files` (uncommitted changes of the project directory at build time). The build captures the current disk state, so the divergence from HEAD must be visible; a warning also goes to stderr, and null means git was unavailable. Return code 0 only when `ok`. `--dry-run` builds and stops there, and `--require-clean` aborts before building on a dirty tree.
 - `verify-deploy [APP_ID] [--app-id --version-id --expected-version --since-minutes]` –
-  the verification of section 6.1 on its own, deploying nothing: the application tasks
-  in an error status raised over the last `--since-minutes` minutes (their
-  `error-message` carries the file and the position of a compilation error), the
-  applied build compared with the expected one (`--version-id` – the id of the uploaded
-  build, the reliable comparison; `--expected-version` – the version string, the
-  fallback) and a control GET on the address. The same report as `deploy`, return code
-  0 only when `ok`. It is what a CI script needs after `apps create`: a build that
-  failed to apply is rolled back silently, and a status of `Running` proves nothing.
+  the verification of section 6.1 on its own, deploying nothing. It looks at the
+  application tasks in an error status raised over the last `--since-minutes` minutes,
+  whose `error-message` carries the file and the position of a compilation error. Then it
+  compares the applied build with the expected one: `--version-id` is the id of the
+  uploaded build and the reliable comparison, `--expected-version` is the version string
+  and the backup. It finishes with a control GET on the address. The report is the same
+  as `deploy` gives, and the return code is 0 only when `ok`. It is what a CI script needs
+  after `apps create`: a build that failed to apply is rolled back silently, and a status
+  of `Running` proves nothing.
 - `probe [--project-dir --output --build-version --name --space-id --keep
   --require-clean]` – an isolated compilation check of the sources: build ->
-  upload -> a THROWAWAY application (that is the compilation, section 6.10) ->
+  upload -> a throwaway application (that is the compilation, section 6.10) ->
   errors with file and position -> cleanup. `ELEMENT_APP_ID` and
-  `ELEMENT_PROJECT_ID` are deliberately NOT used: the probe must not be able to
+  `ELEMENT_PROJECT_ID` are deliberately left unused: the probe must not be able to
   reach the working application, and the target project is chosen by the platform
   out of the vendor and the name of the manifest (section 6.8). The default build
-  version is `{base}-probe-{token}`: it has to be a new one every time (a repeat
-  is a 409) and it must not look like the project's latest build – the counter is
-  numeric, and a non-numeric suffix keeps a probe build out of that comparison.
-  Cleanup runs whether the compilation passed or failed, in the order of section
-  6.9: the application, then the build, then – only if the probe itself created
-  it – the project. Output: `ok`, `project-dir`, `vendor`, `name`, `file`,
-  `version`, `project-id`, `assembly-id`, `app-id`, `app-name`, `status`,
-  `errors` (a list of `{file, entry, line, column, environment, message}`, where
-  `file` is the path relative to the project directory), `messages` (the platform
-  texts verbatim – nothing is lost when the failure is not a compilation one) and
-  `cleanup` (`kept`, `app-deleted`, `assembly-deleted`, `project-deleted`,
-  `problems`). A stand that does not know the compatibility mode of the project
-  refuses the whole project and then complains about types and properties of that
-  mode in files the change never touched: the refusal is recognized, the parsing
-  stops there, `compatibility-refused` names the mode and `messages-dropped`
-  counts what followed from it – so that a verdict about the STAND cannot read as
-  a verdict about the code. Return code 0 only when `ok`; a failed cleanup is a problem in the
-  report and on stderr, it does not change the compilation verdict. `--keep`
+  version is `{base}-probe-{token}`. It has to be a new one every time, because a
+  repeat is a 409, and it must not look like the project's latest build: the
+  counter is numeric, and a non-numeric suffix keeps a probe build out of that
+  comparison. Cleanup runs whether the compilation passed or failed, in the order
+  of section 6.9: the application, then the build, then the project, and the
+  project only if the probe itself created it. Output: `ok`, `project-dir`,
+  `vendor`, `name`, `file`, `version`, `project-id`, `assembly-id`, `app-id`,
+  `app-name`, `status`, `errors` (a list of `{file, entry, line, column,
+  environment, message}`, where `file` is the path relative to the project
+  directory), `messages` (the platform texts verbatim, so nothing is lost when the
+  failure is not a compilation one) and `cleanup` (`kept`, `app-deleted`,
+  `assembly-deleted`, `project-deleted`, `problems`). A stand that does not know
+  the compatibility mode of the project refuses the whole project and then
+  complains about types and properties of that mode in files the change never
+  touched. That refusal is recognized, the parsing stops there,
+  `compatibility-refused` names the mode and `messages-dropped` counts what
+  followed from it, so a verdict about the stand cannot read as a verdict about
+  the code. Return code 0 only when `ok`. A failed cleanup is a problem in the
+  report and on stderr; it does not change the compilation verdict. `--keep`
   leaves the application and the build in place for a hands-on look. What a probe
   does leave behind is a tombstone: the platform keeps deleted applications in
   the list with the `Deleted` status and their former id, and there is no API to
@@ -323,22 +324,22 @@ Commands (significant flags in parentheses):
 - `tasks list [--app-id]`, `tasks get-group TASK_ID`.
 - `tech get [APP_ID]`, `tech set APP_ID VERSION`.
 - `debug-adapter` – the path to the platform debug adapter directory supplied by a plugin (the `elemctl.debug_adapter` entry-point group, section 10). Output `{"path": ..., "found": true, "adapter-class": ...}` when present or `{"path": null, "found": false}`; exit code 0 in both cases. The `path` is a ready value for the VS Code extension's `xbsl.debug.adapterPath` (a directory with a `repo/` subdirectory).
-- `plugins` – plugin diagnostics: what the plugins bring. `debug-adapter` – the declared adapter directories and whether each holds jars; `commands` – the commands of the plugins with the entry point they arrived through and the name of their MCP tool (`null` when the command stays out of MCP): `{"debug-adapter": [{"path": ..., "has-jars": true|false}], "commands": [{"name": ..., "source": ..., "mcp": ...}]}`.
+- `plugins` – diagnostics: what the plugins bring. `debug-adapter` holds the declared adapter directories and whether each of them holds jars. `commands` holds the commands of the plugins with the entry point they arrived through and the name of their MCP tool, which is `null` when the command stays out of MCP. The answer looks like `{"debug-adapter": [{"path": ..., "has-jars": true|false}], "commands": [{"name": ..., "source": ..., "mcp": ...}]}`.
 - The subcommands the plugins bring (section 10, the `elemctl.commands` group) stand alongside the commands of the core and are listed by `--help`. They may not take over a name of the core; the command reference describes the core alone.
-- `self-update [--version X]` – update the installed elemctl by unpacking the wheel from PyPI into site-packages, without touching busy exe files (plain pipx/pip breaks the install when `elemctl.exe` is held by a running MCP server; only the package files are updated, and the exe stub calls the new code). Fixes `pipx_metadata.json`. Output `{updated, from, to}`.
+- `self-update [--version X]` – update the installed elemctl by unpacking the wheel from PyPI into site-packages, without touching busy exe files. Plain pipx or pip breaks the install when `elemctl.exe` is held by a running MCP server. Here only the package files are updated, and the exe stub calls the new code. The command also fixes `pipx_metadata.json`. Output is `{updated, from, to}`.
 - `mcp` – start the MCP server; without the extra installed – a clear error with the hint `pip install "elemctl[mcp]"`.
 
-Positional APP_ID/PROJECT_ID marked as optional above are taken from the configuration (`ELEMENT_APP_ID`/`ELEMENT_PROJECT_ID`) when absent; if those are empty too – an error.
+Positional APP_ID and PROJECT_ID marked as optional above are taken from the configuration when absent, from `ELEMENT_APP_ID` and `ELEMENT_PROJECT_ID`. If those are empty too, the command errors out.
 
 ## 8. MCP server requirements
 
-Server name `elemctl`, stdio transport, credentials – from the same environment variables/.env. In the server instructions, warn about the silent rollback of build apply (section 6.1). Tools (docstrings – short, in Russian):
+Server name `elemctl`, stdio transport, credentials from the same environment variables and `.env`. In the server instructions, warn about the silent rollback of build apply (section 6.1). The tools, whose docstrings are short and in Russian:
 
 `list_apps(name="", status="", include_deleted=False)` – the filters of `apps list`
 (section 7): `name` by a case-insensitive substring on the client (section 4.1), `status`
 by the whole status word, and the deleted applications hidden unless asked for. The answer
-is an object – `total`, `live`, `shown`, a `summary` line and `applications` – so that what
-was hidden is stated rather than guessed at; `get_app(app_id)`, `find_app(name)`,
+is an object with `total`, `live`, `shown`, a `summary` line and `applications`, so that
+what was hidden is stated rather than guessed at; `get_app(app_id)`, `find_app(name)`,
 `create_app(name, project_id="", version_id="", space_id="",
 development_mode=True, verify=False)` – when only project_id is given, the project's latest
 build is automatically used as the source (section 6.2); `verify=True` waits for the
@@ -396,15 +397,16 @@ taken by a tool of the core is an error rather than a silent override.
   platform identifiers quoted as they are (`Проект.yaml`, `Ресурсы`, `Имя`, `Поставщик`) and
   the Russian data of test fixtures. Straight quotes `"` in text, dashes –
   en dash `–` (not em dash), ellipsis – three dots `...`.
-- The library does not print to stdout/stderr itself – progress is delivered via a
-  callback passed by the caller.
-- API errors – a dedicated exception with server response details (JSON-serializable).
+- The library never prints to stdout or stderr itself: it delivers progress through a
+  callback the caller passes in.
+- API errors are raised as a dedicated exception carrying JSON-serializable details of
+  the server response.
 
 ## 10. Plugins (entry points)
 
-elemctl discovers external packages through `importlib.metadata.entry_points`. The core declares nothing about plugins in its own `pyproject.toml` – it is a consumer that reads the entry points on demand. This keeps non-publishable vendor artifacts (proprietary 1C jars) in a separate package while the public core stays clean.
+elemctl discovers external packages through `importlib.metadata.entry_points`. The core declares nothing about plugins in its own `pyproject.toml`: it is a consumer that reads the entry points on demand. Non-publishable vendor artifacts, the proprietary 1C jars, then live in a separate package while the public core stays clean.
 
-The **`elemctl.debug_adapter`** group. The entry-point value is a path (Path/str) or a zero-argument callable returning a path (`() -> Path | str`). The path points to the platform debug adapter directory: a directory containing a `repo/` subdirectory with the adapter jars (including `com.e1c.g5rt.debugger.adapter*.jar`). This is a ready value for the VS Code extension's `xbsl.debug.adapterPath`.
+The **`elemctl.debug_adapter`** group. The entry-point value is a path, as a `Path` or a `str`, or a zero-argument callable returning one (`() -> Path | str`). The path points to the platform debug adapter directory, meaning a directory with a `repo/` subdirectory holding the adapter jars, `com.e1c.g5rt.debugger.adapter*.jar` among them. This is a ready value for the VS Code extension's `xbsl.debug.adapterPath`.
 
 Declaration in a plugin package:
 
@@ -413,7 +415,7 @@ Declaration in a plugin package:
 name = "my_package:adapter_root"
 ```
 
-The **`elemctl.commands`** group. The entry-point value is a `Command`, a list of them, or a zero-argument callable returning either. One declaration serves both surfaces: the core builds a CLI subcommand and an MCP tool out of it and knows nothing about what the command does. This is where a command belongs when it knows about someone's own environment – internal circuits, neighbouring systems, private stands – and therefore cannot live in a public core.
+The **`elemctl.commands`** group. The entry-point value is a `Command`, a list of them, or a zero-argument callable returning either. One declaration serves both surfaces: the core builds a CLI subcommand and an MCP tool out of it and knows nothing about what the command does. This is where a command belongs when it knows about someone's own environment: internal circuits, neighbouring systems, private stands. A public core is no place for it.
 
 ```toml
 [project.entry-points."elemctl.commands"]
@@ -422,20 +424,20 @@ name = "my_package.commands:commands"
 
 The declaration types are exported from `elemctl.plugins`:
 
-- `Argument(name, help="", type=str, default=None, required=False, choices=())` – `name` is `"--stand"` for an option or `"stand"` for a positional argument; the value name (`dest`) is the name without the leading dashes and with the inner ones replaced by underscores, exactly as argparse does it. The types are `str`, `int`, `float`, `bool`; `bool` means a flag (`store_true` in the CLI, a boolean with a default of `false` in MCP) and therefore cannot be positional. `required` works for an option; a positional argument is required unless `required=False` makes it optional.
-- `Command(name, help, handler, arguments=[], mcp=True, mcp_name="")` – `name` is the CLI subcommand; the MCP tool is named `mcp_name` or the same name with dashes turned into underscores. `mcp=False` leaves the command in the CLI only. `source` is filled in by discovery with the name of the entry point.
-- `CommandContext` – what the handler gets: `config` (the assembled connection configuration), `client` (a platform client built on first use and cached, so a command that never reaches the platform does not demand credentials) and `log(message)` for progress lines.
+- `Argument(name, help="", type=str, default=None, required=False, choices=())` – `name` is `"--stand"` for an option or `"stand"` for a positional argument. The value name, `dest`, is the name without the leading dashes and with the inner ones replaced by underscores, exactly as argparse does it. The types are `str`, `int`, `float` and `bool`. A `bool` means a flag, `store_true` in the CLI and a boolean defaulting to `false` in MCP, so it cannot be positional. `required` works for an option; a positional argument is required unless `required=False` makes it optional.
+- `Command(name, help, handler, arguments=[], mcp=True, mcp_name="")` – `name` is the CLI subcommand. The MCP tool is named `mcp_name`, or the same name with dashes turned into underscores. `mcp=False` leaves the command in the CLI only. `source` is filled in by discovery with the name of the entry point.
+- `CommandContext` – what the handler gets. `config` is the assembled connection configuration. `client` is a platform client built on first use and cached, so a command that never reaches the platform does not demand credentials. `log(message)` takes progress lines.
 
-The handler is called as `handler(context, **values)`, the values keyed by `dest`. Its result must be JSON-serializable: the CLI prints it, the MCP tool returns it. A result that is a dict with `"ok": false` gives CLI exit code 1 – the same convention the `deploy` and `probe` reports follow. To the MCP tool the core adds an `env_file` parameter (like every core tool has) and, for a dict result, a `log` field with the progress lines.
+The handler is called as `handler(context, **values)`, the values keyed by `dest`. Its result must be JSON-serializable: the CLI prints it, the MCP tool returns it. A dict result with `"ok": false` gives CLI exit code 1, the same convention the `deploy` and `probe` reports follow. To the MCP tool the core adds an `env_file` parameter, as every core tool has, and, for a dict result, a `log` field with the progress lines.
 
 Discovery behavior:
 
 - entry points are sorted by name; `debug_adapter_path()` returns the first directory that actually holds the adapter jars (a directory without `repo/` or without the adapter jar is skipped), otherwise `None`;
-- a failing entry point is an error (`PluginError`, a subclass of `ElemctlError`), not a silent skip: a tool that silently drops a plugin would leave the user without debugging and without an explanation;
+- a failing entry point is an error, `PluginError`, a subclass of `ElemctlError`, rather than a silent skip: a tool that silently drops a plugin would leave the user without debugging and without an explanation;
 - a command declaration is validated at discovery time, not when the command is run: an empty name, a handler that is not callable, an unsupported argument type, a boolean positional argument and duplicate value names are all `PluginError`;
 - a plugin may not take over a name the core already occupies – neither a CLI subcommand nor an MCP tool. That is an error too, and since the parser is built before any command runs, the CLI reports it as JSON on stderr with exit code 1 rather than a traceback;
-- the `ELEMCTL_NO_PLUGINS=1` environment variable disables discovery (a run with the core capabilities only). The command reference generator sets it, so the reference describes the core alone.
+- the `ELEMCTL_NO_PLUGINS=1` environment variable disables discovery, leaving the core capabilities alone. The command reference generator sets it, so the reference describes the core alone.
 
 Surfaces using the mechanism: the CLI `debug-adapter`/`plugins` (section 7) and the subcommands of the plugins, the MCP tool `debug_adapter` (section 8) and the tools of the plugins, and the VS Code extension, which requests the path from `elemctl debug-adapter` when the `adapterPath` setting is empty.
 
-The adapter itself is extracted from the platform distribution by `tools/extract_adapter.py` (clean code, not shipped in the package distribution – `prune`): the `data/ide/theia/plugins/@1c-appengine-plugin/bin/debugger/` directory from the `.car` is copied into `<output>/<version>/`, and `index.json` is updated. The proprietary jars are not included in the public package – a separate plugin package ships them.
+The adapter itself is extracted from the platform distribution by `tools/extract_adapter.py`, which is clean code and is not shipped in the package distribution (`prune`). It copies the `data/ide/theia/plugins/@1c-appengine-plugin/bin/debugger/` directory from the `.car` into `<output>/<version>/` and updates `index.json`. The proprietary jars stay out of the public package; a separate plugin package ships them.

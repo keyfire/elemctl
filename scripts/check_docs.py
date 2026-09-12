@@ -81,7 +81,7 @@ PITCH_ITEMS = (
     # carries "builds from source", the row below.
     PitchItem("Projects and builds", "Проекты и сборки", None, None),
     PitchItem("Build from sources", "Сборка из исходников", "from source", "из исходников"),
-    PitchItem("One-command deploy", "Деплой одной командой", "deploy", "деплой"),
+    PitchItem("One-command deploy", "Развёртывание одной командой", "deploy", "развёрт"),
     PitchItem("Compilation check without risking the application",
               "Проверка компиляции без риска для приложения", "probe", "пробник"),
     # The rest are reasons to keep elemctl, not reasons to pick it up: they belong on the page
