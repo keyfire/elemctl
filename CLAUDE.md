@@ -45,6 +45,12 @@ application or assembly ids, internal hosts, issue keys or machine paths. That h
 code, for comments and for test fixtures alike. Use neutral examples: vendors `acme` and
 `globex`, applications `crm-dev` and `demo-app`.
 
+A text also says what was wrong, never who asked for the change. Reviews and decisions happen
+off the page, and the person who writes the code here is the person who owns it, so a line
+about an owner asking for something reads as if there were someone else above the author.
+"The sentences ran to five lines and the words read as transliteration" says the same thing and
+survives being read by a stranger.
+
 ## Documentation pairs
 
 English and Russian pages go together: `README.md` / `README.ru.md`, `docs/SPEC.md` /
