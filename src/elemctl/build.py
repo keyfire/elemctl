@@ -459,6 +459,8 @@ def git_dirty_files(project_dir):
     try:
         # core.quotepath=false: otherwise non-ASCII paths arrive as quoted octal
         # escape sequences and the warning is unreadable.
+        # stdin=DEVNULL: under the MCP server stdin is the pipe the client speaks
+        # over, and a git that inherits it never reaches its own exit on Windows.
         completed = subprocess.run(
             ["git", "-C", str(project_dir), "-c", "core.quotepath=false",
              "status", "--porcelain", "--", "."],
@@ -466,6 +468,7 @@ def git_dirty_files(project_dir):
             text=True,
             encoding="utf-8",
             errors="replace",
+            stdin=subprocess.DEVNULL,
             timeout=15,
         )
     except (OSError, subprocess.SubprocessError):
@@ -812,6 +815,7 @@ def _git_output(directory, *args):
             text=True,
             encoding="utf-8",
             errors="replace",
+            stdin=subprocess.DEVNULL,  # see git_dirty_files
             timeout=15,
         )
     except (OSError, subprocess.SubprocessError):

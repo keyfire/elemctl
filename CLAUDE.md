@@ -116,12 +116,24 @@ The other half of the agreement belongs to the child process. A plain Python scr
 own stream with that same code page, so a script started from here is given
 `PYTHONIOENCODING=utf-8`. The elemctl CLI reconfigures its streams itself; a script does not.
 
+A process started from here also names its stdin: `stdin=subprocess.DEVNULL`. elemctl ships an
+MCP server, and under that server stdin is the pipe the client speaks over. On Windows a child
+that inherits the handle never reaches its own exit. The work takes milliseconds, the parent
+waits out the whole timeout, and nothing is printed while it waits. Whether that hurts depends
+on the command: `tasklist`, `powershell` and `cmd` close their end and leave, while git, an
+interpreter and pip stay. That is how a build came to report git as unavailable on a repository
+git was perfectly happy with. Nothing here ever writes to a child, so an empty stdin costs
+nothing. A call that does feed one, through `input=` or an `stdin=` of its own, is left alone.
+
 `tests/test_conventions.py` fails on a process read as text without an encoding. It catches the
 `(run or subprocess.run)(...)` shape of a runner seam too, which is the shape the offending call
 had and which a search for the text of a call looks straight past. The reading itself comes from
 the shared `docsguard` package, because the neighbouring repositories start processes the same
 way and have the same silent failure waiting. What stays here is the list of folders: which of
 them hold code that starts processes is a fact about this repository.
+
+The stdin half is judged over `src` alone. A script, a tool and a test run from a console, and a
+console stdin is safe to hand on.
 
 ## Writing a file
 

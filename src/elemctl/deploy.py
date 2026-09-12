@@ -286,12 +286,15 @@ def _applied_commit(client, app_id, project_id):
 def _git_show(project_dir, commit, relative_path):
     """The text of a file at a commit, or None when git cannot produce it."""
     try:
+        # stdin=DEVNULL: a git that inherits the stdin of the MCP server cannot
+        # reach its own exit on Windows - see git_dirty_files in build.py.
         completed = subprocess.run(
             ["git", "-C", str(project_dir), "show", f"{commit}:./{relative_path}"],
             capture_output=True,
             text=True,
             encoding="utf-8",
             errors="replace",
+            stdin=subprocess.DEVNULL,
             timeout=15,
         )
     except (OSError, subprocess.SubprocessError):

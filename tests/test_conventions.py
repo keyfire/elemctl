@@ -1,7 +1,7 @@
 """Conventions of the sources that no single test of a feature would ever notice.
 
 A convention nobody wrote down is a convention every new file gets to rediscover, and this file
-holds three that were.
+holds four that were.
 
 The first was rediscovered the hard way: every process this repository starts asks for text and
 names the encoding, a new script did not, and the failure was SILENT - the output of the
@@ -16,7 +16,15 @@ the same breath took the change with them. `core.autocrlf=input` hides that loca
 the whole trouble: on a machine without it, four whole files go to a public repository as one
 line-ending change nobody asked for.
 
-The third is the NAME of a test. A test that arrives under the name of an existing one takes
+The third is the stdin of a started PROCESS, and it is the quietest of the four. elemctl ships
+an MCP server that speaks over stdin, and a child started without a word about stdin inherits
+that handle. On Windows the child then cannot reach its own exit: git did the work of
+`status --porcelain` in milliseconds and sat holding the pipe, so the parent waited out the whole
+timeout and the build reported that git was unavailable and the working tree unknown. A fresh
+interpreter behaves the same way, and that is what a self-update checks itself with. Nothing here
+ever writes to a child, so `stdin=subprocess.DEVNULL` costs nothing and closes the class.
+
+The fourth is the NAME of a test. A test that arrives under the name of an existing one takes
 its place: Python keeps the last definition, pytest collects what the module ended up with, and
 the number of tests goes up, because the newcomer was added. Nothing in the run says the older
 test has stopped running. It happened in the shared package while the newline convention above
@@ -64,6 +72,11 @@ FOLDERS = ("src", "scripts", "tests", "tools")
 #: or compared between machines, and a fixture carrying the other line ending on purpose is a
 #: test in its own right. What belongs here is the code whose writes OUTLIVE the run.
 WRITING_FOLDERS = ("src", "scripts", "tools")
+
+#: The folders of the stdin convention: the SHIPPED package alone. A server speaking over stdin
+#: is what makes an inherited handle fatal, and that is elemctl itself - a generator, a tool or
+#: a test runs from a console, where stdin is a console and a child may have it.
+SERVER_FOLDERS = ("src",)
 
 #: The folders of the test-name convention: the one pytest collects tests from.
 TEST_FOLDERS = ("tests",)
@@ -133,6 +146,42 @@ def test_the_shared_newline_check_still_bites(tmp_path):
 
     assert len(problems) == 1
     assert "scripts/offender.py:2" in problems[0]
+
+
+def stdin_problems_in(source: str, where: str) -> list[str]:
+    """The process starts of one file that let the child inherit this process's stdin.
+
+    A call that hands the child something to read - `input=` or an `stdin=` of its own - has
+    answered the question and is left alone; what is caught is the call that never asks.
+    """
+    problems = []
+    for call in process_starts(ast.parse(source)):
+        if any(keyword.arg in ("stdin", "input") for keyword in call.keywords):
+            continue
+        problems.append(f"{where}:{call.lineno}: a process is started without saying what its "
+                        "stdin is, so it inherits the one the server speaks over")
+    return problems
+
+
+def test_no_process_of_the_tool_inherits_the_stdin_of_its_parent():
+    """The convention itself: a child of the MCP server can always reach its own exit."""
+    problems = []
+    for path in python_sources(LAYOUT, SERVER_FOLDERS):
+        problems += stdin_problems_in(read_text(path), path.relative_to(ROOT).as_posix())
+
+    assert problems == []
+
+
+def test_a_process_started_without_a_word_about_stdin_is_caught():
+    """The provocation - and the two shapes that have thought about it."""
+    silent = 'import subprocess\nsubprocess.run(["git", "log"], capture_output=True)\n'
+    closed = ('import subprocess\nsubprocess.run(["git", "log"], capture_output=True,'
+              ' stdin=subprocess.DEVNULL)\n')
+    fed = 'import subprocess\nsubprocess.run(["git", "hash-object", "--stdin"], input=blob)\n'
+
+    assert len(stdin_problems_in(silent, "silent.py")) == 1
+    assert stdin_problems_in(closed, "closed.py") == []
+    assert stdin_problems_in(fed, "fed.py") == []
 
 
 def test_no_test_here_is_shadowed_by_a_namesake():
