@@ -24,6 +24,13 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
   the line of the newcomer, which is the definition to rename. It comes from the shared
   `docsguard` package.
 
+### Fixed
+- **`.gitattributes` holds the line ending for the whole repository.** The line
+  `* text=auto eol=lf` stores and checks out every text file with line feeds, whatever the
+  machine is set to. `newline=""` in the Python generators does not reach that far: it says how
+  a file is written, while `scripts/sync-docs.mjs` splices a section of one document into
+  another by copying bytes, which is how the READMEs came out mixed.
+
 ### Documentation
 - **The shared guard is pinned to `docsguard@v0.7.1`.** That release adds a dictionary of the
   borrowed words the Russian edition keeps drifting into: `пин`, `прогон`, `билд`, `дефолт` and

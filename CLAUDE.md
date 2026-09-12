@@ -140,6 +140,13 @@ while bytes and reads are left alone. The list of folders is shorter here than t
 convention takes. A test writes into a temporary directory that is gone when the run ends, and a
 fixture carrying the other line ending on purpose is a test in its own right.
 
+That keyword is half of the answer, because it says how a file is WRITTEN. A file read with
+carriage returns in it carries them onward, and `scripts/sync-docs.mjs` splices a section of one
+document into another by copying the bytes it was handed - which is how the READMEs came out
+mixed. The other half is `.gitattributes`: `* text=auto eol=lf` stores and checks out every text
+file with line feeds, whatever the machine is set to. `core.autocrlf=input` says the same thing
+and says it about the machine, so it holds only until the first checkout made without it.
+
 ## Naming a test
 
 A test named like an existing one takes its place. Python keeps the last definition, pytest

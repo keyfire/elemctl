@@ -1,0 +1,17 @@
+# Every text file is stored and checked out with line feeds.
+#
+# `core.autocrlf=input` already does that, and that is the trouble with it: it is a setting of
+# the machine rather than of the repository, so it holds until the first checkout made without
+# it. A page saved with carriage returns then reaches a generator that copies bytes -
+# `scripts/sync-docs.mjs` splices a section of one document into another - and the mixture goes
+# to a public repository as a line-ending change nobody asked for. `newline=""` in the Python
+# generators does not reach that far. It says how a file is written, not what was inside the
+# file that was read.
+#
+# `text=auto` leaves it to git to tell text from binary, and `eol=lf` says how the text ones are
+# checked out. The binaries are named below anyway: a guess is a fine default and a poor
+# promise, and one control character inside a file is enough to change git's mind about it.
+* text=auto eol=lf
+
+*.png   binary
+*.woff2 binary
