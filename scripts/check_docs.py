@@ -3,7 +3,8 @@
 
 What is elemctl's own business stays here - which MCP tools it registers, which environment
 variables it reads, what the archive packs, which statements about the platform have to be told
-in the same words everywhere, and where its mirroring script carries which page. Everything
+in the same words everywhere, where its mirroring script carries which page, and which documents
+and folders are read for a sentence that explains a change by naming who asked for it. Everything
 underneath (reading a page, the block between the injection markers, the annotations a
 repository states about itself, the machinery behind the claim table, the runner) comes from the
 `docsguard` package, which three repositories were keeping in triplicate until the copies
@@ -22,6 +23,8 @@ from docsguard import (
     Claim,
     Layout,
     PitchItem,
+    attribution_problems,
+    attribution_self_check,
     box_headlines,
     claim_problems,
     claim_texts,
@@ -39,6 +42,7 @@ from docsguard import (
     section_body,
     site_description,
     site_pages,
+    source_attribution_problems,
     source_jargon_problems,
     translation_problems,
 )
@@ -369,8 +373,41 @@ def check_jargon() -> list[str]:
             + source_jargon_problems(LAYOUT, RUSSIAN_SOURCES))
 
 
+#: The documents outside `docs/` in both editions - the two a reader of GitHub and of PyPI
+#: meets first, the history, the notes for a contributor and the note about where the tool came
+#: from. The pages of `docs/` the guard collects by itself.
+ATTRIBUTION_DOCUMENTS = ("README.md", "README.ru.md", "CHANGELOG.md", "CHANGELOG.ru.md",
+                         "CLAUDE.md", "ORIGIN.md")
+
+#: The folders whose comments and docstrings are read: everything written in Python here. That
+#: is the difference from the jargon list above, where two named files hold every Russian
+#: sentence a person meets. A sentence explaining a decision needs no catalog and can be written
+#: in any file - in the neighbouring repository all three that were found by hand were in the
+#: docstrings of tests.
+ATTRIBUTION_SOURCES = ("src", "scripts", "tests", "tools")
+
+
+def check_attribution() -> list[str]:
+    """No page and no comment explains a change by naming the person who asked for it.
+
+    The repository has one author, so a sentence about who asked gives the reader nothing to act
+    on and suggests the code was written for somebody else. What belongs there is what the
+    previous behaviour or text got wrong.
+
+    The table lives in `docsguard` and catches a turn of phrase rather than a word, because an
+    owner is also a word of the subject - an object has one, and so does a build. What stays
+    here is the scope: both editions of the documents outside `docs/`, and the folders whose
+    comments are read. The self-check runs beside the pages for the same reason the dictionary's
+    does: a pinned version that had quietly stopped judging would look from here exactly like a
+    repository in order.
+    """
+    return (attribution_self_check()
+            + attribution_problems(LAYOUT, documents=ATTRIBUTION_DOCUMENTS)
+            + source_attribution_problems(LAYOUT, ATTRIBUTION_SOURCES))
+
+
 CHECKS = (check_tools, check_environment, check_extensions, check_claims, check_mirrors,
-          check_translations, check_images, check_pitches, check_jargon)
+          check_translations, check_images, check_pitches, check_jargon, check_attribution)
 
 
 def problems() -> list[str]:
