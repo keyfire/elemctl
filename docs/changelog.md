@@ -24,6 +24,9 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
 ## Unreleased
 
 ### Added
+- **A plugin command sets its own exit code.** The CLI exits with the integer from 0 to 255 that
+  the result puts in its `exit-code` field, so a pipeline can tell "differences found" from "a
+  step failed" by the code alone. Without the field, `"ok": false` still means 1.
 - **The documentation guard catches a sentence that explains a change by naming who asked for
   it.** The repository has one author, so that sentence gives the reader nothing to act on and
   suggests the code was written for somebody else; what belongs there is what the previous

@@ -627,6 +627,19 @@ def test_plugin_tool_call_returns_the_result_and_the_log(monkeypatch):
     assert payload == {"stand": "dev", "retries": 3, "force": False, "log": ["греем стенд"]}
 
 
+def test_plugin_tool_hands_the_exit_code_field_over(monkeypatch):
+    """The CLI turns the field into the exit code of its process; the tool just returns it."""
+    report = {"ok": False, "verdict": "step-failed", "exit-code": 2}
+    server = _server_with(
+        monkeypatch, _plugin_command(arguments=[], handler=lambda context: report)
+    )
+
+    result = asyncio.run(server.call_tool("warm_up", {}))
+
+    payload = json.loads(call_result_content(result)[0].text)
+    assert payload == {**report, "log": []}
+
+
 def test_plugin_command_can_stay_out_of_mcp(monkeypatch):
     server = _server_with(monkeypatch, _plugin_command(mcp=False))
     assert "warm_up" not in {t.name for t in asyncio.run(server.list_tools())}

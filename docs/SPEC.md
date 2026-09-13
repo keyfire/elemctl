@@ -428,7 +428,13 @@ The declaration types are exported from `elemctl.plugins`:
 - `Command(name, help, handler, arguments=[], mcp=True, mcp_name="")` – `name` is the CLI subcommand. The MCP tool is named `mcp_name`, or the same name with dashes turned into underscores. `mcp=False` leaves the command in the CLI only. `source` is filled in by discovery with the name of the entry point.
 - `CommandContext` – what the handler gets. `config` is the assembled connection configuration. `client` is a platform client built on first use and cached, so a command that never reaches the platform does not demand credentials. `log(message)` takes progress lines.
 
-The handler is called as `handler(context, **values)`, the values keyed by `dest`. Its result must be JSON-serializable: the CLI prints it, the MCP tool returns it. A dict result with `"ok": false` gives CLI exit code 1, the same convention the `deploy` and `probe` reports follow. To the MCP tool the core adds an `env_file` parameter, as every core tool has, and, for a dict result, a `log` field with the progress lines.
+The handler is called as `handler(context, **values)`, the values keyed by `dest`. Its result must be JSON-serializable: the CLI prints it, the MCP tool returns it. The CLI exit code is taken from the result:
+
+- a dict result whose `exit-code` field holds an integer from 0 to 255 ends with that code. A `bool` does not count as an integer here, and the range is what a process returns portably: POSIX keeps only the low eight bits of an exit status, so 256 would arrive as 0;
+- otherwise a dict result with `"ok": false` ends with 1, the same convention the `deploy` and `probe` reports follow, and every other result ends with 0;
+- a valid `exit-code` wins over `ok`, so `{"ok": false, "exit-code": 0}` ends with 0. A value of another type or out of the range is ignored, and `ok` decides.
+
+The name of the field is exported as `elemctl.plugins.EXIT_CODE_FIELD`; a plugin that also runs on an older core can tell by its absence that the process code there follows `ok` alone. The MCP tool returns the `exit-code` field untouched, with the rest of the result. The handler does not end the process itself: the same function serves the MCP server, where a `SystemExit` leaves the call unanswered and stops the server. To the MCP tool the core adds an `env_file` parameter, as every core tool has, and, for a dict result, a `log` field with the progress lines.
 
 Discovery behavior:
 

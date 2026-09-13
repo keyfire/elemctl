@@ -100,7 +100,7 @@ def commands():
     )]
 ```
 
-The result of a handler has to be JSON-serializable: the CLI prints it, the MCP tool returns it. A dict result with `"ok": false` gives exit code 1 in the CLI, the same convention the `deploy` and `probe` reports follow. Argument types are `str`, `int`, `float` and `bool` for a flag. elemctl adds `env_file` to the MCP tool itself, so a plugin command reaches other environments exactly like the core tools do. A command may not take over a name the core already occupies: that is an error, not a silent override.
+The result of a handler has to be JSON-serializable: the CLI prints it, the MCP tool returns it. The exit code of the CLI comes from the result too. An integer from 0 to 255 in the `exit-code` field becomes the exit code as it is, so a command with three outcomes can hand a script "no differences", "differences" and "a step failed" as 0, 1 and 2. Without that field, a dict result with `"ok": false` ends with exit code 1, the same convention the `deploy` and `probe` reports follow. When the field disagrees with `ok`, the field decides. A string, `true` or 300 is not a code, and the CLI goes by `ok` instead. The MCP tool returns the field with the rest of the result. Do not call `sys.exit` in a handler to get a code: the same function runs inside the MCP server, where the call would never be answered and the server would stop. Argument types are `str`, `int`, `float` and `bool` for a flag. elemctl adds `env_file` to the MCP tool itself, so a plugin command reaches other environments exactly like the core tools do. A command may not take over a name the core already occupies: that is an error, not a silent override.
 
 ```bash
 # the adapter path from the installed plugin (for the VS Code extension):
