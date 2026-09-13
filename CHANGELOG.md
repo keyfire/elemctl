@@ -15,7 +15,7 @@ entry either – say what the behaviour was, not which id or response field was 
 The link is written by `python scripts/changelog-link.py <number>`, which rebuilds the generated
 pages of the site in the same run – writing it by hand is how the mirrors get left behind.
 
-## Unreleased
+## 2026-09-13 – 0.41.0
 
 ### Added
 - **A plugin command sets its own exit code.** The CLI exits with the integer from 0 to 255 that
@@ -23,34 +23,24 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
   step failed" by the code alone. Without the field, `"ok": false` still means 1.
   ([#31](https://github.com/keyfire/elemctl/pull/31))
 - **The documentation guard catches a sentence that explains a change by naming who asked for
-  it.** The repository has one author, so that sentence gives the reader nothing to act on and
-  suggests the code was written for somebody else; what belongs there is what the previous
-  behaviour or text got wrong. Both editions of the pages and documents are read, and with them
-  the comments and docstrings of `src`, `scripts`, `tests` and `tools`. The table comes from
-  `docsguard@v0.10.0` and catches a turn of phrase rather than a word, because an owner is a
-  word of the subject as well. ([#30](https://github.com/keyfire/elemctl/pull/30))
+  it.** The repository has one author, so such a sentence tells the reader nothing about the
+  change. The guard reads both editions of the documents and the comments and docstrings of
+  `src`, `scripts`, `tests` and `tools`. ([#30](https://github.com/keyfire/elemctl/pull/30))
 - **The conventions guard requires a process started from `src` to name its stdin.** The check
   reads the shipped package alone. A script, a tool and a test run from a console, and a console
   stdin is safe to hand on. ([#29](https://github.com/keyfire/elemctl/pull/29))
-- **`tests/test_conventions.py` catches a test shadowed by a namesake.** A test that arrives
-  under the name of an existing one takes its place: Python keeps the last definition, and the
-  number of tests goes up, because the newcomer was added. The check reads `tests/` and names
-  the line of the newcomer, which is the definition to rename. It comes from the shared
-  `docsguard` package. ([#28](https://github.com/keyfire/elemctl/pull/28))
+- **`tests/test_conventions.py` catches a test shadowed by a namesake.** Python keeps the last of
+  two definitions with one name, so the older test stops running while the count still grows. The
+  check names the line of the newcomer to rename. ([#28](https://github.com/keyfire/elemctl/pull/28))
 
 ### Fixed
-- **A child process no longer inherits the stdin of the MCP server.** That handle is the pipe the
-  client speaks over, and on Windows a child holding it never reaches its own exit.
-  `git status --porcelain` finished its work in milliseconds and then sat out the whole
-  fifteen-second timeout, so the build called git unavailable and said nothing about the
-  uncommitted files. Six process starts in `src` pass `stdin=subprocess.DEVNULL` now. Inside a
-  live server the same tool call went from 47 seconds to 0.8.
-  ([#29](https://github.com/keyfire/elemctl/pull/29))
+- **A child process no longer inherits the stdin of the MCP server.** On Windows a child holding
+  the client's pipe never exits: `git status --porcelain` sat out its whole fifteen-second timeout,
+  and the build called git unavailable. Process starts in `src` now pass `stdin=subprocess.DEVNULL`,
+  and the same tool call went from 47 seconds to 0.8. ([#29](https://github.com/keyfire/elemctl/pull/29))
 - **`.gitattributes` holds the line ending for the whole repository.** The line
-  `* text=auto eol=lf` stores and checks out every text file with line feeds, whatever the
-  machine is set to. `newline=""` in the Python generators does not reach that far: it says how
-  a file is written, while `scripts/sync-docs.mjs` splices a section of one document into
-  another by copying bytes, which is how the READMEs came out mixed.
+  `* text=auto eol=lf` keeps text files in line feeds on any machine. The READMEs that
+  `scripts/sync-docs.mjs` assembles used to come out with mixed line endings.
   ([#28](https://github.com/keyfire/elemctl/pull/28))
 
 ### Documentation
