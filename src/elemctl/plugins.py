@@ -50,6 +50,12 @@ ENV_DISABLE = "ELEMCTL_NO_PLUGINS"
 # one of them has to survive both argparse and a JSON schema of an MCP tool.
 ARGUMENT_TYPES = (str, int, float, bool)
 
+# The field of a command result that the CLI takes as the exit code of the process
+# (see exit_code). Spelled with a dash, like the keys of the deploy and probe reports.
+# A plugin that also runs on an older core can tell by the absence of this name that
+# the process code there follows "ok" alone.
+EXIT_CODE_FIELD = "exit-code"
+
 # The main class of the platform's Java debug adapter; the VS Code extension runs it
 # as a stdio DAP over the classpath from the adapter directory.
 ADAPTER_MAIN_CLASS = "com.e1c.g5rt.debugger.adapter.App"
@@ -161,9 +167,14 @@ class Command:
 
     handler is called as handler(context, **values), where context is a
     CommandContext and values are the arguments by their dest. The returned value
-    has to be JSON-serializable: the CLI prints it, the MCP tool returns it. A
-    result that is a dict with "ok": False gives exit code 1 in the CLI – the same
-    convention the reports of deploy and probe follow.
+    has to be JSON-serializable: the CLI prints it, the MCP tool returns it. The
+    exit code of the CLI comes from the result too (see exit_code): an integer from
+    0 to 255 in its "exit-code" field is taken as it is, and without one a dict with
+    "ok": False ends with 1 – the same convention the reports of deploy and probe
+    follow. The MCP tool hands the field over with the rest of the result. The
+    handler never ends the process itself: the same function runs inside the MCP
+    server, where a SystemExit leaves the call without an answer and takes the
+    server down with it.
 
     mcp=False leaves the command in the CLI only (for one that makes no sense to
     an agent – an interactive one, say). source is filled in by discovery: the
@@ -221,6 +232,29 @@ class Command:
                 ))
             seen.add(argument.dest)
         return self
+
+
+def exit_code(result) -> int:
+    """The exit code of the CLI process for the result of a plugin command.
+
+    A dict result may name its code in EXIT_CODE_FIELD, and an integer from 0 to 255
+    there is taken as it is. A command with three outcomes needs that: a comparison
+    that found nothing, one that found differences and a step that failed before
+    anything was compared. With "ok" alone the last two share exit code 1, and a
+    pipeline reads nothing but the code. The field wins when it disagrees with "ok",
+    because it is the field that names a code.
+
+    Anything else in the field is not a code, and the rule of the core reports
+    applies: "ok": False is 1, the rest is 0. A bool does not count, since Python
+    takes True for the integer 1, and neither does a number past 255: POSIX keeps
+    only the low eight bits of an exit status, so 256 would arrive as success.
+    """
+    if not isinstance(result, dict):
+        return 0
+    code = result.get(EXIT_CODE_FIELD)
+    if isinstance(code, int) and not isinstance(code, bool) and 0 <= code <= 255:
+        return int(code)
+    return 1 if result.get("ok") is False else 0
 
 
 class CommandContext:

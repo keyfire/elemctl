@@ -1186,8 +1186,9 @@ def _plugin_handler(command):
         }
         result = command.handler(context, **values)
         _emit(result)
-        # The same convention the core reports follow: ok: false is exit code 1.
-        return 1 if isinstance(result, dict) and result.get("ok") is False else 0
+        # The "exit-code" field of the result when it holds a code, otherwise the convention
+        # of the core reports: ok: false is exit code 1.
+        return plugins.exit_code(result)
 
     return handle
 

@@ -263,6 +263,44 @@ def test_cli_plugin_command_defaults_and_failure_code(monkeypatch, capsys):
     assert json.loads(capsys.readouterr().out) == {"ok": False, "stand": "dev"}
 
 
+@pytest.mark.parametrize("result, expected", [
+    # an integer from 0 to 255 in the field is the exit code, and it wins over ok
+    ({"ok": False, "exit-code": 2}, 2),
+    ({"exit-code": 255}, 255),
+    ({"ok": False, "exit-code": 0}, 0),
+    ({"ok": True, "exit-code": 1}, 1),
+    # without the field the convention of the core reports stays
+    ({"ok": False}, 1),
+    ({"ok": True}, 0),
+    ({"stand": "dev"}, 0),
+    # a value that is not a code is ignored, and ok decides again
+    ({"ok": False, "exit-code": "2"}, 1),
+    ({"exit-code": "2"}, 0),
+    ({"ok": False, "exit-code": True}, 1),
+    ({"exit-code": True}, 0),
+    ({"ok": False, "exit-code": 300}, 1),
+    ({"exit-code": 300}, 0),
+    ({"exit-code": -1}, 0),
+    ({"ok": False, "exit-code": 2.0}, 1),
+    ({"ok": False, "exit-code": None}, 1),
+    # only a dict result names a code
+    ([{"exit-code": 2}], 0),
+])
+def test_cli_plugin_command_takes_the_exit_code_from_the_result(
+    monkeypatch, capsys, result, expected
+):
+    """A command with three outcomes hands a script three codes, and no SystemExit is needed."""
+    _with_commands(monkeypatch, _command(arguments=[], handler=lambda context: result))
+
+    assert cli.main(["warm-up"]) == expected
+    assert json.loads(capsys.readouterr().out) == result  # the answer itself is printed as is
+
+
+def test_the_exit_code_field_is_exported_under_its_documented_name():
+    # a plugin that also runs on an older core looks for this name to learn the field is read
+    assert plugins.EXIT_CODE_FIELD == "exit-code"
+
+
 def test_cli_plugin_command_with_a_positional_argument(monkeypatch, capsys):
     def handler(context, app=None):
         return {"app": app}

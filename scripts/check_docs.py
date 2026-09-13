@@ -103,11 +103,14 @@ PITCH_ITEMS = (
 )
 
 
-#: The statements that live in more than one place at once. Both of them are here because they
+#: The statements that live in more than one place at once. The first two are here because they
 #: really did drift: the correction reached the Console API sections and left the tool hints,
 #: the CLI requirements and the comments in the code telling the model it replaced - one
 #: document carried both at once - and the build card's address was wrong on every page for as
-#: long as the command it broke.
+#: long as the command it broke. The third is the exit code of a plugin command. It is told by
+#: the specification, the MCP page, the READMEs and the docstring of `Command`, and a place
+#: that kept the earlier sentence – `"ok": false` gives 1 – would pass half of the rule off as
+#: all of it.
 CLAIMS = (
     Claim(
         name="the platform deletes the builds nobody uses, whatever their age",
@@ -137,6 +140,21 @@ CLAIMS = (
             "assemblies/{assembly-id}",
             "addresses a build only by uuid",
             "адресует сборку только uuid",
+        ),
+    ),
+    Claim(
+        name="a plugin command sets the exit code of the CLI in the exit-code field of its result",
+        told_in=(
+            "docs/SPEC.md", "docs/SPEC.ru.md",
+            "docs/mcp.md", "docs/mcp.ru.md",
+            "README.md", "README.ru.md",
+            "src/elemctl/plugins.py",
+        ),
+        wording=("exit-code",),
+        retired=(
+            "gives exit code 1 in the CLI",
+            "gives CLI exit code 1",
+            "даёт в CLI код возврата 1",
         ),
     ),
 )
