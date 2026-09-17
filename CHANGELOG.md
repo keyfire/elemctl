@@ -58,6 +58,7 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
   and fell through to the "unknown configuration parameters" check at the end. The explicit
   argument now wins over `ELEMCTL_NO_PROXY` and the file's own copy of it, the same as every
   other field – there were no callers passing it yet, which is how the gap went unnoticed.
+  ([#35](https://github.com/keyfire/elemctl/pull/35))
 - **Four small things around the MCP server's client cache.** `create_app` and `ensure_app`
   used to resolve `client(env_file)` several times per call – up to four inside the shared
   `_create_app`, plus the tool's own lookup – so a single call could in principle run its
@@ -72,6 +73,7 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
   that has not changed at all; closing that gap would mean reading the file on every lookup
   instead of only on a change, and even a lighter, POSIX-only version would still miss it on
   Windows – the trade-off is now spelled out where the fingerprint itself is built.
+  ([#35](https://github.com/keyfire/elemctl/pull/35))
 
 ## 2026-09-13 – 0.41.0
 
