@@ -159,8 +159,14 @@ server process may serve several stands through `env_file`, one call at a time,
 and there is no way for a caller to set a process variable for just one of
 them. The file's setting only ever applies to requests of that stand; a second
 stand served by the same process, cloud or local, is unaffected. A server
-already running does not see the edit until it restarts – it caches a client
-per `env_file`, and nothing tells it the file underneath just changed.
+already running notices without a restart, default stand included: the
+client cache is keyed by `env_file` (or, without one, the server's own
+`--env-file` if it was given at startup, or else the `.env` of the current
+directory) together with the file's modification time and size, so an edit
+– adding this very variable, say – reaches the very next call for that
+stand. That is the CLI's own `elemctl mcp`; a `Config` object handed to the
+server directly by an application that embeds elemctl has no file behind it
+for the cache to watch and stays pinned for the life of the process instead.
 
 ### Behaviour of the tool
 

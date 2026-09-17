@@ -37,6 +37,16 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
   ahead of the JSON answer for `builds list`. The two commands agree on the order now, though
   reading a merged capture whole is still not guaranteed – only stdout read on its own is safe
   to parse as a document. ([#32](https://github.com/keyfire/elemctl/pull/32))
+- **The MCP server's client cache now notices an edited `.env` file.** The cache used to be
+  keyed by `env_file` alone and held its client for the life of the process, so a stand's file
+  edited after the server started – adding `ELEMCTL_NO_PROXY=1`, say – stayed invisible until a
+  restart; the default file (no `env_file` at all) had the same limit. The cache now also
+  tracks the file's modification time and size, so an edit reaches the very next call for that
+  stand, and an `env_file` (or a startup `--env-file`) that goes missing after being cached
+  surfaces the same clear error it always gave, rather than the cache quietly going on with the
+  client that last worked. An explicit `--env-file` is still checked as soon as `elemctl mcp`
+  starts, exit 1 before the server ever runs; every other default-stand configuration problem
+  surfaces on the call that hits it instead.
 
 ## 2026-09-13 – 0.41.0
 
