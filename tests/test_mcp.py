@@ -1128,6 +1128,29 @@ def test_a_config_passed_to_create_server_directly_stays_pinned_unlike_the_cli_p
     assert first["instance-id"] == second["instance-id"]
 
 
+def _root_config_error_message(exc):
+    """The message of our own ConfigError inside a tool-call exception, however either major
+    of the mcp package happens to wrap it.
+
+    mcp 1.x folds the original text into its own message (`Error executing tool X:
+    <original>`), so a plain regex on str(exc) used to work by accident; mcp 2.x's own
+    message is bare (`Error executing tool X`, no colon and no original text) and keeps the
+    ConfigError only as __cause__ - matching against str(exc) then finds nothing, on a
+    genuine failure exactly as much as on this one. The chain is walked instead, so the
+    assertion is about OUR error and not about which major happened to run it; a ConfigError
+    not wrapped at all (a future major, or a direct call outside any tool machinery) is
+    caught on the very first step.
+    """
+    from elemctl.errors import ConfigError
+
+    seen = exc
+    while seen is not None:
+        if isinstance(seen, ConfigError):
+            return str(seen)
+        seen = seen.__cause__ or seen.__context__
+    return str(exc)
+
+
 def test_a_missing_env_file_gives_a_clear_error_through_the_tool(tmp_path):
     """An env_file named by a tool call that does not exist is refused through the same
     ConfigError Config.from_env always raised for one – the cache adds no path of its own
@@ -1135,8 +1158,10 @@ def test_a_missing_env_file_gives_a_clear_error_through_the_tool(tmp_path):
     server = create_server()
     missing = tmp_path / "nope.env"
 
-    with pytest.raises(Exception, match="не найден"):
+    with pytest.raises(Exception) as excinfo:
         asyncio.run(server.call_tool("list_spaces", {"env_file": str(missing)}))
+
+    assert "не найден" in _root_config_error_message(excinfo.value)
 
 
 def test_an_env_file_deleted_after_being_cached_is_noticed_on_the_next_call(monkeypatch, tmp_path):
@@ -1157,8 +1182,10 @@ def test_an_env_file_deleted_after_being_cached_is_noticed_on_the_next_call(monk
 
     env_file.unlink()
 
-    with pytest.raises(Exception, match="не найден"):
+    with pytest.raises(Exception) as excinfo:
         asyncio.run(server.call_tool("list_spaces", {"env_file": str(env_file)}))
+
+    assert "не найден" in _root_config_error_message(excinfo.value)
 
 
 def test_startup_identity_overrides_apply_only_without_an_explicit_env_file(monkeypatch, tmp_path):
