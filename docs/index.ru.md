@@ -150,6 +150,10 @@ elemctl branches merge <branch-id>
 stderr, и stdout остаётся пустым: текст в машинном канале конвейер принял бы
 за ответ.
 
+`apps list` и `builds list` печатают счётчик и отметку об усечении после
+ответа. У остальных строк в stderr порядок не гарантирован, так что разбирать
+безопасно только сам stdout, отдельно от stderr.
+
 Полный список команд даёт `elemctl --help`, по группам – `elemctl apps --help`,
 `elemctl deploy --help` и так далее.
 

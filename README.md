@@ -158,7 +158,9 @@ variable still wins when one is set. That is what an MCP call needs: a single
 server process may serve several stands through `env_file`, one call at a time,
 and there is no way for a caller to set a process variable for just one of
 them. The file's setting only ever applies to requests of that stand; a second
-stand served by the same process, cloud or local, is unaffected.
+stand served by the same process, cloud or local, is unaffected. A server
+already running does not see the edit until it restarts – it caches a client
+per `env_file`, and nothing tells it the file underneath just changed.
 
 ### Behaviour of the tool
 
@@ -231,6 +233,8 @@ elemctl branches merge <branch-id>
 Every command writes JSON to stdout, and progress of long-running operations goes to stderr. An error comes back as a JSON object with an `error` field and exit code 1.
 
 The `--json` flag turns that convention into a guarantee a script can lean on, and it is accepted in any position. While the command runs, stdout is swapped for stderr, so the real stdout receives nothing but the JSON answer. No stray line from a plugin or a library can slip in. Parse the stream whole with `json.load` instead of hunting for the first brace. With `--json` a failure also goes to stderr and stdout stays empty, because a pipeline would read anything in the machine channel as the answer.
+
+`apps list` and `builds list` print their count and truncation notes after the answer. Other stderr output can still come first, so only stdout read on its own is safe to parse whole.
 
 For the full list of commands run `elemctl --help`, and for one group `elemctl apps --help`, `elemctl deploy --help` and so on.
 

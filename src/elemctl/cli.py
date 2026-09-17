@@ -60,7 +60,18 @@ _answer_stream = None
 
 
 def _emit(data):
-    print(json.dumps(data, ensure_ascii=False, indent=2), file=_answer_stream or sys.stdout)
+    """Print the answer and flush it immediately.
+
+    Off a terminal Python block-buffers stdout, while stderr goes through right away – a
+    caller who merges the streams (`2>&1`, or stderr=STDOUT, a plain way to capture "everything
+    the tool printed" for a log) then saw a later _progress line overtake an _emit that ran
+    first in the source, and a parser hunting for the first brace found a summary line instead.
+    The flush is what makes the bytes leave in the order this function is called, regardless
+    of where the caller sends them.
+    """
+    stream = _answer_stream or sys.stdout
+    print(json.dumps(data, ensure_ascii=False, indent=2), file=stream)
+    stream.flush()
 
 
 @contextlib.contextmanager
@@ -82,11 +93,16 @@ def _json_only():
 
 
 def _progress(message):
+    # stderr is already line-buffered on every supported Python, so this changes nothing in
+    # practice – it is here so the order _emit relies on is an explicit guarantee in the code,
+    # not an assumption about the interpreter's default that the next reader has to go verify.
     print(message, file=sys.stderr)
+    sys.stderr.flush()
 
 
 def _fail(payload):
     print(json.dumps(payload, ensure_ascii=False, indent=2), file=sys.stderr)
+    sys.stderr.flush()
     return 1
 
 
@@ -215,6 +231,8 @@ def cmd_apps_list(args):
     the caller used to filter them out on its own. --include-deleted brings them
     back. The count line goes to stderr, not into the answer: a cut nobody is told
     about is a trap, while stdout has to stay the JSON array that scripts parse.
+    Printed after the array, like builds list's own count line, so a caller
+    capturing both streams as one still finds the answer first.
     """
     client = make_client(_config(args))
     listing = client.list_apps_counted(
@@ -599,10 +617,12 @@ def cmd_builds_list(args):
 
     Neither cut is silent, and there are two of them. The tool's own is the limit.
     The platform's is its housekeeping: it deletes the builds nobody uses, whatever
-    their age, so a listing is not the project's history - it is what survived. The
-    count line says which of the two is in front of the reader (builds_summary reads
-    that off the gaps in the build numbering), and it is printed always: a listing
-    without it was read as "the project has exactly these builds".
+    their age, so a listing is not the project's history – it is what survived. The
+    count line says which of the two the reader is looking at (builds_summary reads
+    that off the gaps in the build numbering), and it is printed always – after the
+    answer, the same order apps list uses: a listing without it was read as "the
+    project has exactly these builds", and a caller capturing the two streams as one
+    must still find the answer first.
     """
     config = _config(args)
     client = make_client(config)
@@ -611,15 +631,19 @@ def cmd_builds_list(args):
     )
     assemblies = newest_first(client.list_assemblies(project_id))
     shown = assemblies
-    if args.limit > 0 and len(assemblies) > args.limit:
+    truncated = args.limit > 0 and len(assemblies) > args.limit
+    if truncated:
         shown = assemblies[: args.limit]
-        _progress(i18n.t("cli.builds-list-truncated"))
-    # The whole answer, not the cut one: what the platform left out is judged by the
-    # numbering of everything it did return.
-    _progress(builds_summary(assemblies, len(shown)))
+    # Counted before --brief reshapes the cards: the whole answer, not the cut one –
+    # what the platform left out is judged by the numbering of everything it did
+    # return, and the count of a card does not change when its fields do.
+    shown_count = len(shown)
     if args.brief:
         shown = [brief_assembly(assembly) for assembly in shown]
     _emit(shown)
+    if truncated:
+        _progress(i18n.t("cli.builds-list-truncated"))
+    _progress(builds_summary(assemblies, shown_count))
     return 0
 
 
