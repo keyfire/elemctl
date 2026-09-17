@@ -619,6 +619,26 @@ def test_plugin_command_becomes_a_tool_with_a_schema(monkeypatch):
     assert "env_file" in properties  # added by the core, like every platform tool has it
 
 
+def test_plugin_command_with_a_cli_alias_keeps_one_mcp_parameter(monkeypatch):
+    """cli_alias is a CLI-only convenience (see test_plugins.py) – the schema here is
+    exactly what a plugin without one would get: one parameter per declared argument."""
+    from elemctl import plugins
+
+    server = _server_with(monkeypatch, _plugin_command(
+        name="wiki-get",
+        arguments=[plugins.Argument("page", required=True, cli_alias="--page")],
+        handler=lambda context, page=None: {"page": page},
+    ))
+    tool = next(t for t in asyncio.run(server.list_tools()) if t.name == "wiki_get")
+
+    properties = tool_input_schema(tool).get("properties") or {}
+    assert set(properties) == {"page", "env_file"}  # no second, alias-shaped parameter
+
+    result = asyncio.run(server.call_tool("wiki_get", {"page": "123"}))
+    payload = json.loads(call_result_content(result)[0].text)
+    assert payload == {"page": "123", "log": []}
+
+
 def test_plugin_tool_call_returns_the_result_and_the_log(monkeypatch):
     server = _server_with(monkeypatch, _plugin_command())
 

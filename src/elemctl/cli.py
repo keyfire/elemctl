@@ -1256,6 +1256,59 @@ def _argument_kwargs(argument):
     return kwargs
 
 
+# The absent aliased positional. SUPPRESS would say the same thing, but argparse runs
+# `type` over a string default before it looks for SUPPRESS, and SUPPRESS is a string:
+# on Python 3.10 an int argument refused its own marker with "invalid int value:
+# '==SUPPRESS=='". A plain object is converted by nothing.
+_MISSING = object()
+
+
+class _AliasedPositional(argparse.Action):
+    """The positional half of an aliased argument: its absence must not clear the dest.
+
+    argparse hands an optional positional its own default when the command line carried
+    none, and that default would land on the dest the key form had just filled. Here the
+    default is _MISSING, and seeing it means write nothing at all – the dest keeps what
+    the key form put there, or stays out of the namespace when neither form was given.
+    """
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        if values is _MISSING:
+            if getattr(namespace, self.dest, None) is _MISSING:
+                delattr(namespace, self.dest)
+            return
+        setattr(namespace, self.dest, values)
+
+
+def _add_aliased_positional(parser, argument):
+    """A positional plugin argument and its CLI-only key synonym (Argument.cli_alias).
+
+    The MCP tool keeps the one parameter it always had (see mcp_server._plugin_tool) –
+    the alias changes what THIS parser accepts, nothing about the declared arguments.
+    A mutually exclusive group lets either form fill the same dest: both at once is a
+    parser refusal ("not allowed with argument ..."), and required carries over to the
+    group, so a required argument given by neither form refuses just the same.
+
+    Neither half writes a default: an option left at its own implicit default of None
+    would win the namespace the moment the parser builds it (the option is added second,
+    and it is not the positional's nargs="?" default that argparse falls back to first) –
+    silently overriding a non-None default the plugin declared. With both halves quiet the
+    dest stays out of the namespace whenever neither form is given, and _plugin_handler
+    already falls back to Argument.value_default for exactly that case, the same way it
+    does for every other argument.
+    """
+    group = parser.add_mutually_exclusive_group(required=argument.required)
+    kwargs = _argument_kwargs(argument)
+    kwargs.pop("required", None)
+    kwargs.update(nargs="?", default=_MISSING, action=_AliasedPositional)
+    group.add_argument(argument.name, **kwargs)
+    group.add_argument(
+        argument.cli_alias, dest=argument.dest, type=argument.type, default=argparse.SUPPRESS,
+        choices=list(argument.choices) or None,
+        help=i18n.t("cli.help.plugin-alias", name=argument.name),
+    )
+
+
 def add_plugin_commands(sub):
     """Register the commands the plugins bring as subcommands of the CLI.
 
@@ -1271,7 +1324,10 @@ def add_plugin_commands(sub):
             ))
         parser = sub.add_parser(command.name, help=command.help)
         for argument in command.arguments:
-            parser.add_argument(argument.name, **_argument_kwargs(argument))
+            if argument.cli_alias:
+                _add_aliased_positional(parser, argument)
+            else:
+                parser.add_argument(argument.name, **_argument_kwargs(argument))
         parser.set_defaults(handler=_plugin_handler(command), plugin_command=command)
 
 

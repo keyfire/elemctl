@@ -23,6 +23,16 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
 
 ## Unreleased
 
+### Added
+- **A positional argument of a plugin command accepts a key synonym, `cli_alias`.** A
+  plugin command declares such an argument positional only, so `wiki-get --page 123`
+  used to fail with "unrecognized arguments" even though the same key works on
+  `wiki-publish`. A second `Argument("--page")` was not a fix either: the MCP tool
+  would then carry two `page` parameters. The synonym is CLI-only – the MCP tool schema
+  still has the one parameter it always had – the positional form keeps working, and
+  giving both at once, or neither of a required argument, is refused by the parser. A
+  plugin that declares no `cli_alias` behaves exactly as before.
+
 ### Fixed
 - **`ELEMCTL_NO_PROXY` is now also read from the stand's own `.env` file.** An MCP tool call
   only carries `env_file`, and there was no way to set a process variable for one stand among

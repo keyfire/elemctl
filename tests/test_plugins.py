@@ -204,6 +204,11 @@ def test_command_declaration_is_checked_at_discovery(monkeypatch):
         _command(arguments=[plugins.Argument("force", type=bool)]),  # a flag as a positional
         _command(arguments=[plugins.Argument("--stand"), plugins.Argument("--stand")]),
         _command(arguments=["--stand"]),
+        _command(arguments=[plugins.Argument("--stand", cli_alias="--s")]),  # alias on an option
+        _command(arguments=[plugins.Argument("stand", cli_alias="page")]),  # alias without a dash
+        _command(arguments=[  # alias collides with another argument's own flag
+            plugins.Argument("stand", cli_alias="--force"), plugins.Argument("--force", type=bool),
+        ]),
     ]
     for broken in cases:
         _with_commands(monkeypatch, broken)
@@ -313,6 +318,81 @@ def test_cli_plugin_command_with_a_positional_argument(monkeypatch, capsys):
     assert json.loads(capsys.readouterr().out) == {"app": None}
     assert cli.main(["warm-up", "crm-dev"]) == 0
     assert json.loads(capsys.readouterr().out) == {"app": "crm-dev"}
+
+
+def test_cli_plugin_command_with_a_cli_alias_takes_either_form(monkeypatch, capsys):
+    """A positional argument with cli_alias is reachable positionally or by its key.
+
+    wiki-get took the page only positionally, and wiki-get --page 123 failed
+    with "unrecognized arguments" even though the same key works on wiki-publish.
+    """
+    _with_commands(monkeypatch, _command(
+        name="wiki-get",
+        arguments=[plugins.Argument("page", required=True, cli_alias="--page")],
+        handler=lambda context, page=None: {"page": page},
+    ))
+
+    assert cli.main(["wiki-get", "123"]) == 0
+    assert json.loads(capsys.readouterr().out) == {"page": "123"}
+    assert cli.main(["wiki-get", "--page", "123"]) == 0
+    assert json.loads(capsys.readouterr().out) == {"page": "123"}
+
+
+def test_cli_plugin_command_refuses_the_alias_given_twice_or_not_at_all(monkeypatch):
+    """One value, one place to put it: both forms at once, or neither of a required
+    argument, is a parser refusal rather than a silent pick of one over the other."""
+    _with_commands(monkeypatch, _command(
+        name="wiki-get",
+        arguments=[plugins.Argument("page", required=True, cli_alias="--page")],
+        handler=lambda context, page=None: {"page": page},
+    ))
+
+    with pytest.raises(SystemExit):
+        cli.main(["wiki-get", "1", "--page", "2"])
+    with pytest.raises(SystemExit):
+        cli.main(["wiki-get"])
+
+
+def test_cli_plugin_command_without_a_cli_alias_still_refuses_the_key_form(monkeypatch):
+    """A plugin that declares no synonym behaves exactly as before: positional only."""
+    _with_commands(monkeypatch, _command(
+        arguments=[plugins.Argument("app", required=False)],
+        handler=lambda context, app=None: {"app": app},
+    ))
+
+    assert cli.main(["warm-up", "crm-dev"]) == 0
+    with pytest.raises(SystemExit):
+        cli.main(["warm-up", "--app", "crm-dev"])
+
+
+def test_cli_plugin_command_alias_falls_back_to_the_declared_default(monkeypatch, capsys):
+    """An optional aliased positional keeps its own default when neither form is given –
+    not argparse's own None, which would silently override what the plugin declared."""
+    _with_commands(monkeypatch, _command(
+        arguments=[plugins.Argument("retries", type=int, default=7, cli_alias="--retries")],
+        handler=lambda context, retries=None: {"retries": retries},
+    ))
+
+    assert cli.main(["warm-up"]) == 0
+    assert json.loads(capsys.readouterr().out) == {"retries": 7}
+
+
+def test_cli_plugin_alias_positional_says_it_is_absent_without_a_string(monkeypatch):
+    """The marker for "the positional was not given" must not be a string.
+
+    argparse runs `type` over a STRING default of an optional positional before it looks
+    at what the default means, so argparse.SUPPRESS - itself a string - made an int
+    argument refuse its own marker on Python 3.10: "invalid int value: '==SUPPRESS=='".
+    The test above only catches that on the older interpreter; this one catches it on any.
+    """
+    _with_commands(monkeypatch, _command(
+        arguments=[plugins.Argument("retries", type=int, default=7, cli_alias="--retries")],
+    ))
+
+    warm_up = cli._choices_of(cli.build_parser(), "command")["warm-up"]
+    positional = next(a for a in warm_up._actions
+                      if a.dest == "retries" and not a.option_strings)
+    assert not isinstance(positional.default, str)
 
 
 def test_cli_plugin_cannot_take_over_a_core_command(monkeypatch, capsys):
