@@ -1388,6 +1388,28 @@ def test_apps_list_include_deleted_reaches_the_client(monkeypatch, capsys):
     assert captured.err.strip() == "живых 1 из 2, показано 2"
 
 
+@pytest.mark.parametrize(
+    "argv,client_attr,answer",
+    [
+        (["spaces", "list"], "list_spaces", [{"id": "s1"}]),
+        (["user-lists", "list"], "list_user_lists", [{"id": "l1"}]),
+        (["branches", "list"], "list_branches", [{"id": "b1"}]),
+        (["tasks", "list"], "list_app_tasks", [{"id": "t1"}]),
+    ],
+)
+def test_other_list_commands_answer_in_stdout_alone(monkeypatch, capsys, argv, client_attr, answer):
+    """Every other list command prints nothing of its own before or after the answer – stdout
+    is the array, start to finish, and stderr is empty. None of them call _progress at all, so
+    there is no line that could ever race the answer."""
+    client = type("FakeClient", (), {client_attr: lambda self, *a, **k: answer})()
+    monkeypatch.setattr(cli, "make_client", lambda config: client)
+
+    assert cli.main(argv) == 0
+    captured = capsys.readouterr()
+    assert json.loads(captured.out) == answer
+    assert captured.err == ""
+
+
 def test_projects_list_passes_the_filters_to_the_client(monkeypatch, capsys):
     class FakeClient:
         def list_projects(self, name="", include_deleted=False):
@@ -1497,6 +1519,95 @@ def test_json_leaves_progress_lines_on_stderr(monkeypatch, capsys):
     captured = capsys.readouterr()
     assert [card["name"] for card in json.loads(captured.out)] == ["crm-dev"]
     assert captured.err.strip()
+
+
+def _run_cli_child(tmp_path, script_body, argv):
+    """Run elemctl's own cli.main(argv) in a real child process, with a fake client poked into
+    the module before the call; return (stdout captured alone, stdout+stderr merged into one).
+
+    A real process is the only way to see this class of bug: capsys replaces sys.stdout/stderr
+    with in-memory objects and never exercises the operating system's own buffering, which is
+    exactly where it lives – off a terminal Python block-buffers stdout while stderr goes
+    through right away, so bytes can leave in a different order than the calls that wrote them.
+    """
+    script = tmp_path / "probe.py"
+    script.write_text(
+        "import sys\n"
+        "from elemctl import cli\n"
+        "\n"
+        f"{script_body}\n"
+        f"sys.exit(cli.main({argv!r}))\n",
+        encoding="utf-8",
+    )
+    import_root = Path(elemctl.__file__).resolve().parent.parent
+    env = {**os.environ, "PYTHONPATH": str(import_root), "PYTHONIOENCODING": "utf-8"}
+    alone = subprocess.run(
+        [sys.executable, str(script)], capture_output=True, stdin=subprocess.DEVNULL,
+        text=True, encoding="utf-8", errors="replace", env=env,
+    )
+    merged = subprocess.run(
+        [sys.executable, str(script)],
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
+        text=True, encoding="utf-8", errors="replace", env=env,
+    )
+    return alone, merged
+
+
+_APPS_LIST_PROBE_CLIENT = (
+    "class FakeClient:\n"
+    "    def list_apps_counted(self, name='', status='', include_deleted=False):\n"
+    "        return {'items': [{'id': '1'}], 'total': 410, 'live': 7, 'shown': 7}\n"
+    "\n"
+    "cli.make_client = lambda config: FakeClient()\n"
+)
+
+_BUILDS_LIST_PROBE_CLIENT = (
+    "class FakeClient:\n"
+    "    def list_assemblies(self, project_id):\n"
+    "        return [\n"
+    "            {'id': str(n), 'assembly-version': f'1.0-{n}', 'project-version': f'1.0-{n}'}\n"
+    "            for n in range(1, 4)\n"
+    "        ]\n"
+    "\n"
+    "cli.make_client = lambda config: FakeClient()\n"
+)
+
+
+@pytest.mark.parametrize(
+    "script_body,argv,note_substring",
+    [
+        (_APPS_LIST_PROBE_CLIENT, ["apps", "list"], "живых 7 из 410"),
+        (
+            _BUILDS_LIST_PROBE_CLIENT,
+            ["builds", "list", "--project-id", "p1"],
+            "все сборки проекта",
+        ),
+    ],
+    ids=["apps-list", "builds-list"],
+)
+def test_the_answer_is_the_json_a_merged_stream_starts_with(
+    tmp_path, script_body, argv, note_substring
+):
+    """The contract: stdout captured alone is pure JSON (that is what --json guarantees, and
+    what a caller who separates the streams – the normal way to call a CLI tool – already
+    gets). In a merged capture (`2>&1`, or stderr=STDOUT – a plain way to catch "everything the
+    tool printed" for a log) a whole-string json.loads is NOT promised: the notes still follow
+    the answer as "extra data" once decoded, and that is fine, because the answer is what a
+    parser needs and it is exactly where raw_decode expects the first value to start. What IS
+    promised, and what this checks: the JSON decodes from the very first character of a merged
+    capture, in full, and only the explanatory notes – never part of the answer – trail it.
+    """
+    alone, merged = _run_cli_child(tmp_path, script_body, argv)
+    assert alone.returncode == 0, alone.stderr
+    answer = json.loads(alone.stdout)
+
+    assert merged.returncode == 0, merged.stdout
+    stripped = merged.stdout.lstrip()
+    value, end = json.JSONDecoder().raw_decode(stripped)
+    assert value == answer, "the merged stream's leading JSON is not the same answer"
+    notes = stripped[end:].strip()
+    assert notes, "no notes followed the answer in the merged stream"
+    assert note_substring in notes, notes
 
 
 def test_json_leaves_stdout_empty_on_a_failure(monkeypatch, capsys):

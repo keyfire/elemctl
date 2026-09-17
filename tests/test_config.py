@@ -135,3 +135,58 @@ def test_require_reports_missing_variables(tmp_path, monkeypatch):
     assert "ELEMENT_CLIENT_ID" in message
     assert "ELEMENT_CLIENT_SECRET" in message
     assert "ELEMENT_BASE_URL" not in message
+
+
+# -- ELEMCTL_NO_PROXY: the stand's own .env, not only the process environment ---------------
+
+
+def test_no_proxy_defaults_to_false(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)  # so that no stray .env is picked up
+    assert Config.from_env(environ={}).no_proxy is False
+
+
+def test_no_proxy_sourced_from_the_env_file(tmp_path):
+    """An MCP call reaches a local stand through env_file alone – there is no way for the
+    caller to set a process variable for a single call – so the file has to carry the switch."""
+    env_path = tmp_path / "local.env"
+    env_path.write_text(
+        "ELEMENT_BASE_URL=https://local.test\nELEMCTL_NO_PROXY=1\n", encoding="utf-8"
+    )
+    config = Config.from_env(env_file=env_path, environ={})
+    assert config.no_proxy is True
+
+
+@pytest.mark.parametrize("value", ["", "0", "false", "no", "FALSE", "NO"])
+def test_no_proxy_false_spellings_in_the_file_do_not_enable_it(tmp_path, value):
+    env_path = tmp_path / "local.env"
+    env_path.write_text(f"ELEMCTL_NO_PROXY={value}\n", encoding="utf-8")
+    config = Config.from_env(env_file=env_path, environ={})
+    assert config.no_proxy is False
+
+
+def test_no_proxy_process_variable_still_wins_over_the_file(tmp_path):
+    """The process variable, when explicitly set, keeps working exactly as before – it is
+    what a plain CLI call in a shell sets, and the file must not override it."""
+    env_path = tmp_path / "local.env"
+    env_path.write_text("ELEMCTL_NO_PROXY=1\n", encoding="utf-8")
+    off = Config.from_env(env_file=env_path, environ={"ELEMCTL_NO_PROXY": "0"})
+    assert off.no_proxy is False
+
+    env_path.write_text("ELEMCTL_NO_PROXY=0\n", encoding="utf-8")
+    on = Config.from_env(env_file=env_path, environ={"ELEMCTL_NO_PROXY": "1"})
+    assert on.no_proxy is True
+
+
+def test_no_proxy_of_two_environments_does_not_mix_in_one_process(tmp_path):
+    """One MCP server process serves several stands by env_file in turn; the switch of the
+    local one must not leak into a call that targets the cloud one right after it."""
+    local_env = tmp_path / "local.env"
+    local_env.write_text("ELEMCTL_NO_PROXY=1\n", encoding="utf-8")
+    cloud_env = tmp_path / "cloud.env"
+    cloud_env.write_text("ELEMENT_BASE_URL=https://cloud.example\n", encoding="utf-8")
+
+    local = Config.from_env(env_file=local_env, environ={})
+    cloud = Config.from_env(env_file=cloud_env, environ={})
+
+    assert local.no_proxy is True
+    assert cloud.no_proxy is False

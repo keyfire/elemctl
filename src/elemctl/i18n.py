@@ -584,9 +584,11 @@ MESSAGES = {
     },
     "transport.proxy-hint": {
         "ru": "Запрос шёл через прокси {proxy} из окружения. Если стенд внутренний, "
-              "прокси до него не дотянется: задайте {variable}=1 или добавьте хост в NO_PROXY.",
+              "прокси до него не дотянется: задайте {variable}=1 (переменной окружения или "
+              "строкой в .env этого стенда) или добавьте хост в NO_PROXY.",
         "en": "The request went through the proxy {proxy} from the environment. An internal "
-              "stand is not reachable that way: set {variable}=1 or add the host to NO_PROXY.",
+              "stand is not reachable that way: set {variable}=1 (as an environment variable, "
+              "or as a line in this stand's .env file) or add the host to NO_PROXY.",
     },
     # -- auth.py ------------------------------------------------------------------
     "auth.token-http-error": {

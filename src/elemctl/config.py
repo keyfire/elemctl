@@ -13,6 +13,7 @@ from pathlib import Path
 
 from . import i18n
 from .errors import ConfigError
+from .transport import NO_PROXY_ENV, no_proxy_enabled
 
 # Which environment variable each configuration field corresponds to.
 ENV_KEYS = {
@@ -85,6 +86,10 @@ class Config:
     ca_file: str = ""
     tls_verify: bool = True
     tls_strict: bool = True
+    #: Bypass the environment's proxy for every request of this configuration (ELEMCTL_NO_PROXY).
+    #: A tool-behaviour switch rather than a platform contract field, so it has no ENV_KEYS
+    #: entry of its own – from_env resolves it straight from NO_PROXY_ENV instead.
+    no_proxy: bool = False
     timeout: float = field(default=DEFAULT_TIMEOUT)
 
     def __post_init__(self):
@@ -143,6 +148,17 @@ class Config:
                 values[field_name] = parse_bool(env[env_key], name=env_key)
             elif file_values.get(env_key) not in (None, ""):
                 values[field_name] = parse_bool(file_values[env_key], name=env_key)
+
+        # ELEMCTL_NO_PROXY follows the same precedence as the fields above (process
+        # environment, then the file) but not their strict parse_bool – it keeps the
+        # permissive reading it always had, so a typo does not raise where it used to just
+        # leave the proxy in place. The file source matters for MCP: a call only carries
+        # env_file, and a process variable cannot be set for one call among several the same
+        # server process serves.
+        if env.get(NO_PROXY_ENV) not in (None, ""):
+            values["no_proxy"] = no_proxy_enabled(env[NO_PROXY_ENV])
+        elif file_values.get(NO_PROXY_ENV) not in (None, ""):
+            values["no_proxy"] = no_proxy_enabled(file_values[NO_PROXY_ENV])
 
         timeout = overrides.pop("timeout", None)
         if timeout:

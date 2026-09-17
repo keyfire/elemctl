@@ -207,6 +207,8 @@ Output works like this: the result is JSON on stdout (`ensure_ascii=False`, inde
 
 `--json` makes that a guarantee rather than just a convention: for the duration of the call stdout is redirected to stderr, and the answer alone is written to the real stdout. A caller then parses stdout whole. Without the flag, anything a handler or a plugin prints stays in the stream ahead of the answer. A failure keeps to stderr and leaves stdout empty in this mode too.
 
+`apps list` and `builds list` print their count and truncation lines after the answer, never before it. Other stderr output can still come first even for these two commands – a warning such as the one `ELEMENT_TLS_VERIFY=false` prints, or another command's own progress lines – so only stdout read on its own is safe to parse as a whole.
+
 Commands, with the significant flags in parentheses:
 
 - `token` – obtain and print the token.

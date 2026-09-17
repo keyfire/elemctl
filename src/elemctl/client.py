@@ -363,6 +363,12 @@ class ElementClient:
             tls_verify=config.tls_verify,
             tls_strict=config.tls_strict,
             ca_file=config.ca_file,
+            # config.no_proxy defaults to False on a Config built by hand (no from_env in
+            # sight), indistinguishable from a from_env that read ELEMCTL_NO_PROXY and
+            # resolved it to False – "or None" turns that default back into the transport's
+            # own fallback (the process variable), the same as constructing it without the
+            # argument at all. A resolved True still means True, unconditionally.
+            no_proxy=config.no_proxy or None,
         )
         self._tokens = TokenManager(config, self._transport, cache_dir=token_cache_dir)
         # The override point for the tests: waits must not really sleep.

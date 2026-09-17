@@ -96,6 +96,8 @@ Every command writes JSON to stdout, and progress of long-running operations goe
 
 The `--json` flag turns that convention into a guarantee a script can lean on, and it is accepted in any position. While the command runs, stdout is swapped for stderr, so the real stdout receives nothing but the JSON answer. No stray line from a plugin or a library can slip in. Parse the stream whole with `json.load` instead of hunting for the first brace. With `--json` a failure also goes to stderr and stdout stays empty, because a pipeline would read anything in the machine channel as the answer.
 
+`apps list` and `builds list` print their count and truncation notes after the answer. Other stderr output can still come first, so only stdout read on its own is safe to parse whole.
+
 For the full list of commands run `elemctl --help`, and for one group `elemctl apps --help`, `elemctl deploy --help` and so on.
 
 ## Nearby
