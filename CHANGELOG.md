@@ -52,6 +52,28 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
   client that last worked. An explicit `--env-file` is still checked as soon as `elemctl mcp`
   starts, exit 1 before the server ever runs; every other default-stand configuration problem
   surfaces on the call that hits it instead. ([#33](https://github.com/keyfire/elemctl/pull/33))
+- **`Config.from_env(no_proxy=...)` no longer raises `TypeError`.** Every other field takes an
+  explicit argument ahead of the environment and the file, exactly as the docstring promises;
+  `no_proxy` was the one exception, because its override was never taken out of `**overrides`
+  and fell through to the "unknown configuration parameters" check at the end. The explicit
+  argument now wins over `ELEMCTL_NO_PROXY` and the file's own copy of it, the same as every
+  other field – there were no callers passing it yet, which is how the gap went unnoticed.
+  ([#35](https://github.com/keyfire/elemctl/pull/35))
+- **Four small things around the MCP server's client cache.** `create_app` and `ensure_app`
+  used to resolve `client(env_file)` several times per call – up to four inside the shared
+  `_create_app`, plus the tool's own lookup – so a single call could in principle run its
+  steps against two different clients if the stand's file changed mid-call; each tool now
+  resolves the client once and passes it through. The client a call is replacing used to be
+  released BEFORE the new one was stored, so an exception from its `close()` left the cache
+  pointing at the one that had just failed to close instead of the new, working client;
+  storing now comes first. A lock now guards the cache dictionary itself – every call still
+  runs to completion before the next one starts, so nothing exercises the race today, but a
+  future threaded or async dispatcher would make it real. The fingerprint (modification time
+  and size) still cannot tell a file that turned unreadable without being edited from one
+  that has not changed at all; closing that gap would mean reading the file on every lookup
+  instead of only on a change, and even a lighter, POSIX-only version would still miss it on
+  Windows – the trade-off is now spelled out where the fingerprint itself is built.
+  ([#35](https://github.com/keyfire/elemctl/pull/35))
 
 ## 2026-09-13 – 0.41.0
 

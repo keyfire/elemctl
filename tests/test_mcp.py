@@ -7,6 +7,8 @@ import importlib.util
 import itertools
 import json
 import sys
+import threading
+import time
 import types
 
 import pytest
@@ -1267,3 +1269,214 @@ def test_a_missing_explicit_env_file_fails_at_cli_startup_before_the_server_runs
 
     assert exit_code == 1
     assert started == []
+
+
+# --- Four small things about the client cache ---------------------------------------------
+
+
+def _counting_env_file_signature(monkeypatch):
+    """Replace _env_file_signature with a version that keeps behaving exactly the same way but
+    also remembers how many times it was asked – the number of times client() actually went
+    through its cache-lookup logic for one tool call, the thing create_app and ensure_app used
+    to do several times over."""
+    from elemctl import mcp_server
+
+    calls = []
+    original = mcp_server._env_file_signature
+
+    def counting(path):
+        calls.append(path)
+        return original(path)
+
+    monkeypatch.setattr(mcp_server, "_env_file_signature", counting)
+    return calls
+
+
+class _FakeCreatingClient:
+    """Creates an application, the way FakeCreatingClient in the tests above does, but also
+    answers latest_assembly – the one call _create_app makes that FakeCreatingClient has no
+    need for, since every test up there always names version_id explicitly."""
+
+    def __init__(self, config):
+        self.config = config
+
+    def find_app(self, name, *, include_deleted=False):
+        return None
+
+    def latest_assembly(self, project_id):
+        return {"id": "asm-latest"}
+
+    def create_app(self, display_name, **kwargs):
+        return {"id": "app-new", "display-name": display_name, "status": "Creating"}
+
+    def wait_app_ready(self, app_id, log=None):
+        return {"id": app_id, "status": "Running", "uri": "https://host/apps/new"}
+
+
+def test_create_app_resolves_the_client_once_per_call(monkeypatch, tmp_path):
+    """create_app used to look client(env_file) up separately for the source assembly
+    (latest_assembly), for the creation itself, for the readiness wait and for the
+    verification – four lookups where one was meant, each re-reading the .env file's
+    modification time and size on every one of them. Worse, a file edited mid-call could in
+    principle hand the four steps four different clients. One resolution per tool call closes
+    both gaps; project_id (rather than version_id) is what exercises all four sites at once."""
+    from elemctl import mcp_server
+
+    monkeypatch.setattr(mcp_server, "ElementClient", _FakeCreatingClient)
+    _stub_mcp_verify(monkeypatch, ok=True)
+
+    env_file = tmp_path / "stand.env"
+    env_file.write_text("ELEMENT_BASE_URL=https://stand.test\n", encoding="utf-8")
+    signature_calls = _counting_env_file_signature(monkeypatch)
+
+    server = create_server()
+    result = asyncio.run(
+        server.call_tool(
+            "create_app",
+            {
+                "name": "crm-dev",
+                "project_id": "proj-1",
+                "verify": True,
+                "env_file": str(env_file),
+            },
+        )
+    )
+    payload = json.loads(call_result_content(result)[0].text)
+
+    assert payload["id"] == "app-new"
+    assert payload["verify"]["ok"] is True
+    assert len(signature_calls) == 1
+
+
+def test_ensure_app_resolves_the_client_once_per_call(monkeypatch, tmp_path):
+    """ensure_app's own lookup (does the application already exist) used to be a separate
+    client(env_file) call on top of whatever _create_app made once the answer turned out to
+    be no – three more of them here, since version_id is given and project_id is not. One
+    resolution, shared with _create_app, means every step of one ensure_app call sees the
+    same client instead of possibly several built from different moments of the same file."""
+    from elemctl import mcp_server
+
+    monkeypatch.setattr(mcp_server, "ElementClient", _FakeCreatingClient)
+    _stub_mcp_verify(monkeypatch, ok=True)
+
+    env_file = tmp_path / "stand.env"
+    env_file.write_text("ELEMENT_BASE_URL=https://stand.test\n", encoding="utf-8")
+    signature_calls = _counting_env_file_signature(monkeypatch)
+
+    server = create_server()
+    result = asyncio.run(
+        server.call_tool(
+            "ensure_app",
+            {
+                "name": "crm-dev",
+                "version_id": "asm-1",
+                "verify": True,
+                "env_file": str(env_file),
+            },
+        )
+    )
+    payload = json.loads(call_result_content(result)[0].text)
+
+    assert payload["created"] is True
+    assert payload["verify"]["ok"] is True
+    assert len(signature_calls) == 1
+
+
+def test_a_close_failure_does_not_orphan_the_new_client(monkeypatch, tmp_path):
+    """The client an edit is replacing used to be released BEFORE the new one was stored – an
+    exception from its close() then left the cache pointing at the entry that was there
+    before: the very client whose close() just failed, instead of the new, working one that
+    had already been built. Storing first means a close() failure loses at most the close,
+    never the cache's ability to move on to the client it just built."""
+    from elemctl import mcp_server
+
+    close_attempts = []
+
+    class FailsToClose:
+        def __init__(self, config):
+            self.config = config
+
+        def close(self):
+            close_attempts.append(self)
+            raise RuntimeError("boom")
+
+        def list_spaces(self):
+            return [{"base-url": self.config.base_url}]
+
+    monkeypatch.setattr(mcp_server, "ElementClient", FailsToClose)
+
+    env_file = tmp_path / "stand.env"
+    env_file.write_text("ELEMENT_BASE_URL=https://stand.test\n", encoding="utf-8")
+    server = create_server()
+
+    first = _call_list_spaces(server, str(env_file))
+    assert first["base-url"] == "https://stand.test"
+
+    env_file.write_text(
+        "ELEMENT_BASE_URL=https://stand.test\nELEMCTL_NO_PROXY=1\n", encoding="utf-8"
+    )
+
+    with pytest.raises(Exception):
+        _call_list_spaces(server, str(env_file))
+    assert len(close_attempts) == 1
+
+    # Despite the failed close(), the cache must already hold the new, working client – a
+    # second call must succeed outright, not try (and fail) to close the same old client again.
+    second = _call_list_spaces(server, str(env_file))
+    assert second["base-url"] == "https://stand.test"
+    assert len(close_attempts) == 1
+
+
+def test_concurrent_calls_for_the_same_stand_build_one_client(monkeypatch, tmp_path):
+    """Every tool runs to completion before the next one starts today – the mcp package drives
+    calls one at a time over stdio – so nothing exercises this race yet; the point of a lock
+    around the cache dictionary is to hold the guarantee regardless of how calls end up being
+    dispatched later. This drives the race directly with real threads instead of waiting for
+    a future dispatcher to create it: without a lock, several callers can each see the same
+    stale (or missing) cache entry before any of them stores a replacement, and each ends up
+    building its own client – correct by accident today only because nothing calls in
+    concurrently, and silently leaking every client but the last one the dictionary keeps."""
+    from elemctl import mcp_server
+
+    threads_total = 8
+    counter = itertools.count(1)
+    created = []
+    created_lock = threading.Lock()  # guards the TEST's own bookkeeping, not the code under test
+    build_gate = threading.Event()
+
+    class SlowClient:
+        def __init__(self, config):
+            # Held here to widen the window between the cache-miss check and the cache being
+            # written to – exactly the window a lock around that whole sequence has to close.
+            build_gate.wait(timeout=5)
+            self.config = config
+            with created_lock:
+                self.id = next(counter)
+                created.append(self)
+
+        def list_spaces(self):
+            return [{"instance-id": self.id}]
+
+    monkeypatch.setattr(mcp_server, "ElementClient", SlowClient)
+    env_file = tmp_path / "stand.env"
+    env_file.write_text("ELEMENT_BASE_URL=https://stand.test\n", encoding="utf-8")
+    server = create_server()
+
+    results = []
+    results_lock = threading.Lock()
+
+    def call():
+        answer = _call_list_spaces(server, str(env_file))
+        with results_lock:
+            results.append(answer)
+
+    threads = [threading.Thread(target=call) for _ in range(threads_total)]
+    for thread in threads:
+        thread.start()
+    time.sleep(0.3)  # let every thread reach as far as it can get before any client finishes
+    build_gate.set()
+    for thread in threads:
+        thread.join(timeout=5)
+
+    assert len(created) == 1
+    assert {row["instance-id"] for row in results} == {created[0].id}

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import inspect
 import os
+import threading
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -138,6 +139,23 @@ def _env_file_signature(path):
     None means there is nothing at the path. A client built with no file behind it is cached
     under that same None, and a file that later appears there invalidates it exactly like an
     edit would – the signature only ever fails to change when the path keeps missing.
+
+    What it will NOT notice: a file that turns unreadable without being edited, a permission
+    change on the file itself rather than a rewrite of it, leaves both the modification time
+    and the size exactly where they were, so the cache goes on handing back the client that
+    last read the file successfully instead of ever attempting the read that would now fail.
+    Left unfixed on purpose. Catching it would mean opening the file on every lookup instead
+    of only on a change – paying that cost on every call of a session for the one call an
+    edit actually touches – and even a lighter version, folding the POSIX mode bits into the
+    signature, would still miss the same change on Windows, where read access is an ACL
+    question os.stat does not surface at all; a fix that works on one platform elemctl runs
+    on and not the other would be worse than none, standing as unearned reassurance. elemctl
+    is a single operator's own tool over their own stand's file, not a boundary between
+    untrusted parties, and the promise this cache makes is about the file getting EDITED – a
+    permission flip with no edit at all is the rare case left outside it. Should it happen
+    anyway, the fallback is the safe direction: the stand keeps working on the configuration
+    last proven to read correctly, rather than a call failing over a file that has not, from
+    the cache's own point of view, changed.
     """
     try:
         info = os.stat(path)
@@ -198,6 +216,14 @@ def create_server(config=None, *, overrides=None, env_file=None):
         "overrides": overrides or {},
         "default_env_file": env_file or None,
     }
+    # Guards every read and write of state["clients"] below: a lookup that finds the cache
+    # stale and the build-and-store that follows it have to run as one step, or two callers
+    # racing for the same stand can both find it stale, each build their own client, and
+    # overwrite one another's entry – the one that loses is never closed. Every tool call
+    # runs to completion before the next one starts today, the mcp package dispatches them
+    # one at a time over stdio, so nothing exercises the race yet; the lock is what keeps
+    # that guarantee true if a future async or threaded dispatcher changes how calls arrive.
+    clients_lock = threading.Lock()
 
     def client(env_file: str = ""):
         """A platform client for the requested environment.
@@ -218,45 +244,58 @@ def create_server(config=None, *, overrides=None, env_file=None):
         gave it, instead of the cache quietly going on with the last client that worked; the
         bare .env of the current directory has no such guarantee – nothing named it, and
         Config.from_env has always treated a missing one as no file at all.
+
+        Called at most once per tool call (see _create_app), and everything from the lookup
+        to the store below runs under clients_lock, so one call never sees a client built
+        for another, concurrent one, however either is dispatched.
         """
-        if not env_file and state["config"] is not None:
-            cached = state["clients"].get(None)
-            if cached is None:
-                cached = (None, ElementClient(state["config"]))
-                state["clients"][None] = cached
-            return cached[1]
+        with clients_lock:
+            if not env_file and state["config"] is not None:
+                cached = state["clients"].get(None)
+                if cached is None:
+                    cached = (None, ElementClient(state["config"]))
+                    state["clients"][None] = cached
+                return cached[1]
 
-        is_default_call = not env_file
-        target = env_file or state["default_env_file"]
-        overrides = state["overrides"]
-        if is_default_call:
-            applied = overrides
-        else:
-            applied = {"timeout": overrides["timeout"]} if overrides.get("timeout") else {}
+            is_default_call = not env_file
+            target = env_file or state["default_env_file"]
+            overrides = state["overrides"]
+            if is_default_call:
+                applied = overrides
+            else:
+                applied = {"timeout": overrides["timeout"]} if overrides.get("timeout") else {}
 
-        resolved = str(Path(target or ".env").resolve())
-        # An identity override (see _IDENTITY_OVERRIDE_KEYS) applies only to the default call,
-        # so it is the one thing that can make the default call and an explicit call naming
-        # the very same path build two DIFFERENT configurations – the cache key then has to
-        # keep them apart, or whichever call runs first would hand its answer to the other.
-        # Without one, the two builds are identical and the plain resolved path is left as the
-        # key, the shape that lets a.env, ./a.env and the no-env_file call share one entry.
-        has_identity_override = any(overrides.get(k) for k in _IDENTITY_OVERRIDE_KEYS)
-        cache_key = (
-            (resolved, "startup-identity") if is_default_call and has_identity_override
-            else resolved
-        )
+            resolved = str(Path(target or ".env").resolve())
+            # An identity override (see _IDENTITY_OVERRIDE_KEYS) applies only to the default
+            # call, so it is the one thing that can make the default call and an explicit call
+            # naming the very same path build two DIFFERENT configurations – the cache key
+            # then has to keep them apart, or whichever call runs first would hand its answer
+            # to the other. Without one, the two builds are identical and the plain resolved
+            # path is left as the key, the shape that lets a.env, ./a.env and the no-env_file
+            # call share one entry.
+            has_identity_override = any(overrides.get(k) for k in _IDENTITY_OVERRIDE_KEYS)
+            cache_key = (
+                (resolved, "startup-identity") if is_default_call and has_identity_override
+                else resolved
+            )
 
-        signature = _env_file_signature(resolved)
-        cached = state["clients"].get(cache_key)
-        if cached is not None and cached[0] == signature:
-            return cached[1]
+            signature = _env_file_signature(resolved)
+            cached = state["clients"].get(cache_key)
+            if cached is not None and cached[0] == signature:
+                return cached[1]
 
-        new_client = ElementClient(Config.from_env(env_file=target or None, **applied))
-        if cached is not None:
-            _release_client(cached[1])
-        state["clients"][cache_key] = (signature, new_client)
-        return new_client
+            new_client = ElementClient(Config.from_env(env_file=target or None, **applied))
+            # The client being replaced is released AFTER the new one is stored, not before:
+            # close() is foreign code (a future transport's own session teardown, say), and an
+            # exception out of it must not cost the cache its already-built replacement. Store
+            # first, so a failed close only fails the close – the next call still finds the
+            # new, working client instead of retrying the same close on the one that just
+            # failed it.
+            previous = cached[1] if cached is not None else None
+            state["clients"][cache_key] = (signature, new_client)
+            if previous is not None:
+                _release_client(previous)
+            return new_client
 
     @server.tool()
     def list_apps(
@@ -319,9 +358,15 @@ def create_server(config=None, *, overrides=None, env_file=None):
         return {"id": app.get("id"), "found": True, "application": app}
 
     def _create_app(
-        name, project_id, version_id, space_id, development_mode, env_file="", verify=False
+        target, name, project_id, version_id, space_id, development_mode, verify=False
     ):
         """Create an application (the logic shared by create_app and ensure_app).
+
+        target is the caller's own client(env_file), resolved once and handed in rather than
+        resolved again here – latest_assembly, create_app, wait_app_ready and the client
+        verify takes are up to four separate steps of one call, and each used to call
+        client(env_file) on its own, so a file edited mid-call could in principle hand two of
+        them two different clients. One resolution per tool call rules that out.
 
         The source is version_id (an assembly id) or the latest assembly of
         project_id (creating from a whole project can yield an empty skeleton).
@@ -333,14 +378,14 @@ def create_server(config=None, *, overrides=None, env_file=None):
         if not source_version_id:
             if not project_id:
                 raise ElemctlError(i18n.t("mcp.project-or-version-required"))
-            latest = client(env_file).latest_assembly(project_id)
+            latest = target.latest_assembly(project_id)
             if latest is None:
                 raise ElemctlError(
                     i18n.t("mcp.project-has-no-builds", project_id=project_id)
                 )
             source_version_id = extract_assembly_id(latest)
         started_at = datetime.now(timezone.utc)
-        card = client(env_file).create_app(
+        card = target.create_app(
             name,
             project_version_id=source_version_id,
             development_mode=development_mode,
@@ -351,9 +396,9 @@ def create_server(config=None, *, overrides=None, env_file=None):
         app_id = (card or {}).get("id")
         if not app_id:
             return card, None
-        card = client(env_file).wait_app_ready(app_id)
+        card = target.wait_app_ready(app_id)
         report = _verify_deploy(
-            client(env_file),
+            target,
             app_id,
             expected_assembly_id=source_version_id or "",
             since=started_at,
@@ -384,7 +429,7 @@ def create_server(config=None, *, overrides=None, env_file=None):
         входят в другие приложения, в новом не работают).
         """
         card, report = _create_app(
-            name, project_id, version_id, space_id, development_mode, env_file, verify
+            client(env_file), name, project_id, version_id, space_id, development_mode, verify
         )
         if not isinstance(card, dict):
             return card
@@ -426,7 +471,8 @@ def create_server(config=None, *, overrides=None, env_file=None):
         другие приложения, в новом не работают).
         """
         started_at = datetime.now(timezone.utc)
-        existing = client(env_file).find_app(name)
+        target = client(env_file)
+        existing = target.find_app(name)
         if existing is not None:
             answer = {
                 "id": existing.get("id"),
@@ -439,7 +485,7 @@ def create_server(config=None, *, overrides=None, env_file=None):
                 answer["applied-version-id"] = applied
                 if verify and answer["applied"]:
                     report = _verify_deploy(
-                        client(env_file),
+                        target,
                         str(existing.get("id") or ""),
                         expected_assembly_id=version_id,
                         since=started_at,
@@ -448,7 +494,7 @@ def create_server(config=None, *, overrides=None, env_file=None):
                     answer["verify"] = report.to_dict()
             return answer
         card, report = _create_app(
-            name, project_id, version_id, space_id, development_mode, env_file, verify
+            target, name, project_id, version_id, space_id, development_mode, verify
         )
         answer = {
             "id": (card or {}).get("id"),

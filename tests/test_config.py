@@ -190,3 +190,21 @@ def test_no_proxy_of_two_environments_does_not_mix_in_one_process(tmp_path):
 
     assert local.no_proxy is True
     assert cloud.no_proxy is False
+
+
+def test_no_proxy_accepts_an_explicit_argument_like_every_other_field(tmp_path):
+    """The docstring of from_env promises explicit argument > environment > file for every
+    field. no_proxy was the one exception: the override was never popped out of **overrides,
+    so it fell through to the "unknown configuration parameters" check at the end and
+    from_env(no_proxy=...) raised TypeError instead of resolving - there are no callers doing
+    that today, which is exactly how the gap went unnoticed."""
+    env_path = tmp_path / "local.env"
+    env_path.write_text("ELEMCTL_NO_PROXY=1\n", encoding="utf-8")
+
+    off = Config.from_env(env_file=env_path, environ={"ELEMCTL_NO_PROXY": "1"}, no_proxy=False)
+    assert off.no_proxy is False
+
+    on_path = tmp_path / "on.env"
+    on_path.write_text("ELEMCTL_NO_PROXY=0\n", encoding="utf-8")
+    on = Config.from_env(env_file=on_path, environ={"ELEMCTL_NO_PROXY": "0"}, no_proxy=True)
+    assert on.no_proxy is True
