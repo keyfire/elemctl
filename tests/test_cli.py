@@ -1008,7 +1008,12 @@ def test_deploy_exit_code_reflects_ok(monkeypatch, capsys, project_factory, tmp_
 
 
 def test_mcp_command_forwards_env_file(monkeypatch, tmp_path):
-    """mcp honours the global --env-file: the configuration is passed to the server."""
+    """mcp honours the global --env-file: the PATH is passed to the server, not a
+    configuration resolved from it up front.
+
+    A pre-resolved Config would pin the server to whatever the file said at that one instant
+    – mcp_server.client() only re-reads a file it was itself handed a path to watch.
+    """
     pytest.importorskip("mcp", reason="extra elemctl[mcp] не установлен")
     from elemctl import mcp_server
 
@@ -1022,16 +1027,52 @@ def test_mcp_command_forwards_env_file(monkeypatch, tmp_path):
 
     captured = {}
 
-    def fake_main(config=None):
+    def fake_main(config=None, *, overrides=None, env_file=None):
         captured["config"] = config
+        captured["env_file"] = env_file
 
     monkeypatch.setattr(mcp_server, "main", fake_main)
 
     rc = cli.main(["--env-file", str(env_path), "mcp"])
 
     assert rc == 0
-    assert captured["config"] is not None
-    assert captured["config"].base_url == "https://example.test"
+    assert captured["config"] is None
+    assert captured["env_file"] == str(env_path)
+
+
+def test_mcp_command_forwards_startup_overrides(monkeypatch):
+    """The connection flags actually given on the mcp command line reach the server as
+    overrides, not folded once into a pre-resolved configuration the way
+    test_mcp_command_forwards_env_file shows env_file itself no longer is.
+
+    What mcp_server.client() does with them once they arrive – base_url/client_id/
+    client_secret applied only to a call without its own env_file, timeout applied to every
+    stand – is that function's own contract, covered where it is implemented."""
+    pytest.importorskip("mcp", reason="extra elemctl[mcp] не установлен")
+    from elemctl import mcp_server
+
+    captured = {}
+
+    def fake_main(config=None, *, overrides=None, env_file=None):
+        captured["overrides"] = overrides
+
+    monkeypatch.setattr(mcp_server, "main", fake_main)
+
+    rc = cli.main([
+        "--base-url", "https://cli.test",
+        "--client-id", "cid",
+        "--client-secret", "sec",
+        "--timeout", "5",
+        "mcp",
+    ])
+
+    assert rc == 0
+    assert captured["overrides"] == {
+        "base_url": "https://cli.test",
+        "client_id": "cid",
+        "client_secret": "sec",
+        "timeout": 5.0,
+    }
 
 
 def test_build_json_carries_version_and_source(project_factory, tmp_path, capsys):

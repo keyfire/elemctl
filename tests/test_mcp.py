@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import importlib.util
+import itertools
 import json
 import sys
 import types
@@ -843,3 +844,406 @@ def test_reading_helpers_understand_both_shapes():
 
     assert call_result_content(["block"]) == ["block"]
     assert call_result_content(NewResult()) == ["block"]
+
+
+# --- The client cache reacts to the .env file on disk -------------------------------
+
+@pytest.fixture(autouse=True)
+def _no_stray_element_env(monkeypatch):
+    """Neutralize every ELEMENT_*/ELEMCTL_NO_PROXY variable before each test below.
+
+    The tests in this section build real clients through Config.from_env, which reads the
+    actual process environment whenever nothing overrides it. A developer's own
+    ELEMENT_BASE_URL, set in their shell for convenience and never touched by the test
+    itself, would then outrank the file content or override every assertion here is about –
+    the failure would depend on who happened to run the suite, and where.
+    """
+    from elemctl.config import BOOL_ENV_KEYS, ENV_KEYS
+    from elemctl.transport import NO_PROXY_ENV
+
+    for var in (*ENV_KEYS.values(), *BOOL_ENV_KEYS.values(), NO_PROXY_ENV):
+        monkeypatch.delenv(var, raising=False)
+
+
+def _recording_client_factory():
+    """A stand-in for ElementClient that remembers which config built it and whether it was
+    later closed – exactly the facts the cache behaviour under test turns on, with no real
+    client or network involved.
+    """
+    counter = itertools.count(1)
+    created = []
+
+    class RecordingClient:
+        def __init__(self, config):
+            self.id = next(counter)
+            self.config = config
+            self.closed = False
+            created.append(self)
+
+        def close(self):
+            self.closed = True
+
+        def list_spaces(self):
+            return [{
+                "instance-id": self.id,
+                "base-url": self.config.base_url,
+                "client-secret": self.config.client_secret,
+            }]
+
+    return RecordingClient, created
+
+
+def _call_list_spaces(server, env_file=None):
+    """Call list_spaces (optionally for one stand) and return its single answer row.
+
+    list_spaces is declared -> list, and a one-item list comes back from call_tool as a single
+    content block holding that one item's JSON, not an array wrapping it – the same shape
+    test_list_projects_passes_the_filters_and_keeps_the_cards_brief relies on above.
+    """
+    arguments = {"env_file": env_file} if env_file is not None else {}
+    result = asyncio.run(server.call_tool("list_spaces", arguments))
+    return json.loads(call_result_content(result)[0].text)
+
+
+def _server_via_cli_mcp(monkeypatch, argv, elementclient):
+    """Build the server exactly the way `elemctl mcp` builds it: cli.main's own dispatch to
+    cmd_mcp, which calls the real mcp_server.main (itself calling the real create_server) –
+    only McpServer.run is replaced, handing the built server back instead of starting it. The
+    real .run() blocks on stdio forever waiting for a client that never connects, and that is
+    exactly the entry point that hid the startup bug this file guards against; replacing
+    main() itself instead of just .run() would hide a mismatch between what main() is told
+    and what create_server() actually receives, which is the one thing this helper exists to
+    exercise for real.
+    """
+    from elemctl import cli, mcp_server
+
+    monkeypatch.setattr(mcp_server, "ElementClient", elementclient)
+    captured = {}
+
+    def fake_run(self):
+        captured["server"] = self
+
+    monkeypatch.setattr(mcp_server.McpServer, "run", fake_run)
+    exit_code = cli.main(argv)
+    assert exit_code == 0
+    return captured["server"]
+
+
+def test_two_stands_served_by_one_process_do_not_mix(monkeypatch, tmp_path):
+    """Two env files, two clients – and asking for the first one again is a cache hit,
+    not a third client."""
+    from elemctl import mcp_server
+
+    RecordingClient, _created = _recording_client_factory()
+    monkeypatch.setattr(mcp_server, "ElementClient", RecordingClient)
+
+    env_a = tmp_path / "stand-a.env"
+    env_a.write_text("ELEMENT_BASE_URL=https://stand-a.test\n", encoding="utf-8")
+    env_b = tmp_path / "stand-b.env"
+    env_b.write_text("ELEMENT_BASE_URL=https://stand-b.test\n", encoding="utf-8")
+
+    server = create_server()
+
+    first_a = _call_list_spaces(server, str(env_a))
+    first_b = _call_list_spaces(server, str(env_b))
+    again_a = _call_list_spaces(server, str(env_a))
+
+    assert first_a["base-url"] == "https://stand-a.test"
+    assert first_b["base-url"] == "https://stand-b.test"
+    assert first_a["instance-id"] != first_b["instance-id"]
+    assert again_a["instance-id"] == first_a["instance-id"]
+
+
+def test_editing_one_stands_file_replaces_only_its_own_client(monkeypatch, tmp_path):
+    """The proxy hint's own example – adding ELEMCTL_NO_PROXY=1 to a stand's .env – must take
+    effect on the very next call, and a neighbour stand served by the same process must not
+    notice anything happened."""
+    from elemctl import mcp_server
+
+    RecordingClient, created = _recording_client_factory()
+    monkeypatch.setattr(mcp_server, "ElementClient", RecordingClient)
+
+    env_a = tmp_path / "stand-a.env"
+    env_a.write_text("ELEMENT_BASE_URL=https://stand-a.test\n", encoding="utf-8")
+    env_b = tmp_path / "stand-b.env"
+    env_b.write_text("ELEMENT_BASE_URL=https://stand-b.test\n", encoding="utf-8")
+
+    server = create_server()
+    before_a = _call_list_spaces(server, str(env_a))
+    before_b = _call_list_spaces(server, str(env_b))
+
+    env_a.write_text(
+        "ELEMENT_BASE_URL=https://stand-a.test\nELEMCTL_NO_PROXY=1\n", encoding="utf-8"
+    )
+
+    after_a = _call_list_spaces(server, str(env_a))
+    after_b = _call_list_spaces(server, str(env_b))
+
+    assert after_a["instance-id"] != before_a["instance-id"]  # the edit is picked up
+    assert after_b["instance-id"] == before_b["instance-id"]  # the other stand is untouched
+
+    outgoing = next(c for c in created if c.id == before_a["instance-id"])
+    assert outgoing.closed is True  # the replaced client released what it could
+
+
+def test_a_client_with_nothing_to_close_is_simply_replaced(monkeypatch, tmp_path):
+    """Not every client has a close() – ElementClient itself does not today – and the cache
+    must not choke on the one it is holding when a file changes underneath it."""
+    from elemctl import mcp_server
+
+    counter = itertools.count(1)
+
+    class BareClient:
+        def __init__(self, config):
+            self.id = next(counter)
+            self.config = config
+
+        def list_spaces(self):
+            return [{"instance-id": self.id, "base-url": self.config.base_url}]
+
+    monkeypatch.setattr(mcp_server, "ElementClient", BareClient)
+
+    env_file = tmp_path / "stand.env"
+    env_file.write_text("ELEMENT_BASE_URL=https://stand.test\n", encoding="utf-8")
+    server = create_server()
+
+    before = _call_list_spaces(server, str(env_file))
+    env_file.write_text(
+        "ELEMENT_BASE_URL=https://stand.test\nELEMCTL_NO_PROXY=1\n", encoding="utf-8"
+    )
+    after = _call_list_spaces(server, str(env_file))
+
+    assert after["instance-id"] != before["instance-id"]
+
+
+def test_default_env_file_is_watched_the_same_way_as_an_explicit_one(monkeypatch, tmp_path):
+    """The exact shape `elemctl mcp` runs in: no --env-file, no other flag. A tool call
+    without env_file must re-read the .env of the working directory on every miss – built
+    through the CLI's own construction (cli.main -> cmd_mcp -> mcp_server.main), not through
+    calling create_server() with nothing at all: that shortcut and what the CLI actually does
+    used to differ in exactly the way that mattered here (cmd_mcp handed the server a
+    pre-resolved Config, which pinned the default stand forever).
+    """
+    RecordingClient, _created = _recording_client_factory()
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / ".env").write_text("ELEMENT_BASE_URL=https://default.test\n", encoding="utf-8")
+
+    server = _server_via_cli_mcp(monkeypatch, ["mcp"], RecordingClient)
+
+    before = _call_list_spaces(server)
+    (tmp_path / ".env").write_text(
+        "ELEMENT_BASE_URL=https://default.test\nELEMCTL_NO_PROXY=1\n", encoding="utf-8"
+    )
+    after = _call_list_spaces(server)
+
+    assert before["base-url"] == "https://default.test"
+    assert after["instance-id"] != before["instance-id"]
+
+
+def test_a_cli_startup_override_wins_over_the_file_even_after_it_is_rebuilt(monkeypatch, tmp_path):
+    """--base-url on the elemctl mcp command line is the most explicit source there is –
+    Config.from_env's own precedence, explicit arguments over the file. A file edit that
+    forces the default stand's client to be rebuilt must not lose that override along the way.
+    """
+    RecordingClient, _created = _recording_client_factory()
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / ".env").write_text("ELEMENT_BASE_URL=https://from-file.test\n", encoding="utf-8")
+
+    server = _server_via_cli_mcp(
+        monkeypatch, ["mcp", "--base-url", "https://override.test"], RecordingClient
+    )
+
+    before = _call_list_spaces(server)
+    (tmp_path / ".env").write_text(
+        "ELEMENT_BASE_URL=https://from-file.test\nELEMCTL_NO_PROXY=1\n", encoding="utf-8"
+    )
+    after = _call_list_spaces(server)
+
+    assert before["base-url"] == "https://override.test"
+    assert after["base-url"] == "https://override.test"
+    assert after["instance-id"] != before["instance-id"]  # the edit still rebuilt the client
+
+
+def test_env_file_paths_naming_the_same_file_share_one_cache_entry(monkeypatch, tmp_path):
+    """a.env and ./a.env are the same file by any path resolution; they must not each get
+    their own client just because the two spellings differ."""
+    from elemctl import mcp_server
+
+    RecordingClient, _created = _recording_client_factory()
+    monkeypatch.setattr(mcp_server, "ElementClient", RecordingClient)
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "a.env").write_text("ELEMENT_BASE_URL=https://a.test\n", encoding="utf-8")
+
+    server = create_server()
+
+    plain = _call_list_spaces(server, "a.env")
+    dotted = _call_list_spaces(server, "./a.env")
+
+    assert dotted["instance-id"] == plain["instance-id"]
+
+
+def test_explicit_env_file_equal_to_the_default_path_shares_the_entry_with_the_no_env_file_call(
+    monkeypatch, tmp_path
+):
+    """A call that happens to name the working directory's own .env explicitly must land on
+    the very same cache entry as a call that left env_file out – they are the same stand."""
+    RecordingClient, _created = _recording_client_factory()
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / ".env").write_text("ELEMENT_BASE_URL=https://default.test\n", encoding="utf-8")
+
+    server = _server_via_cli_mcp(monkeypatch, ["mcp"], RecordingClient)
+
+    without_env_file = _call_list_spaces(server)
+    named_explicitly = _call_list_spaces(server, str(tmp_path / ".env"))
+
+    assert named_explicitly["instance-id"] == without_env_file["instance-id"]
+
+
+def test_a_config_passed_to_create_server_directly_stays_pinned_unlike_the_cli_path(
+    monkeypatch, tmp_path
+):
+    """create_server(config=...) is the library-embedding entry point – cmd_mcp does not use
+    it any more (see test_default_env_file_is_watched_the_same_way_as_an_explicit_one, which
+    goes through the CLI's own construction and DOES re-read a file). A Config object handed
+    in this way has no file behind it for the cache to watch, so it stays pinned for the life
+    of the process, and a stray .env of the working directory (an agent started from an
+    unexpected place, say) must not shadow it.
+    """
+    from elemctl import mcp_server
+    from elemctl.config import Config
+
+    RecordingClient, _created = _recording_client_factory()
+    monkeypatch.setattr(mcp_server, "ElementClient", RecordingClient)
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / ".env").write_text("ELEMENT_BASE_URL=https://from-file.test\n", encoding="utf-8")
+
+    server = create_server(
+        Config(base_url="https://startup.test", client_id="cid", client_secret="secret")
+    )
+
+    first = _call_list_spaces(server)
+    second = _call_list_spaces(server)
+
+    assert first["base-url"] == second["base-url"] == "https://startup.test"
+    assert first["instance-id"] == second["instance-id"]
+
+
+def _root_config_error_message(exc):
+    """The message of our own ConfigError inside a tool-call exception, however either major
+    of the mcp package happens to wrap it.
+
+    mcp 1.x folds the original text into its own message (`Error executing tool X:
+    <original>`), so a plain regex on str(exc) used to work by accident; mcp 2.x's own
+    message is bare (`Error executing tool X`, no colon and no original text) and keeps the
+    ConfigError only as __cause__ - matching against str(exc) then finds nothing, on a
+    genuine failure exactly as much as on this one. The chain is walked instead, so the
+    assertion is about OUR error and not about which major happened to run it; a ConfigError
+    not wrapped at all (a future major, or a direct call outside any tool machinery) is
+    caught on the very first step.
+    """
+    from elemctl.errors import ConfigError
+
+    seen = exc
+    while seen is not None:
+        if isinstance(seen, ConfigError):
+            return str(seen)
+        seen = seen.__cause__ or seen.__context__
+    return str(exc)
+
+
+def test_a_missing_env_file_gives_a_clear_error_through_the_tool(tmp_path):
+    """An env_file named by a tool call that does not exist is refused through the same
+    ConfigError Config.from_env always raised for one – the cache adds no path of its own
+    that could swallow it."""
+    server = create_server()
+    missing = tmp_path / "nope.env"
+
+    with pytest.raises(Exception) as excinfo:
+        asyncio.run(server.call_tool("list_spaces", {"env_file": str(missing)}))
+
+    assert "не найден" in _root_config_error_message(excinfo.value)
+
+
+def test_an_env_file_deleted_after_being_cached_is_noticed_on_the_next_call(monkeypatch, tmp_path):
+    """A first, successful call must not leave the server trusting a client whose file is gone
+    by the time of the second call – silently carrying on with stale credentials is worse than
+    an error that says so."""
+    from elemctl import mcp_server
+
+    RecordingClient, _created = _recording_client_factory()
+    monkeypatch.setattr(mcp_server, "ElementClient", RecordingClient)
+
+    env_file = tmp_path / "stand.env"
+    env_file.write_text("ELEMENT_BASE_URL=https://stand.test\n", encoding="utf-8")
+    server = create_server()
+
+    first = _call_list_spaces(server, str(env_file))
+    assert first["base-url"] == "https://stand.test"
+
+    env_file.unlink()
+
+    with pytest.raises(Exception) as excinfo:
+        asyncio.run(server.call_tool("list_spaces", {"env_file": str(env_file)}))
+
+    assert "не найден" in _root_config_error_message(excinfo.value)
+
+
+def test_startup_identity_overrides_apply_only_without_an_explicit_env_file(monkeypatch, tmp_path):
+    """--base-url/--client-id/--client-secret at elemctl mcp startup name the stand at the
+    startup address – the default stand, a call without its own env_file. A call naming a
+    DIFFERENT stand explicitly must be built from that stand's own file untouched, exactly as
+    it was on 4813d0a, before these flags reached the cache at all: a call to another stand
+    landing on the startup host with a mixed set of credentials is the regression this pins
+    down (the probe that first found it: `elemctl --env-file cloud.env --base-url
+    https://cloud.test --client-secret cloud-secret mcp`, then a call naming local.env –
+    which came back https://cloud.test with the cloud secret, instead of local.env's own).
+    """
+    RecordingClient, _created = _recording_client_factory()
+    monkeypatch.chdir(tmp_path)
+    cloud_env = tmp_path / "cloud.env"
+    cloud_env.write_text(
+        "ELEMENT_BASE_URL=https://cloud-file.test\nELEMENT_CLIENT_SECRET=cloud-file-secret\n",
+        encoding="utf-8",
+    )
+    local_env = tmp_path / "local.env"
+    local_env.write_text(
+        "ELEMENT_BASE_URL=https://local.test\nELEMENT_CLIENT_SECRET=local-secret\n",
+        encoding="utf-8",
+    )
+
+    server = _server_via_cli_mcp(
+        monkeypatch,
+        [
+            "mcp",
+            "--env-file", str(cloud_env),
+            "--base-url", "https://cloud.test",
+            "--client-secret", "cloud-secret",
+        ],
+        RecordingClient,
+    )
+
+    default_stand = _call_list_spaces(server)
+    other_stand = _call_list_spaces(server, str(local_env))
+
+    assert default_stand["base-url"] == "https://cloud.test"  # the startup override wins
+    assert default_stand["client-secret"] == "cloud-secret"
+    assert other_stand["base-url"] == "https://local.test"  # untouched by the startup flags
+    assert other_stand["client-secret"] == "local-secret"
+
+
+def test_a_missing_explicit_env_file_fails_at_cli_startup_before_the_server_runs(
+    monkeypatch, tmp_path
+):
+    """A bad --env-file must not slip past startup quietly, the way it did once main() stopped
+    resolving a Config there – it is checked at the same place and with the same clear error
+    as on 4813d0a, before create_server ever runs, so McpServer.run must never be reached."""
+    from elemctl import cli, mcp_server
+
+    started = []
+    monkeypatch.setattr(mcp_server.McpServer, "run", lambda self: started.append(self))
+
+    missing = tmp_path / "nope.env"
+    exit_code = cli.main(["--env-file", str(missing), "mcp"])
+
+    assert exit_code == 1
+    assert started == []

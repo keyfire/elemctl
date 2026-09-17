@@ -40,7 +40,7 @@ from .client import (
     extract_assembly_id,
     sign_in_hint,
 )
-from .config import Config
+from .config import Config, ensure_env_file_exists
 from .deploy import deploy_from_sources, verify_deploy
 from .errors import ApiError, ConfigError, ElemctlError, PluginError
 from .probe import probe_project
@@ -1191,7 +1191,28 @@ def cmd_mcp(args):
         from . import mcp_server
     except ImportError:
         raise ElemctlError(i18n.t("cli.mcp-extra-required"))
-    mcp_server.main(config=_config(args))
+    # A bad --env-file still fails right here, before the server starts – the same check
+    # Config.from_env would raise on the first call, just not deferred to it: a typo in a
+    # path given explicitly on this command line is worth knowing about immediately, not
+    # minutes into a session. Other default-stand configuration problems (a bad
+    # ELEMENT_TLS_VERIFY, credentials missing entirely) are NOT resolved here on purpose: not
+    # _config(args), which used to build a whole Config up front and hand it to mcp_server as
+    # a ready object – that pinned it for the life of the process, so the default stand's
+    # .env, edited after the server started, was never re-read. Only the genuine overrides
+    # (the flags actually given – base URL, client id and the rest) and --env-file, if any,
+    # are passed instead; every call still without its own env_file rebuilds from the file on
+    # an edit, the overrides applied on top each time.
+    if args.env_file:
+        ensure_env_file_exists(args.env_file)
+    mcp_server.main(
+        overrides={
+            "base_url": args.base_url,
+            "client_id": args.client_id,
+            "client_secret": args.client_secret,
+            "timeout": args.timeout,
+        },
+        env_file=args.env_file,
+    )
     return 0
 
 

@@ -8,7 +8,9 @@ the optional extra "elemctl[mcp]" (the mcp package, either major version).
 from __future__ import annotations
 
 import inspect
+import os
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 # The whole difference between the two majors of the mcp package lives here.
 #
@@ -123,11 +125,63 @@ def _brief_project(project):
     }
 
 
-def create_server(config=None):
+#: Fields of overrides that name a stand's identity rather than a process-wide setting. They
+#: apply only to a call that leaves out its own env_file (see create_server) – a call naming a
+#: different stand explicitly is built from that stand's own file, the same as it always was.
+_IDENTITY_OVERRIDE_KEYS = ("base_url", "client_id", "client_secret")
+
+
+def _env_file_signature(path):
+    """A cheap fingerprint of a .env file: its modification time, paired with the size for
+    when a filesystem's clock is too coarse to tell two quick edits apart on its own.
+
+    None means there is nothing at the path. A client built with no file behind it is cached
+    under that same None, and a file that later appears there invalidates it exactly like an
+    edit would – the signature only ever fails to change when the path keeps missing.
+    """
+    try:
+        info = os.stat(path)
+    except OSError:
+        return None
+    return (info.st_mtime_ns, info.st_size)
+
+
+def _release_client(client):
+    """Let an outgoing client give up whatever it holds, if it holds anything at all.
+
+    ElementClient opens no lasting connection today – the transport is plain urllib, opened and
+    closed per request – so this is a no-op in practice. It stays here so that a future
+    transport which DOES keep a session is not leaked the moment its cache entry is replaced by
+    the client of an edited file.
+    """
+    closer = getattr(client, "close", None)
+    if callable(closer):
+        closer()
+
+
+def create_server(config=None, *, overrides=None, env_file=None):
     """Create the elemctl MCP server with all of its tools.
 
-    config – a ready configuration; without it the configuration is assembled
-    from the environment variables and .env on the first call to the platform.
+    Two ways to seed the connection, not meant to be combined:
+
+    config – a ready configuration handed in programmatically (library use: an application
+    embedding elemctl already built one). It is pinned for every call without its own
+    env_file, for the life of the process – it has no file behind it for the cache below to
+    watch, unlike the other path.
+
+    overrides / env_file – what the CLI passes instead (cli.cmd_mcp checks an explicit
+    env_file exists before the server ever starts, then hands it on as a path, unresolved).
+    base_url, client_id and client_secret in overrides name the stand at the startup address,
+    so they apply only to a call that leaves out its own env_file – a call naming a different
+    stand explicitly is built from that stand's own file alone, exactly as it was before these
+    parameters existed. timeout is a process-wide setting instead, not a stand's own, and is
+    layered onto every call regardless. env_file is --env-file itself, if given; without one,
+    a call that leaves out its own env_file falls back to the .env of the current directory.
+    Either way that call is cached by its resolved path and a signature of the file (its
+    modification time and size), rebuilt on an edit rather than on every call.
+
+    Without any of the three, the configuration is assembled from the environment variables
+    and the .env of the current directory the first time a call needs it.
     """
     # instructions goes by keyword on purpose: mcp 2.x inserted title and
     # description before it in the positional order. The version parameter is
@@ -138,24 +192,71 @@ def create_server(config=None):
     if "version" in inspect.signature(McpServer).parameters:
         options["version"] = __version__
     server = McpServer("elemctl", **options)
-    state = {"clients": {}, "config": config}
+    state = {
+        "clients": {},
+        "config": config,
+        "overrides": overrides or {},
+        "default_env_file": env_file or None,
+    }
 
     def client(env_file: str = ""):
         """A platform client for the requested environment.
 
-        Without env_file – the configuration the server was started with; with it –
-        a separate client for the given .env, cached by that path. This way a single
-        server serves both the cloud and a local installation: previously the
-        environment was set only at startup, and the second one stayed out of reach.
+        Without env_file and a configuration the server started with – that configuration,
+        pinned for the life of the process (see create_server). Otherwise – a client for
+        env_file, or without one the server's own default (--env-file at startup, or the
+        .env of the current directory), cached under the resolved path together with a
+        signature of that file (its modification time and size). An edit changes the
+        signature, so the next call for the same path builds a fresh client instead of
+        handing back the one that read the file before the edit; a stand's own
+        ELEMCTL_NO_PROXY switch, say, takes effect on the next call rather than needing a
+        restart. base_url, client_id and client_secret given at startup apply only to THIS
+        call, the one without its own env_file – a call naming its own env_file is built from
+        that file alone, the same as it was before these overrides existed; only timeout, a
+        process-wide setting, still follows it. An env_file (or the server's own --env-file)
+        that stops resolving to a file surfaces the same clear error Config.from_env always
+        gave it, instead of the cache quietly going on with the last client that worked; the
+        bare .env of the current directory has no such guarantee – nothing named it, and
+        Config.from_env has always treated a missing one as no file at all.
         """
-        key = env_file or ""
-        if key not in state["clients"]:
-            cfg = (
-                state["config"] if not key and state["config"]
-                else Config.from_env(env_file=key or None)
-            )
-            state["clients"][key] = ElementClient(cfg)
-        return state["clients"][key]
+        if not env_file and state["config"] is not None:
+            cached = state["clients"].get(None)
+            if cached is None:
+                cached = (None, ElementClient(state["config"]))
+                state["clients"][None] = cached
+            return cached[1]
+
+        is_default_call = not env_file
+        target = env_file or state["default_env_file"]
+        overrides = state["overrides"]
+        if is_default_call:
+            applied = overrides
+        else:
+            applied = {"timeout": overrides["timeout"]} if overrides.get("timeout") else {}
+
+        resolved = str(Path(target or ".env").resolve())
+        # An identity override (see _IDENTITY_OVERRIDE_KEYS) applies only to the default call,
+        # so it is the one thing that can make the default call and an explicit call naming
+        # the very same path build two DIFFERENT configurations – the cache key then has to
+        # keep them apart, or whichever call runs first would hand its answer to the other.
+        # Without one, the two builds are identical and the plain resolved path is left as the
+        # key, the shape that lets a.env, ./a.env and the no-env_file call share one entry.
+        has_identity_override = any(overrides.get(k) for k in _IDENTITY_OVERRIDE_KEYS)
+        cache_key = (
+            (resolved, "startup-identity") if is_default_call and has_identity_override
+            else resolved
+        )
+
+        signature = _env_file_signature(resolved)
+        cached = state["clients"].get(cache_key)
+        if cached is not None and cached[0] == signature:
+            return cached[1]
+
+        new_client = ElementClient(Config.from_env(env_file=target or None, **applied))
+        if cached is not None:
+            _release_client(cached[1])
+        state["clients"][cache_key] = (signature, new_client)
+        return new_client
 
     @server.tool()
     def list_apps(
@@ -734,15 +835,16 @@ def add_plugin_tools(server, client_for_env):
         )
 
 
-def main(config=None):
+def main(config=None, *, overrides=None, env_file=None):
     """Start the MCP server on stdio.
 
-    config – a ready configuration (the one the CLI assembled from --env-file
-    and the rest of the global arguments, for instance); without it the
-    configuration is assembled from the environment variables and .env on the
-    first call to the platform.
+    config, overrides and env_file are exactly create_server's own parameters – see there for
+    what each means. The CLI (cli.cmd_mcp) passes overrides and env_file, never config: a
+    pre-resolved Config would pin the default stand for the life of the process and no edit
+    of its .env would ever reach a call again. Without any of the three, the configuration is
+    assembled from the environment variables and .env on the first call to the platform.
     """
-    create_server(config).run()
+    create_server(config, overrides=overrides, env_file=env_file).run()
 
 
 if __name__ == "__main__":

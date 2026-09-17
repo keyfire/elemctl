@@ -46,6 +46,30 @@ def parse_bool(value, *, name):
     raise ConfigError(i18n.t("config.invalid-boolean", name=name, value=value))
 
 
+def ensure_env_file_exists(env_file):
+    """Raise the clear ConfigError Config.from_env gives a bad explicit env_file, without
+    building a Config – so the CLI's mcp command can fail fast on a bad --env-file at
+    startup, before Config.from_env's own check would only ever run on the first call.
+
+    Returns the resolved Path on success, since from_env needs it right after this check too.
+    """
+    path = Path(env_file)
+    if not path.is_file():
+        # The absolute path and the cwd answer the actual question: a
+        # relative --env-file is resolved from the CURRENT directory,
+        # not from --project-dir, and in a background run the current
+        # directory is not always the one it seems to be.
+        raise ConfigError(
+            i18n.t(
+                "config.env-file-not-found",
+                path=path,
+                absolute=path.resolve(),
+                cwd=Path.cwd(),
+            )
+        )
+    return path
+
+
 def parse_env_file(path):
     """Parse a .env file into a KEY -> VALUE dictionary.
 
@@ -110,20 +134,7 @@ class Config:
 
         file_values = {}
         if env_file:
-            path = Path(env_file)
-            if not path.is_file():
-                # The absolute path and the cwd answer the actual question: a
-                # relative --env-file is resolved from the CURRENT directory,
-                # not from --project-dir, and in a background run the current
-                # directory is not always the one it seems to be.
-                raise ConfigError(
-                    i18n.t(
-                        "config.env-file-not-found",
-                        path=path,
-                        absolute=path.resolve(),
-                        cwd=Path.cwd(),
-                    )
-                )
+            path = ensure_env_file_exists(env_file)
             file_values = parse_env_file(path)
         else:
             default_path = Path(".env")
