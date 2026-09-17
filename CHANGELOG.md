@@ -26,6 +26,7 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
   still has the one parameter it always had – the positional form keeps working, and
   giving both at once, or neither of a required argument, is refused by the parser. A
   plugin that declares no `cli_alias` behaves exactly as before.
+  ([#34](https://github.com/keyfire/elemctl/pull/34))
 
 ### Fixed
 - **`ELEMCTL_NO_PROXY` is now also read from the stand's own `.env` file.** An MCP tool call
