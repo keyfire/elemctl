@@ -46,7 +46,7 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
   surfaces the same clear error it always gave, rather than the cache quietly going on with the
   client that last worked. An explicit `--env-file` is still checked as soon as `elemctl mcp`
   starts, exit 1 before the server ever runs; every other default-stand configuration problem
-  surfaces on the call that hits it instead.
+  surfaces on the call that hits it instead. ([#33](https://github.com/keyfire/elemctl/pull/33))
 
 ## 2026-09-13 – 0.41.0
 
