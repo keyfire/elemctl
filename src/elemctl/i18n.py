@@ -482,6 +482,30 @@ MESSAGES = {
         "ru": "команде плагина не с чем обратиться к платформе: клиент не передан",
         "en": "a command of a plugin has nothing to reach the platform with: no client was given",
     },
+    "plugins.alias-needs-positional": {
+        "ru": "аргумент {argument} команды '{name}' плагина '{where}' объявляет cli_alias, а "
+              "сам не позиционный – синоним имеет смысл только у позиционного аргумента, у "
+              "опции уже есть имя, каким её вызывать",
+        "en": "the argument {argument} of the command '{name}' of the plugin '{where}' declares "
+              "cli_alias while not being positional itself – a synonym only makes sense for a "
+              "positional argument, an option already has a name to call it by",
+    },
+    "plugins.alias-not-an-option": {
+        "ru": "cli_alias '{alias}' аргумента {argument} команды '{name}' плагина '{where}' "
+              "обязан начинаться с дефиса, как имя опции",
+        "en": "the cli_alias '{alias}' of the argument {argument} of the command '{name}' of "
+              "the plugin '{where}' has to start with a dash, like an option name",
+    },
+    "plugins.alias-duplicate": {
+        "ru": "у команды '{name}' плагина '{where}' несколько аргументов претендуют на один и "
+              "тот же ключ CLI: {flags}",
+        "en": "several arguments of the command '{name}' of the plugin '{where}' claim the same "
+              "CLI flag: {flags}",
+    },
+    "cli.help.plugin-alias": {
+        "ru": "то же, что позиционный аргумент {name}",
+        "en": "the same as the positional argument {name}",
+    },
     "cli.help.selfupdate-stop": {
         "ru": "снять процессы, держащие установку (MCP-сессии elemctl), и обновиться; "
               "без флага команда только назовёт их",

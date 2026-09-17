@@ -135,6 +135,18 @@ class Argument:
     boolean with a default of False in MCP), so a positional argument cannot be
     one. required works for options; a positional argument is required unless it
     has required=False, which makes it optional (nargs="?").
+
+    cli_alias – a key synonym of a positional argument, CLI only: "--page" lets
+    "wiki-get --page 123" reach the same value as "wiki-get 123". The
+    MCP tool keeps the single parameter it always had (see mcp_server._plugin_tool)
+    – the alias changes what the CLI parser accepts, nothing about the declared
+    arguments themselves. cli.add_plugin_commands builds the two forms as a
+    mutually exclusive pair sharing one dest: both at once, or neither of a
+    required argument, is a parser refusal rather than a silent pick of one over
+    the other. Only a positional argument may declare one – an option already has
+    a name to call it by, and Command.validate rejects the rest: an alias on an
+    option, one that does not start with a dash, or one that collides with
+    another argument's own flag.
     """
 
     name: str
@@ -143,6 +155,7 @@ class Argument:
     default: object = None
     required: bool = False
     choices: tuple = ()
+    cli_alias: str = ""
 
     @property
     def is_option(self) -> bool:
@@ -231,6 +244,31 @@ class Command:
                     where=where, name=self.name, argument=argument.dest,
                 ))
             seen.add(argument.dest)
+            if argument.cli_alias and argument.is_option:
+                raise PluginError(i18n.t(
+                    "plugins.alias-needs-positional",
+                    where=where, name=self.name, argument=argument.name,
+                ))
+            if argument.cli_alias and not argument.cli_alias.startswith("-"):
+                raise PluginError(i18n.t(
+                    "plugins.alias-not-an-option",
+                    where=where, name=self.name, argument=argument.name,
+                    alias=argument.cli_alias,
+                ))
+        # Collected in a second pass rather than checked against "seen" above: a plugin
+        # is free to declare the alias before the option it happens to collide with, and
+        # the order must not decide whether the mistake is caught. Left uncaught, it would
+        # surface as a bare argparse.ArgumentError the moment the CLI parser is built –
+        # not a PluginError, and not only for the plugin's own command, since the parser
+        # is shared by the whole CLI.
+        flags = [a.name for a in self.arguments if a.is_option]
+        flags += [a.cli_alias for a in self.arguments if a.cli_alias]
+        duplicates = {flag for flag in flags if flags.count(flag) > 1}
+        if duplicates:
+            raise PluginError(i18n.t(
+                "plugins.alias-duplicate",
+                where=where, name=self.name, flags=", ".join(sorted(duplicates)),
+            ))
         return self
 
 
