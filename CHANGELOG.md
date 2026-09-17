@@ -15,6 +15,16 @@ entry either – say what the behaviour was, not which id or response field was 
 The link is written by `python scripts/changelog-link.py <number>`, which rebuilds the generated
 pages of the site in the same run – writing it by hand is how the mirrors get left behind.
 
+## Unreleased
+
+### Fixed
+- **`ELEMCTL_NO_PROXY` is now also read from the stand's own `.env` file.** An MCP tool call
+  only carries `env_file`, and there was no way to set a process variable for one stand among
+  several the same server process serves – so a call to a local stand kept failing behind a
+  proxy that cannot reach it, with the CLI's own `ELEMCTL_NO_PROXY=1` workaround out of reach.
+  The environment variable still wins when one is set, and a value read from one stand's file
+  never reaches a call to another stand served by the same process.
+
 ## 2026-09-13 – 0.41.0
 
 ### Added

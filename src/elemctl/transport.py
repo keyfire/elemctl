@@ -30,9 +30,17 @@ def _warn(message):
     print(message, file=sys.stderr)
 
 
+def no_proxy_enabled(value):
+    """The permissive reading of ELEMCTL_NO_PROXY: anything but an explicit falsy word turns
+    it on. Shared with Config, which reads the same variable out of a stand's .env file – a
+    typo there must lock a caller out no more than a typo in the process environment does.
+    """
+    return str(value or "").strip().lower() not in ("", "0", "false", "no")
+
+
 def _no_proxy_requested(environ=None):
     value = (environ if environ is not None else os.environ).get(NO_PROXY_ENV, "")
-    return value.strip().lower() not in ("", "0", "false", "no")
+    return no_proxy_enabled(value)
 
 
 def is_local_host(host):
@@ -65,6 +73,21 @@ def proxy_for(url, environ=None):
     return proxies.get(parts.scheme)
 
 
+def _mask_proxy(url):
+    """The proxy address without whatever credentials ride along in it: scheme://host:port.
+
+    HTTPS_PROXY carrying `user:pass@` is common enough – the proxy handler reads it from
+    there – and a connection failure is exactly the moment that address ends up in a message
+    that a log or a bug report keeps. The address is diagnostic; the password in it is not.
+    """
+    parts = urllib.parse.urlsplit(url)
+    host = parts.hostname or ""
+    if ":" in host:
+        host = f"[{host}]"
+    netloc = f"{host}:{parts.port}" if parts.port else host
+    return f"{parts.scheme}://{netloc}" if parts.scheme else netloc
+
+
 class HttpResponse:
     """An HTTP response: the status, the headers and the body in bytes."""
 
@@ -92,11 +115,17 @@ class UrllibTransport:
     into TransportError.
     """
 
-    def __init__(self, *, tls_verify=True, tls_strict=True, ca_file=""):
+    def __init__(self, *, tls_verify=True, tls_strict=True, ca_file="", no_proxy=None):
         self.ssl_context = self._ssl_context(
             tls_verify=tls_verify, tls_strict=tls_strict, ca_file=ca_file
         )
         self._direct = None
+        # None (no caller-resolved value, the direct-construction case most tests and every
+        # library caller outside Config use) falls back to the process variable alone – the
+        # behaviour before Config learned to read the stand's .env file as well. Config
+        # resolves the file itself and hands over the decided bool, which is then final: the
+        # transport must not re-read the process environment underneath an explicit False.
+        self._no_proxy = _no_proxy_requested() if no_proxy is None else bool(no_proxy)
 
     @staticmethod
     def _ssl_context(*, tls_verify, tls_strict, ca_file):
@@ -130,7 +159,7 @@ class UrllibTransport:
         address, or when the caller asked for it outright.
         """
         host = urllib.parse.urlsplit(url).hostname
-        if not (_no_proxy_requested() or is_local_host(host)):
+        if not (self._no_proxy or is_local_host(host)):
             return urllib.request.urlopen
         if self._direct is None:
             self._direct = urllib.request.build_opener(
@@ -157,14 +186,19 @@ class UrllibTransport:
             raise TransportError(self._failure(method, url, error)) from error
 
     def _failure(self, method, url, error):
-        """The message of a failed call – naming the proxy when one was in the way.
+        """The message of a failed call – naming the proxy when it was actually in the way.
 
         A proxy that cannot reach an internal stand fails as a plain connection reset, and the
         stand looks dead while it is running. The hint is what turns that into a one-minute
-        diagnosis instead of an hour.
+        diagnosis instead of an hour – but only when a proxy is actually why the request
+        failed: this transport may have gone direct itself (the switch, or a loopback/private
+        address), and a proxy that was configured but never touched is not the explanation.
         """
         message = i18n.t("transport.network-error", method=method, url=url, error=error)
         proxy = proxy_for(url)
-        if proxy:
-            message += " " + i18n.t("transport.proxy-hint", proxy=proxy, variable=NO_PROXY_ENV)
+        went_direct = self._no_proxy or is_local_host(urllib.parse.urlsplit(url).hostname)
+        if proxy and not went_direct:
+            message += " " + i18n.t(
+                "transport.proxy-hint", proxy=_mask_proxy(proxy), variable=NO_PROXY_ENV
+            )
         return message

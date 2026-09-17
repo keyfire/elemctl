@@ -25,6 +25,28 @@ def test_extract_token_field_order_and_not_implemented():
     assert extract_token(None) is None
 
 
+def test_config_no_proxy_reaches_the_real_transport():
+    """ElementClient builds its own transport straight from the config – the same way
+    tls_verify and ca_file already do – so a no_proxy resolved from a stand's .env has to
+    reach it too, or the value Config just worked out has nowhere to take effect."""
+    config = Config(
+        base_url="https://api.test", client_id="cid", client_secret="secret", no_proxy=True
+    )
+    client = ElementClient(config)
+    assert client._transport._no_proxy is True
+
+
+def test_hand_built_config_still_lets_the_process_variable_switch_the_proxy_off(monkeypatch):
+    """Config(...) built by hand, without from_env, carries no_proxy=False by default – not
+    because ELEMCTL_NO_PROXY was read and found unset, but because nothing read it at all.
+    ElementClient must not treat that default as a final, resolved "no" and silence the
+    process variable underneath it – only Config.from_env's own resolution is final."""
+    monkeypatch.setenv("ELEMCTL_NO_PROXY", "1")
+    config = Config(base_url="https://api.test", client_id="cid", client_secret="secret")
+    client = ElementClient(config)
+    assert client._transport._no_proxy is True
+
+
 def test_token_request_uses_basic_auth(api):
     client, transport = api
     token = client.token()

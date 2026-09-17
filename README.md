@@ -152,14 +152,24 @@ If the direct connection reaches the server and ends with
 `CERTIFICATE_VERIFY_FAILED`, configure the trusted CA or the `ELEMENT_TLS_*`
 options.
 
+Unlike the other tool-behaviour variables below, `ELEMCTL_NO_PROXY` can also be
+set in this stand's own `.env` file, next to its credentials – an environment
+variable still wins when one is set. That is what an MCP call needs: a single
+server process may serve several stands through `env_file`, one call at a time,
+and there is no way for a caller to set a process variable for just one of
+them. The file's setting only ever applies to requests of that stand; a second
+stand served by the same process, cloud or local, is unaffected.
+
 ### Behaviour of the tool
 
-These are set through the environment only – a connection `.env` is not their place:
+`ELEMCTL_LANG` and `ELEMCTL_NO_PLUGINS` are set through the environment only – a
+connection `.env` is not their place. `ELEMCTL_NO_PROXY` is the exception,
+explained above: it reads the same file the connection does.
 
 | Variable | Purpose |
 |---|---|
 | `ELEMCTL_LANG` | language of the messages and the help (`ru`, `en`); the `--lang` flag wins over it |
-| `ELEMCTL_NO_PROXY` | set it to bypass the environment's proxy for every call (loopback and private addresses are bypassed anyway) |
+| `ELEMCTL_NO_PROXY` | set it to bypass the environment's proxy for every call (loopback and private addresses are bypassed anyway); also readable from the stand's `.env` |
 | `ELEMCTL_NO_PLUGINS` | do not look for plugins: work with the core capabilities only |
 
 ### The CI environment
