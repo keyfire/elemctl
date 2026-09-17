@@ -58,6 +58,12 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
   client that last worked. An explicit `--env-file` is still checked as soon as `elemctl mcp`
   starts, exit 1 before the server ever runs; every other default-stand configuration problem
   surfaces on the call that hits it instead. ([#33](https://github.com/keyfire/elemctl/pull/33))
+- **`Config.from_env(no_proxy=...)` no longer raises `TypeError`.** Every other field takes an
+  explicit argument ahead of the environment and the file, exactly as the docstring promises;
+  `no_proxy` was the one exception, because its override was never taken out of `**overrides`
+  and fell through to the "unknown configuration parameters" check at the end. The explicit
+  argument now wins over `ELEMCTL_NO_PROXY` and the file's own copy of it, the same as every
+  other field – there were no callers passing it yet, which is how the gap went unnoticed.
 
 ## 2026-09-13 – 0.41.0
 
