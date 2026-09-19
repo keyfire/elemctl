@@ -17,7 +17,8 @@ from datetime import datetime, timezone
 from . import i18n
 from .build import PROJECT_FILES, build_assembly, find_project_dir, read_project_meta
 from .client import FAILED_TASK_STATUSES, extract_assembly_id
-from .errors import ElemctlError
+from .errors import ApiError, ElemctlError
+from .probe import server_log_hint
 from .schema import narrowing_in_tree
 
 __all__ = ["FAILED_TASK_STATUSES"]  # the name stays where importers already expect it
@@ -69,6 +70,9 @@ class DeployReport:
     # check can never run for it). "" - the guard was not involved (verify without deploy).
     # Named in the report on purpose: a skipped check must not read as a passed one.
     schema_check: str = ""
+    # Where to look when a task was refused without a compilation error in its text: the
+    # log of the server (probe.server_log_hint). "" when the report itself names the cause.
+    hint: str = ""
 
     def to_dict(self):
         """Render the report as a dict with kebab-case keys (for JSON output)."""
@@ -92,6 +96,7 @@ class DeployReport:
             "dirty": None if self.dirty_files is None else bool(self.dirty_files),
             "dirty-files": None if self.dirty_files is None else list(self.dirty_files),
             "schema-check": self.schema_check or None,
+            "hint": self.hint or None,
         }
 
 
@@ -217,7 +222,11 @@ def deploy_from_sources(
         )
     log(i18n.t("deploy.apply-started"))
 
-    card = client.ensure_running(app_id, log=log)
+    try:
+        card = client.ensure_running(app_id, log=log)
+    except ApiError as error:
+        _add_server_log_hint(error)
+        raise
     log(i18n.t("deploy.running-verifying"))
 
     report = _verify(
@@ -325,6 +334,24 @@ def check_destructive_changes(client, app_id, project_id, project_dir, log=None)
     return changes, ""
 
 
+def _add_server_log_hint(error):
+    """Name the server log on an Error status whose text holds no compilation error.
+
+    The apply that leaves the application in Error ends the deploy with an error rather
+    than with a report, and the text may carry nothing but "Contact administrator for
+    details". The hint goes into the error and into its text as well, the way the hint of
+    a refused delete does: the MCP tool shows the text of an error alone.
+    """
+    body = getattr(error, "body", None)
+    if error.hint or not (isinstance(body, dict) and body.get("status") == "Error"):
+        return
+    hint = server_log_hint([error.message])
+    if hint:
+        error.hint = hint
+        error.message += " – " + hint
+        error.args = (error.message,)
+
+
 def _source_label(source):
     """The human label of where a target id came from ("" – it was not tracked)."""
     if source == "flag":
@@ -345,6 +372,7 @@ def _shorten_list(items, limit=5):
 
 def _verify(client, app_id, *, card, expected_version, since, expected_assembly_id=""):
     problems = []
+    refusals = []
 
     # 1. Application tasks in status Error/Failed raised after the deploy started.
     for task in client.list_app_tasks(app_id):
@@ -358,6 +386,7 @@ def _verify(client, app_id, *, card, expected_version, since, expected_assembly_
             continue
         label = task.get("operation-type") or task.get("id") or i18n.t("deploy.task")
         message = task.get("error-message") or i18n.t("deploy.no-error-text")
+        refusals.append(str(message))
         problems.append(i18n.t(
             "deploy.task-failed", label=label, status=status, message=message
         ))
@@ -406,6 +435,9 @@ def _verify(client, app_id, *, card, expected_version, since, expected_assembly_
         applied=applied,
         uri_status=uri_status,
         problems=problems,
+        # A refused task that names no file leaves the report with nothing to act on:
+        # the cause is in the log of the server, and the hint says where.
+        hint=server_log_hint(refusals),
     )
     report.ok = not problems and applied is not False
     return report
@@ -440,6 +472,8 @@ def _log_outcome(report, log):
             log(i18n.t("deploy.problem", problem=lines[0]))
             for extra in lines[1:]:
                 log("    " + extra)
+        if report.hint:
+            log(report.hint)
         log(i18n.t("deploy.verify-failed"))
 
 

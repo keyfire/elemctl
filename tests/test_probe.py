@@ -202,6 +202,57 @@ def test_probe_keeps_the_error_text_when_it_is_not_a_compilation_one(project_fac
     assert "статусом Error" in report.messages[0]
 
 
+#: A refusal that names no file: the platform put its placeholder where the errors go.
+REFUSAL_WITHOUT_ERRORS = (
+    "CreateApplication: Ошибка создания приложения: Contact administrator for details"
+)
+
+
+def test_a_refusal_without_compilation_errors_points_at_the_server_log(project_factory, tmp_path):
+    """The answer says nothing about the cause, so the report says where the cause is.
+
+    The platform answered "Contact administrator for details" and left the error list empty.
+    The report had nothing more to offer, and the cause was found in the log of the server
+    only: the last "Caused by" line, with "SrcPath:" beside it naming the file.
+    """
+    client = FakeProbeClient(fail=True, messages=[REFUSAL_WITHOUT_ERRORS])
+    lines = []
+
+    report = probe_project(
+        client, project_dir=project_factory(), output_dir=tmp_path / "dist", log=lines.append
+    )
+
+    assert report.ok is False and report.errors == []
+    assert "server.log" in report.hint
+    assert "Caused by" in report.hint and "SrcPath" in report.hint
+    assert report.to_dict()["hint"] == report.hint
+    assert any("Caused by" in line for line in lines)
+
+
+def test_compilation_errors_need_no_hint(project_factory, tmp_path):
+    report = probe_project(
+        FakeProbeClient(fail=True), project_dir=project_factory(), output_dir=tmp_path / "dist"
+    )
+
+    assert report.errors and report.hint == ""
+    assert report.to_dict()["hint"] is None
+
+
+def test_a_wait_that_ran_out_is_not_taken_for_a_refusal(project_factory, tmp_path):
+    """A timeout carries no word from the server, and the hint would send the reader astray."""
+
+    class SlowClient(FakeProbeClient):
+        def wait_app_ready(self, app_id, log=None):
+            raise ApiError("приложение app-1 не стало готовым за 600 с")
+
+    report = probe_project(
+        SlowClient(messages=[]), project_dir=project_factory(), output_dir=tmp_path / "dist"
+    )
+
+    assert report.ok is False
+    assert report.hint == ""
+
+
 def test_probe_deletes_the_project_it_created(project_factory, tmp_path):
     """A project that was not there before the upload is the probe's leftover as well."""
     client = FakeProbeClient(

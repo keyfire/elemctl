@@ -89,6 +89,9 @@ class ProbeReport:
     # Filled in, these two say the verdict is about the STAND, not about the code.
     compatibility_refused: str = ""
     messages_dropped: int = 0
+    # Where to look when the server refused without naming a compilation error
+    # (server_log_hint); "" when the answer itself says what went wrong.
+    hint: str = ""
 
     def to_dict(self):
         """Render the report as a dict with kebab-case keys (for JSON output)."""
@@ -109,6 +112,7 @@ class ProbeReport:
             "cleanup": dict(self.cleanup),
             "compatibility-refused": self.compatibility_refused or None,
             "messages-dropped": self.messages_dropped,
+            "hint": self.hint or None,
         }
 
 
@@ -148,6 +152,22 @@ def parse_compilation_errors(messages, prefix=""):
                 }
             )
     return errors
+
+
+def server_log_hint(messages):
+    """Where the cause is when the server refused without naming a compilation error.
+
+    The platform may answer a failed create or apply with "Contact administrator for
+    details" and no file in the text, and then the answer holds nothing to act on. The
+    cause is in the log of the server: the last "Caused by" line, with "SrcPath:" beside
+    it naming the file the apply stopped at. "" when there is no refusal, or when the
+    refusal names a file and a position itself.
+    """
+    if not any(str(message).strip() for message in messages or []):
+        return ""
+    if parse_compilation_errors(messages):
+        return ""
+    return i18n.t("probe.server-log-hint")
 
 
 def compatibility_refusal(messages):
@@ -254,9 +274,8 @@ def probe_project(
         log(i18n.t("probe.compiled"))
     except ApiError as error:
         report.status = _status_of(error)
-        report.messages = client.failed_task_messages(report.app_id) if report.app_id else []
-        if not report.messages:
-            report.messages = [str(error)]
+        refusals = client.failed_task_messages(report.app_id) if report.app_id else []
+        report.messages = refusals or [str(error)]
         refused = compatibility_refusal(report.messages)
         if refused:
             # The verdict is about the stand, and the rest of the answer is its
@@ -276,7 +295,13 @@ def probe_project(
             report.errors = parse_compilation_errors(
                 report.messages, prefix=f"{meta.vendor}/{meta.name}/"
             )
+            # A refusal is a failed task or the Error status; a wait that simply ran out of
+            # time carries no word from the server, and the hint would send the reader astray.
+            if refusals or report.status == "Error":
+                report.hint = server_log_hint(report.messages)
             log(i18n.t("probe.failed", count=len(report.errors) or len(report.messages)))
+            if report.hint:
+                log(report.hint)
     finally:
         report.cleanup = _cleanup(
             client, report, keep=keep, delete_project=created_project, log=log

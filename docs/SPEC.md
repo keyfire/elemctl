@@ -279,7 +279,7 @@ Commands, with the significant flags in parentheses:
 - `deploy [--app-id --project-id --project-dir --output --build-version
   --branch --commit --commit-message --dry-run --require-clean]` –
   the full cycle: build -> upload -> apply -> restart -> verification of the actual apply (section 6.1). Output – a JSON report with fields: `app-id`, `uri`, `status`, `version`, `assembly-id`, `applied-version`, `applied` (true, false or null, where null means the actual version could not be determined), `uri-status`, `problems` (list of strings, the platform's texts as they came), `problems-lines` (the same broken into plain lines: JSON escapes a multi-line refusal into `
-` and `	` exactly where it has to be read), `ok` (boolean), `dirty` and `dirty-files` (uncommitted changes of the project directory at build time). The build captures the current disk state, so the divergence from HEAD must be visible; a warning also goes to stderr, and null means git was unavailable. Return code 0 only when `ok`. `--dry-run` builds and stops there, and `--require-clean` aborts before building on a dirty tree.
+` and `	` exactly where it has to be read), `ok` (boolean), `dirty` and `dirty-files` (uncommitted changes of the project directory at build time). The build captures the current disk state, so the divergence from HEAD must be visible; a warning also goes to stderr, and null means git was unavailable. `hint` points at the log of the server when a task was refused without a compilation error in its text. The platform may answer with "Contact administrator for details" alone, and the cause then sits in the server log: the last `Caused by` line, with `SrcPath:` beside it naming the file the apply stopped at. An apply that leaves the application in `Error` ends the deploy with an error, and that error carries the same hint. Return code 0 only when `ok`. `--dry-run` builds and stops there, and `--require-clean` aborts before building on a dirty tree.
 - `verify-deploy [APP_ID] [--app-id --version-id --expected-version --since-minutes]` –
   the verification of section 6.1 on its own, deploying nothing. It looks at the
   application tasks in an error status raised over the last `--since-minutes` minutes,
@@ -307,8 +307,10 @@ Commands, with the significant flags in parentheses:
   `app-name`, `status`, `errors` (a list of `{file, entry, line, column,
   environment, message}`, where `file` is the path relative to the project
   directory), `messages` (the platform texts verbatim, so nothing is lost when the
-  failure is not a compilation one) and `cleanup` (`kept`, `app-deleted`,
-  `assembly-deleted`, `project-deleted`, `problems`). A stand that does not know
+  failure is not a compilation one), `cleanup` (`kept`, `app-deleted`,
+  `assembly-deleted`, `project-deleted`, `problems`) and `hint`, the pointer to the
+  server log that the `deploy` report carries too. `hint` is filled when the server
+  refused and named no file; a wait that ran out of time leaves it empty. A stand that does not know
   the compatibility mode of the project refuses the whole project and then
   complains about types and properties of that mode in files the change never
   touched. That refusal is recognized, the parsing stops there,

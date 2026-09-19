@@ -23,6 +23,13 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
 
 ## Unreleased
 
+### Added
+- **`probe` and `deploy` name the server log when the server refuses without a compilation
+  error.** The platform may answer a failed create or apply with "Contact administrator for
+  details" alone, and the report then had nothing to act on. The new `hint` field says to look
+  for the last `Caused by` line in the server's `server.log`, where `SrcPath:` beside it names
+  the file.
+
 ### Fixed
 - **`apps create` and `apps ensure` refuse a `--version-id` that is missing from the project's
   build list, before creating anything.** The platform deletes the builds nobody uses and

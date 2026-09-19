@@ -862,6 +862,18 @@ MESSAGES = {
               "the remaining {dropped} messages follow from that refusal and were dropped. "
               "Point at a newer stand (--env-file with its .env)",
     },
+    "probe.server-log-hint": {
+        "ru": "сервер отказал, не назвав ошибок компиляции. Причину он пишет в свой журнал, "
+              "файл server.log в каталоге logs экземпляра сервера: нужна последняя строка "
+              "\"Caused by\", а строка \"SrcPath:\" рядом называет файл, на котором "
+              "остановилось применение. Сервер в Docker: docker exec <контейнер> sh -c "
+              "\"grep -n 'Caused by\\|SrcPath' <каталог-экземпляра>/logs/server.log | tail\"",
+        "en": "the server refused without naming a compilation error. It writes the cause to "
+              "its own log, the server.log file in the logs directory of the server instance: "
+              "look for the last \"Caused by\" line, and the \"SrcPath:\" line next to it names "
+              "the file the apply stopped at. For a server in Docker: docker exec <container> "
+              "sh -c \"grep -n 'Caused by\\|SrcPath' <instance-dir>/logs/server.log | tail\"",
+    },
     "probe.no-assembly-id": {
         "ru": "платформа не вернула ид сборки в ответе на загрузку – компилировать нечего",
         "en": "the platform returned no build id in the upload response – nothing to compile",
