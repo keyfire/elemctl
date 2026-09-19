@@ -572,6 +572,51 @@ def test_ensure_app_verify_checks_the_application_it_found(monkeypatch):
     assert calls[0][0] == "app-7"
 
 
+def _root_elemctl_error_message(exc):
+    """The text of our own error inside a tool-call exception, whichever major wrapped it."""
+    from elemctl.errors import ElemctlError
+
+    seen = exc
+    while seen is not None:
+        if isinstance(seen, ElemctlError):
+            return str(seen)
+        seen = seen.__cause__ or seen.__context__
+    return str(exc)
+
+
+def test_ensure_app_names_a_source_assembly_the_platform_has_deleted(monkeypatch):
+    """The tool twin of the CLI refusal: nothing is created from a build the project lost."""
+
+    class FakeClient:
+        def __init__(self):
+            self.created = []
+
+        def find_app(self, name, *, include_deleted=False):
+            return None
+
+        def missing_source(self, project_id, assembly_id):
+            assert (project_id, assembly_id) == ("proj-1", "asm-3")
+            return {"app": "crm-main", "app-id": "app-2", "version-id": "asm-7",
+                    "version": "1.0-7"}
+
+        def create_app(self, display_name, **kwargs):
+            self.created.append(display_name)
+            return {"id": "app-new"}
+
+    fake = FakeClient()
+    server = _server_on(monkeypatch, fake)
+
+    with pytest.raises(Exception) as excinfo:
+        asyncio.run(server.call_tool(
+            "ensure_app", {"name": "crm-dev", "project_id": "proj-1", "version_id": "asm-3"}
+        ))
+
+    message = _root_elemctl_error_message(excinfo.value)
+    assert "asm-3" in message and "никто не пользуется" in message
+    assert "crm-main" in message and "asm-7" in message and "version_id" in message
+    assert fake.created == []
+
+
 # --- Tools brought by a plugin -----------------------------------------------------
 
 def _plugin_command(**overrides):

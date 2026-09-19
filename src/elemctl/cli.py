@@ -34,6 +34,7 @@ from .client import (
     OIDC_SERVICE,
     ElementClient,
     apps_summary,
+    assembly_label,
     brief_app,
     brief_assembly,
     builds_summary,
@@ -303,6 +304,11 @@ def _create_app_from_args(client, config, args):
     project_id = args.project_id or config.project_id
     version_id = args.version_id
 
+    if version_id and project_id:
+        _refuse_deleted_source(
+            client, project_id, version_id, project_from_env=not args.project_id
+        )
+
     if args.latest_build and not version_id:
         if not project_id:
             raise ConfigError(i18n.t("cli.latest-build-needs-project"))
@@ -344,6 +350,31 @@ def _create_app_from_args(client, config, args):
         log=_progress,
     )
     return card, report
+
+
+def _refuse_deleted_source(client, project_id, version_id, *, project_from_env):
+    """Refuse to create from an assembly the project no longer lists, and name a way forward.
+
+    The platform deletes the builds nobody uses, and a create from such a build is answered
+    with a bare 400 "Can't create application". That reads like a limit on the number of
+    applications, so the refusal names the real cause and the build that a running
+    application of the project runs. A project taken from ELEMENT_PROJECT_ID may not be the
+    project the assembly belongs to, and the refusal says where the project came from.
+    """
+    instead = client.missing_source(project_id, version_id)
+    if instead is None:
+        return
+    parts = [i18n.t("client.source-missing", assembly=version_id, project=project_id)]
+    if instead.get("version-id"):
+        parts.append(i18n.t(
+            "cli.source-instead", app=instead.get("app") or instead.get("app-id"),
+            build=assembly_label(instead["version-id"], instead.get("version")),
+        ))
+    else:
+        parts.append(i18n.t("cli.source-latest"))
+    if project_from_env:
+        parts.append(i18n.t("cli.source-project-from-env"))
+    raise ElemctlError(". ".join(parts))
 
 
 def _report_sign_in(card):

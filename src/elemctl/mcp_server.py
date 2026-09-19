@@ -47,6 +47,7 @@ from .build import build_assembly, inspect_assembly
 from .client import (
     ElementClient,
     apps_summary,
+    assembly_label,
     brief_app,
     brief_assembly,
     builds_summary,
@@ -375,6 +376,16 @@ def create_server(config=None, *, overrides=None, env_file=None):
         report is None.
         """
         source_version_id = version_id
+        if version_id:
+            # The same check the CLI makes: a build the platform has deleted is named as such
+            # before the create answers a bare 400. The project falls back to the stand's own
+            # ELEMENT_PROJECT_ID, the way the CLI takes it from the environment.
+            stand_project = getattr(getattr(target, "config", None), "project_id", "") or ""
+            if project_id or stand_project:
+                _refuse_deleted_source(
+                    target, project_id or stand_project, version_id,
+                    project_from_env=not project_id,
+                )
         if not source_version_id:
             if not project_id:
                 raise ElemctlError(i18n.t("mcp.project-or-version-required"))
@@ -803,6 +814,24 @@ def create_server(config=None, *, overrides=None, env_file=None):
 
     add_plugin_tools(server, client)
     return server
+
+
+def _refuse_deleted_source(target, project_id, version_id, *, project_from_env):
+    """The tool twin of cli._refuse_deleted_source: the words name the tool parameters."""
+    instead = target.missing_source(project_id, version_id)
+    if instead is None:
+        return
+    parts = [i18n.t("client.source-missing", assembly=version_id, project=project_id)]
+    if instead.get("version-id"):
+        parts.append(i18n.t(
+            "mcp.source-instead", app=instead.get("app") or instead.get("app-id"),
+            build=assembly_label(instead["version-id"], instead.get("version")),
+        ))
+    else:
+        parts.append(i18n.t("mcp.source-latest"))
+    if project_from_env:
+        parts.append(i18n.t("mcp.source-project-from-env"))
+    raise ElemctlError(". ".join(parts))
 
 
 def _plugin_tool(command, client_for_env):

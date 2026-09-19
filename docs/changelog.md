@@ -21,6 +21,16 @@ entry either – say what the behaviour was, not which id or response field was 
 The link is written by `python scripts/changelog-link.py <number>`, which rebuilds the generated
 pages of the site in the same run – writing it by hand is how the mirrors get left behind.
 
+## Unreleased
+
+### Fixed
+- **`apps create` and `apps ensure` refuse a `--version-id` that is missing from the project's
+  build list, before creating anything.** The platform deletes the builds nobody uses and
+  answered a create from such a build with a bare 400 "Can't create application", which looked
+  like a limit on the number of applications. The refusal now names the cause and the build a
+  running application of the project runs, and the MCP tools `create_app` and `ensure_app`
+  refuse the same way.
+
 ## 2026-09-18 – 0.42.0
 
 ### Added

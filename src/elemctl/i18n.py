@@ -191,6 +191,22 @@ MESSAGES = {
         "en": "project {project_id} has no builds – upload one (builds upload) or "
               "pass --version-id",
     },
+    "cli.source-instead": {
+        "ru": "Приложение {app} работает на сборке {build}: передайте её в --version-id "
+              "или возьмите самую свежую сборку проекта ключом --latest-build",
+        "en": "Application {app} runs build {build}: pass it as --version-id, or take the "
+              "project's newest build with --latest-build",
+    },
+    "cli.source-latest": {
+        "ru": "Самую свежую сборку проекта берёт ключ --latest-build",
+        "en": "--latest-build takes the project's newest build",
+    },
+    "cli.source-project-from-env": {
+        "ru": "Проект взят из ELEMENT_PROJECT_ID: если сборка из другого проекта, "
+              "назовите его в --project-id",
+        "en": "The project comes from ELEMENT_PROJECT_ID: if the build belongs to another "
+              "project, name that one with --project-id",
+    },
     "cli.whole-project-source-warning": {
         "ru": "внимание: источник – проект целиком; на части конфигураций платформы "
               "это даёт пустой каркас (надёжнее --latest-build)",
@@ -247,6 +263,14 @@ MESSAGES = {
     "client.assembly-not-found": {
         "ru": "сборка '{version}' не найдена в проекте {project} (ни по версии, ни по ид)",
         "en": "assembly '{version}' not found in project {project} (neither by version nor by id)",
+    },
+    "client.source-missing": {
+        "ru": "сборки {assembly} нет в перечне сборок проекта {project}: платформа удаляет "
+              "сборки, которыми никто не пользуется, и из удалённой сборки приложение не "
+              "создаётся – на такой запрос она отвечает 400 \"Can't create application\"",
+        "en": "assembly {assembly} is not in the build list of project {project}: the platform "
+              "deletes the builds nobody uses, and no application can be created from a "
+              "deleted one – it answers such a request with 400 \"Can't create application\"",
     },
     "client.app-source-exclusive": {
         "ru": "источник приложения – ровно один из параметров: project_version_id "
@@ -420,6 +444,22 @@ MESSAGES = {
     "mcp.project-has-no-builds": {
         "ru": "у проекта {project_id} нет сборок – загрузите сборку или укажите version_id",
         "en": "project {project_id} has no builds – upload one or pass version_id",
+    },
+    "mcp.source-instead": {
+        "ru": "Приложение {app} работает на сборке {build}: передайте её в version_id. "
+              "С project_id и без version_id инструмент возьмёт самую свежую сборку проекта",
+        "en": "Application {app} runs build {build}: pass it as version_id. Given project_id "
+              "and no version_id, the tool takes the project's newest build",
+    },
+    "mcp.source-latest": {
+        "ru": "С project_id и без version_id инструмент возьмёт самую свежую сборку проекта",
+        "en": "Given project_id and no version_id, the tool takes the project's newest build",
+    },
+    "mcp.source-project-from-env": {
+        "ru": "Проект взят из ELEMENT_PROJECT_ID стенда: если сборка из другого проекта, "
+              "назовите его в project_id",
+        "en": "The project comes from the stand's ELEMENT_PROJECT_ID: if the build belongs "
+              "to another project, name that one in project_id",
     },
     "mcp.extra-required": {
         "ru": 'для MCP-сервера нужен extra: pip install "elemctl[mcp]"',
@@ -1078,8 +1118,10 @@ MESSAGES = {
         "en": "data for a debug session (debug-token, debug-address)",
     },
     "cli.help.create-project-id": {
-        "ru": "проект-источник",
-        "en": "source project",
+        "ru": "проект-источник; с --version-id по перечню его сборок команда проверяет, "
+              "что платформа ещё не удалила сборку-источник (по умолчанию ELEMENT_PROJECT_ID)",
+        "en": "source project; with --version-id its build list is checked for the source "
+              "assembly, which the platform may have deleted (default: ELEMENT_PROJECT_ID)",
     },
     "cli.help.create-version-id": {
         "ru": "id сборки-источника; нового проекта ещё нет – заведите его "

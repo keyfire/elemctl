@@ -214,6 +214,21 @@ def _app_name_contains(app, needle):
     return False
 
 
+def _applied_assembly(app):
+    """The id of the build the application runs, out of its card ("" when unknown)."""
+    return str((app.get("source") or {}).get("project-version-id") or "")
+
+
+def _is_running(app):
+    return str(app.get("status") or "").strip().lower() == "running"
+
+
+#: The fields an assembly card carries its id in.
+ASSEMBLY_ID_KEYS = ("id", "image-id", "assembly-id")
+#: Everything a caller may hold as the address of an assembly: its id or its version.
+ASSEMBLY_ADDRESS_KEYS = ASSEMBLY_ID_KEYS + ("assembly-version", "project-version")
+
+
 # The fields a project is named by: the manifest name and the presentation the console shows.
 PROJECT_NAME_KEYS = ("name", "presentation")
 
@@ -290,6 +305,11 @@ def brief_assembly(assembly):
         "branch-name": assembly.get("branch-name"),
         "commit-id": assembly.get("commit-id"),
     }
+
+
+def assembly_label(assembly_id, version=None):
+    """An assembly the way a person reads it: the id, with the version beside it when known."""
+    return f"{assembly_id} ({version})" if version else str(assembly_id)
 
 
 def builds_summary(assemblies, shown):
@@ -1065,6 +1085,54 @@ class ElementClient:
             return pick_latest(assemblies, base_version=base_version)
         ordered = newest_first(assemblies)
         return ordered[0] if ordered else None
+
+    def missing_source(self, project_id, assembly_id):
+        """None while the project lists the assembly; otherwise the build to take instead.
+
+        The platform deletes the builds nobody uses, whatever their age, and it cannot create
+        an application from a build it has deleted. The create is answered with a bare 400
+        "Can't create application", which reads like a limit on the number of applications,
+        not like a missing source. The build list says what happened before anything is
+        created, so a caller looks there first.
+
+        The build offered instead is one that an application of the project runs: the
+        platform keeps such a build. A running application wins over a stopped one. Every
+        field of the answer is None when no application runs a build of the project. The
+        assembly counts as listed when it matches the id or the version of a card: a version
+        is not an address the create takes, but it is not a deleted build either.
+        """
+        wanted = str(assembly_id or "").strip()
+        if not wanted:
+            return None
+        versions = {}
+        for assembly in self.list_assemblies(project_id):
+            if not isinstance(assembly, dict):
+                continue
+            if wanted in {str(assembly.get(key) or "") for key in ASSEMBLY_ADDRESS_KEYS}:
+                return None
+            version = str(
+                assembly.get("assembly-version") or assembly.get("project-version") or ""
+            )
+            for key in ASSEMBLY_ID_KEYS:
+                if assembly.get(key):
+                    versions[str(assembly[key])] = version
+        chosen = None
+        for app in self.list_apps():
+            if not isinstance(app, dict) or _applied_assembly(app) not in versions:
+                continue
+            if chosen is None or (_is_running(app) and not _is_running(chosen)):
+                chosen = app
+        if chosen is None:
+            return {"app": None, "app-id": None, "version-id": None, "version": None}
+        applied = _applied_assembly(chosen)
+        return {
+            "app": chosen.get("name") or chosen.get("display-name"),
+            "app-id": chosen.get("id"),
+            "version-id": applied,
+            # The version out of the build list: a fresh application numbers the versions on
+            # its card from scratch, so the card would name another number for the same build.
+            "version": versions.get(applied) or None,
+        }
 
     # -- development-environment branches ------------------------------------
 
