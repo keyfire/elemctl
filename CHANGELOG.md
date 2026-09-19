@@ -25,6 +25,10 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
   the file. ([#36](https://github.com/keyfire/elemctl/pull/36))
 
 ### Fixed
+- **An answer cut short halfway no longer ends the command with a traceback.** The transport
+  caught only `OSError`, while `http.client` reports such a break and a garbled status line
+  with exceptions of its own. Both now count as network errors: the command prints the usual
+  error JSON, and a read that is repeated after a dropped connection is repeated after them too.
 - **`apps create` and `apps ensure` refuse a `--version-id` that is missing from the project's
   build list, before creating anything.** The platform deletes the builds nobody uses and
   answered a create from such a build with a bare 400 "Can't create application", which looked

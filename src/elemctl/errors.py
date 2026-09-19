@@ -20,7 +20,7 @@ class BuildError(ElemctlError):
 
 
 class TransportError(ElemctlError):
-    """A network error: the server could not be reached."""
+    """A network error: the server could not be reached, or its answer broke off."""
 
 
 class PluginError(ElemctlError):

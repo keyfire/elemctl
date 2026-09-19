@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import http.client
 import json
 import os
 import subprocess
 import sys
+import urllib.request
 from pathlib import Path
 
 import pytest
@@ -14,6 +16,7 @@ import elemctl
 from elemctl import cli
 from elemctl import client as client_module
 from elemctl.errors import ApiError, TransportError
+from tests.conftest import UrlopenAnswer
 
 
 @pytest.fixture(autouse=True)
@@ -134,6 +137,39 @@ def test_apps_find_request_failure_is_an_error(monkeypatch, capsys):
     captured = capsys.readouterr()
     assert captured.out == ""
     assert "error" in json.loads(captured.err)
+
+
+def test_an_answer_that_breaks_off_ends_the_command_with_the_error_json(
+    monkeypatch, capsys, tmp_path
+):
+    """http.client raises IncompleteRead outside OSError.
+
+    A body cut short ended the command with a traceback instead of the error JSON on stderr.
+    The real transport is used here, with urlopen replaced.
+    """
+    monkeypatch.delenv("ELEMCTL_NO_PROXY", raising=False)
+    monkeypatch.setenv("ELEMENT_BASE_URL", "https://stand.example.ru")
+    monkeypatch.setenv("ELEMENT_CLIENT_ID", "cid")
+    monkeypatch.setenv("ELEMENT_CLIENT_SECRET", "secret")
+    monkeypatch.setattr(
+        cli,
+        "make_client",
+        lambda config: client_module.ElementClient(config, token_cache_dir=tmp_path / "tokens"),
+    )
+
+    def _urlopen(request, **_kwargs):
+        if request.full_url.endswith("/console/sys/token"):
+            return UrlopenAnswer(b'{"id_token": "TOKEN"}')
+        return UrlopenAnswer(broken=http.client.IncompleteRead(b'[{"id": "app-1"', 4096))
+
+    monkeypatch.setattr(urllib.request, "urlopen", _urlopen)
+
+    rc = cli.main(["apps", "list"])
+
+    assert rc == 1
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "IncompleteRead" in json.loads(captured.err)["error"]
 
 
 def test_apps_find_skips_deleted_unless_flag(monkeypatch, capsys):

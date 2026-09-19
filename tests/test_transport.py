@@ -7,6 +7,8 @@ lost before anyone suspected the proxy. So a proxy that cannot possibly help is 
 that can is left alone, and a failure that went through a proxy says so.
 """
 
+import http.client
+import json
 import ssl
 import urllib.error
 import urllib.request
@@ -14,8 +16,11 @@ import urllib.request
 import pytest
 
 from elemctl import transport
-from elemctl.errors import ConfigError, TransportError
+from elemctl.client import ElementClient
+from elemctl.config import Config
+from elemctl.errors import ConfigError, ElemctlError, TransportError
 from elemctl.transport import UrllibTransport
+from tests.conftest import UrlopenAnswer
 
 
 @pytest.fixture(autouse=True)
@@ -250,3 +255,123 @@ def test_public_request_receives_the_configured_context(monkeypatch):
     with pytest.raises(TransportError):
         client.request("GET", "https://stand.example.ru/console/sys/token")
     assert captured["context"] is client.ssl_context
+
+
+# -- an answer that breaks off ----------------------------------------------------------
+
+#: A public host, so the transport goes through urllib.request.urlopen, which the tests replace.
+STAND = "https://stand.example.ru"
+APPS = f"{STAND}/console/api/v2/applications"
+
+
+def _answer_with(monkeypatch, answer):
+    monkeypatch.setattr(urllib.request, "urlopen", lambda *_args, **_kwargs: answer)
+
+
+def _refuse_with(monkeypatch, failure):
+    def _refuse(*_args, **_kwargs):
+        raise failure
+
+    monkeypatch.setattr(urllib.request, "urlopen", _refuse)
+
+
+def test_a_body_that_breaks_off_is_a_network_failure(monkeypatch):
+    """http.client raises IncompleteRead outside OSError, and it used to pass the handler.
+
+    The command ended with a traceback, and a read that is made again after a dropped
+    connection was not made again after this one.
+    """
+    cut_short = http.client.IncompleteRead(b'{"items": [', 4096)
+    _answer_with(monkeypatch, UrlopenAnswer(broken=cut_short))
+
+    with pytest.raises(TransportError) as failure:
+        UrllibTransport().request("GET", APPS)
+    assert failure.value.__cause__ is cut_short
+    assert "IncompleteRead" in str(failure.value)
+
+
+@pytest.mark.parametrize("cut_short", [
+    http.client.IncompleteRead(b"<html>", 512),
+    ConnectionResetError(10054, "connection reset"),
+], ids=["IncompleteRead", "ConnectionResetError"])
+def test_an_error_body_that_breaks_off_is_a_network_failure(monkeypatch, cut_short):
+    """The body of an error status is read inside the handler of HTTPError.
+
+    A failure raised there went past the other handler of the same try, and so did a plain
+    dropped connection.
+    """
+    refusal = urllib.error.HTTPError(
+        APPS, 502, "Bad Gateway", {}, UrlopenAnswer(broken=cut_short)
+    )
+    _refuse_with(monkeypatch, refusal)
+
+    with pytest.raises(TransportError) as failure:
+        UrllibTransport().request("GET", APPS)
+    assert failure.value.__cause__ is cut_short
+
+
+@pytest.mark.parametrize("garbled", [
+    http.client.BadStatusLine("SSH-2.0-OpenSSH_9.6\r\n"),
+    http.client.BadStatusLine("\r\n"),
+    http.client.UnknownProtocol("HTTP/2.0"),
+    http.client.LineTooLong("header line"),
+    http.client.HTTPException("got more than 100 headers"),
+    http.client.RemoteDisconnected("Remote end closed connection without response"),
+], ids=[
+    "garbled-status-line", "blank-status-line", "unknown-protocol", "line-too-long",
+    "too-many-headers", "remote-disconnected",
+])
+def test_an_answer_http_client_cannot_read_is_a_network_failure(monkeypatch, garbled):
+    """Every failure of http.client derives from HTTPException, and one handler takes them all.
+
+    The text of some is too thin to act on: a garbled status line comes as that line alone,
+    and a blank one leaves no text at all. So the message names the class, the way the
+    traceback used to.
+    """
+    _refuse_with(monkeypatch, garbled)
+
+    with pytest.raises(TransportError) as failure:
+        UrllibTransport().request("GET", APPS)
+    assert failure.value.__cause__ is garbled
+    assert type(garbled).__name__ in str(failure.value)
+
+
+def test_an_address_http_client_rejects_is_not_a_network_failure(monkeypatch):
+    """InvalidURL is raised before anything is sent, so asking again cannot help.
+
+    A network failure is read again and may name the proxy as the likely cause, and here both
+    would send the reader the wrong way.
+    """
+    monkeypatch.setenv("HTTPS_PROXY", "http://127.0.0.1:12334")
+    monkeypatch.delenv("NO_PROXY", raising=False)
+    _refuse_with(monkeypatch, http.client.InvalidURL("nonnumeric port: '8O80'"))
+
+    with pytest.raises(ElemctlError) as failure:
+        UrllibTransport().request("GET", "https://stand.example.ru:8O80/console/sys/token")
+    assert not isinstance(failure.value, TransportError)
+    assert "8O80" in str(failure.value)
+    assert transport.NO_PROXY_ENV not in str(failure.value)
+
+
+def test_a_body_that_breaks_off_is_read_again_where_reads_are_repeated(monkeypatch, tmp_path):
+    """The task list is read again after a dropped connection, and a body cut short is one."""
+    tasks = [{"application-id": "app-1", "status": "Completed"}]
+    reads = [
+        UrlopenAnswer(broken=http.client.IncompleteRead(b'[{"application-id"', 4096)),
+        UrlopenAnswer(json.dumps(tasks).encode("utf-8")),
+    ]
+
+    def _urlopen(request, **_kwargs):
+        if request.full_url.endswith("/console/sys/token"):
+            return UrlopenAnswer(b'{"id_token": "TOKEN"}')
+        return reads.pop(0)
+
+    monkeypatch.setattr(urllib.request, "urlopen", _urlopen)
+    client = ElementClient(
+        Config(base_url=STAND, client_id="cid", client_secret="secret"),
+        token_cache_dir=tmp_path,
+    )
+    client._sleep = lambda seconds: None
+
+    assert client.list_app_tasks("app-1") == tasks
+    assert reads == []

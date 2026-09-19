@@ -676,6 +676,10 @@ MESSAGES = {
         "ru": "сетевая ошибка {method} {url}: {error}",
         "en": "network error {method} {url}: {error}",
     },
+    "transport.invalid-url": {
+        "ru": "недопустимый адрес запроса {method} {url}: {error}",
+        "en": "invalid request address {method} {url}: {error}",
+    },
     "transport.tls-verify-off": {
         "ru": "внимание: проверка сертификата и имени сервера отключена "
               "(ELEMENT_TLS_VERIFY=false) – соединение не защищено от подмены сервера",
