@@ -1988,9 +1988,9 @@ def main(argv=None):
     # A call to a command that is missing while plugins failed gets the usual JSON
     # refusal naming them: the command may well have been theirs.
     failures = getattr(parser, "plugin_failures", None) or []
-    refusal = _missing_plugin_command(parser, argv, failures)
-    if refusal is not None:
-        return _fail(refusal)
+    missing = _missing_plugin_command(parser, argv, failures)
+    if missing is not None:
+        return _fail(missing)
     try:
         args = parser.parse_args(argv)
     except SystemExit as refusal:
