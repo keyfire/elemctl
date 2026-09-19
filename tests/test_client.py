@@ -473,6 +473,50 @@ def test_wait_app_ready_gives_up_on_broken_polls_when_the_time_is_up(api):
         client.wait_app_ready("app-1", timeout=0)
 
 
+def test_ensure_running_takes_a_broken_poll_for_a_missed_one(api):
+    """A deploy waits for the application after the apply, and one dropped read ended it."""
+    client, transport = api
+    card = f"{API}/applications/app-1"
+    transport.add("GET", card, error=TransportError("соединение оборвалось"))
+    transport.add("GET", card, {"id": "app-1", "status": "Running"})
+    lines = []
+
+    assert client.ensure_running("app-1", log=lines.append)["status"] == "Running"
+    assert any("соединение оборвалось" in line for line in lines)
+
+
+def test_wait_app_status_gives_up_on_broken_polls_when_the_time_is_up(api):
+    client, transport = api
+    transport.add("GET", f"{API}/applications/app-1", error=TransportError("соединение оборвалось"))
+
+    with pytest.raises(TransportError):
+        client.wait_app_status("app-1", {"Running"}, timeout=0)
+
+
+def test_wait_app_deleted_takes_a_broken_poll_for_a_missed_one(api):
+    """The probe cleans up after itself, and one dropped read left its build behind."""
+    client, transport = api
+    card = f"{API}/applications/app-1"
+    transport.add("GET", card, error=TransportError("соединение оборвалось"))
+    transport.add("GET", card, {"message": "application not found"}, status=404)
+    lines = []
+
+    assert client.wait_app_deleted("app-1", log=lines.append) is True
+    assert any("соединение оборвалось" in line for line in lines)
+
+
+def test_wait_app_deleted_gives_up_on_broken_polls_when_the_time_is_up(api):
+    """A card still there when the time is up is an answer, False.
+
+    After a read that broke off, the state of the card is unknown, so its failure is the answer.
+    """
+    client, transport = api
+    transport.add("GET", f"{API}/applications/app-1", error=TransportError("соединение оборвалось"))
+
+    with pytest.raises(TransportError):
+        client.wait_app_deleted("app-1", timeout=0)
+
+
 def test_a_broken_task_read_does_not_replace_the_error_status(api):
     """The details of an Error status are optional: a network failure must not take its place."""
     client, transport = api

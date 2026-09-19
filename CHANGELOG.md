@@ -25,6 +25,10 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
   the file. ([#36](https://github.com/keyfire/elemctl/pull/36))
 
 ### Fixed
+- **`deploy`, `apps apply` and the cleanup in `probe` no longer fail on the first dropped read of
+  the application card.** Only the wait for a new application took such a read for a missed poll,
+  and one dropped connection failed a whole deploy or left the build of `probe` behind. All three
+  waits now poll the card the same way and give up only when their time is up.
 - **An answer cut short halfway no longer ends the command with a traceback.** The transport
   caught only `OSError`, while `http.client` reports such a break and a garbled status line
   with exceptions of its own. Both now count as network errors: the command prints the usual
