@@ -35,10 +35,12 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
   the application card.** Only the wait for a new application took such a read for a missed poll,
   and one dropped connection failed a whole deploy or left the build of `probe` behind. All three
   waits now poll the card the same way and give up only when their time is up.
+  ([#37](https://github.com/keyfire/elemctl/pull/37))
 - **An answer cut short halfway no longer ends the command with a traceback.** The transport
   caught only `OSError`, while `http.client` reports such a break and a garbled status line
   with exceptions of its own. Both now count as network errors: the command prints the usual
   error JSON, and a read that is repeated after a dropped connection is repeated after them too.
+  ([#37](https://github.com/keyfire/elemctl/pull/37))
 - **`apps create` and `apps ensure` refuse a `--version-id` that is missing from the project's
   build list, before creating anything.** The platform deletes the builds nobody uses and
   answered a create from such a build with a bare 400 "Can't create application", which looked
