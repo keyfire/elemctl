@@ -572,6 +572,29 @@ def test_ensure_app_verify_checks_the_application_it_found(monkeypatch):
     assert calls[0][0] == "app-7"
 
 
+def test_ensure_app_keeps_the_id_when_the_wait_breaks_off(monkeypatch):
+    """The tool twin of the CLI answer: the created application is not lost with the wait."""
+    from elemctl.errors import TransportError
+
+    class BrokenWait(FakeCreatingClient):
+        def wait_app_ready(self, app_id, log=None):
+            raise TransportError("сетевая ошибка: обрыв")
+
+    server = _server_on(monkeypatch, BrokenWait())
+
+    result = asyncio.run(
+        server.call_tool(
+            "ensure_app", {"name": "crm-dev", "version_id": "asm-1", "verify": True}
+        )
+    )
+    payload = json.loads(call_result_content(result)[0].text)
+
+    assert payload["id"] == "app-new"
+    assert payload["created"] is True
+    assert payload["applied"] is None
+    assert "обрыв" in payload["wait-error"]["error"]
+
+
 def _root_elemctl_error_message(exc):
     """The text of our own error inside a tool-call exception, whichever major wrapped it."""
     from elemctl.errors import ElemctlError

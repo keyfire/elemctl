@@ -13,7 +13,7 @@ import pytest
 import elemctl
 from elemctl import cli
 from elemctl import client as client_module
-from elemctl.errors import ApiError
+from elemctl.errors import ApiError, TransportError
 
 
 @pytest.fixture(autouse=True)
@@ -542,6 +542,57 @@ def test_apps_ensure_created_application_stops_claiming_applied_on_trust(monkeyp
     assert payload["created"] is True
     assert payload["applied"] is False
     assert payload["verify"]["ok"] is False
+
+
+class BrokenWaitClient(FakeCreateClient):
+    """The create answers, and the wait for the application breaks off on the network."""
+
+    def wait_app_ready(self, app_id, log=None):
+        self.waited.append(app_id)
+        raise TransportError(
+            "сетевая ошибка GET https://host/console/api/v2/tasks/application-tasks: обрыв"
+        )
+
+
+def test_apps_ensure_keeps_the_id_when_the_wait_breaks_off(monkeypatch, capsys):
+    """The application exists once the create has answered, whatever happens to the wait.
+
+    A read that broke off during the wait left a network error with no id in it, and the id of
+    an application that came up minutes later had to be looked up by its name.
+    """
+    fake = BrokenWaitClient()
+    monkeypatch.setattr(cli, "make_client", lambda config: fake)
+
+    rc = cli.main(["apps", "ensure", "crm-dev", "--version-id", "asm-9", "--wait"])
+
+    assert rc == 1
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+    assert payload["id"] == "app-new"
+    assert payload["created"] is True
+    assert payload["applied"] is None  # nothing was checked, so nothing is claimed
+    assert "обрыв" in payload["wait-error"]["error"]
+    # The progress names the application and the way to check it later.
+    assert "verify-deploy app-new --version-id asm-9" in captured.err
+
+
+def test_apps_create_keeps_the_card_when_the_verification_breaks_off(monkeypatch, capsys):
+    fake = FakeCreateClient()
+    monkeypatch.setattr(cli, "make_client", lambda config: fake)
+
+    def broken(*args, **kwargs):
+        raise TransportError("сетевая ошибка: обрыв")
+
+    monkeypatch.setattr(cli, "verify_deploy", broken)
+
+    rc = cli.main(["apps", "create", "crm-dev", "--version-id", "asm-9", "--wait"])
+
+    assert rc == 1
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["id"] == "app-new"
+    assert payload["uri"] == "https://host/apps/crm-dev"  # the card the wait brought back
+    assert "обрыв" in payload["wait-error"]["error"]
+    assert "verify" not in payload
 
 
 def test_apps_ensure_verify_checks_the_application_it_found(monkeypatch, capsys):

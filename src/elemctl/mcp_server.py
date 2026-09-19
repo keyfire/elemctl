@@ -59,7 +59,7 @@ from .deploy import (
     deploy_from_sources,
     verify_deploy as _verify_deploy,
 )
-from .errors import ElemctlError, PluginError
+from .errors import ApiError, ElemctlError, PluginError
 from .probe import probe_project
 from .versions import newest_first
 
@@ -371,9 +371,11 @@ def create_server(config=None, *, overrides=None, env_file=None):
 
         The source is version_id (an assembly id) or the latest assembly of
         project_id (creating from a whole project can yield an empty skeleton).
-        Returns (card, report): with verify it waits for the application and
-        checks that the assembly asked for is the one it really runs, otherwise
-        report is None.
+        Returns (card, report, broken): with verify it waits for the application
+        and checks that the assembly asked for is the one it really runs, otherwise
+        report is None. broken is the error that ended the wait or the check: the
+        application exists once the create has answered, so its card is returned
+        beside the error rather than lost with it.
         """
         source_version_id = version_id
         if version_id:
@@ -403,18 +405,21 @@ def create_server(config=None, *, overrides=None, env_file=None):
             space_id=space_id or None,
         )
         if not verify:
-            return card, None
+            return card, None, None
         app_id = (card or {}).get("id")
         if not app_id:
-            return card, None
-        card = target.wait_app_ready(app_id)
-        report = _verify_deploy(
-            target,
-            app_id,
-            expected_assembly_id=source_version_id or "",
-            since=started_at,
-        )
-        return card, report
+            return card, None, None
+        try:
+            card = target.wait_app_ready(app_id)
+            report = _verify_deploy(
+                target,
+                app_id,
+                expected_assembly_id=source_version_id or "",
+                since=started_at,
+            )
+        except ElemctlError as error:
+            return card, None, error
+        return card, report, None
 
     @server.tool()
     def create_app(
@@ -438,8 +443,11 @@ def create_server(config=None, *, overrides=None, env_file=None):
         К карточке добавляется поле sign-in – способ войти в новое приложение:
         адрес и учётная запись ПАНЕЛИ УПРАВЛЕНИЯ (учётные записи, которыми
         входят в другие приложения, в новом не работают).
+
+        Если ожидание оборвалось, приложение всё равно создано: ответ несёт его
+        карточку с id и поле wait-error с причиной.
         """
-        card, report = _create_app(
+        card, report, broken = _create_app(
             client(env_file), name, project_id, version_id, space_id, development_mode, verify
         )
         if not isinstance(card, dict):
@@ -447,6 +455,8 @@ def create_server(config=None, *, overrides=None, env_file=None):
         answer = {**card, "sign-in": sign_in_hint(card)}
         if report is not None:
             answer["verify"] = report.to_dict()
+        if broken is not None:
+            answer["wait-error"] = _error_payload(broken)
         return answer
 
     @server.tool()
@@ -480,6 +490,9 @@ def create_server(config=None, *, overrides=None, env_file=None):
         Поле sign-in обоих ответов говорит, как войти в приложение: адрес и
         учётная запись ПАНЕЛИ УПРАВЛЕНИЯ (учётные записи, которыми входят в
         другие приложения, в новом не работают).
+
+        Если ожидание созданного приложения оборвалось, ответ всё равно несёт
+        его id; applied тогда null, а причина – в поле wait-error.
         """
         started_at = datetime.now(timezone.utc)
         target = client(env_file)
@@ -504,17 +517,21 @@ def create_server(config=None, *, overrides=None, env_file=None):
                     answer["applied"] = bool(report.ok)
                     answer["verify"] = report.to_dict()
             return answer
-        card, report = _create_app(
+        card, report, broken = _create_app(
             target, name, project_id, version_id, space_id, development_mode, verify
         )
         answer = {
             "id": (card or {}).get("id"),
             "created": True,
-            "applied": True if report is None else bool(report.ok),
+            "applied": None if broken is not None else (
+                True if report is None else bool(report.ok)
+            ),
             "sign-in": sign_in_hint(card),
         }
         if report is not None:
             answer["verify"] = report.to_dict()
+        if broken is not None:
+            answer["wait-error"] = _error_payload(broken)
         return answer
 
     @server.tool()
@@ -814,6 +831,11 @@ def create_server(config=None, *, overrides=None, env_file=None):
 
     add_plugin_tools(server, client)
     return server
+
+
+def _error_payload(error):
+    """An error as a field of an answer: the details of an api error kept, like the CLI does."""
+    return error.to_dict() if isinstance(error, ApiError) else {"error": str(error)}
 
 
 def _refuse_deleted_source(target, project_id, version_id, *, project_from_env):

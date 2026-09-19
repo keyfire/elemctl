@@ -69,17 +69,19 @@ class FakeTransport:
     """A stub transport: answers from a route table and records the calls.
 
     Several responses can be added for a single route – they are handed out in
-    turn, and the last response repeats.
+    turn, and the last response repeats. An entry added with error= raises it
+    instead of answering: that is how a connection that breaks off looks from
+    the client, since the real transport turns it into TransportError.
     """
 
     def __init__(self):
         self.routes = {}
         self.calls = []
 
-    def add(self, method, path, payload=None, status=200, body=None):
+    def add(self, method, path, payload=None, status=200, body=None, error=None):
         if body is None:
             body = json.dumps(payload).encode("utf-8") if payload is not None else b""
-        entry = {"status": status, "body": body}
+        entry = {"status": status, "body": body, "error": error}
         self.routes.setdefault((method.upper(), path), []).append(entry)
 
     def request(self, method, url, *, headers=None, data=None, timeout=None):
@@ -97,6 +99,8 @@ class FakeTransport:
         if not queue:
             raise AssertionError(f"неожиданный запрос: {method} {parts.path}")
         entry = queue.pop(0) if len(queue) > 1 else queue[0]
+        if entry["error"] is not None:
+            raise entry["error"]
         return HttpResponse(entry["status"], {}, entry["body"])
 
     def calls_to(self, method, path):

@@ -292,7 +292,7 @@ def _verification_wanted(args):
 
 
 def _create_app_from_args(client, config, args):
-    """Create an application from the creation flags; return (card, report).
+    """Create an application from the creation flags; return (card, report, broken).
 
     The logic shared by apps create and apps ensure. The source is the given
     assembly (--version-id), the project's latest assembly (--latest-build) or
@@ -300,6 +300,11 @@ def _create_app_from_args(client, config, args):
     --wait it waits until the application is ready and checks that the assembly
     asked for is the one the application really runs; report is None when no
     check ran (no --wait and no --verify, or the card carries no id).
+
+    broken is the error that ended the wait or the check, None when they finished.
+    The application exists from the moment the create answered, so a wait that
+    breaks off must not take the id along: the error is returned beside the card
+    rather than raised past it, and the caller puts both into the answer.
     """
     project_id = args.project_id or config.project_id
     version_id = args.version_id
@@ -335,21 +340,34 @@ def _create_app_from_args(client, config, args):
 
     verify = _verification_wanted(args)
     if not (args.wait or verify):
-        return card, None
+        return card, None, None
     app_id = (card or {}).get("id")
     if not app_id:
-        return card, None
-    card = client.wait_app_ready(app_id, log=_progress)
-    if not verify:
-        return card, None
-    report = verify_deploy(
-        client,
-        app_id,
-        expected_assembly_id=version_id or "",
-        since=started_at,
-        log=_progress,
-    )
-    return card, report
+        return card, None, None
+    try:
+        card = client.wait_app_ready(app_id, log=_progress)
+        if not verify:
+            return card, None, None
+        report = verify_deploy(
+            client,
+            app_id,
+            expected_assembly_id=version_id or "",
+            since=started_at,
+            log=_progress,
+        )
+    except ElemctlError as error:
+        _progress(i18n.t("cli.wait-broken", app_id=app_id, error=error))
+        command = f"elemctl verify-deploy {app_id}"
+        if version_id:
+            command += f" --version-id {version_id}"
+        _progress(i18n.t("cli.wait-broken-next", command=command))
+        return card, None, error
+    return card, report, None
+
+
+def _error_payload(error):
+    """An error as the JSON the CLI prints for one: the details of an api error kept."""
+    return error.to_dict() if isinstance(error, ApiError) else {"error": str(error)}
 
 
 def _refuse_deleted_source(client, project_id, version_id, *, project_from_env):
@@ -402,11 +420,16 @@ def cmd_apps_create(args):
     """
     config = _config(args)
     client = make_client(config)
-    card, report = _create_app_from_args(client, config, args)
+    card, report, broken = _create_app_from_args(client, config, args)
     hint = _report_sign_in(card)
     answer = {**card, "sign-in": hint} if isinstance(card, dict) else card
     if report is not None and isinstance(answer, dict):
         answer["verify"] = report.to_dict()
+    if broken is not None:
+        if isinstance(answer, dict):
+            answer["wait-error"] = _error_payload(broken)
+        _emit(answer)
+        return 1
     _emit(answer)
     return 0 if report is None or report.ok else 1
 
@@ -499,6 +522,11 @@ def cmd_apps_ensure(args):
     created from the assembly, so what else could it be running? A failed apply,
     rolled back to the previous build without a word. With --wait (or --verify)
     the field now carries a checked verdict and a verify report beside it.
+
+    A wait that breaks off keeps the answer: the id of the created application,
+    applied: null, since nothing was checked, and wait-error with the reason,
+    exit code 1. It used to end with a bare network error, and the id of an
+    application that came up minutes later had to be looked up by its name.
     """
     config = _config(args)
     client = make_client(config)
@@ -516,17 +544,31 @@ def cmd_apps_ensure(args):
         # ensure did what it was asked and said what it found. A verification that
         # ran and did not pass is another matter - that one has to reach a script.
         return _verify_exit_code(answer)
-    card, report = _create_app_from_args(client, config, args)
+    card, report, broken = _create_app_from_args(client, config, args)
     answer = {
         "id": (card or {}).get("id"),
         "created": True,
-        "applied": True if report is None else bool(report.ok),
+        "applied": _created_applied(report, broken),
         "sign-in": _report_sign_in(card),
     }
     if report is not None:
         answer["verify"] = report.to_dict()
+    if broken is not None:
+        answer["wait-error"] = _error_payload(broken)
+        _emit(answer)
+        return 1
     _emit(answer)
     return _verify_exit_code(answer)
+
+
+def _created_applied(report, broken):
+    """The applied verdict of a created application: checked, on trust, or unknown (None).
+
+    A wait that broke off checked nothing, so the answer claims nothing either.
+    """
+    if broken is not None:
+        return None
+    return True if report is None else bool(report.ok)
 
 
 def _verify_exit_code(answer):

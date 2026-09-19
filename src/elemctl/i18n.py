@@ -191,6 +191,14 @@ MESSAGES = {
         "en": "project {project_id} has no builds – upload one (builds upload) or "
               "pass --version-id",
     },
+    "cli.wait-broken": {
+        "ru": "приложение {app_id} создано, но ожидание оборвалось: {error}",
+        "en": "application {app_id} was created, but the wait broke off: {error}",
+    },
+    "cli.wait-broken-next": {
+        "ru": "ид приложения есть в ответе; проверить сборку позже: {command}",
+        "en": "the application id is in the answer; to check the build later: {command}",
+    },
     "cli.source-instead": {
         "ru": "Приложение {app} работает на сборке {build}: передайте её в --version-id "
               "или возьмите самую свежую сборку проекта ключом --latest-build",
@@ -380,6 +388,10 @@ MESSAGES = {
     "client.waiting-ready": {
         "ru": "ждём готовности приложения: статус {status}...",
         "en": "waiting for the application to be ready: status {status}...",
+    },
+    "client.waiting-read-broken": {
+        "ru": "чтение карточки оборвалось, ждём дальше: {error}",
+        "en": "reading the card broke off, waiting on: {error}",
     },
     "client.user-list-not-found": {
         "ru": "список пользователей '{name}' не найден",

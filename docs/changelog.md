@@ -30,6 +30,11 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
   like a limit on the number of applications. The refusal now names the cause and the build a
   running application of the project runs, and the MCP tools `create_app` and `ensure_app`
   refuse the same way.
+- **A wait in `apps create --wait` and `apps ensure --wait` that breaks off no longer loses the
+  created application.** A dropped connection while the task list was read ended the command
+  with a bare network error, and the id of an application that came up minutes later had to be
+  looked up by name. The answer now keeps the id beside a `wait-error` field and exit code 1,
+  and a broken read of the task list is made again.
 
 ## 2026-09-18 – 0.42.0
 
