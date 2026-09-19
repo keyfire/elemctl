@@ -13,7 +13,7 @@ from urllib.parse import urlencode
 
 from . import i18n
 from .auth import TokenManager
-from .errors import ApiError, ConfigError
+from .errors import ApiError, ConfigError, TransportError
 from .transport import UrllibTransport
 from .versions import missing_counters, newest_first, pick_latest
 
@@ -34,6 +34,12 @@ DELETE_TIMEOUT = 180.0
 # a deploy that follows another one, not a stand that has hung.
 APPLY_BUSY_TIMEOUT = 180.0
 BUSY_POLL_INTERVAL = 10.0
+
+# How many times a read is made when the connection keeps breaking off, and the pause
+# between the attempts. Only a broken connection is repeated: an answer of the platform,
+# an error status included, is final.
+READ_ATTEMPTS = 3
+READ_RETRY_PAUSE = 5.0
 
 # The platform answers a request to a busy application with a 404 whose text says
 # so - the same status a missing application gets. The text is what tells them
@@ -214,6 +220,21 @@ def _app_name_contains(app, needle):
     return False
 
 
+def _applied_assembly(app):
+    """The id of the build the application runs, out of its card ("" when unknown)."""
+    return str((app.get("source") or {}).get("project-version-id") or "")
+
+
+def _is_running(app):
+    return str(app.get("status") or "").strip().lower() == "running"
+
+
+#: The fields an assembly card carries its id in.
+ASSEMBLY_ID_KEYS = ("id", "image-id", "assembly-id")
+#: Everything a caller may hold as the address of an assembly: its id or its version.
+ASSEMBLY_ADDRESS_KEYS = ASSEMBLY_ID_KEYS + ("assembly-version", "project-version")
+
+
 # The fields a project is named by: the manifest name and the presentation the console shows.
 PROJECT_NAME_KEYS = ("name", "presentation")
 
@@ -290,6 +311,11 @@ def brief_assembly(assembly):
         "branch-name": assembly.get("branch-name"),
         "commit-id": assembly.get("commit-id"),
     }
+
+
+def assembly_label(assembly_id, version=None):
+    """An assembly the way a person reads it: the id, with the version beside it when known."""
+    return f"{assembly_id} ({version})" if version else str(assembly_id)
 
 
 def builds_summary(assemblies, shown):
@@ -1066,6 +1092,54 @@ class ElementClient:
         ordered = newest_first(assemblies)
         return ordered[0] if ordered else None
 
+    def missing_source(self, project_id, assembly_id):
+        """None while the project lists the assembly; otherwise the build to take instead.
+
+        The platform deletes the builds nobody uses, whatever their age, and it cannot create
+        an application from a build it has deleted. The create is answered with a bare 400
+        "Can't create application", which reads like a limit on the number of applications,
+        not like a missing source. The build list says what happened before anything is
+        created, so a caller looks there first.
+
+        The build offered instead is one that an application of the project runs: the
+        platform keeps such a build. A running application wins over a stopped one. Every
+        field of the answer is None when no application runs a build of the project. The
+        assembly counts as listed when it matches the id or the version of a card: a version
+        is not an address the create takes, but it is not a deleted build either.
+        """
+        wanted = str(assembly_id or "").strip()
+        if not wanted:
+            return None
+        versions = {}
+        for assembly in self.list_assemblies(project_id):
+            if not isinstance(assembly, dict):
+                continue
+            if wanted in {str(assembly.get(key) or "") for key in ASSEMBLY_ADDRESS_KEYS}:
+                return None
+            version = str(
+                assembly.get("assembly-version") or assembly.get("project-version") or ""
+            )
+            for key in ASSEMBLY_ID_KEYS:
+                if assembly.get(key):
+                    versions[str(assembly[key])] = version
+        chosen = None
+        for app in self.list_apps():
+            if not isinstance(app, dict) or _applied_assembly(app) not in versions:
+                continue
+            if chosen is None or (_is_running(app) and not _is_running(chosen)):
+                chosen = app
+        if chosen is None:
+            return {"app": None, "app-id": None, "version-id": None, "version": None}
+        applied = _applied_assembly(chosen)
+        return {
+            "app": chosen.get("name") or chosen.get("display-name"),
+            "app-id": chosen.get("id"),
+            "version-id": applied,
+            # The version out of the build list: a fresh application numbers the versions on
+            # its card from scratch, so the card would name another number for the same build.
+            "version": versions.get(applied) or None,
+        }
+
     # -- development-environment branches ------------------------------------
 
     def list_branches(self, project_id="", name=""):
@@ -1121,9 +1195,25 @@ class ElementClient:
 
     # -- application tasks ----------------------------------------------------
 
+    def _get_through_breaks(self, path):
+        """A GET made again when the connection breaks off, READ_ATTEMPTS times in all."""
+        for attempt in range(1, READ_ATTEMPTS + 1):
+            try:
+                return self._api("GET", path)
+            except TransportError:
+                if attempt >= READ_ATTEMPTS:
+                    raise
+                self._sleep(READ_RETRY_PAUSE)
+
     def list_app_tasks(self, app_id=""):
-        """Application tasks; there is no server-side filter – we filter on the client."""
-        payload = self._api("GET", "/tasks/application-tasks")
+        """Application tasks; there is no server-side filter – we filter on the client.
+
+        The platform hands over the tasks of every application at once, so the answer grows
+        with the stand, and this is the read that breaks off. A wait for a new application
+        used to end on it with a bare network error while the application went on being
+        created. A broken read is made again (_get_through_breaks).
+        """
+        payload = self._get_through_breaks("/tasks/application-tasks")
         tasks = _as_list(payload, "items", "tasks")
         if not app_id:
             return tasks
@@ -1145,7 +1235,7 @@ class ElementClient:
         messages = []
         try:
             tasks = self.list_app_tasks(app_id)
-        except ApiError:
+        except (ApiError, TransportError):
             return messages  # diagnostics must not replace the original error
         for task in tasks:
             if not isinstance(task, dict):
@@ -1228,11 +1318,21 @@ class ElementClient:
     def wait_app_ready(self, app_id, *, timeout=READY_TIMEOUT, poll=POLL_INTERVAL, log=None):
         """Wait until a new application is ready: a stable status and a uri.
 
-        The Error status during the wait is an immediate error.
+        The Error status during the wait is an immediate error. A read of the card that
+        breaks off is a missed poll, not the end of the wait: the application is being
+        created all the same. It becomes the answer only when the time is up.
         """
         deadline = time.monotonic() + timeout
         while True:
-            card = self.get_app(app_id) or {}
+            try:
+                card = self.get_app(app_id) or {}
+            except TransportError as error:
+                if time.monotonic() >= deadline:
+                    raise
+                if log:
+                    log(i18n.t("client.waiting-read-broken", error=error))
+                self._sleep(poll)
+                continue
             status = (card.get("status") or "").strip()
             if status == "Error":
                 raise ApiError(

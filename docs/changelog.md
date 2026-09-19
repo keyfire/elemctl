@@ -21,6 +21,34 @@ entry either – say what the behaviour was, not which id or response field was 
 The link is written by `python scripts/changelog-link.py <number>`, which rebuilds the generated
 pages of the site in the same run – writing it by hand is how the mirrors get left behind.
 
+## Unreleased
+
+### Added
+- **`probe` and `deploy` name the server log when the server refuses without a compilation
+  error.** The platform may answer a failed create or apply with "Contact administrator for
+  details" alone, and the report then had nothing to act on. The new `hint` field says to look
+  for the last `Caused by` line in the server's `server.log`, where `SrcPath:` beside it names
+  the file. ([#36](https://github.com/keyfire/elemctl/pull/36))
+
+### Fixed
+- **`apps create` and `apps ensure` refuse a `--version-id` that is missing from the project's
+  build list, before creating anything.** The platform deletes the builds nobody uses and
+  answered a create from such a build with a bare 400 "Can't create application", which looked
+  like a limit on the number of applications. The refusal now names the cause and the build a
+  running application of the project runs, and the MCP tools `create_app` and `ensure_app`
+  refuse the same way. ([#36](https://github.com/keyfire/elemctl/pull/36))
+- **A wait in `apps create --wait` and `apps ensure --wait` that breaks off no longer loses the
+  created application.** A dropped connection while the task list was read ended the command
+  with a bare network error, and the id of an application that came up minutes later had to be
+  looked up by name. The answer now keeps the id beside a `wait-error` field and exit code 1,
+  and a broken read of the task list is made again.
+  ([#36](https://github.com/keyfire/elemctl/pull/36))
+- **A plugin that fails to load no longer takes the CLI down.** A plugin written for a newer
+  core failed in the call of its factory, which nothing guarded, and every command, the core
+  ones included, ended in a Python traceback. The plugin is now left out and named on stderr
+  and in `elemctl plugins`, a call to its missing command gets the usual JSON refusal, and the
+  MCP server starts with the rest. ([#36](https://github.com/keyfire/elemctl/pull/36))
+
 ## 2026-09-18 – 0.42.0
 
 ### Added

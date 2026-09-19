@@ -173,7 +173,7 @@ usage: elemctl apps create [-h] [--project-id PROJECT_ID] [--version-id VERSION_
 | Параметр | Описание |
 |---|---|
 | `-h, --help` | показать эту справку и выйти |
-| `--project-id PROJECT_ID` | проект-источник |
+| `--project-id PROJECT_ID` | проект-источник; с `--version-id` по перечню его сборок команда проверяет, что платформа ещё не удалила сборку-источник (по умолчанию ELEMENT_PROJECT_ID) |
 | `--version-id VERSION_ID` | id сборки-источника; нового проекта ещё нет – заведите его 'builds upload &lt;файл&gt;.xasm `--space-id` &lt;id&gt;' без `--project-id` |
 | `--latest-build` | источник – последняя сборка проекта |
 | `--space-id SPACE_ID` | пространство |
@@ -203,7 +203,7 @@ usage: elemctl apps ensure [-h] [--project-id PROJECT_ID] [--version-id VERSION_
 | Параметр | Описание |
 |---|---|
 | `-h, --help` | показать эту справку и выйти |
-| `--project-id PROJECT_ID` | проект-источник |
+| `--project-id PROJECT_ID` | проект-источник; с `--version-id` по перечню его сборок команда проверяет, что платформа ещё не удалила сборку-источник (по умолчанию ELEMENT_PROJECT_ID) |
 | `--version-id VERSION_ID` | id сборки-источника; нового проекта ещё нет – заведите его 'builds upload &lt;файл&gt;.xasm `--space-id` &lt;id&gt;' без `--project-id` |
 | `--latest-build` | источник – последняя сборка проекта |
 | `--space-id SPACE_ID` | пространство |

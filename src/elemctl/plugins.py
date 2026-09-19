@@ -29,7 +29,9 @@ with the regular capabilities of the core only.
 
 A failure to load an entry point is an error (PluginError), not a silent skip: a
 tool that quietly lost a plugin would leave the user without debugging and without
-an explanation of the reason.
+an explanation of the reason. For the commands the error stays with its plugin
+(discover_commands): the CLI and the MCP server leave that plugin out, name it, and
+keep working with the core and the plugins that did load.
 """
 
 from __future__ import annotations
@@ -84,6 +86,25 @@ def _load(ep: EntryPoint):
         )) from exc
 
 
+def _call_factory(ep: EntryPoint, factory):
+    """Call the function an entry point names, the way loading it is guarded.
+
+    Only the loading used to be wrapped. A plugin written for a newer core fails in the
+    call instead: it declares a field the installed core does not know yet, and a bare
+    TypeError reached the reader as a Python traceback.
+    """
+    try:
+        return factory()
+    except Exception as exc:
+        from . import __version__  # the package is initialized by the time a plugin loads
+
+        raise PluginError(i18n.t(
+            "plugins.factory-failed",
+            name=ep.name, group=ep.group, value=ep.value,
+            error=f"{type(exc).__name__}: {exc}", version=__version__,
+        )) from exc
+
+
 def debug_adapter_paths() -> list[Path]:
     """Debug adapter directories declared by external packages (ordered by entry point name).
 
@@ -96,7 +117,7 @@ def debug_adapter_paths() -> list[Path]:
     for ep in _points(DEBUG_ADAPTER_GROUP):
         target = _load(ep)
         if callable(target):
-            target = target()
+            target = _call_factory(ep, target)
         paths.append(Path(target))
     return paths
 
@@ -324,24 +345,75 @@ class CommandContext:
         self._log(str(message))
 
 
+@dataclass
+class PluginFailure:
+    """An entry point whose commands did not load: its name and the reason."""
+
+    source: str
+    error: PluginError
+
+    def to_dict(self) -> dict:
+        return {"source": self.source, "error": str(self.error)}
+
+
+def _entry_point_commands(ep: EntryPoint) -> list[Command]:
+    """The commands of one entry point, validated; any flaw is a PluginError.
+
+    All or nothing: a plugin half registered is harder to read than a plugin that did
+    not load, so one bad command leaves the whole entry point out.
+    """
+    loaded = _load(ep)
+    target = loaded
+    if not isinstance(loaded, Command) and callable(loaded):
+        target = _call_factory(ep, lambda: _listed(loaded()))
+    items = [target] if isinstance(target, Command) else target
+    if isinstance(items, (str, bytes)) or not hasattr(items, "__iter__"):
+        raise PluginError(i18n.t("plugins.not-commands", name=ep.name, value=items))
+    commands: list[Command] = []
+    for item in items:
+        if not isinstance(item, Command):
+            raise PluginError(i18n.t("plugins.not-commands", name=ep.name, value=item))
+        item.source = ep.name
+        commands.append(item.validate(where=ep.name))
+    return commands
+
+
+def _listed(result):
+    """A factory result with any generator run through, inside the guarded call."""
+    if isinstance(result, Command) or isinstance(result, (str, bytes)):
+        return result
+    return list(result) if hasattr(result, "__iter__") else result
+
+
+def discover_commands() -> tuple[list[Command], list[PluginFailure]]:
+    """The commands of every entry point that loads, and the failures of the rest.
+
+    A broken plugin used to take the whole CLI down: the parser is built before any
+    command runs, so no command worked, the core ones included. Here each entry point
+    stands alone. What did not load is returned as a PluginFailure rather than skipped,
+    and the surfaces name it: the CLI on stderr and in `elemctl plugins`, the MCP server
+    in its log. A silent skip would leave the user without the plugin and without the
+    reason.
+    """
+    commands: list[Command] = []
+    failures: list[PluginFailure] = []
+    for ep in _points(COMMANDS_GROUP):
+        try:
+            commands.extend(_entry_point_commands(ep))
+        except PluginError as error:
+            failures.append(PluginFailure(ep.name, error))
+    return commands, failures
+
+
 def plugin_commands() -> list[Command]:
     """Commands declared by external packages (ordered by entry point name).
 
     The value of an entry point is a Command, a list of them or a function
     without arguments returning either. Every command is validated right here –
-    see Command.validate.
+    see Command.validate. The strict form of discover_commands: the first entry
+    point that fails is raised as its PluginError.
     """
-    commands: list[Command] = []
-    for ep in _points(COMMANDS_GROUP):
-        target = _load(ep)
-        if not isinstance(target, Command) and callable(target):
-            target = target()
-        items = [target] if isinstance(target, Command) else target
-        if isinstance(items, (str, bytes)) or not hasattr(items, "__iter__"):
-            raise PluginError(i18n.t("plugins.not-commands", name=ep.name, value=items))
-        for item in items:
-            if not isinstance(item, Command):
-                raise PluginError(i18n.t("plugins.not-commands", name=ep.name, value=item))
-            item.source = ep.name
-            commands.append(item.validate(where=ep.name))
+    commands, failures = discover_commands()
+    if failures:
+        raise failures[0].error
     return commands

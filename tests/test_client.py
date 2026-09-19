@@ -6,10 +6,11 @@ import json
 
 import pytest
 
+from elemctl import client as client_module
 from elemctl.auth import extract_token
 from elemctl.client import ElementClient, apps_summary, extract_assembly_id, sign_in_hint
 from elemctl.config import Config
-from elemctl.errors import ApiError, ConfigError
+from elemctl.errors import ApiError, ConfigError, TransportError
 from tests.conftest import FakeTransport
 
 API = "/console/api/v2"
@@ -410,6 +411,73 @@ def test_wait_app_ready_survives_unavailable_tasks(api):
     client, transport = api
     transport.add("GET", f"{API}/applications/app-1", _error_card())
     transport.add("GET", f"{API}/tasks/application-tasks", {"message": "нет доступа"}, status=403)
+
+    with pytest.raises(ApiError) as excinfo:
+        client.wait_app_ready("app-1")
+    assert "Неизвестная ошибка" in str(excinfo.value)
+
+
+def test_list_app_tasks_reads_again_after_a_broken_connection(api):
+    """The task list carries the tasks of every application, and it is the read that breaks.
+
+    A dropped connection there ended a whole wait with a network error, while the application
+    was being created all the same. A broken read is made again.
+    """
+    client, transport = api
+    path = f"{API}/tasks/application-tasks"
+    transport.add("GET", path, error=TransportError("соединение оборвалось"))
+    transport.add("GET", path, [{"application-id": "app-1", "status": "Completed"}])
+
+    assert client.list_app_tasks("app-1") == [{"application-id": "app-1", "status": "Completed"}]
+    assert len(transport.calls_to("GET", path)) == 2
+
+
+def test_list_app_tasks_gives_up_after_the_last_attempt(api):
+    client, transport = api
+    path = f"{API}/tasks/application-tasks"
+    transport.add("GET", path, error=TransportError("соединение оборвалось"))
+
+    with pytest.raises(TransportError):
+        client.list_app_tasks("app-1")
+    assert len(transport.calls_to("GET", path)) == client_module.READ_ATTEMPTS
+
+
+def test_an_answer_of_the_platform_is_not_read_again(api):
+    """Only a broken connection is repeated: an error status is an answer."""
+    client, transport = api
+    path = f"{API}/tasks/application-tasks"
+    transport.add("GET", path, {"message": "нет доступа"}, status=403)
+
+    with pytest.raises(ApiError):
+        client.list_app_tasks("app-1")
+    assert len(transport.calls_to("GET", path)) == 1
+
+
+def test_wait_app_ready_takes_a_broken_poll_for_a_missed_one(api):
+    """The application is being created whatever happens to one read of its card."""
+    client, transport = api
+    card = f"{API}/applications/app-1"
+    transport.add("GET", card, error=TransportError("соединение оборвалось"))
+    transport.add("GET", card, {"id": "app-1", "status": "Running", "uri": "https://host/app"})
+    lines = []
+
+    assert client.wait_app_ready("app-1", log=lines.append)["status"] == "Running"
+    assert any("соединение оборвалось" in line for line in lines)
+
+
+def test_wait_app_ready_gives_up_on_broken_polls_when_the_time_is_up(api):
+    client, transport = api
+    transport.add("GET", f"{API}/applications/app-1", error=TransportError("соединение оборвалось"))
+
+    with pytest.raises(TransportError):
+        client.wait_app_ready("app-1", timeout=0)
+
+
+def test_a_broken_task_read_does_not_replace_the_error_status(api):
+    """The details of an Error status are optional: a network failure must not take its place."""
+    client, transport = api
+    transport.add("GET", f"{API}/applications/app-1", _error_card())
+    transport.add("GET", f"{API}/tasks/application-tasks", error=TransportError("обрыв"))
 
     with pytest.raises(ApiError) as excinfo:
         client.wait_app_ready("app-1")

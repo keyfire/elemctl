@@ -572,6 +572,74 @@ def test_ensure_app_verify_checks_the_application_it_found(monkeypatch):
     assert calls[0][0] == "app-7"
 
 
+def test_ensure_app_keeps_the_id_when_the_wait_breaks_off(monkeypatch):
+    """The tool twin of the CLI answer: the created application is not lost with the wait."""
+    from elemctl.errors import TransportError
+
+    class BrokenWait(FakeCreatingClient):
+        def wait_app_ready(self, app_id, log=None):
+            raise TransportError("сетевая ошибка: обрыв")
+
+    server = _server_on(monkeypatch, BrokenWait())
+
+    result = asyncio.run(
+        server.call_tool(
+            "ensure_app", {"name": "crm-dev", "version_id": "asm-1", "verify": True}
+        )
+    )
+    payload = json.loads(call_result_content(result)[0].text)
+
+    assert payload["id"] == "app-new"
+    assert payload["created"] is True
+    assert payload["applied"] is None
+    assert "обрыв" in payload["wait-error"]["error"]
+
+
+def _root_elemctl_error_message(exc):
+    """The text of our own error inside a tool-call exception, whichever major wrapped it."""
+    from elemctl.errors import ElemctlError
+
+    seen = exc
+    while seen is not None:
+        if isinstance(seen, ElemctlError):
+            return str(seen)
+        seen = seen.__cause__ or seen.__context__
+    return str(exc)
+
+
+def test_ensure_app_names_a_source_assembly_the_platform_has_deleted(monkeypatch):
+    """The tool twin of the CLI refusal: nothing is created from a build the project lost."""
+
+    class FakeClient:
+        def __init__(self):
+            self.created = []
+
+        def find_app(self, name, *, include_deleted=False):
+            return None
+
+        def missing_source(self, project_id, assembly_id):
+            assert (project_id, assembly_id) == ("proj-1", "asm-3")
+            return {"app": "crm-main", "app-id": "app-2", "version-id": "asm-7",
+                    "version": "1.0-7"}
+
+        def create_app(self, display_name, **kwargs):
+            self.created.append(display_name)
+            return {"id": "app-new"}
+
+    fake = FakeClient()
+    server = _server_on(monkeypatch, fake)
+
+    with pytest.raises(Exception) as excinfo:
+        asyncio.run(server.call_tool(
+            "ensure_app", {"name": "crm-dev", "project_id": "proj-1", "version_id": "asm-3"}
+        ))
+
+    message = _root_elemctl_error_message(excinfo.value)
+    assert "asm-3" in message and "никто не пользуется" in message
+    assert "crm-main" in message and "asm-7" in message and "version_id" in message
+    assert fake.created == []
+
+
 # --- Tools brought by a plugin -----------------------------------------------------
 
 def _plugin_command(**overrides):
@@ -599,7 +667,7 @@ def _plugin_command(**overrides):
 def _server_with(monkeypatch, *commands):
     from elemctl import plugins
 
-    monkeypatch.setattr(plugins, "plugin_commands", lambda: list(commands))
+    monkeypatch.setattr(plugins, "discover_commands", lambda: (list(commands), []))
     return create_server()
 
 
@@ -668,11 +736,44 @@ def test_plugin_command_can_stay_out_of_mcp(monkeypatch):
     assert "warm_up" not in {t.name for t in asyncio.run(server.list_tools())}
 
 
-def test_plugin_cannot_take_over_a_core_tool(monkeypatch):
-    from elemctl.errors import PluginError
+def test_plugin_cannot_take_over_a_core_tool(monkeypatch, capsys):
+    """The core keeps its tool, and the clash is named on stderr, the log of a server."""
+    server = _server_with(monkeypatch, _plugin_command(name="deploy"), _plugin_command())
 
-    with pytest.raises(PluginError, match="deploy"):
-        _server_with(monkeypatch, _plugin_command(name="deploy"))
+    tools = {tool.name: tool for tool in asyncio.run(server.list_tools())}
+    assert "warm_up" in tools
+    assert tools["deploy"].description != "прогреть стенд"  # still the tool of the core
+    assert "deploy" in capsys.readouterr().err
+
+
+def test_a_broken_plugin_leaves_the_server_serving(monkeypatch, capsys):
+    """One plugin that could not load used to stop the server, and every tool went with it."""
+    from elemctl import plugins
+
+    def newer_core():
+        raise TypeError("Argument.__init__() got an unexpected keyword argument 'cli_alias'")
+
+    points = [
+        types.SimpleNamespace(
+            name="а-исправный", group=plugins.COMMANDS_GROUP, value="stub",
+            load=lambda: [_plugin_command()],
+        ),
+        types.SimpleNamespace(
+            name="б-новее-ядра", group=plugins.COMMANDS_GROUP, value="stub",
+            load=lambda: newer_core,
+        ),
+    ]
+    monkeypatch.delenv(plugins.ENV_DISABLE, raising=False)
+    monkeypatch.setattr(
+        plugins, "entry_points", lambda group: [p for p in points if p.group == group]
+    )
+
+    server = create_server()
+
+    names = {tool.name for tool in asyncio.run(server.list_tools())}
+    assert "warm_up" in names and "deploy" in names
+    stderr = capsys.readouterr().err
+    assert "б-новее-ядра" in stderr and "cli_alias" in stderr
 
 
 # --- Both majors of the mcp package ------------------------------------------------

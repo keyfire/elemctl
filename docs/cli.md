@@ -173,7 +173,7 @@ usage: elemctl apps create [-h] [--project-id PROJECT_ID] [--version-id VERSION_
 | Option | Description |
 |---|---|
 | `-h, --help` | show this help message and exit |
-| `--project-id PROJECT_ID` | source project |
+| `--project-id PROJECT_ID` | source project; with `--version-id` its build list is checked for the source assembly, which the platform may have deleted (default: ELEMENT_PROJECT_ID) |
 | `--version-id VERSION_ID` | id of the source assembly; if the project does not exist yet, create it with 'builds upload &lt;file&gt;.xasm `--space-id` &lt;id&gt;' without `--project-id` |
 | `--latest-build` | source: the project's latest assembly |
 | `--space-id SPACE_ID` | space |
@@ -203,7 +203,7 @@ usage: elemctl apps ensure [-h] [--project-id PROJECT_ID] [--version-id VERSION_
 | Option | Description |
 |---|---|
 | `-h, --help` | show this help message and exit |
-| `--project-id PROJECT_ID` | source project |
+| `--project-id PROJECT_ID` | source project; with `--version-id` its build list is checked for the source assembly, which the platform may have deleted (default: ELEMENT_PROJECT_ID) |
 | `--version-id VERSION_ID` | id of the source assembly; if the project does not exist yet, create it with 'builds upload &lt;file&gt;.xasm `--space-id` &lt;id&gt;' without `--project-id` |
 | `--latest-build` | source: the project's latest assembly |
 | `--space-id SPACE_ID` | space |

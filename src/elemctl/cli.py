@@ -34,6 +34,7 @@ from .client import (
     OIDC_SERVICE,
     ElementClient,
     apps_summary,
+    assembly_label,
     brief_app,
     brief_assembly,
     builds_summary,
@@ -291,7 +292,7 @@ def _verification_wanted(args):
 
 
 def _create_app_from_args(client, config, args):
-    """Create an application from the creation flags; return (card, report).
+    """Create an application from the creation flags; return (card, report, broken).
 
     The logic shared by apps create and apps ensure. The source is the given
     assembly (--version-id), the project's latest assembly (--latest-build) or
@@ -299,9 +300,19 @@ def _create_app_from_args(client, config, args):
     --wait it waits until the application is ready and checks that the assembly
     asked for is the one the application really runs; report is None when no
     check ran (no --wait and no --verify, or the card carries no id).
+
+    broken is the error that ended the wait or the check, None when they finished.
+    The application exists from the moment the create answered, so a wait that
+    breaks off must not take the id along: the error is returned beside the card
+    rather than raised past it, and the caller puts both into the answer.
     """
     project_id = args.project_id or config.project_id
     version_id = args.version_id
+
+    if version_id and project_id:
+        _refuse_deleted_source(
+            client, project_id, version_id, project_from_env=not args.project_id
+        )
 
     if args.latest_build and not version_id:
         if not project_id:
@@ -329,21 +340,59 @@ def _create_app_from_args(client, config, args):
 
     verify = _verification_wanted(args)
     if not (args.wait or verify):
-        return card, None
+        return card, None, None
     app_id = (card or {}).get("id")
     if not app_id:
-        return card, None
-    card = client.wait_app_ready(app_id, log=_progress)
-    if not verify:
-        return card, None
-    report = verify_deploy(
-        client,
-        app_id,
-        expected_assembly_id=version_id or "",
-        since=started_at,
-        log=_progress,
-    )
-    return card, report
+        return card, None, None
+    try:
+        card = client.wait_app_ready(app_id, log=_progress)
+        if not verify:
+            return card, None, None
+        report = verify_deploy(
+            client,
+            app_id,
+            expected_assembly_id=version_id or "",
+            since=started_at,
+            log=_progress,
+        )
+    except ElemctlError as error:
+        _progress(i18n.t("cli.wait-broken", app_id=app_id, error=error))
+        command = f"elemctl verify-deploy {app_id}"
+        if version_id:
+            command += f" --version-id {version_id}"
+        _progress(i18n.t("cli.wait-broken-next", command=command))
+        return card, None, error
+    return card, report, None
+
+
+def _error_payload(error):
+    """An error as the JSON the CLI prints for one: the details of an api error kept."""
+    return error.to_dict() if isinstance(error, ApiError) else {"error": str(error)}
+
+
+def _refuse_deleted_source(client, project_id, version_id, *, project_from_env):
+    """Refuse to create from an assembly the project no longer lists, and name a way forward.
+
+    The platform deletes the builds nobody uses, and a create from such a build is answered
+    with a bare 400 "Can't create application". That reads like a limit on the number of
+    applications, so the refusal names the real cause and the build that a running
+    application of the project runs. A project taken from ELEMENT_PROJECT_ID may not be the
+    project the assembly belongs to, and the refusal says where the project came from.
+    """
+    instead = client.missing_source(project_id, version_id)
+    if instead is None:
+        return
+    parts = [i18n.t("client.source-missing", assembly=version_id, project=project_id)]
+    if instead.get("version-id"):
+        parts.append(i18n.t(
+            "cli.source-instead", app=instead.get("app") or instead.get("app-id"),
+            build=assembly_label(instead["version-id"], instead.get("version")),
+        ))
+    else:
+        parts.append(i18n.t("cli.source-latest"))
+    if project_from_env:
+        parts.append(i18n.t("cli.source-project-from-env"))
+    raise ElemctlError(". ".join(parts))
 
 
 def _report_sign_in(card):
@@ -371,11 +420,16 @@ def cmd_apps_create(args):
     """
     config = _config(args)
     client = make_client(config)
-    card, report = _create_app_from_args(client, config, args)
+    card, report, broken = _create_app_from_args(client, config, args)
     hint = _report_sign_in(card)
     answer = {**card, "sign-in": hint} if isinstance(card, dict) else card
     if report is not None and isinstance(answer, dict):
         answer["verify"] = report.to_dict()
+    if broken is not None:
+        if isinstance(answer, dict):
+            answer["wait-error"] = _error_payload(broken)
+        _emit(answer)
+        return 1
     _emit(answer)
     return 0 if report is None or report.ok else 1
 
@@ -468,6 +522,11 @@ def cmd_apps_ensure(args):
     created from the assembly, so what else could it be running? A failed apply,
     rolled back to the previous build without a word. With --wait (or --verify)
     the field now carries a checked verdict and a verify report beside it.
+
+    A wait that breaks off keeps the answer: the id of the created application,
+    applied: null, since nothing was checked, and wait-error with the reason,
+    exit code 1. It used to end with a bare network error, and the id of an
+    application that came up minutes later had to be looked up by its name.
     """
     config = _config(args)
     client = make_client(config)
@@ -485,17 +544,31 @@ def cmd_apps_ensure(args):
         # ensure did what it was asked and said what it found. A verification that
         # ran and did not pass is another matter - that one has to reach a script.
         return _verify_exit_code(answer)
-    card, report = _create_app_from_args(client, config, args)
+    card, report, broken = _create_app_from_args(client, config, args)
     answer = {
         "id": (card or {}).get("id"),
         "created": True,
-        "applied": True if report is None else bool(report.ok),
+        "applied": _created_applied(report, broken),
         "sign-in": _report_sign_in(card),
     }
     if report is not None:
         answer["verify"] = report.to_dict()
+    if broken is not None:
+        answer["wait-error"] = _error_payload(broken)
+        _emit(answer)
+        return 1
     _emit(answer)
     return _verify_exit_code(answer)
+
+
+def _created_applied(report, broken):
+    """The applied verdict of a created application: checked, on trust, or unknown (None).
+
+    A wait that broke off checked nothing, so the answer claims nothing either.
+    """
+    if broken is not None:
+        return None
+    return True if report is None else bool(report.ok)
 
 
 def _verify_exit_code(answer):
@@ -1154,8 +1227,14 @@ def cmd_plugins(args):
 
     The adapter directories are listed jar-less ones included (that is exactly
     what a diagnostic is for), the commands – with the entry point they arrived
-    through and whether they are exposed to MCP.
+    through and whether they are exposed to MCP. The failures name the plugins
+    left out and the reason: a plugin that did not load, or a command that would
+    have taken over a name of the core.
     """
+    commands = getattr(args, "plugin_commands", None)
+    failures = getattr(args, "plugin_failures", None)
+    if commands is None or failures is None:
+        commands, failures = plugins.discover_commands()
     paths = plugins.debug_adapter_paths()
     _emit(
         {
@@ -1168,8 +1247,9 @@ def cmd_plugins(args):
                     "source": command.source,
                     "mcp": command.tool_name if command.mcp else None,
                 }
-                for command in plugins.plugin_commands()
+                for command in commands
             ],
+            "failures": [failure.to_dict() for failure in failures],
         }
     )
     return 0
@@ -1310,18 +1390,25 @@ def _add_aliased_positional(parser, argument):
 
 
 def add_plugin_commands(sub):
-    """Register the commands the plugins bring as subcommands of the CLI.
+    """Register the commands the plugins bring as subcommands; return (registered, failures).
 
-    A name that the core already occupies is an error rather than a silent
-    override: a plugin must not be able to substitute itself for `deploy`. The
-    check is against the parsers already registered, so it stays true whatever
-    the core grows.
+    A name that the core already occupies is not taken over: a plugin must not be
+    able to substitute itself for `deploy`. The check is against the parsers
+    already registered, so it stays true whatever the core grows.
+
+    Neither a clash nor a plugin that did not load is fatal any more. Both used to
+    stop the parser from being built, and one broken plugin took every command
+    down, the core ones included. Now such a command is left out and returned
+    among the failures (plugins.PluginFailure), which main names on stderr.
     """
-    for command in plugins.plugin_commands():
+    registered = []
+    commands, failures = plugins.discover_commands()
+    for command in commands:
         if command.name in sub.choices:
-            raise PluginError(i18n.t(
+            failures.append(plugins.PluginFailure(command.source, PluginError(i18n.t(
                 "plugins.command-name-taken", where=command.source, name=command.name
-            ))
+            ))))
+            continue
         parser = sub.add_parser(command.name, help=command.help)
         for argument in command.arguments:
             if argument.cli_alias:
@@ -1329,6 +1416,8 @@ def add_plugin_commands(sub):
             else:
                 parser.add_argument(argument.name, **_argument_kwargs(argument))
         parser.set_defaults(handler=_plugin_handler(command), plugin_command=command)
+        registered.append(command)
+    return registered, failures
 
 
 def _add_app_ref(p, *, required=False):
@@ -1423,6 +1512,44 @@ def _hoist_global_options(argv):
         rest.append(arg)
         index += 1
     return hoisted + rest
+
+
+def _requested_command(argv):
+    """The subcommand a call names: the first word after the global options ("" for none).
+
+    The global options stand at the front by now (_hoist_global_options), and every one
+    of them but the flags takes a value.
+    """
+    index = 0
+    while index < len(argv):
+        token = argv[index]
+        if token == "--":
+            return ""
+        if token in _GLOBAL_OPTIONS:
+            index += 2
+            continue
+        if token.startswith("-"):
+            index += 1
+            continue
+        return token
+    return ""
+
+
+def _missing_plugin_command(parser, argv, failures):
+    """The refusal of a command that is missing while plugins failed to load, or None."""
+    if not failures:
+        return None
+    requested = _requested_command(argv)
+    if not requested or requested in _choices_of(parser, "command"):
+        return None
+    return {
+        "error": i18n.t(
+            "cli.plugin-command-unavailable",
+            command=requested,
+            sources=", ".join(failure.source for failure in failures),
+        ),
+        "plugin-failures": [failure.to_dict() for failure in failures],
+    }
 
 
 def _choices_of(parser, dest):
@@ -1834,8 +1961,11 @@ def build_parser():
 
     # plugins ------------------------------------------------------------
     # Last of all: the commands of the core are already in place, and a name
-    # clash with any of them is caught right here.
-    add_plugin_commands(sub)
+    # clash with any of them is caught right here. What did not load travels on
+    # the parser for main and in the defaults for the `plugins` diagnostics.
+    registered, failures = add_plugin_commands(sub)
+    parser.plugin_failures = failures
+    parser.set_defaults(plugin_commands=registered, plugin_failures=failures)
 
     return parser
 
@@ -1853,9 +1983,14 @@ def main(argv=None):
     try:
         parser = build_parser()
     except ElemctlError as error:
-        # A broken plugin must not fall out as a traceback: the parser is built
-        # before any command runs, so its errors need the same JSON treatment.
         return _fail({"error": str(error)})
+    # A plugin that did not load is left out of the parser rather than taking it down.
+    # A call to a command that is missing while plugins failed gets the usual JSON
+    # refusal naming them: the command may well have been theirs.
+    failures = getattr(parser, "plugin_failures", None) or []
+    missing = _missing_plugin_command(parser, argv, failures)
+    if missing is not None:
+        return _fail(missing)
     try:
         args = parser.parse_args(argv)
     except SystemExit as refusal:
@@ -1874,6 +2009,11 @@ def main(argv=None):
     if handler is None:
         parser.print_help(sys.stderr)
         return 1
+    # Not a silent skip: every command names the plugins left out. `plugins` carries
+    # them in its answer, and the MCP server names them in its own log.
+    if handler not in (cmd_plugins, cmd_mcp):
+        for failure in failures:
+            _progress(i18n.t("cli.plugin-failed", source=failure.source, error=failure.error))
     # An error keeps going to stderr with --json as well, and stdout stays empty:
     # a failure that answered the machine channel with a document would be read by
     # a pipeline as an answer, and the exit code alone would be left to say otherwise.

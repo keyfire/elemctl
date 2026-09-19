@@ -13,7 +13,7 @@ import pytest
 import elemctl
 from elemctl import cli
 from elemctl import client as client_module
-from elemctl.errors import ApiError
+from elemctl.errors import ApiError, TransportError
 
 
 @pytest.fixture(autouse=True)
@@ -544,6 +544,57 @@ def test_apps_ensure_created_application_stops_claiming_applied_on_trust(monkeyp
     assert payload["verify"]["ok"] is False
 
 
+class BrokenWaitClient(FakeCreateClient):
+    """The create answers, and the wait for the application breaks off on the network."""
+
+    def wait_app_ready(self, app_id, log=None):
+        self.waited.append(app_id)
+        raise TransportError(
+            "сетевая ошибка GET https://host/console/api/v2/tasks/application-tasks: обрыв"
+        )
+
+
+def test_apps_ensure_keeps_the_id_when_the_wait_breaks_off(monkeypatch, capsys):
+    """The application exists once the create has answered, whatever happens to the wait.
+
+    A read that broke off during the wait left a network error with no id in it, and the id of
+    an application that came up minutes later had to be looked up by its name.
+    """
+    fake = BrokenWaitClient()
+    monkeypatch.setattr(cli, "make_client", lambda config: fake)
+
+    rc = cli.main(["apps", "ensure", "crm-dev", "--version-id", "asm-9", "--wait"])
+
+    assert rc == 1
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+    assert payload["id"] == "app-new"
+    assert payload["created"] is True
+    assert payload["applied"] is None  # nothing was checked, so nothing is claimed
+    assert "обрыв" in payload["wait-error"]["error"]
+    # The progress names the application and the way to check it later.
+    assert "verify-deploy app-new --version-id asm-9" in captured.err
+
+
+def test_apps_create_keeps_the_card_when_the_verification_breaks_off(monkeypatch, capsys):
+    fake = FakeCreateClient()
+    monkeypatch.setattr(cli, "make_client", lambda config: fake)
+
+    def broken(*args, **kwargs):
+        raise TransportError("сетевая ошибка: обрыв")
+
+    monkeypatch.setattr(cli, "verify_deploy", broken)
+
+    rc = cli.main(["apps", "create", "crm-dev", "--version-id", "asm-9", "--wait"])
+
+    assert rc == 1
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["id"] == "app-new"
+    assert payload["uri"] == "https://host/apps/crm-dev"  # the card the wait brought back
+    assert "обрыв" in payload["wait-error"]["error"]
+    assert "verify" not in payload
+
+
 def test_apps_ensure_verify_checks_the_application_it_found(monkeypatch, capsys):
     """--verify over an existing application: the card matches, but is it alive?
 
@@ -597,6 +648,119 @@ def test_apps_ensure_request_failure_is_an_error(monkeypatch, capsys):
     captured = capsys.readouterr()
     assert captured.out == ""
     assert "error" in json.loads(captured.err)
+
+
+# -- a source assembly the platform has already deleted -------------------------------
+
+API = "/console/api/v2"
+
+
+def _platform_with_builds(api, *, apps, assemblies, project="proj-1"):
+    """The platform on the stub transport: its applications, the build list of one project,
+    and a create answered the way the platform answers a deleted source, with a bare 400."""
+    client, transport = api
+    transport.add("GET", f"{API}/applications", apps)
+    transport.add("GET", f"{API}/projects/{project}/assemblies", assemblies)
+    transport.add(
+        "POST", f"{API}/applications", {"message": "Can't create application"}, status=400
+    )
+    return client, transport
+
+
+def test_apps_ensure_names_a_source_assembly_the_platform_has_deleted(api, monkeypatch, capsys):
+    """The platform deletes the builds nobody uses, and a create from one of them is a bare 400.
+
+    "Can't create application" reads like a limit on the number of applications. The build list
+    tells the real reason before anything is created, and the build that a running application
+    of the project runs is offered instead.
+    """
+    client, transport = _platform_with_builds(
+        api,
+        apps=[
+            {"id": "app-1", "name": "crm-stage", "status": "Stopped",
+             "source": {"project-version-id": "asm-5"}},
+            {"id": "app-2", "name": "crm-main", "status": "Running",
+             "source": {"project-version-id": "asm-7"}},
+            {"id": "app-3", "name": "other", "status": "Running",
+             "source": {"project-version-id": "asm-foreign"}},
+        ],
+        assemblies=[
+            {"id": "asm-5", "assembly-version": "1.0-5"},
+            {"id": "asm-7", "assembly-version": "1.0-7"},
+        ],
+    )
+    monkeypatch.setattr(cli, "make_client", lambda config: client)
+
+    rc = cli.main(
+        ["apps", "ensure", "crm-dev", "--version-id", "asm-3", "--project-id", "proj-1"]
+    )
+
+    assert rc == 1
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    error = json.loads(captured.err)["error"]
+    assert "asm-3" in error and "proj-1" in error
+    assert "никто не пользуется" in error
+    # A running application wins over a stopped one; its build is named with the version.
+    assert "crm-main" in error and "asm-7" in error and "1.0-7" in error
+    assert "--latest-build" in error
+    assert transport.calls_to("POST", f"{API}/applications") == []
+
+
+def test_apps_create_says_where_the_project_to_check_against_came_from(
+    api, monkeypatch, capsys
+):
+    """The project may come from ELEMENT_PROJECT_ID while the assembly is another project's.
+
+    The refusal then says where the project came from and how to name the right one, so a
+    build of another project is not taken for a deleted one without a word.
+    """
+    client, transport = _platform_with_builds(
+        api, apps=[], assemblies=[{"id": "asm-7", "assembly-version": "1.0-7"}]
+    )
+    monkeypatch.setattr(cli, "make_client", lambda config: client)
+    monkeypatch.setenv("ELEMENT_PROJECT_ID", "proj-1")
+
+    rc = cli.main(["apps", "create", "crm-dev", "--version-id", "asm-3"])
+
+    assert rc == 1
+    error = json.loads(capsys.readouterr().err)["error"]
+    assert "ELEMENT_PROJECT_ID" in error and "--project-id" in error
+    # No application of the project runs a build of it, so the newest build is offered.
+    assert "--latest-build" in error
+    assert transport.calls_to("POST", f"{API}/applications") == []
+
+
+def test_apps_ensure_creates_from_a_source_the_project_still_lists(api, monkeypatch, capsys):
+    client, transport = api
+    transport.add("GET", f"{API}/applications", [])
+    transport.add(
+        "GET", f"{API}/projects/proj-1/assemblies", [{"id": "asm-7", "assembly-version": "1.0-7"}]
+    )
+    transport.add("POST", f"{API}/applications", {"id": "app-new"})
+    monkeypatch.setattr(cli, "make_client", lambda config: client)
+
+    rc = cli.main(
+        ["apps", "ensure", "crm-dev", "--version-id", "asm-7", "--project-id", "proj-1"]
+    )
+
+    assert rc == 0
+    assert json.loads(capsys.readouterr().out)["id"] == "app-new"
+    body = json.loads(transport.calls_to("POST", f"{API}/applications")[0]["data"])
+    assert body["source"]["project-version-id"] == "asm-7"
+
+
+def test_apps_ensure_without_a_project_creates_as_before(api, monkeypatch, capsys):
+    """Without a project there is no list to look in: no listing, the create goes as it did."""
+    client, transport = api
+    transport.add("GET", f"{API}/applications", [])
+    transport.add("POST", f"{API}/applications", {"id": "app-new"})
+    monkeypatch.setattr(cli, "make_client", lambda config: client)
+
+    rc = cli.main(["apps", "ensure", "crm-dev", "--version-id", "asm-3"])
+
+    assert rc == 0
+    assert not any("/assemblies" in call["path"] for call in transport.calls)
 
 
 def test_error_is_json_on_stderr(capsys):

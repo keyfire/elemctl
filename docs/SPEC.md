@@ -188,7 +188,7 @@ Compatibility is checked against the `РежимСовместимости` prop
    - for information, make a check GET against the application `uri`. Codes 401 and 403 are normal for closed applications and do not contradict success.
 2. **Empty skeleton on creation.** On some platform configurations an application created with a "project" source, meaning `image-id` set to the project id, comes out empty, with no project data. A reliable source is a specific build in `project-version-id`, for example the project's latest build.
 3. **Deletion with drafts.** If the application's development environment has unpublished edits, `DELETE /applications/{id}` returns 400 with `FAILED_PRECONDITION` in the body. There is no forced deletion in the API, only the control panel, and the tool must provide a clear hint.
-4. **Readiness of a new application.** After creation, the application sits in transitional statuses and without a `uri` for some time, so provide for waiting until it is ready: a `uri` has appeared and the status is stable. An `Error` status while waiting is an immediate error.
+4. **Readiness of a new application.** After creation, the application sits in transitional statuses and without a `uri` for some time, so provide for waiting until it is ready: a `uri` has appeared and the status is stable. An `Error` status while waiting is an immediate error. A read of the card that breaks off on the network is a missed poll, not the end of the wait, since the application is being created all the same. The task list of section 4.6 carries the tasks of every application at once and is the read that breaks off most, so a broken read of it is made again, three times in all.
 5. **Restart after apply.** `project/update` may restart the application itself. After the call, wait until it leaves the transitional statuses. If the result is not `Running`, stop it unless it is already `Stopped`, wait for `Stopped`, start it and wait for `Running`. Reasonable waits: about 3 minutes for a stop, about 5 minutes for a start and stabilization, polling every 10 seconds or so.
 6. **`Error` is a final status.** A stable `Error`, after a failed apply for instance, is an immediate failure: surface the error messages of the application tasks (section 4.6) right away. Do not stop or restart such an application, and do not keep waiting for another status: from `Error` it never moves to `Stopped`, and the wait just burns the whole time budget.
 7. **Windows.** Temporary files and caches go through `tempfile` only. Switch console output to UTF-8 with `reconfigure` for stdout and stderr, otherwise Cyrillic breaks.
@@ -228,7 +228,9 @@ Commands, with the significant flags in parentheses:
   - `apps apply [APP_ID] VERSION_ID` applies an already uploaded assembly to an application and verifies the result (section 6.6). An apply is not a fact until it is verified: on a failure the platform silently rolls the application back to the previous build and starts it. The output is the verification report, and the exit code is 1 when the assembly did not land. Until this command, applying was reachable through the MCP tool alone, while long operations are the ones that want a CLI run in the background.
   - `apps create` and `apps ensure` end by saying how to sign in to the application (section 6.11). That is the `sign-in` field of the output, shaped `{"url", "account": "control-panel", "hint", "note"}`, plus the same two sentences on stderr. `url` is the application address out of the card, and it is `null` while the application has none yet, which is the case without `--wait`; the hint then says where to take it from. `account` is a code, not a text: the way in is a control-panel account, and the note says why the accounts used to sign in to other applications do not work here.
   - `--latest-build` uses the project's latest build as the source and protects against an empty skeleton (section 6.2). `--wait` waits until ready (section 6.4), verifies the result (section 6.6) and outputs the final card.
+  - A source given by `--version-id` is looked up in the build list of the project before anything is created. The project is `--project-id`, or `ELEMENT_PROJECT_ID` when the flag is absent. The platform deletes the builds nobody uses and cannot create an application from a deleted one: it answers with a bare 400 "Can't create application", which reads like a limit on the number of applications. So the command refuses by itself. The refusal names the cause and offers the build that a running application of the project runs, or `--latest-build` when no application runs one. A project taken from `ELEMENT_PROJECT_ID` is named in the refusal, because the build may belong to another project. Without a project there is no list to look in, and the create goes as before.
   - Waiting means verifying. A failed apply is rolled back by the platform to the previous build, and the application comes up `Running` all the same, so a card handed back after a wait is not evidence that the build asked for is the one running. `--wait` therefore ends with the same check `apps apply` and `verify-deploy` do: the applied build id against the requested one, the application tasks that failed since the creation started, the uri. It puts the report into the `verify` field of the output and answers with exit code 1 when the check does not pass. `--verify` asks for the check on its own, and waits too, because there is nothing to check on an application still being created. `--no-verify` brings back the plain wait. Without either flag nothing is waited for and nothing is checked, as before.
+  - The application exists once the create has answered, so a wait or a check that breaks off does not lose it. The output still carries the id: the card of `apps create`, the `id` of `apps ensure` with `applied: null`, since nothing was checked. The `wait-error` field holds the error that ended the wait, stderr names the `verify-deploy` call that checks the build later, and the exit code is 1. The answer used to be a bare network error without the id, and the id of an application that came up minutes later had to be looked up by name.
 - `spaces list`.
 - `user-lists list [--name]`, `user-lists get [LIST] [--app]`,
   `user-lists self-registration [LIST] [--app --enable --disable]`,
@@ -277,7 +279,7 @@ Commands, with the significant flags in parentheses:
 - `deploy [--app-id --project-id --project-dir --output --build-version
   --branch --commit --commit-message --dry-run --require-clean]` –
   the full cycle: build -> upload -> apply -> restart -> verification of the actual apply (section 6.1). Output – a JSON report with fields: `app-id`, `uri`, `status`, `version`, `assembly-id`, `applied-version`, `applied` (true, false or null, where null means the actual version could not be determined), `uri-status`, `problems` (list of strings, the platform's texts as they came), `problems-lines` (the same broken into plain lines: JSON escapes a multi-line refusal into `
-` and `	` exactly where it has to be read), `ok` (boolean), `dirty` and `dirty-files` (uncommitted changes of the project directory at build time). The build captures the current disk state, so the divergence from HEAD must be visible; a warning also goes to stderr, and null means git was unavailable. Return code 0 only when `ok`. `--dry-run` builds and stops there, and `--require-clean` aborts before building on a dirty tree.
+` and `	` exactly where it has to be read), `ok` (boolean), `dirty` and `dirty-files` (uncommitted changes of the project directory at build time). The build captures the current disk state, so the divergence from HEAD must be visible; a warning also goes to stderr, and null means git was unavailable. `hint` points at the log of the server when a task was refused without a compilation error in its text. The platform may answer with "Contact administrator for details" alone, and the cause then sits in the server log: the last `Caused by` line, with `SrcPath:` beside it naming the file the apply stopped at. An apply that leaves the application in `Error` ends the deploy with an error, and that error carries the same hint. Return code 0 only when `ok`. `--dry-run` builds and stops there, and `--require-clean` aborts before building on a dirty tree.
 - `verify-deploy [APP_ID] [--app-id --version-id --expected-version --since-minutes]` –
   the verification of section 6.1 on its own, deploying nothing. It looks at the
   application tasks in an error status raised over the last `--since-minutes` minutes,
@@ -305,8 +307,10 @@ Commands, with the significant flags in parentheses:
   `app-name`, `status`, `errors` (a list of `{file, entry, line, column,
   environment, message}`, where `file` is the path relative to the project
   directory), `messages` (the platform texts verbatim, so nothing is lost when the
-  failure is not a compilation one) and `cleanup` (`kept`, `app-deleted`,
-  `assembly-deleted`, `project-deleted`, `problems`). A stand that does not know
+  failure is not a compilation one), `cleanup` (`kept`, `app-deleted`,
+  `assembly-deleted`, `project-deleted`, `problems`) and `hint`, the pointer to the
+  server log that the `deploy` report carries too. `hint` is filled when the server
+  refused and named no file; a wait that ran out of time leaves it empty. A stand that does not know
   the compatibility mode of the project refuses the whole project and then
   complains about types and properties of that mode in files the change never
   touched. That refusal is recognized, the parsing stops there,
@@ -326,8 +330,8 @@ Commands, with the significant flags in parentheses:
 - `tasks list [--app-id]`, `tasks get-group TASK_ID`.
 - `tech get [APP_ID]`, `tech set APP_ID VERSION`.
 - `debug-adapter` – the path to the platform debug adapter directory supplied by a plugin (the `elemctl.debug_adapter` entry-point group, section 10). Output `{"path": ..., "found": true, "adapter-class": ...}` when present or `{"path": null, "found": false}`; exit code 0 in both cases. The `path` is a ready value for the VS Code extension's `xbsl.debug.adapterPath` (a directory with a `repo/` subdirectory).
-- `plugins` – diagnostics: what the plugins bring. `debug-adapter` holds the declared adapter directories and whether each of them holds jars. `commands` holds the commands of the plugins with the entry point they arrived through and the name of their MCP tool, which is `null` when the command stays out of MCP. The answer looks like `{"debug-adapter": [{"path": ..., "has-jars": true|false}], "commands": [{"name": ..., "source": ..., "mcp": ...}]}`.
-- The subcommands the plugins bring (section 10, the `elemctl.commands` group) stand alongside the commands of the core and are listed by `--help`. They may not take over a name of the core; the command reference describes the core alone.
+- `plugins` – diagnostics: what the plugins bring. `debug-adapter` holds the declared adapter directories and whether each of them holds jars. `commands` holds the commands of the plugins with the entry point they arrived through and the name of their MCP tool, which is `null` when the command stays out of MCP. `failures` holds what was left out: a plugin that did not load, or a command that would have taken over a name of the core, each with the entry point and the reason. The answer looks like `{"debug-adapter": [{"path": ..., "has-jars": true|false}], "commands": [{"name": ..., "source": ..., "mcp": ...}], "failures": [{"source": ..., "error": ...}]}`.
+- The subcommands the plugins bring (section 10, the `elemctl.commands` group) stand alongside the commands of the core and are listed by `--help`. They may not take over a name of the core; the command reference describes the core alone. A plugin that fails to load is left out and does not take the CLI down (section 10): every command names it on stderr, and a call to a command that is missing while plugins failed is refused with JSON on stderr, the failures in its `plugin-failures` field.
 - `self-update [--version X]` – update the installed elemctl by unpacking the wheel from PyPI into site-packages, without touching busy exe files. Plain pipx or pip breaks the install when `elemctl.exe` is held by a running MCP server. Here only the package files are updated, and the exe stub calls the new code. The command also fixes `pipx_metadata.json`. Output is `{updated, from, to}`.
 - `mcp` – start the MCP server; without the extra installed – a clear error with the hint `pip install "elemctl[mcp]"`.
 
@@ -347,7 +351,11 @@ development_mode=True, verify=False)` – when only project_id is given, the pro
 build is automatically used as the source (section 6.2); `verify=True` waits for the
 application and checks that the build asked for is the one it runs, putting the report into
 the `verify` field of the answer (the same check `ensure_app(verify=True)` makes, for a
-created application as well as for one that was found); `create_app` and `ensure_app` add a
+created application as well as for one that was found); a wait that breaks off keeps the id
+of the created application in the answer, beside a `wait-error` field with the reason, and
+`ensure_app` then answers `applied: null`; a `version_id` the project no longer
+lists is refused before the create, as in the CLI (section 7), with the project taken from
+`project_id` or from the stand's `ELEMENT_PROJECT_ID`; `create_app` and `ensure_app` add a
 `sign-in` field to their answer – the way into the application (section 6.11) in the
 same shape the CLI prints: an agent sees only the JSON, so the hint has to live there;
 `start_app(app_id)`, `stop_app(app_id)`, `debug_info(app_id)` – data for a
@@ -382,7 +390,9 @@ without them the tool only reports the state (`self-registration-enabled`,
 The tools the plugins bring (section 10, the `elemctl.commands` group) are registered
 alongside these: the schema is built out of the declared arguments, the description is the
 `help` of the command, and the core adds an `env_file` parameter of its own. A name already
-taken by a tool of the core is an error rather than a silent override.
+taken by a tool of the core is not taken over: that command is left out, and so is a plugin
+that fails to load. The server names them on stderr, which a client keeps as its log, and
+starts with the rest.
 
 ## 9. Quality requirements
 
@@ -441,9 +451,10 @@ The name of the field is exported as `elemctl.plugins.EXIT_CODE_FIELD`; a plugin
 Discovery behavior:
 
 - entry points are sorted by name; `debug_adapter_path()` returns the first directory that actually holds the adapter jars (a directory without `repo/` or without the adapter jar is skipped), otherwise `None`;
-- a failing entry point is an error, `PluginError`, a subclass of `ElemctlError`, rather than a silent skip: a tool that silently drops a plugin would leave the user without debugging and without an explanation;
+- a failing entry point is an error, `PluginError`, a subclass of `ElemctlError`, rather than a silent skip: a tool that silently drops a plugin would leave the user without debugging and without an explanation. Both loading an entry point and calling the function it names are guarded. A plugin written for a newer core fails in that call, with a `TypeError` about a field the installed core does not know, and the error names the installed version;
 - a command declaration is validated at discovery time, not when the command is run: an empty name, a handler that is not callable, an unsupported argument type, a boolean positional argument, duplicate value names, a `cli_alias` on an option, one that does not start with a dash and one that collides with another argument's own flag are all `PluginError`;
-- a plugin may not take over a name the core already occupies – neither a CLI subcommand nor an MCP tool. That is an error too, and since the parser is built before any command runs, the CLI reports it as JSON on stderr with exit code 1 rather than a traceback;
+- a failure stays with its plugin. `discover_commands()` returns the commands that loaded and a `PluginFailure` for each entry point that did not, `{source, error}` in its `to_dict()`; one bad command leaves its whole entry point out. `plugin_commands()` is the strict form and raises the first failure. The CLI and the MCP server are built from `discover_commands()`: the plugin that failed is left out, and the core and the other plugins keep working. One broken plugin used to stop the parser from being built, so no command worked, the core ones included, and the answer was a Python traceback;
+- a plugin may not take over a name the core already occupies – neither a CLI subcommand nor an MCP tool. The clashing command is left out and reported like a plugin that did not load, while the core keeps its own;
 - the `ELEMCTL_NO_PLUGINS=1` environment variable disables discovery, leaving the core capabilities alone. The command reference generator sets it, so the reference describes the core alone.
 
 Surfaces using the mechanism: the CLI `debug-adapter`/`plugins` (section 7) and the subcommands of the plugins, the MCP tool `debug_adapter` (section 8) and the tools of the plugins, and the VS Code extension, which requests the path from `elemctl debug-adapter` when the `adapterPath` setting is empty.

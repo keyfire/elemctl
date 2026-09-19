@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from elemctl.deploy import deploy_from_sources, verify_deploy
-from elemctl.errors import ElemctlError
+from elemctl.errors import ApiError, ElemctlError
 
 
 class FakeDeployClient:
@@ -178,6 +178,86 @@ def test_deploy_fails_on_fresh_error_task(project_factory, tmp_path):
     assert any("ошибка компиляции" in problem for problem in report.problems)
 
 
+def _refused_task(message):
+    return {
+        "id": "t1",
+        "status": "Failed",
+        "operation-type": "UpdateApplication",
+        "error-message": message,
+        "start-date": _future_iso(),
+    }
+
+
+def test_a_refused_apply_without_compilation_errors_points_at_the_server_log(
+    project_factory, tmp_path
+):
+    """The task says "Contact administrator for details" and names no file.
+
+    The report had nothing more to offer, while the cause sat in the log of the server: the
+    last "Caused by" line, with "SrcPath:" beside it naming the file the apply stopped at.
+    """
+    client = FakeDeployClient(
+        applied_version="1.0-0",
+        tasks=[_refused_task("Ошибка обновления приложения: Contact administrator for details")],
+    )
+    log_lines = []
+
+    report = deploy_from_sources(
+        client, "app-1", "proj-1", project_dir=project_factory(), output_dir=tmp_path / "d",
+        version="1.0-1", log=log_lines.append,
+    )
+
+    assert report.ok is False
+    assert "server.log" in report.hint
+    assert "Caused by" in report.hint and "SrcPath" in report.hint
+    assert report.to_dict()["hint"] == report.hint
+    assert any("Caused by" in line for line in log_lines)
+
+
+def test_a_compilation_error_in_the_task_needs_no_hint(project_factory, tmp_path):
+    client = FakeDeployClient(
+        applied_version="1.0-0",
+        tasks=[_refused_task(
+            'acme/crm/Основное/Проверка.xbsl [4:22]: <Сервер> Variable "Х" is not defined'
+        )],
+    )
+
+    report = deploy_from_sources(
+        client, "app-1", "proj-1", project_dir=project_factory(), output_dir=tmp_path / "d",
+        version="1.0-1",
+    )
+
+    assert report.ok is False
+    assert report.hint == ""
+    assert report.to_dict()["hint"] is None
+
+
+def test_an_error_status_without_compilation_errors_carries_the_hint(project_factory, tmp_path):
+    """An apply that leaves the application in Error ends with an error, not with a report.
+
+    The error then carries the same hint, and the text has it too: the MCP tool shows the
+    text of the error alone.
+    """
+
+    class ErrorAfterApply(FakeDeployClient):
+        def ensure_running(self, app_id, log=None):
+            raise ApiError(
+                "приложение app-1 в статусе Error: Неизвестная ошибка\n"
+                "UpdateApplication: Ошибка обновления приложения: Contact administrator for details",
+                body={"id": "app-1", "status": "Error"},
+            )
+
+    with pytest.raises(ApiError) as excinfo:
+        deploy_from_sources(
+            ErrorAfterApply(), "app-1", "proj-1", project_dir=project_factory(),
+            output_dir=tmp_path / "d", version="1.0-1",
+        )
+
+    assert "server.log" in (excinfo.value.hint or "")
+    assert "server.log" in str(excinfo.value)
+    assert excinfo.value.to_dict()["hint"] == excinfo.value.hint
+
+
 def test_deploy_ignores_old_error_tasks(project_factory, tmp_path):
     # An old error out of the history (from before the deploy started) must not spoil the verdict.
     client = FakeDeployClient(
@@ -264,6 +344,7 @@ def test_report_to_dict_kebab_case(project_factory, tmp_path):
         "dirty",
         "dirty-files",
         "schema-check",
+        "hint",
     }
     assert payload["ok"] is True
 

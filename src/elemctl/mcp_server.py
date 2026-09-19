@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import inspect
 import os
+import sys
 import threading
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -47,6 +48,7 @@ from .build import build_assembly, inspect_assembly
 from .client import (
     ElementClient,
     apps_summary,
+    assembly_label,
     brief_app,
     brief_assembly,
     builds_summary,
@@ -58,7 +60,7 @@ from .deploy import (
     deploy_from_sources,
     verify_deploy as _verify_deploy,
 )
-from .errors import ElemctlError, PluginError
+from .errors import ApiError, ElemctlError, PluginError
 from .probe import probe_project
 from .versions import newest_first
 
@@ -370,11 +372,23 @@ def create_server(config=None, *, overrides=None, env_file=None):
 
         The source is version_id (an assembly id) or the latest assembly of
         project_id (creating from a whole project can yield an empty skeleton).
-        Returns (card, report): with verify it waits for the application and
-        checks that the assembly asked for is the one it really runs, otherwise
-        report is None.
+        Returns (card, report, broken): with verify it waits for the application
+        and checks that the assembly asked for is the one it really runs, otherwise
+        report is None. broken is the error that ended the wait or the check: the
+        application exists once the create has answered, so its card is returned
+        beside the error rather than lost with it.
         """
         source_version_id = version_id
+        if version_id:
+            # The same check the CLI makes: a build the platform has deleted is named as such
+            # before the create answers a bare 400. The project falls back to the stand's own
+            # ELEMENT_PROJECT_ID, the way the CLI takes it from the environment.
+            stand_project = getattr(getattr(target, "config", None), "project_id", "") or ""
+            if project_id or stand_project:
+                _refuse_deleted_source(
+                    target, project_id or stand_project, version_id,
+                    project_from_env=not project_id,
+                )
         if not source_version_id:
             if not project_id:
                 raise ElemctlError(i18n.t("mcp.project-or-version-required"))
@@ -392,18 +406,21 @@ def create_server(config=None, *, overrides=None, env_file=None):
             space_id=space_id or None,
         )
         if not verify:
-            return card, None
+            return card, None, None
         app_id = (card or {}).get("id")
         if not app_id:
-            return card, None
-        card = target.wait_app_ready(app_id)
-        report = _verify_deploy(
-            target,
-            app_id,
-            expected_assembly_id=source_version_id or "",
-            since=started_at,
-        )
-        return card, report
+            return card, None, None
+        try:
+            card = target.wait_app_ready(app_id)
+            report = _verify_deploy(
+                target,
+                app_id,
+                expected_assembly_id=source_version_id or "",
+                since=started_at,
+            )
+        except ElemctlError as error:
+            return card, None, error
+        return card, report, None
 
     @server.tool()
     def create_app(
@@ -427,8 +444,11 @@ def create_server(config=None, *, overrides=None, env_file=None):
         К карточке добавляется поле sign-in – способ войти в новое приложение:
         адрес и учётная запись ПАНЕЛИ УПРАВЛЕНИЯ (учётные записи, которыми
         входят в другие приложения, в новом не работают).
+
+        Если ожидание оборвалось, приложение всё равно создано: ответ несёт его
+        карточку с id и поле wait-error с причиной.
         """
-        card, report = _create_app(
+        card, report, broken = _create_app(
             client(env_file), name, project_id, version_id, space_id, development_mode, verify
         )
         if not isinstance(card, dict):
@@ -436,6 +456,8 @@ def create_server(config=None, *, overrides=None, env_file=None):
         answer = {**card, "sign-in": sign_in_hint(card)}
         if report is not None:
             answer["verify"] = report.to_dict()
+        if broken is not None:
+            answer["wait-error"] = _error_payload(broken)
         return answer
 
     @server.tool()
@@ -469,6 +491,9 @@ def create_server(config=None, *, overrides=None, env_file=None):
         Поле sign-in обоих ответов говорит, как войти в приложение: адрес и
         учётная запись ПАНЕЛИ УПРАВЛЕНИЯ (учётные записи, которыми входят в
         другие приложения, в новом не работают).
+
+        Если ожидание созданного приложения оборвалось, ответ всё равно несёт
+        его id; applied тогда null, а причина – в поле wait-error.
         """
         started_at = datetime.now(timezone.utc)
         target = client(env_file)
@@ -493,17 +518,21 @@ def create_server(config=None, *, overrides=None, env_file=None):
                     answer["applied"] = bool(report.ok)
                     answer["verify"] = report.to_dict()
             return answer
-        card, report = _create_app(
+        card, report, broken = _create_app(
             target, name, project_id, version_id, space_id, development_mode, verify
         )
         answer = {
             "id": (card or {}).get("id"),
             "created": True,
-            "applied": True if report is None else bool(report.ok),
+            "applied": None if broken is not None else (
+                True if report is None else bool(report.ok)
+            ),
             "sign-in": sign_in_hint(card),
         }
         if report is not None:
             answer["verify"] = report.to_dict()
+        if broken is not None:
+            answer["wait-error"] = _error_payload(broken)
         return answer
 
     @server.tool()
@@ -805,6 +834,29 @@ def create_server(config=None, *, overrides=None, env_file=None):
     return server
 
 
+def _error_payload(error):
+    """An error as a field of an answer: the details of an api error kept, like the CLI does."""
+    return error.to_dict() if isinstance(error, ApiError) else {"error": str(error)}
+
+
+def _refuse_deleted_source(target, project_id, version_id, *, project_from_env):
+    """The tool twin of cli._refuse_deleted_source: the words name the tool parameters."""
+    instead = target.missing_source(project_id, version_id)
+    if instead is None:
+        return
+    parts = [i18n.t("client.source-missing", assembly=version_id, project=project_id)]
+    if instead.get("version-id"):
+        parts.append(i18n.t(
+            "mcp.source-instead", app=instead.get("app") or instead.get("app-id"),
+            build=assembly_label(instead["version-id"], instead.get("version")),
+        ))
+    else:
+        parts.append(i18n.t("mcp.source-latest"))
+    if project_from_env:
+        parts.append(i18n.t("mcp.source-project-from-env"))
+    raise ElemctlError(". ".join(parts))
+
+
 def _plugin_tool(command, client_for_env):
     """Build the MCP tool function of a plugin command.
 
@@ -860,25 +912,34 @@ def _registered_tool_names(server):
 
 
 def add_plugin_tools(server, client_for_env):
-    """Register the commands the plugins bring as tools of the server.
+    """Register the commands the plugins bring as tools of the server; return the failures.
 
-    A name already taken by a tool of the core is an error rather than a silent
-    override – the same rule the CLI subcommands follow.
+    A name already taken by a tool of the core is not taken over – the same rule the
+    CLI subcommands follow. Neither that nor a plugin that did not load stops the
+    server any more: one broken plugin used to take every tool away from the agent.
+    Such a plugin is left out and named on stderr, which a client keeps as the log of
+    the server.
     """
     taken = _registered_tool_names(server)
-    for command in plugins.plugin_commands():
+    commands, failures = plugins.discover_commands()
+    for command in commands:
         if not command.mcp:
             continue
         if command.tool_name in taken:
-            raise PluginError(i18n.t(
+            failures.append(plugins.PluginFailure(command.source, PluginError(i18n.t(
                 "plugins.tool-name-taken", where=command.source, name=command.tool_name
-            ))
+            ))))
+            continue
         taken.add(command.tool_name)
         server.add_tool(
             _plugin_tool(command, client_for_env),
             name=command.tool_name,
             description=command.help,
         )
+    for failure in failures:
+        print(i18n.t("mcp.plugin-failed", source=failure.source, error=failure.error),
+              file=sys.stderr)
+    return failures
 
 
 def main(config=None, *, overrides=None, env_file=None):
