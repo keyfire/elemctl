@@ -142,7 +142,7 @@ def test_cli_plugins_diagnostics(tmp_path, monkeypatch, capsys):
     empty = tmp_path / "пустой"
     empty.mkdir()
     monkeypatch.setattr(plugins, "debug_adapter_paths", lambda: [good, empty])
-    monkeypatch.setattr(plugins, "plugin_commands", lambda: [])
+    monkeypatch.setattr(plugins, "discover_commands", lambda: ([], []))
     rc = cli.main(["plugins"])
     assert rc == 0
     assert json.loads(capsys.readouterr().out) == {
@@ -151,6 +151,7 @@ def test_cli_plugins_diagnostics(tmp_path, monkeypatch, capsys):
             {"path": str(empty), "has-jars": False},
         ],
         "commands": [],
+        "failures": [],
     }
 
 
@@ -221,6 +222,63 @@ def test_entry_point_giving_something_else_is_an_error(monkeypatch):
     monkeypatch.setattr(plugins, "entry_points", _fake_entry_points(ep))
     with pytest.raises(PluginError, match="плагин"):
         plugins.plugin_commands()
+
+
+def _factory_for_a_newer_core():
+    """The factory of a plugin written for a core that knows a field this one does not."""
+    raise TypeError("Argument.__init__() got an unexpected keyword argument 'cli_alias'")
+
+
+def test_a_command_factory_that_fails_is_a_plugin_error(monkeypatch):
+    """Only the loading of an entry point was wrapped, and the call of its factory was not.
+
+    A plugin that declared a field the installed core does not have yet raised a bare
+    TypeError out of the factory, and the reader got a Python traceback.
+    """
+    ep = _StubEP("новее-ядра", plugins.COMMANDS_GROUP, _factory_for_a_newer_core)
+    monkeypatch.setattr(plugins, "entry_points", _fake_entry_points(ep))
+
+    with pytest.raises(PluginError) as refusal:
+        plugins.plugin_commands()
+
+    message = str(refusal.value)
+    assert "новее-ядра" in message and "TypeError" in message and "cli_alias" in message
+
+
+def test_an_adapter_factory_that_fails_is_a_plugin_error(monkeypatch):
+    """The adapter group calls a factory the same way and had the same gap."""
+
+    def broken():
+        raise RuntimeError("каталог не собран")
+
+    ep = _StubEP("адаптер", plugins.DEBUG_ADAPTER_GROUP, broken)
+    monkeypatch.setattr(plugins, "entry_points", _fake_entry_points(ep))
+
+    with pytest.raises(PluginError, match="каталог не собран"):
+        plugins.debug_adapter_paths()
+
+
+def test_discovery_keeps_the_healthy_plugins_and_names_the_broken_one(monkeypatch):
+    good = _StubEP("а-исправный", plugins.COMMANDS_GROUP, [_command()])
+    broken = _StubEP("б-новее-ядра", plugins.COMMANDS_GROUP, _factory_for_a_newer_core)
+    monkeypatch.setattr(plugins, "entry_points", _fake_entry_points(good, broken))
+
+    commands, failures = plugins.discover_commands()
+
+    assert [command.name for command in commands] == ["warm-up"]
+    assert [failure.source for failure in failures] == ["б-новее-ядра"]
+    assert "cli_alias" in failures[0].to_dict()["error"]
+
+
+def test_a_plugin_with_one_bad_command_brings_none_of_them(monkeypatch):
+    """A plugin half registered is harder to read than a plugin that did not load."""
+    ep = _StubEP("плагин", plugins.COMMANDS_GROUP, [_command(), _command(name="")])
+    monkeypatch.setattr(plugins, "entry_points", _fake_entry_points(ep))
+
+    commands, failures = plugins.discover_commands()
+
+    assert commands == []
+    assert [failure.source for failure in failures] == ["плагин"]
 
 
 def test_context_builds_the_client_only_when_asked(monkeypatch):
@@ -396,12 +454,71 @@ def test_cli_plugin_alias_positional_says_it_is_absent_without_a_string(monkeypa
 
 
 def test_cli_plugin_cannot_take_over_a_core_command(monkeypatch, capsys):
-    _with_commands(monkeypatch, _command(name="deploy"))
+    """The core keeps its name, and the clash is named rather than fatal to the whole CLI."""
+    monkeypatch.setattr(plugins, "debug_adapter_paths", lambda: [])
+    _with_commands(monkeypatch, _command(name="deploy"), _command())
 
-    rc = cli.main(["apps", "list"])
+    assert cli.main(["plugins"]) == 0
 
-    assert rc == 1  # the parser did not even get built – and it is a JSON error, not a traceback
-    assert "deploy" in json.loads(capsys.readouterr().err)["error"]
+    payload = json.loads(capsys.readouterr().out)
+    assert [command["name"] for command in payload["commands"]] == ["warm-up"]
+    assert payload["failures"][0]["source"] == "плагин"
+    assert "deploy" in payload["failures"][0]["error"]
+
+
+def _with_a_broken_plugin(monkeypatch):
+    """A healthy plugin beside one written for a newer core."""
+    good = _StubEP("а-исправный", plugins.COMMANDS_GROUP, [_command()])
+    broken = _StubEP("б-новее-ядра", plugins.COMMANDS_GROUP, _factory_for_a_newer_core)
+    monkeypatch.setattr(plugins, "entry_points", _fake_entry_points(good, broken))
+
+
+def test_a_broken_plugin_leaves_the_rest_of_the_cli_working(monkeypatch, capsys):
+    """A plugin written for a newer core took the whole CLI down with a Python traceback.
+
+    The parser was never built, so no command worked, the core ones included. Now the
+    plugin is left out, and it is named on stderr rather than dropped without a word.
+    """
+    _with_a_broken_plugin(monkeypatch)
+
+    rc = cli.main([
+        "--base-url", "https://api.test", "--client-id", "cid", "--client-secret", "s",
+        "warm-up", "--stand", "dev",
+    ])
+
+    assert rc == 0
+    captured = capsys.readouterr()
+    assert json.loads(captured.out)["stand"] == "dev"
+    assert "б-новее-ядра" in captured.err and "cli_alias" in captured.err
+
+
+def test_a_command_of_a_broken_plugin_is_refused_with_json(monkeypatch, capsys):
+    """The command the broken plugin would have brought gets the usual JSON refusal."""
+    _with_a_broken_plugin(monkeypatch)
+
+    rc = cli.main(["wiki-get", "123"])
+
+    assert rc == 1
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    payload = json.loads(captured.err)
+    assert "wiki-get" in payload["error"] and "б-новее-ядра" in payload["error"]
+    assert [failure["source"] for failure in payload["plugin-failures"]] == ["б-новее-ядра"]
+    assert "cli_alias" in payload["plugin-failures"][0]["error"]
+
+
+def test_cli_plugins_diagnostics_lists_the_broken_plugins(monkeypatch, capsys):
+    monkeypatch.setattr(plugins, "debug_adapter_paths", lambda: [])
+    _with_a_broken_plugin(monkeypatch)
+
+    assert cli.main(["plugins"]) == 0
+
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+    assert [command["name"] for command in payload["commands"]] == ["warm-up"]
+    assert [failure["source"] for failure in payload["failures"]] == ["б-новее-ядра"]
+    # The answer carries the failures, so stderr does not repeat them.
+    assert "б-новее-ядра" not in captured.err
 
 
 def test_cli_plugins_diagnostics_lists_commands(monkeypatch, capsys):

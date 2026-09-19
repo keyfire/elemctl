@@ -1227,8 +1227,14 @@ def cmd_plugins(args):
 
     The adapter directories are listed jar-less ones included (that is exactly
     what a diagnostic is for), the commands – with the entry point they arrived
-    through and whether they are exposed to MCP.
+    through and whether they are exposed to MCP. The failures name the plugins
+    left out and the reason: a plugin that did not load, or a command that would
+    have taken over a name of the core.
     """
+    commands = getattr(args, "plugin_commands", None)
+    failures = getattr(args, "plugin_failures", None)
+    if commands is None or failures is None:
+        commands, failures = plugins.discover_commands()
     paths = plugins.debug_adapter_paths()
     _emit(
         {
@@ -1241,8 +1247,9 @@ def cmd_plugins(args):
                     "source": command.source,
                     "mcp": command.tool_name if command.mcp else None,
                 }
-                for command in plugins.plugin_commands()
+                for command in commands
             ],
+            "failures": [failure.to_dict() for failure in failures],
         }
     )
     return 0
@@ -1383,18 +1390,25 @@ def _add_aliased_positional(parser, argument):
 
 
 def add_plugin_commands(sub):
-    """Register the commands the plugins bring as subcommands of the CLI.
+    """Register the commands the plugins bring as subcommands; return (registered, failures).
 
-    A name that the core already occupies is an error rather than a silent
-    override: a plugin must not be able to substitute itself for `deploy`. The
-    check is against the parsers already registered, so it stays true whatever
-    the core grows.
+    A name that the core already occupies is not taken over: a plugin must not be
+    able to substitute itself for `deploy`. The check is against the parsers
+    already registered, so it stays true whatever the core grows.
+
+    Neither a clash nor a plugin that did not load is fatal any more. Both used to
+    stop the parser from being built, and one broken plugin took every command
+    down, the core ones included. Now such a command is left out and returned
+    among the failures (plugins.PluginFailure), which main names on stderr.
     """
-    for command in plugins.plugin_commands():
+    registered = []
+    commands, failures = plugins.discover_commands()
+    for command in commands:
         if command.name in sub.choices:
-            raise PluginError(i18n.t(
+            failures.append(plugins.PluginFailure(command.source, PluginError(i18n.t(
                 "plugins.command-name-taken", where=command.source, name=command.name
-            ))
+            ))))
+            continue
         parser = sub.add_parser(command.name, help=command.help)
         for argument in command.arguments:
             if argument.cli_alias:
@@ -1402,6 +1416,8 @@ def add_plugin_commands(sub):
             else:
                 parser.add_argument(argument.name, **_argument_kwargs(argument))
         parser.set_defaults(handler=_plugin_handler(command), plugin_command=command)
+        registered.append(command)
+    return registered, failures
 
 
 def _add_app_ref(p, *, required=False):
@@ -1496,6 +1512,44 @@ def _hoist_global_options(argv):
         rest.append(arg)
         index += 1
     return hoisted + rest
+
+
+def _requested_command(argv):
+    """The subcommand a call names: the first word after the global options ("" for none).
+
+    The global options stand at the front by now (_hoist_global_options), and every one
+    of them but the flags takes a value.
+    """
+    index = 0
+    while index < len(argv):
+        token = argv[index]
+        if token == "--":
+            return ""
+        if token in _GLOBAL_OPTIONS:
+            index += 2
+            continue
+        if token.startswith("-"):
+            index += 1
+            continue
+        return token
+    return ""
+
+
+def _missing_plugin_command(parser, argv, failures):
+    """The refusal of a command that is missing while plugins failed to load, or None."""
+    if not failures:
+        return None
+    requested = _requested_command(argv)
+    if not requested or requested in _choices_of(parser, "command"):
+        return None
+    return {
+        "error": i18n.t(
+            "cli.plugin-command-unavailable",
+            command=requested,
+            sources=", ".join(failure.source for failure in failures),
+        ),
+        "plugin-failures": [failure.to_dict() for failure in failures],
+    }
 
 
 def _choices_of(parser, dest):
@@ -1907,8 +1961,11 @@ def build_parser():
 
     # plugins ------------------------------------------------------------
     # Last of all: the commands of the core are already in place, and a name
-    # clash with any of them is caught right here.
-    add_plugin_commands(sub)
+    # clash with any of them is caught right here. What did not load travels on
+    # the parser for main and in the defaults for the `plugins` diagnostics.
+    registered, failures = add_plugin_commands(sub)
+    parser.plugin_failures = failures
+    parser.set_defaults(plugin_commands=registered, plugin_failures=failures)
 
     return parser
 
@@ -1926,9 +1983,14 @@ def main(argv=None):
     try:
         parser = build_parser()
     except ElemctlError as error:
-        # A broken plugin must not fall out as a traceback: the parser is built
-        # before any command runs, so its errors need the same JSON treatment.
         return _fail({"error": str(error)})
+    # A plugin that did not load is left out of the parser rather than taking it down.
+    # A call to a command that is missing while plugins failed gets the usual JSON
+    # refusal naming them: the command may well have been theirs.
+    failures = getattr(parser, "plugin_failures", None) or []
+    refusal = _missing_plugin_command(parser, argv, failures)
+    if refusal is not None:
+        return _fail(refusal)
     try:
         args = parser.parse_args(argv)
     except SystemExit as refusal:
@@ -1947,6 +2009,11 @@ def main(argv=None):
     if handler is None:
         parser.print_help(sys.stderr)
         return 1
+    # Not a silent skip: every command names the plugins left out. `plugins` carries
+    # them in its answer, and the MCP server names them in its own log.
+    if handler not in (cmd_plugins, cmd_mcp):
+        for failure in failures:
+            _progress(i18n.t("cli.plugin-failed", source=failure.source, error=failure.error))
     # An error keeps going to stderr with --json as well, and stdout stays empty:
     # a failure that answered the machine channel with a document would be read by
     # a pipeline as an answer, and the exit code alone would be left to say otherwise.

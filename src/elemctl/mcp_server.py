@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import inspect
 import os
+import sys
 import threading
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -911,25 +912,34 @@ def _registered_tool_names(server):
 
 
 def add_plugin_tools(server, client_for_env):
-    """Register the commands the plugins bring as tools of the server.
+    """Register the commands the plugins bring as tools of the server; return the failures.
 
-    A name already taken by a tool of the core is an error rather than a silent
-    override – the same rule the CLI subcommands follow.
+    A name already taken by a tool of the core is not taken over – the same rule the
+    CLI subcommands follow. Neither that nor a plugin that did not load stops the
+    server any more: one broken plugin used to take every tool away from the agent.
+    Such a plugin is left out and named on stderr, which a client keeps as the log of
+    the server.
     """
     taken = _registered_tool_names(server)
-    for command in plugins.plugin_commands():
+    commands, failures = plugins.discover_commands()
+    for command in commands:
         if not command.mcp:
             continue
         if command.tool_name in taken:
-            raise PluginError(i18n.t(
+            failures.append(plugins.PluginFailure(command.source, PluginError(i18n.t(
                 "plugins.tool-name-taken", where=command.source, name=command.tool_name
-            ))
+            ))))
+            continue
         taken.add(command.tool_name)
         server.add_tool(
             _plugin_tool(command, client_for_env),
             name=command.tool_name,
             description=command.help,
         )
+    for failure in failures:
+        print(i18n.t("mcp.plugin-failed", source=failure.source, error=failure.error),
+              file=sys.stderr)
+    return failures
 
 
 def main(config=None, *, overrides=None, env_file=None):

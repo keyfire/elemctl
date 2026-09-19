@@ -42,6 +42,11 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
   with a bare network error, and the id of an application that came up minutes later had to be
   looked up by name. The answer now keeps the id beside a `wait-error` field and exit code 1,
   and a broken read of the task list is made again.
+- **A plugin that fails to load no longer takes the CLI down.** A plugin written for a newer
+  core failed in the call of its factory, which nothing guarded, and every command, the core
+  ones included, ended in a Python traceback. The plugin is now left out and named on stderr
+  and in `elemctl plugins`, a call to its missing command gets the usual JSON refusal, and the
+  MCP server starts with the rest.
 
 ## 2026-09-18 – 0.42.0
 

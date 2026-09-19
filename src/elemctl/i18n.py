@@ -191,6 +191,17 @@ MESSAGES = {
         "en": "project {project_id} has no builds – upload one (builds upload) or "
               "pass --version-id",
     },
+    "cli.plugin-failed": {
+        "ru": "плагин '{source}' не загрузился, его команд нет: {error}",
+        "en": "plugin '{source}' did not load, its commands are unavailable: {error}",
+    },
+    "cli.plugin-command-unavailable": {
+        "ru": "команды '{command}' нет, а часть плагинов не загрузилась: {sources}. Команда "
+              "могла прийти из них, причины перечислены в plugin-failures",
+        "en": "there is no command '{command}', and some plugins did not load: {sources}. The "
+              "command may have come from one of them; the reasons are listed in "
+              "plugin-failures",
+    },
     "cli.wait-broken": {
         "ru": "приложение {app_id} создано, но ожидание оборвалось: {error}",
         "en": "application {app_id} was created, but the wait broke off: {error}",
@@ -457,6 +468,10 @@ MESSAGES = {
         "ru": "у проекта {project_id} нет сборок – загрузите сборку или укажите version_id",
         "en": "project {project_id} has no builds – upload one or pass version_id",
     },
+    "mcp.plugin-failed": {
+        "ru": "плагин '{source}' не загрузился, его инструментов нет: {error}",
+        "en": "plugin '{source}' did not load, its tools are unavailable: {error}",
+    },
     "mcp.source-instead": {
         "ru": "Приложение {app} работает на сборке {build}: передайте её в version_id. "
               "С project_id и без version_id инструмент возьмёт самую свежую сборку проекта",
@@ -481,6 +496,16 @@ MESSAGES = {
     "plugins.entry-point-failed": {
         "ru": "точка расширения '{name}' группы {group} не загрузилась ({value}): {error}",
         "en": "the entry point '{name}' of the group {group} failed to load ({value}): {error}",
+    },
+    "plugins.factory-failed": {
+        "ru": "точка расширения '{name}' группы {group} ({value}) не отдала содержимое: её "
+              "функция завершилась ошибкой {error}. Плагин мог быть написан под более новое "
+              "ядро, чем установленное elemctl {version}: обновите elemctl (elemctl "
+              "self-update) или плагин",
+        "en": "entry point '{name}' of group {group} ({value}) did not hand over its contents: "
+              "its function failed with {error}. The plugin may be written for a newer core "
+              "than the installed elemctl {version}: update elemctl (elemctl self-update) or "
+              "the plugin",
     },
     "plugins.not-commands": {
         "ru": "точка расширения '{name}' обязана дать Command, их список или функцию без "

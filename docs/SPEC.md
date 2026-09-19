@@ -330,8 +330,8 @@ Commands, with the significant flags in parentheses:
 - `tasks list [--app-id]`, `tasks get-group TASK_ID`.
 - `tech get [APP_ID]`, `tech set APP_ID VERSION`.
 - `debug-adapter` – the path to the platform debug adapter directory supplied by a plugin (the `elemctl.debug_adapter` entry-point group, section 10). Output `{"path": ..., "found": true, "adapter-class": ...}` when present or `{"path": null, "found": false}`; exit code 0 in both cases. The `path` is a ready value for the VS Code extension's `xbsl.debug.adapterPath` (a directory with a `repo/` subdirectory).
-- `plugins` – diagnostics: what the plugins bring. `debug-adapter` holds the declared adapter directories and whether each of them holds jars. `commands` holds the commands of the plugins with the entry point they arrived through and the name of their MCP tool, which is `null` when the command stays out of MCP. The answer looks like `{"debug-adapter": [{"path": ..., "has-jars": true|false}], "commands": [{"name": ..., "source": ..., "mcp": ...}]}`.
-- The subcommands the plugins bring (section 10, the `elemctl.commands` group) stand alongside the commands of the core and are listed by `--help`. They may not take over a name of the core; the command reference describes the core alone.
+- `plugins` – diagnostics: what the plugins bring. `debug-adapter` holds the declared adapter directories and whether each of them holds jars. `commands` holds the commands of the plugins with the entry point they arrived through and the name of their MCP tool, which is `null` when the command stays out of MCP. `failures` holds what was left out: a plugin that did not load, or a command that would have taken over a name of the core, each with the entry point and the reason. The answer looks like `{"debug-adapter": [{"path": ..., "has-jars": true|false}], "commands": [{"name": ..., "source": ..., "mcp": ...}], "failures": [{"source": ..., "error": ...}]}`.
+- The subcommands the plugins bring (section 10, the `elemctl.commands` group) stand alongside the commands of the core and are listed by `--help`. They may not take over a name of the core; the command reference describes the core alone. A plugin that fails to load is left out and does not take the CLI down (section 10): every command names it on stderr, and a call to a command that is missing while plugins failed is refused with JSON on stderr, the failures in its `plugin-failures` field.
 - `self-update [--version X]` – update the installed elemctl by unpacking the wheel from PyPI into site-packages, without touching busy exe files. Plain pipx or pip breaks the install when `elemctl.exe` is held by a running MCP server. Here only the package files are updated, and the exe stub calls the new code. The command also fixes `pipx_metadata.json`. Output is `{updated, from, to}`.
 - `mcp` – start the MCP server; without the extra installed – a clear error with the hint `pip install "elemctl[mcp]"`.
 
@@ -390,7 +390,9 @@ without them the tool only reports the state (`self-registration-enabled`,
 The tools the plugins bring (section 10, the `elemctl.commands` group) are registered
 alongside these: the schema is built out of the declared arguments, the description is the
 `help` of the command, and the core adds an `env_file` parameter of its own. A name already
-taken by a tool of the core is an error rather than a silent override.
+taken by a tool of the core is not taken over: that command is left out, and so is a plugin
+that fails to load. The server names them on stderr, which a client keeps as its log, and
+starts with the rest.
 
 ## 9. Quality requirements
 
@@ -449,9 +451,10 @@ The name of the field is exported as `elemctl.plugins.EXIT_CODE_FIELD`; a plugin
 Discovery behavior:
 
 - entry points are sorted by name; `debug_adapter_path()` returns the first directory that actually holds the adapter jars (a directory without `repo/` or without the adapter jar is skipped), otherwise `None`;
-- a failing entry point is an error, `PluginError`, a subclass of `ElemctlError`, rather than a silent skip: a tool that silently drops a plugin would leave the user without debugging and without an explanation;
+- a failing entry point is an error, `PluginError`, a subclass of `ElemctlError`, rather than a silent skip: a tool that silently drops a plugin would leave the user without debugging and without an explanation. Both loading an entry point and calling the function it names are guarded. A plugin written for a newer core fails in that call, with a `TypeError` about a field the installed core does not know, and the error names the installed version;
 - a command declaration is validated at discovery time, not when the command is run: an empty name, a handler that is not callable, an unsupported argument type, a boolean positional argument, duplicate value names, a `cli_alias` on an option, one that does not start with a dash and one that collides with another argument's own flag are all `PluginError`;
-- a plugin may not take over a name the core already occupies – neither a CLI subcommand nor an MCP tool. That is an error too, and since the parser is built before any command runs, the CLI reports it as JSON on stderr with exit code 1 rather than a traceback;
+- a failure stays with its plugin. `discover_commands()` returns the commands that loaded and a `PluginFailure` for each entry point that did not, `{source, error}` in its `to_dict()`; one bad command leaves its whole entry point out. `plugin_commands()` is the strict form and raises the first failure. The CLI and the MCP server are built from `discover_commands()`: the plugin that failed is left out, and the core and the other plugins keep working. One broken plugin used to stop the parser from being built, so no command worked, the core ones included, and the answer was a Python traceback;
+- a plugin may not take over a name the core already occupies – neither a CLI subcommand nor an MCP tool. The clashing command is left out and reported like a plugin that did not load, while the core keeps its own;
 - the `ELEMCTL_NO_PLUGINS=1` environment variable disables discovery, leaving the core capabilities alone. The command reference generator sets it, so the reference describes the core alone.
 
 Surfaces using the mechanism: the CLI `debug-adapter`/`plugins` (section 7) and the subcommands of the plugins, the MCP tool `debug_adapter` (section 8) and the tools of the plugins, and the VS Code extension, which requests the path from `elemctl debug-adapter` when the `adapterPath` setting is empty.

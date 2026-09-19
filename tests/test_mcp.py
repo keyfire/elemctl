@@ -667,7 +667,7 @@ def _plugin_command(**overrides):
 def _server_with(monkeypatch, *commands):
     from elemctl import plugins
 
-    monkeypatch.setattr(plugins, "plugin_commands", lambda: list(commands))
+    monkeypatch.setattr(plugins, "discover_commands", lambda: (list(commands), []))
     return create_server()
 
 
@@ -736,11 +736,44 @@ def test_plugin_command_can_stay_out_of_mcp(monkeypatch):
     assert "warm_up" not in {t.name for t in asyncio.run(server.list_tools())}
 
 
-def test_plugin_cannot_take_over_a_core_tool(monkeypatch):
-    from elemctl.errors import PluginError
+def test_plugin_cannot_take_over_a_core_tool(monkeypatch, capsys):
+    """The core keeps its tool, and the clash is named on stderr, the log of a server."""
+    server = _server_with(monkeypatch, _plugin_command(name="deploy"), _plugin_command())
 
-    with pytest.raises(PluginError, match="deploy"):
-        _server_with(monkeypatch, _plugin_command(name="deploy"))
+    tools = {tool.name: tool for tool in asyncio.run(server.list_tools())}
+    assert "warm_up" in tools
+    assert tools["deploy"].description != "прогреть стенд"  # still the tool of the core
+    assert "deploy" in capsys.readouterr().err
+
+
+def test_a_broken_plugin_leaves_the_server_serving(monkeypatch, capsys):
+    """One plugin that could not load used to stop the server, and every tool went with it."""
+    from elemctl import plugins
+
+    def newer_core():
+        raise TypeError("Argument.__init__() got an unexpected keyword argument 'cli_alias'")
+
+    points = [
+        types.SimpleNamespace(
+            name="а-исправный", group=plugins.COMMANDS_GROUP, value="stub",
+            load=lambda: [_plugin_command()],
+        ),
+        types.SimpleNamespace(
+            name="б-новее-ядра", group=plugins.COMMANDS_GROUP, value="stub",
+            load=lambda: newer_core,
+        ),
+    ]
+    monkeypatch.delenv(plugins.ENV_DISABLE, raising=False)
+    monkeypatch.setattr(
+        plugins, "entry_points", lambda group: [p for p in points if p.group == group]
+    )
+
+    server = create_server()
+
+    names = {tool.name for tool in asyncio.run(server.list_tools())}
+    assert "warm_up" in names and "deploy" in names
+    stderr = capsys.readouterr().err
+    assert "б-новее-ядра" in stderr and "cli_alias" in stderr
 
 
 # --- Both majors of the mcp package ------------------------------------------------
