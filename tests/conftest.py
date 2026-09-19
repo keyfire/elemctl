@@ -107,6 +107,34 @@ class FakeTransport:
         return [c for c in self.calls if c["method"] == method.upper() and c["path"] == path]
 
 
+class UrlopenAnswer:
+    """What urllib.request.urlopen hands back, for the tests of the real transport.
+
+    An answer made with broken= raises it from read() instead of giving the body: that is
+    how an answer looks when the connection drops halfway through it.
+    """
+
+    def __init__(self, body=b"", *, status=200, broken=None):
+        self.status = status
+        self.headers = {}
+        self._body = body
+        self._broken = broken
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc_info):
+        return False
+
+    def read(self):
+        if self._broken is not None:
+            raise self._broken
+        return self._body
+
+    def close(self):
+        pass
+
+
 @pytest.fixture
 def api(tmp_path):
     """A client on the stub transport; the token route is already set up."""

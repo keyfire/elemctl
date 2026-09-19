@@ -1265,6 +1265,28 @@ class ElementClient:
             text += "\n" + "\n".join(details)
         return text
 
+    def _poll_app(self, app_id, *, timeout, poll, log):
+        """Read the card of the application every poll seconds; yield (card, time_is_up).
+
+        Every wait for an application reads its card through here. A read that breaks off on
+        the network is a missed poll, not the end of the wait: the platform goes on with the
+        application all the same. The failure becomes the answer only when the time is up.
+        The polls never end by themselves: the wait returns or raises once a card settles it
+        or time_is_up comes true.
+        """
+        deadline = time.monotonic() + timeout
+        while True:
+            try:
+                card = self.get_app(app_id) or {}
+            except TransportError as error:
+                if time.monotonic() >= deadline:
+                    raise
+                if log:
+                    log(i18n.t("client.waiting-read-broken", error=error))
+            else:
+                yield card, time.monotonic() >= deadline
+            self._sleep(poll)
+
     def wait_app_status(
         self,
         app_id,
@@ -1279,11 +1301,10 @@ class ElementClient:
 
         Error is a terminal status: with error_is_fatal (and when it is not a
         target one) the wait stops right away, carrying the error texts of the
-        tasks; running out of the timeout is an error as well.
+        tasks; running out of the timeout is an error as well. A read of the card
+        that breaks off is a missed poll (_poll_app).
         """
-        deadline = time.monotonic() + timeout
-        while True:
-            card = self.get_app(app_id) or {}
+        for card, time_is_up in self._poll_app(app_id, timeout=timeout, poll=poll, log=log):
             status = (card.get("status") or "").strip()
             if status in target_statuses:
                 return card
@@ -1296,7 +1317,7 @@ class ElementClient:
                     ),
                     body=card,
                 )
-            if time.monotonic() >= deadline:
+            if time_is_up:
                 expected = "/".join(sorted(target_statuses))
                 raise ApiError(i18n.t(
                     "client.wait-status-timeout",
@@ -1307,7 +1328,6 @@ class ElementClient:
                 ))
             if log:
                 log(i18n.t("client.waiting-status", status=status or i18n.t("client.transitional")))
-            self._sleep(poll)
 
     def wait_app_stable(self, app_id, *, timeout=START_TIMEOUT, poll=POLL_INTERVAL, log=None):
         """Wait until the application leaves the transitional statuses."""
@@ -1319,20 +1339,10 @@ class ElementClient:
         """Wait until a new application is ready: a stable status and a uri.
 
         The Error status during the wait is an immediate error. A read of the card that
-        breaks off is a missed poll, not the end of the wait: the application is being
-        created all the same. It becomes the answer only when the time is up.
+        breaks off is a missed poll (_poll_app): the application is being created all the
+        same.
         """
-        deadline = time.monotonic() + timeout
-        while True:
-            try:
-                card = self.get_app(app_id) or {}
-            except TransportError as error:
-                if time.monotonic() >= deadline:
-                    raise
-                if log:
-                    log(i18n.t("client.waiting-read-broken", error=error))
-                self._sleep(poll)
-                continue
+        for card, time_is_up in self._poll_app(app_id, timeout=timeout, poll=poll, log=log):
             status = (card.get("status") or "").strip()
             if status == "Error":
                 raise ApiError(
@@ -1345,7 +1355,7 @@ class ElementClient:
                 )
             if status in ("Running", "Stopped") and card.get("uri"):
                 return card
-            if time.monotonic() >= deadline:
+            if time_is_up:
                 raise ApiError(i18n.t(
                     "client.wait-ready-timeout",
                     app=app_id,
@@ -1355,7 +1365,6 @@ class ElementClient:
                 ))
             if log:
                 log(i18n.t("client.waiting-ready", status=status or i18n.t("client.transitional")))
-            self._sleep(poll)
 
     def wait_app_deleted(self, app_id, *, timeout=DELETE_TIMEOUT, poll=POLL_INTERVAL, log=None):
         """Wait until a deleted application really disappears; True when it has.
@@ -1366,26 +1375,27 @@ class ElementClient:
         application exists, the platform rejects that with a 500. A gone
         application is a 404 to the card request or the Deleted status. Running
         out of the timeout is an answer (False), not an exception: the caller is
-        cleaning up and has to report rather than fall over.
+        cleaning up and has to report rather than fall over. A read of the card that
+        breaks off is a missed poll (_poll_app). When the time runs out on such a read,
+        its failure is raised: after a broken read, whether the application is still there
+        is unknown.
         """
-        deadline = time.monotonic() + timeout
-        while True:
-            try:
-                card = self.get_app(app_id) or {}
-            except ApiError as error:
-                if error.status == 404:
+        try:
+            for card, time_is_up in self._poll_app(app_id, timeout=timeout, poll=poll, log=log):
+                if _is_deleted(card):
                     return True
-                raise
-            if _is_deleted(card):
+                if time_is_up:
+                    return False
+                if log:
+                    log(i18n.t(
+                        "client.waiting-deleted",
+                        status=card.get("status") or i18n.t("client.transitional"),
+                    ))
+        except ApiError as error:
+            # The read of the card raises ApiError, and its 404 means the application is gone.
+            if error.status == 404:
                 return True
-            if time.monotonic() >= deadline:
-                return False
-            if log:
-                log(i18n.t(
-                    "client.waiting-deleted",
-                    status=card.get("status") or i18n.t("client.transitional"),
-                ))
-            self._sleep(poll)
+            raise
 
     def ensure_running(self, app_id, *, log=None):
         """Bring the application to the Running status after a build has been applied.

@@ -6,6 +6,7 @@ and run without a network.
 
 from __future__ import annotations
 
+import http.client
 import ipaddress
 import json
 import os
@@ -16,13 +17,20 @@ import urllib.parse
 import urllib.request
 
 from . import i18n
-from .errors import ConfigError, TransportError
+from .errors import ConfigError, ElemctlError, TransportError
 
 #: Set it to bypass the environment's proxy for every request of the tool.
 NO_PROXY_ENV = "ELEMCTL_NO_PROXY"
 
 #: Host suffixes served inside a network, never through an outbound proxy.
 _LOCAL_SUFFIXES = (".local", ".lan", ".localdomain", ".internal", ".test")
+
+#: What a failed exchange raises. urllib wraps a connection that fails into URLError, an
+#: OSError, but the answer is read by http.client, whose failures derive from HTTPException
+#: alone: a body that breaks off halfway (IncompleteRead), a status line or a header the
+#: server garbled (BadStatusLine, LineTooLong). Those used to pass the handler and end the
+#: command with a traceback. RemoteDisconnected is both an OSError and an HTTPException.
+_NETWORK_FAILURES = (OSError, http.client.HTTPException)
 
 
 def _warn(message):
@@ -73,6 +81,23 @@ def proxy_for(url, environ=None):
     return proxies.get(parts.scheme)
 
 
+def _describe(error):
+    """The reason of a network failure as the message gives it.
+
+    The text of an http.client failure is often too thin to act on: a garbled status line
+    comes as that line alone, and a blank one leaves no text at all. The class name is what
+    the traceback used to show, so it goes first unless the text carries it.
+    """
+    text = str(error)
+    if not isinstance(error, http.client.HTTPException):
+        return text
+    name = type(error).__name__
+    text = text.strip()
+    if name in text:
+        return text
+    return f"{name}: {text}" if text else name
+
+
 def _mask_proxy(url):
     """The proxy address without whatever credentials ride along in it: scheme://host:port.
 
@@ -112,7 +137,7 @@ class UrllibTransport:
 
     Responses with non-2xx codes are returned as ordinary responses (the client
     is the one that decides whether that is an error); network failures turn
-    into TransportError.
+    into TransportError. An answer that breaks off halfway is a network failure too.
     """
 
     def __init__(self, *, tls_verify=True, tls_strict=True, ca_file="", no_proxy=None):
@@ -173,17 +198,33 @@ class UrllibTransport:
         for name, value in (headers or {}).items():
             request.add_header(name, value)
         try:
-            opener = self._opener(url)
-            kwargs = {"timeout": timeout}
-            if opener is urllib.request.urlopen:
-                kwargs["context"] = self.ssl_context
+            return self._exchange(request, url, timeout)
+        except http.client.InvalidURL as error:
+            # Raised before anything is sent: the address itself is wrong. Asking again will
+            # not fix it, and no proxy is to blame, so it is no network failure.
+            raise ElemctlError(
+                i18n.t("transport.invalid-url", method=method, url=url, error=error)
+            ) from error
+        except _NETWORK_FAILURES as error:
+            raise TransportError(self._failure(method, url, error)) from error
+
+    def _exchange(self, request, url, timeout):
+        """Send the request and read the answer whole, an error status included.
+
+        Both bodies are read under the one handler of request(). The body of an error status
+        breaks off as easily as any other, and a failure raised inside the handler of
+        HTTPError used to pass the handler of network failures, a dropped connection included.
+        """
+        opener = self._opener(url)
+        kwargs = {"timeout": timeout}
+        if opener is urllib.request.urlopen:
+            kwargs["context"] = self.ssl_context
+        try:
             with opener(request, **kwargs) as response:
                 return HttpResponse(response.status, response.headers, response.read())
         except urllib.error.HTTPError as error:
             # HTTPError is a response by itself – we return its body and code.
             return HttpResponse(error.code, error.headers, error.read())
-        except OSError as error:
-            raise TransportError(self._failure(method, url, error)) from error
 
     def _failure(self, method, url, error):
         """The message of a failed call – naming the proxy when it was actually in the way.
@@ -194,7 +235,9 @@ class UrllibTransport:
         failed: this transport may have gone direct itself (the switch, or a loopback/private
         address), and a proxy that was configured but never touched is not the explanation.
         """
-        message = i18n.t("transport.network-error", method=method, url=url, error=error)
+        message = i18n.t(
+            "transport.network-error", method=method, url=url, error=_describe(error)
+        )
         proxy = proxy_for(url)
         went_direct = self._no_proxy or is_local_host(urllib.parse.urlsplit(url).hostname)
         if proxy and not went_direct:
