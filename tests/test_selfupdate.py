@@ -6,6 +6,7 @@ import io
 import json
 import os
 import zipfile
+from http.client import IncompleteRead
 
 import pytest
 
@@ -33,6 +34,13 @@ class _FakeResp:
 
     def __exit__(self, *a):
         return False
+
+
+class _IncompleteResp(_FakeResp):
+    """A response whose body ends before urllib has read it all."""
+
+    def read(self):
+        raise IncompleteRead(b"", 1)
 
 
 def test_self_update_extracts_wheel(monkeypatch, tmp_path):
@@ -293,6 +301,42 @@ def test_an_index_without_pep691_falls_back_to_the_json(monkeypatch):
 
     assert selfupdate._wheel_url(None) == ("http://pypi/pure.whl", "0.22.0")
     assert asked == [selfupdate.PYPI_SIMPLE, selfupdate.PYPI_LATEST]
+
+
+def test_incomplete_simple_index_falls_back_to_json_metadata(monkeypatch):
+    """A broken simple-index response keeps the JSON metadata fallback available."""
+    metadata = {
+        "info": {"version": "0.22.0"},
+        "urls": [{"filename": "elemctl-0.22.0-py3-none-any.whl", "url": "http://pypi/pure.whl"}],
+    }
+
+    def urlopen(target, timeout=0):
+        if getattr(target, "full_url", target) == selfupdate.PYPI_SIMPLE:
+            return _IncompleteResp(b"")
+        return _FakeResp(json.dumps(metadata).encode("utf-8"))
+
+    monkeypatch.setattr(selfupdate.urllib.request, "urlopen", urlopen)
+
+    assert selfupdate._wheel_url(None) == ("http://pypi/pure.whl", "0.22.0")
+
+
+def test_incomplete_json_metadata_is_a_reported_update_error(monkeypatch):
+    """A broken metadata response becomes the regular PyPI connectivity error."""
+    monkeypatch.setattr(selfupdate.urllib.request, "urlopen", lambda *args, **kwargs: _IncompleteResp(b""))
+
+    with pytest.raises(elemctl.errors.ElemctlError, match="PyPI"):
+        selfupdate._fetch_json(selfupdate.PYPI_LATEST)
+
+
+def test_incomplete_wheel_download_leaves_the_installation_untouched(monkeypatch, tmp_path):
+    """A broken wheel response stops before the installed package is moved aside."""
+    site = _install(monkeypatch, tmp_path)
+    monkeypatch.setattr(selfupdate.urllib.request, "urlopen", lambda *args, **kwargs: _IncompleteResp(b""))
+
+    with pytest.raises(elemctl.errors.ElemctlError, match="скачать колесо"):
+        selfupdate.self_update(log=lambda *args: None)
+
+    assert '__version__ = "0.0.1"' in (site / "elemctl" / "__init__.py").read_text(encoding="utf-8")
 
 
 def test_a_version_the_index_does_not_carry_is_named_as_such(monkeypatch):

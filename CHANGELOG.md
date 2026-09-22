@@ -15,6 +15,16 @@ entry either – say what the behaviour was, not which id or response field was 
 The link is written by `python scripts/changelog-link.py <number>`, which rebuilds the generated
 pages of the site in the same run – writing it by hand is how the mirrors get left behind.
 
+## Unreleased
+
+### Fixed
+- **`self-update` reports an incomplete PyPI response without touching the installed package.**
+  The simple index, metadata and wheel downloads missed HTTP parser failures, so an interrupted
+  response could end in a traceback. ([#38](https://github.com/keyfire/elemctl/pull/38))
+- **Connection setup rejects a base URL without an HTTP scheme.** An address without `http://`
+  or `https://` used to reach `urllib` and fail with a raw `ValueError`.
+  ([#38](https://github.com/keyfire/elemctl/pull/38))
+
 ## 2026-09-19 – 0.43.0
 
 ### Added

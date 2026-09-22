@@ -120,6 +120,8 @@ class Config:
     def __post_init__(self):
         # The trailing slash of the base URL is always stripped.
         self.base_url = (self.base_url or "").rstrip("/")
+        if self.base_url and not self.base_url.lower().startswith(("http://", "https://")):
+            raise ConfigError(i18n.t("config.invalid-base-url", value=self.base_url))
         self.tls_verify = parse_bool(self.tls_verify, name=BOOL_ENV_KEYS["tls_verify"])
         self.tls_strict = parse_bool(self.tls_strict, name=BOOL_ENV_KEYS["tls_strict"])
 

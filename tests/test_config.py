@@ -109,6 +109,21 @@ def test_base_url_trailing_slash_stripped():
     assert config.base_url == "https://api.test"
 
 
+@pytest.mark.parametrize("base_url", ["http://localhost:8080/console", "https://api.test/path"])
+def test_base_url_allows_http_and_https_addresses(base_url):
+    assert Config(base_url=base_url).base_url == base_url
+
+
+@pytest.mark.parametrize("base_url", ["api.test", "ftp://api.test"])
+def test_base_url_requires_an_http_scheme(base_url):
+    with pytest.raises(ConfigError, match="http://.*https://"):
+        Config(base_url=base_url)
+
+
+def test_empty_base_url_is_allowed_until_connection_is_required():
+    assert Config.from_env(environ={}).base_url == ""
+
+
 def test_missing_env_file_raises(tmp_path):
     with pytest.raises(ConfigError):
         Config.from_env(env_file=tmp_path / "нет-такого.env", environ={})

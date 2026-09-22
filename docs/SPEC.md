@@ -26,7 +26,7 @@ Environment variables:
 
 | Variable | Meaning | Required |
 |---|---|---|
-| `ELEMENT_BASE_URL` | platform base URL, e.g. `https://1cmycloud.com` | yes |
+| `ELEMENT_BASE_URL` | platform base URL starting with `http://` or `https://`, e.g. `https://1cmycloud.com` | yes |
 | `ELEMENT_CLIENT_ID` | Client-Id for obtaining the token | yes |
 | `ELEMENT_CLIENT_SECRET` | Client-Secret | yes |
 | `ELEMENT_APP_ID` | default application | no |
@@ -36,7 +36,7 @@ Environment variables:
 | `ELEMENT_TLS_STRICT` | strict RFC 5280 certificate checks; `true` by default | no |
 | `ELEMENT_TLS_VERIFY` | certificate and hostname verification; `true` by default | no |
 
-.env format: `KEY=VALUE` lines. Empty lines and lines starting with `#` are skipped. A leading `export ` prefix is allowed, and the value may be wrapped in single or double quotes. The encoding is UTF-8 and a BOM is possible, so read the file as `utf-8-sig`. A trailing slash in `ELEMENT_BASE_URL` is trimmed.
+.env format: `KEY=VALUE` lines. Empty lines and lines starting with `#` are skipped. A leading `export ` prefix is allowed, and the value may be wrapped in single or double quotes. The encoding is UTF-8 and a BOM is possible, so read the file as `utf-8-sig`. A trailing slash in `ELEMENT_BASE_URL` is trimmed. A nonempty base URL must start with `http://` or `https://`.
 
 ## 3. Authentication
 
