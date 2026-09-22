@@ -9,7 +9,7 @@ from __future__ import annotations
 
 
 def version_counter(version):
-    """The numeric counter of a version – the suffix after the last hyphen.
+    """The numeric counter of a version - the suffix after the last hyphen.
 
     For a version without a hyphen or with a non-numeric suffix 0 is returned.
     """

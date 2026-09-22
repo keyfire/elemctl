@@ -109,7 +109,7 @@ PITCH_ITEMS = (
 #: document carried both at once - and the build card's address was wrong on every page for as
 #: long as the command it broke. The third is the exit code of a plugin command. It is told by
 #: the specification, the MCP page, the READMEs and the docstring of `Command`, and a place
-#: that kept the earlier sentence – `"ok": false` gives 1 – would pass half of the rule off as
+#: that kept the earlier sentence - `"ok": false` gives 1 - would pass half of the rule off as
 #: all of it.
 CLAIMS = (
     Claim(

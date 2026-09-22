@@ -67,7 +67,7 @@ CALCULATION_RULE_FIELDS = ("response-kind", "presentation-rule", "phone-rule", "
 def extract_assembly_id(payload):
     """Extract the assembly id out of a platform response.
 
-    The image-id, assembly-id and id fields are checked – in exactly that order.
+    The image-id, assembly-id and id fields are checked - in exactly that order.
     """
     if not isinstance(payload, dict):
         return None
@@ -82,7 +82,7 @@ def extract_project_id(payload):
     """Extract the project id out of a build upload response.
 
     On an upload without a project id the platform answers with the build id and
-    an artifact – that artifact IS the project the build landed in (verified by a
+    an artifact - that artifact IS the project the build landed in (verified by a
     live call: the artifact-id opens as a project card). The plain id field is
     deliberately not looked at: at the top level it is the id of the build.
     """
@@ -264,7 +264,7 @@ def brief_app(app):
     The full card carries user lists, development-environment flags and other
     things a listing does not need: a space of some fifty applications makes
     tens of thousands of characters of response. The version is taken from
-    source – that is the build actually applied, the one a deploy is verified
+    source - that is the build actually applied, the one a deploy is verified
     against.
     """
     source = app.get("source") or {}
@@ -282,7 +282,7 @@ def apps_summary(listing):
     """The count line of a listing: how many applications are alive out of how many.
 
     Deleted applications are hidden by default, and a cut nobody is told about is
-    exactly the kind of help that misleads – so the answer of list_apps_counted is
+    exactly the kind of help that misleads - so the answer of list_apps_counted is
     put into a line: how many cards the platform gave (`total`), how many of them
     are not deleted (`live`) and, when the answer holds something else than the
     live ones, how many are actually shown (`shown`). The CLI prints it, the MCP
@@ -355,7 +355,7 @@ def sign_in_hint(app):
 
     A new application gets its OWN, EMPTY user list, password sign-in off and
     no account service attached, so the accounts used to sign in to other
-    applications do not work here – neither connecting another application's
+    applications do not work here - neither connecting another application's
     user list (`POST /applications/{id}/userlists`) nor enabling the local
     sign-in changes it. What does work is a CONTROL PANEL
     account: its users are connected to the application by the platform itself
@@ -363,7 +363,7 @@ def sign_in_hint(app):
     so out loud instead of leaving the caller to guess (section 6.11 of the
     specification).
 
-    The card of an application that is still starting has no `uri` yet – then
+    The card of an application that is still starting has no `uri` yet - then
     the address is missing rather than invented, and the hint says where to get
     it. Shared by the CLI and the MCP server.
     """
@@ -391,7 +391,7 @@ class ElementClient:
             ca_file=config.ca_file,
             # config.no_proxy defaults to False on a Config built by hand (no from_env in
             # sight), indistinguishable from a from_env that read ELEMCTL_NO_PROXY and
-            # resolved it to False – "or None" turns that default back into the transport's
+            # resolved it to False - "or None" turns that default back into the transport's
             # own fallback (the process variable), the same as constructing it without the
             # argument at all. A resolved True still means True, unconditionally.
             no_proxy=config.no_proxy or None,
@@ -493,21 +493,21 @@ class ElementClient:
         """The same list plus the counters the answer has to be read against.
 
         Every filter runs on the client, case-insensitively: the platform ignores
-        the name query parameter and returns the full list – verified by a live
+        the name query parameter and returns the full list - verified by a live
         call. name matches a substring of the APP_NAME_KEYS fields; status matches
         the whole status word, and several of them may be given separated by
         commas ("running,stopped").
 
         Deleted applications stay in the platform list under the Deleted status
         keeping their former id, and a stand a few months old carries hundreds of
-        them against a handful of live ones – so they are hidden unless
+        them against a handful of live ones - so they are hidden unless
         include_deleted is True. Asking for the Deleted status by name counts as
         asking for them: a filter that answers with nothing is worse than no
         filter at all.
 
         Hiding cards without saying so is a trap of its own, hence the counters:
-        `total` – how many the platform answered with, `live` – how many of those
-        are not deleted, `shown` – how many are left in `items`. The callers that
+        `total` - how many the platform answered with, `live` - how many of those
+        are not deleted, `shown` - how many are left in `items`. The callers that
         face a human report them (apps_summary); the library keeps the list.
         """
         payload = self._api("GET", "/applications")
@@ -543,7 +543,7 @@ class ElementClient:
         The name is checked against the name, display-name and
         publication-context fields. Deleted applications (the Deleted status)
         are skipped by default: a later get or deploy on their former id
-        answers 404. include_deleted=True brings the former behaviour back –
+        answers 404. include_deleted=True brings the former behaviour back -
         the search covers all applications, deleted ones included. The card
         from the list is returned, or None.
         """
@@ -629,7 +629,7 @@ class ElementClient:
 
         Irreversible: a re-created application gets a different URL. If the
         development environment holds unpublished changes, the platform answers
-        400 FAILED_PRECONDITION – in that case a hint is added to the error.
+        400 FAILED_PRECONDITION - in that case a hint is added to the error.
         """
         try:
             return self._api("DELETE", f"/applications/{app_id}")
@@ -655,7 +655,7 @@ class ElementClient:
         A wrapper over POST /applications/{app_id}/actions/debug (ApplicationDebugInfo).
         Requires debugging enabled on the server (config/debug.yml: enabled: true);
         the address points at the platform debug server (the WebSocket protocol),
-        the token is a one-time session key. This is not application management –
+        the token is a one-time session key. This is not application management -
         only reading the debugger connection parameters.
         """
         return self._api("POST", f"/applications/{app_id}/actions/debug")
@@ -728,7 +728,7 @@ class ElementClient:
     # -- technology version ------------------------------------------------
 
     def get_technology_version(self, app_id):
-        """The technology version – out of the application card."""
+        """The technology version - out of the application card."""
         card = self.get_app(app_id) or {}
         return card.get("technology-version")
 
@@ -770,7 +770,7 @@ class ElementClient:
 
         A UUID passes through without any requests; any other value is looked up
         by an exact, case-insensitive presentation match. Nothing found is an
-        error, several matches is an error listing the ids – the rules of
+        error, several matches is an error listing the ids - the rules of
         resolve_app_id, for the same reason: a command that changes a setting
         must not guess which list it changes.
         """
@@ -814,7 +814,7 @@ class ElementClient:
         """Turn self-registration on or off; return the settings as they became.
 
         The platform expects the whole settings object, so the current one is
-        read first and only the flag is replaced – the phone-required and
+        read first and only the flag is replaced - the phone-required and
         email-required requirements stay as they were.
         """
         settings = dict(self.get_self_registration(list_id) or {})
@@ -833,7 +833,7 @@ class ElementClient:
         """Update one account service of the list; the body is the whole entry.
 
         The entry is addressed by its account-service-id, and the platform wants
-        it back in full – so the caller passes a card read from
+        it back in full - so the caller passes a card read from
         list_account_services with the fields it needs changed.
         """
         service_id = service.get("account-service-id")
@@ -863,10 +863,10 @@ class ElementClient:
 
         The report is deliberately blunt about what was and was NOT confirmed. The
         platform does not return these rules in a GET of the service, so "the rules are
-        in place" cannot be asserted through the API by anyone – this method included.
+        in place" cannot be asserted through the API by anyone - this method included.
         What IS checked: the request was accepted, and re-reading the service shows the
         REST of its card unchanged. A PUT carries the whole entry, so a mistake here
-        would quietly drop a neighbouring field – that is what the comparison catches.
+        would quietly drop a neighbouring field - that is what the comparison catches.
 
         The rules are applied blind on purpose: recreating the sign-in service resets
         them, and the only way back is to write them again. Whether they took effect is
@@ -891,7 +891,7 @@ class ElementClient:
             "service-type": before.get("account-service-type"),
             "sent": dict(rules),
             "written": True,
-            # The platform answers a GET without this key – so nothing can confirm the
+            # The platform answers a GET without this key - so nothing can confirm the
             # value itself, and saying "verified" here would be a lie.
             "rules-verified": False,
             "returned": (after or {}).get(CALCULATION_RULES_KEY),
@@ -904,7 +904,7 @@ class ElementClient:
         Behind the wording of the control panel there is the account service of
         type Local: it is the one that authenticates by a password. A list
         without such a service (an application that only signs in through an
-        external service) is not an error – there is simply nothing to change,
+        external service) is not an error - there is simply nothing to change,
         and the answer says so.
         """
         for service in self.list_account_services(list_id):
@@ -933,7 +933,7 @@ class ElementClient:
         the full list whatever the query. name is a case-insensitive substring
         of the PROJECT_NAME_KEYS fields. Deleted projects stay in the platform
         list under the `deleted` flag, and a stand a few months old carries
-        hundreds of them against a handful of live ones – so they are hidden
+        hundreds of them against a handful of live ones - so they are hidden
         unless include_deleted is True, which brings the former, unfiltered
         list back.
         """
@@ -1206,7 +1206,7 @@ class ElementClient:
                 self._sleep(READ_RETRY_PAUSE)
 
     def list_app_tasks(self, app_id=""):
-        """Application tasks; there is no server-side filter – we filter on the client.
+        """Application tasks; there is no server-side filter - we filter on the client.
 
         The platform hands over the tasks of every application at once, so the answer grows
         with the stand, and this is the read that breaks off. A wait for a new application
@@ -1227,7 +1227,7 @@ class ElementClient:
         """The error texts of the application's failed tasks, the freshest first.
 
         The platform puts a generic "unknown error" into the application card,
-        while the details (for a build – the file, the line and the column of
+        while the details (for a build - the file, the line and the column of
         every compilation error) it gives away in the task's error-message
         field. That is exactly what this method is for: without it the cause
         has to be looked for in the server logs.
@@ -1371,7 +1371,7 @@ class ElementClient:
 
         Deletion is asynchronous: the call returns right away, and the
         application lives on for a while with a DeleteApplication task. The
-        distinction matters to whoever deletes the build afterwards – while the
+        distinction matters to whoever deletes the build afterwards - while the
         application exists, the platform rejects that with a 500. A gone
         application is a 404 to the card request or the Deleted status. Running
         out of the timeout is an answer (False), not an exception: the caller is
@@ -1404,7 +1404,7 @@ class ElementClient:
         stabilize. A stable Error is an immediate error carrying the error
         texts of the tasks: the apply has failed, a restart does not cure that,
         while waiting for Stopped out of Error used to simply eat the whole
-        timeout. When the outcome is not Running – we stop the application (if
+        timeout. When the outcome is not Running - we stop the application (if
         needed), wait for Stopped, start it and wait for Running.
         """
         card = self.wait_app_stable(app_id, timeout=START_TIMEOUT, log=log)

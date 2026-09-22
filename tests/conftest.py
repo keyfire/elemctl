@@ -1,6 +1,6 @@
 """Shared test scaffolding: a stub transport and a synthetic project.
 
-Every test runs without the network – the network layer is replaced by FakeTransport.
+Every test runs without the network - the network layer is replaced by FakeTransport.
 """
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ i18n.set_lang("ru")
 
 @pytest.fixture(autouse=True)
 def _pinned_language(monkeypatch):
-    """Pin Russian BEFORE EVERY test – pinning once at import time is not enough.
+    """Pin Russian BEFORE EVERY test - pinning once at import time is not enough.
 
     A test that calls cli.main without --lang drops the pin (set_lang(None) restores the
     env / locale order), and every later comparison with Russian text would then fail on an
@@ -42,7 +42,7 @@ def _no_ci_build_number(monkeypatch):
     The build version takes its suffix from the CI environment, and the tests
     themselves run in GitHub Actions, where GITHUB_RUN_NUMBER is always set:
     without clearing it the versions in the build tests would depend on the run
-    number – green locally, failing in CI. The CI-suffix tests set the variables
+    number - green locally, failing in CI. The CI-suffix tests set the variables
     explicitly.
     """
     from elemctl.build import CI_BUILD_NUMBER_VARS
@@ -57,7 +57,7 @@ def _no_plugins(monkeypatch):
 
     The parser and the MCP server now pick up the commands of the plugins, so a
     plugin installed in the developer's environment would add subcommands and
-    tools – the checks of the command tree and of the tool set would then depend
+    tools - the checks of the command tree and of the tool set would then depend
     on what happens to be installed. The plugin tests set the variable themselves.
     """
     from elemctl.plugins import ENV_DISABLE
@@ -68,7 +68,7 @@ def _no_plugins(monkeypatch):
 class FakeTransport:
     """A stub transport: answers from a route table and records the calls.
 
-    Several responses can be added for a single route – they are handed out in
+    Several responses can be added for a single route - they are handed out in
     turn, and the last response repeats. An entry added with error= raises it
     instead of answering: that is how a connection that breaks off looks from
     the client, since the real transport turns it into TransportError.

@@ -161,8 +161,8 @@ def test_no_proxy_defaults_to_false(tmp_path, monkeypatch):
 
 
 def test_no_proxy_sourced_from_the_env_file(tmp_path):
-    """An MCP call reaches a local stand through env_file alone – there is no way for the
-    caller to set a process variable for a single call – so the file has to carry the switch."""
+    """An MCP call reaches a local stand through env_file alone - there is no way for the
+    caller to set a process variable for a single call - so the file has to carry the switch."""
     env_path = tmp_path / "local.env"
     env_path.write_text(
         "ELEMENT_BASE_URL=https://local.test\nELEMCTL_NO_PROXY=1\n", encoding="utf-8"
@@ -180,7 +180,7 @@ def test_no_proxy_false_spellings_in_the_file_do_not_enable_it(tmp_path, value):
 
 
 def test_no_proxy_process_variable_still_wins_over_the_file(tmp_path):
-    """The process variable, when explicitly set, keeps working exactly as before – it is
+    """The process variable, when explicitly set, keeps working exactly as before - it is
     what a plain CLI call in a shell sets, and the file must not override it."""
     env_path = tmp_path / "local.env"
     env_path.write_text("ELEMCTL_NO_PROXY=1\n", encoding="utf-8")

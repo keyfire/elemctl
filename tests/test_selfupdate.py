@@ -62,7 +62,7 @@ def test_self_update_extracts_wheel(monkeypatch, tmp_path):
 
 
 def test_self_update_noop_when_current(monkeypatch, tmp_path):
-    """When the PyPI version equals the current one and no version is asked for – nothing is downloaded."""
+    """When the PyPI version equals the current one and no version is asked for - nothing is downloaded."""
     monkeypatch.setattr(selfupdate, "_wheel_url", lambda v: ("http://pypi/x.whl", elemctl.__version__))
 
     def boom(*a, **k):
@@ -99,7 +99,7 @@ def test_cli_self_update(monkeypatch, capsys):
 # --- занятая установка: что бы ни случилось, прежняя версия остаётся на месте ---------------
 #
 # Ровно этот отказ и случился при выпуске 0.19.0: pip упёрся в занятый живой MCP-сессией
-# elemctl.exe, успел удалить пакет и не поставил новый – `elemctl --version` ответил
+# elemctl.exe, успел удалить пакет и не поставил новый - `elemctl --version` ответил
 # ModuleNotFoundError. Порядок перенесён из движка, где он уже обкатан.
 
 
@@ -118,7 +118,7 @@ def _install(monkeypatch, tmp_path, payload=None):
 
 
 def test_busy_installation_is_refused_before_anything_is_removed(monkeypatch, tmp_path):
-    """Переименование – ворота: файл занят, а удалять ещё нечего."""
+    """Переименование - ворота: файл занят, а удалять ещё нечего."""
     site = _install(monkeypatch, tmp_path)
     original = selfupdate.Path.rename
 
@@ -163,14 +163,14 @@ def test_successful_update_leaves_no_backup(monkeypatch, tmp_path):
 
 
 def test_holders_are_our_own_processes_only(monkeypatch):
-    """Ошибиться здесь – значит предложить снять ЧУЖОЙ процесс."""
+    """Ошибиться здесь - значит предложить снять ЧУЖОЙ процесс."""
     monkeypatch.setattr(
         selfupdate, "_process_listing",
         lambda: [
             (11, 1, "elemctl.exe", "elemctl mcp"),
             (12, 1, "python.exe", "python.exe -m elemctl mcp"),
             (13, 1, "python.exe", "python.exe -m http.server"),
-            # Клиент агента несёт команду сервера в своей строке запуска – но держателем
+            # Клиент агента несёт команду сервера в своей строке запуска - но держателем
             # не является: снять его было бы худшей из ошибок.
             (14, 1, "claude.exe", "claude.exe --mcp-server elemctl mcp"),
         ],
@@ -179,10 +179,10 @@ def test_holders_are_our_own_processes_only(monkeypatch):
 
 
 def test_holders_exclude_own_process_tree(monkeypatch):
-    """Обёртка pipx, запустившая команду, и её дерево – не держатели.
+    """Обёртка pipx, запустившая команду, и её дерево - не держатели.
 
     Живой отказ 28.07: `--stop-holders` снял собственный родительский `elemctl.exe`,
-    Job Object программы запуска утянул за ним и сам обновляющий процесс – обновление оборвалось
+    Job Object программы запуска утянул за ним и сам обновляющий процесс - обновление оборвалось
     на полпути. Свои: предки (обёртка и её родитель) и потомки; чужая сессия с тем же
     именем остаётся держателем.
     """

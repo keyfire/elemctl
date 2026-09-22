@@ -4,11 +4,11 @@
 The adapter sits inside the .car (which is a ZIP) of the server-with-IDE, under
 data/ide/theia/plugins/@1c-appengine-plugin/bin/debugger/ (the bin/ and repo/
 subdirectories with the adapter jars). Proprietary 1C components are not part of
-elemctl – this script extracts them from the distribution you are licensed for.
+elemctl - this script extracts them from the distribution you are licensed for.
 
 The result is an <output>/<version>/ directory with a repo/ subdirectory: a ready value for
 the xbsl.debug.adapterPath setting of the XBSL VS Code extension. The script also writes
-<output>/index.json (the available versions and the default one) – the file a package that
+<output>/index.json (the available versions and the default one) - the file a package that
 ships the adapter through the elemctl.debug_adapter entry point group reads to answer
 `elemctl debug-adapter`.
 

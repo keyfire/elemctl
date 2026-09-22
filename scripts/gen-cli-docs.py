@@ -2,7 +2,7 @@
 """Generation of the command reference (docs/cli.md and docs/cli.ru.md) from the CLI itself.
 
 The source of truth is the output of `elemctl ... --help`, so the reference never drifts
-away from the implementation: a flag added – a page regenerated. It is one of the generators
+away from the implementation: a flag added - a page regenerated. It is one of the generators
 `scripts/rebuild-docs.py` runs, and that is the command to remember after the set of commands
 or their options changes:
 
@@ -86,7 +86,7 @@ def run(args: list[str], lang: str) -> str:
         ELEMCTL_NO_PLUGINS="1",
     )
     # The timeout is mandatory: a command that does not handle --help starts the server
-    # itself and waits for input instead of printing the help – without a limit the
+    # itself and waits for input instead of printing the help - without a limit the
     # documentation generation hangs.
     try:
         out = subprocess.run(
@@ -95,7 +95,7 @@ def run(args: list[str], lang: str) -> str:
             timeout=30,
         )
     except subprocess.TimeoutExpired:
-        return ""          # no help – the section of such a command simply does not appear
+        return ""          # no help - the section of such a command simply does not appear
     return (out.stdout or out.stderr).rstrip()
 
 
@@ -169,15 +169,15 @@ def parse(help_text: str) -> dict:
 
 
 def esc(s: str) -> str:
-    """An option name – it goes inside backticks, so only the pipe has to be escaped."""
+    """An option name - it goes inside backticks, so only the pipe has to be escaped."""
     return s.replace("|", "\\|")
 
 
 def esc_text(s: str) -> str:
     """Plain text: Markdown takes angle brackets for a tag and swallows them together with
     the contents (`elemctl <command>` turns into `elemctl`), while the theme typography glues
-    a double hyphen into a dash – the flag `--select` mentioned in a description becomes a
-    broken `–select`. Inside backticks neither of the two happens."""
+    a double hyphen into a dash - the flag `--select` mentioned in a description becomes a
+    broken `-select`. Inside backticks neither of the two happens."""
     s = s.replace("|", "\\|").replace("<", "&lt;").replace(">", "&gt;")
     return FLAG_RE.sub(r"`\1`", s)
 

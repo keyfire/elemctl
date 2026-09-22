@@ -45,7 +45,7 @@ def actions_with_help(parser: argparse.ArgumentParser):
 
 
 def test_every_argument_has_help():
-    # a bare APP_ID without a single word in the table – exactly how the empty cell looked
+    # a bare APP_ID without a single word in the table - exactly how the empty cell looked
     for path, parser in walk(cli.build_parser()):
         for dest, help_text in actions_with_help(parser):
             assert help_text and help_text.strip(), f"{path}: аргумент {dest} без help"
@@ -92,7 +92,7 @@ def command_paths() -> set[str]:
 
 def test_pages_cover_every_subcommand():
     # group subcommands (apps get, builds upload) used to drop out of the parsing entirely:
-    # 17 sections instead of 46 – and not a single page said a word about it
+    # 17 sections instead of 46 - and not a single page said a word about it
     expected = command_paths()
     for fname in ("cli.md", "cli.ru.md"):
         missing = expected - page_sections(fname)
@@ -126,7 +126,7 @@ def test_committed_pages_are_current(generated):
 def test_a_word_wrapped_on_its_hyphen_is_joined_back(generated):
     """argparse wraps a long word on a hyphen; a join with a space breaks the name.
 
-    The reference showed "elemctl tasks get- group TASK_ID" – a command nobody can
+    The reference showed "elemctl tasks get- group TASK_ID" - a command nobody can
     type. The rule already guarded the descriptions of the flag tables; it now guards
     the description of a parser and its epilog as well.
     """

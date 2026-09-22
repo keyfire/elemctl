@@ -64,7 +64,7 @@ def test_resolve_user_list_id_unknown_is_config_error(api):
 
 
 def test_resolve_user_list_id_ambiguous_is_config_error(api):
-    """Several matches – an error listing the ids: a setting must not be changed by a guess."""
+    """Several matches - an error listing the ids: a setting must not be changed by a guess."""
     client, transport = api
     transport.add("GET", f"{API}/user-lists", [
         {"id": "l1", "presentation": "общий"}, {"id": "l2", "presentation": "Общий"},
@@ -100,7 +100,7 @@ def test_app_without_its_own_list_is_config_error(api):
 
 
 def test_set_self_registration_keeps_the_other_requirements(api):
-    """The platform wants the whole settings object – only the flag may change."""
+    """The platform wants the whole settings object - only the flag may change."""
     client, transport = api
     path = f"{API}/user-lists/list-site/settings/self-registration"
     transport.add("GET", path, {"enabled": True, "phone-required": True, "email-required": False})
@@ -131,7 +131,7 @@ def test_set_password_login_switches_the_local_service(api):
 
 
 def test_set_password_login_is_idempotent(api):
-    """Already in the wanted state – no request and changed: false."""
+    """Already in the wanted state - no request and changed: false."""
     client, transport = api
     services = f"{API}/user-lists/list-site/settings/account-services-settings"
     transport.add("GET", services, [{**LOCAL, "enabled": False}])
@@ -238,7 +238,7 @@ def test_cli_self_registration_disable(monkeypatch, capsys):
 
 
 def test_cli_self_registration_without_flags_only_shows(monkeypatch, capsys):
-    """No flag – the command is a read: the same call answers "how is it now"."""
+    """No flag - the command is a read: the same call answers "how is it now"."""
     client = _install(monkeypatch, FakeListClient())
     assert cli.main(["user-lists", "self-registration", "список"]) == 0
     payload = json.loads(capsys.readouterr().out)
@@ -311,7 +311,7 @@ def test_calculation_rules_are_sent_under_the_key_the_platform_accepts(api):
 
 
 def test_calculation_rules_are_never_reported_as_verified(api):
-    """Чтение сервиса правил не возвращает – значит подтвердить их значение нечем."""
+    """Чтение сервиса правил не возвращает - значит подтвердить их значение нечем."""
     client, transport = api
     transport.add("GET", SERVICES, [OIDC])
     transport.add("PUT", f"{SERVICES}/svc-oidc", OIDC)
@@ -324,7 +324,7 @@ def test_calculation_rules_are_never_reported_as_verified(api):
 
 
 def test_calculation_rules_notice_a_field_lost_by_the_write(api):
-    """PUT несёт карточку целиком – если поле потерялось, это должно быть видно."""
+    """PUT несёт карточку целиком - если поле потерялось, это должно быть видно."""
     client, transport = api
     transport.add("GET", SERVICES, [OIDC])
     transport.add("PUT", f"{SERVICES}/svc-oidc", OIDC)
@@ -358,7 +358,7 @@ def test_cli_calculation_rules_writes_and_says_what_is_unverified(monkeypatch, c
 
 
 def test_cli_calculation_rules_without_values_writes_nothing(monkeypatch, capsys):
-    """Показывать нечего – платформа правил не отдаёт; команда об этом и говорит."""
+    """Показывать нечего - платформа правил не отдаёт; команда об этом и говорит."""
     client = _install(monkeypatch, FakeListClient())
     assert cli.main(["user-lists", "calculation-rules", "--app", "site"]) == 0
     payload = json.loads(capsys.readouterr().out)
@@ -367,7 +367,7 @@ def test_cli_calculation_rules_without_values_writes_nothing(monkeypatch, capsys
 
 
 def test_cli_calculation_rules_refuse_unknown_key(monkeypatch, capsys, tmp_path):
-    """Ключ из СХЕМЫ справочника платформа отвергает с 400 – отказ здесь понятнее."""
+    """Ключ из СХЕМЫ справочника платформа отвергает с 400 - отказ здесь понятнее."""
     _install(monkeypatch, FakeListClient())
     rules = tmp_path / "rules.json"
     rules.write_text('{"calculation-rules": {"a": 1}}', encoding="utf-8")

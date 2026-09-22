@@ -77,13 +77,13 @@ def test_the_switch_off_changes_nothing(monkeypatch, value):
 ])
 def test_no_proxy_enabled_parses_permissively(value, expected):
     """The same lenient reading a typo must not lock a caller out of: only the four falsy
-    spellings turn the switch off, everything else – including a typo – turns it on."""
+    spellings turn the switch off, everything else - including a typo - turns it on."""
     assert transport.no_proxy_enabled(value) is expected
 
 
 def test_explicit_no_proxy_true_bypasses_regardless_of_the_process_variable(monkeypatch):
     """Config resolves ELEMCTL_NO_PROXY itself (process variable, then the stand's .env) and
-    hands the transport the already-decided value – the transport must trust it as is."""
+    hands the transport the already-decided value - the transport must trust it as is."""
     monkeypatch.delenv(transport.NO_PROXY_ENV, raising=False)
     opener = UrllibTransport(no_proxy=True)._opener("https://1cmycloud.com/console")
     assert opener is not urllib.request.urlopen
@@ -122,7 +122,7 @@ def test_a_failure_through_a_proxy_names_it(monkeypatch):
 
 
 def test_a_failure_going_direct_does_not_blame_the_proxy_it_bypassed(monkeypatch):
-    """self._no_proxy means this transport went straight to the server – naming a proxy that
+    """self._no_proxy means this transport went straight to the server - naming a proxy that
     was configured but never used would send a reader's search the wrong way."""
     monkeypatch.setenv("HTTPS_PROXY", "http://127.0.0.1:12334")
     monkeypatch.delenv("NO_PROXY", raising=False)
@@ -139,7 +139,7 @@ def test_a_failure_going_direct_does_not_blame_the_proxy_it_bypassed(monkeypatch
 
 
 def test_a_failure_through_a_proxy_masks_its_credentials(monkeypatch):
-    """The proxy address is diagnostic, the password in it is not – HTTPS_PROXY carrying
+    """The proxy address is diagnostic, the password in it is not - HTTPS_PROXY carrying
     user:pass@ must not turn a connection failure into a leak of that password."""
     monkeypatch.setenv("HTTPS_PROXY", "http://user:pass@proxy.example:3128")
     monkeypatch.delenv("NO_PROXY", raising=False)

@@ -1,20 +1,20 @@
 """elemctl extension points: what external packages add to the core.
 
 Two entry point groups, and the core declares neither of them in its own
-pyproject.toml – it only reads them:
+pyproject.toml - it only reads them:
 
-- "elemctl.debug_adapter" – the directory of the platform debug adapter. The
+- "elemctl.debug_adapter" - the directory of the platform debug adapter. The
   public elemctl does not ship the proprietary jar files of the 1C:Element
   adapter; the value of the entry point is either a path (Path/str) or a function
   without arguments that returns one. The path is a directory containing a repo/
   subdirectory with the adapter jars (the ready-made value of
   xbsl.debug.adapterPath for the XBSL VS Code extension).
-- "elemctl.commands" – commands of the plugin. The value is a Command, a list of
+- "elemctl.commands" - commands of the plugin. The value is a Command, a list of
   them, or a function without arguments returning either. ONE declaration gives
   both surfaces: the core builds a CLI subcommand and an MCP tool out of it, and
   knows nothing about what the command does. That is where a command belongs when
-  it is about someone's own environment – internal circuits, other systems,
-  stands – and therefore has no place in a public core.
+  it is about someone's own environment - internal circuits, other systems,
+  stands - and therefore has no place in a public core.
 
 The declaration in the pyproject.toml of the plugin package:
 
@@ -24,7 +24,7 @@ The declaration in the pyproject.toml of the plugin package:
     [project.entry-points."elemctl.commands"]
     package-name = "my_package.commands:commands"
 
-The ELEMCTL_NO_PLUGINS=1 environment variable turns plugin discovery off – a run
+The ELEMCTL_NO_PLUGINS=1 environment variable turns plugin discovery off - a run
 with the regular capabilities of the core only.
 
 A failure to load an entry point is an error (PluginError), not a silent skip: a
@@ -109,7 +109,7 @@ def debug_adapter_paths() -> list[Path]:
     """Debug adapter directories declared by external packages (ordered by entry point name).
 
     The value of an entry point is a path or a function without arguments that returns
-    a path. The directory is not validated here (whether the adapter jars are in place) –
+    a path. The directory is not validated here (whether the adapter jars are in place) -
     that is what debug_adapter_path does; the full list is needed for diagnostics (the
     plugins command).
     """
@@ -147,24 +147,24 @@ def debug_adapter_path() -> Path | None:
 
 @dataclass
 class Argument:
-    """An argument of a plugin command – one declaration for both surfaces.
+    """An argument of a plugin command - one declaration for both surfaces.
 
-    name – "--stand" for an option or "stand" for a positional argument; the CLI
+    name - "--stand" for an option or "stand" for a positional argument; the CLI
     gets it as it is, the MCP tool gets the same name with the dashes stripped and
     the inner ones turned into underscores (argparse does exactly that for dest).
-    type – one of ARGUMENT_TYPES; bool means a flag (store_true in the CLI, a
+    type - one of ARGUMENT_TYPES; bool means a flag (store_true in the CLI, a
     boolean with a default of False in MCP), so a positional argument cannot be
     one. required works for options; a positional argument is required unless it
     has required=False, which makes it optional (nargs="?").
 
-    cli_alias – a key synonym of a positional argument, CLI only: "--page" lets
+    cli_alias - a key synonym of a positional argument, CLI only: "--page" lets
     "wiki-get --page 123" reach the same value as "wiki-get 123". The
     MCP tool keeps the single parameter it always had (see mcp_server._plugin_tool)
-    – the alias changes what the CLI parser accepts, nothing about the declared
+    - the alias changes what the CLI parser accepts, nothing about the declared
     arguments themselves. cli.add_plugin_commands builds the two forms as a
     mutually exclusive pair sharing one dest: both at once, or neither of a
     required argument, is a parser refusal rather than a silent pick of one over
-    the other. Only a positional argument may declare one – an option already has
+    the other. Only a positional argument may declare one - an option already has
     a name to call it by, and Command.validate rejects the rest: an alias on an
     option, one that does not start with a dash, or one that collides with
     another argument's own flag.
@@ -204,14 +204,14 @@ class Command:
     has to be JSON-serializable: the CLI prints it, the MCP tool returns it. The
     exit code of the CLI comes from the result too (see exit_code): an integer from
     0 to 255 in its "exit-code" field is taken as it is, and without one a dict with
-    "ok": False ends with 1 – the same convention the reports of deploy and probe
+    "ok": False ends with 1 - the same convention the reports of deploy and probe
     follow. The MCP tool hands the field over with the rest of the result. The
     handler never ends the process itself: the same function runs inside the MCP
     server, where a SystemExit leaves the call without an answer and takes the
     server down with it.
 
     mcp=False leaves the command in the CLI only (for one that makes no sense to
-    an agent – an interactive one, say). source is filled in by discovery: the
+    an agent - an interactive one, say). source is filled in by discovery: the
     name of the entry point the command arrived through.
     """
 
@@ -279,7 +279,7 @@ class Command:
         # Collected in a second pass rather than checked against "seen" above: a plugin
         # is free to declare the alias before the option it happens to collide with, and
         # the order must not decide whether the mistake is caught. Left uncaught, it would
-        # surface as a bare argparse.ArgumentError the moment the CLI parser is built –
+        # surface as a bare argparse.ArgumentError the moment the CLI parser is built -
         # not a PluginError, and not only for the plugin's own command, since the parser
         # is shared by the whole CLI.
         flags = [a.name for a in self.arguments if a.is_option]
@@ -321,7 +321,7 @@ class CommandContext:
 
     The client is built on the first request and cached: a command that never
     reaches the platform (a local check, work with files) must not demand
-    connection credentials. log is a callback for progress lines – in the CLI it
+    connection credentials. log is a callback for progress lines - in the CLI it
     goes to stderr, in MCP it is collected into the log field of the answer.
     """
 
@@ -409,7 +409,7 @@ def plugin_commands() -> list[Command]:
     """Commands declared by external packages (ordered by entry point name).
 
     The value of an entry point is a Command, a list of them or a function
-    without arguments returning either. Every command is validated right here –
+    without arguments returning either. Every command is validated right here -
     see Command.validate. The strict form of discover_commands: the first entry
     point that fails is raised as its PluginError.
     """

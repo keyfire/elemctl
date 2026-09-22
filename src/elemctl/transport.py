@@ -1,4 +1,4 @@
-"""HTTP transport over urllib – the only place network calls are made.
+"""HTTP transport over urllib - the only place network calls are made.
 
 The transport is a separate object so that the tests can replace it with a stub
 and run without a network.
@@ -40,7 +40,7 @@ def _warn(message):
 
 def no_proxy_enabled(value):
     """The permissive reading of ELEMCTL_NO_PROXY: anything but an explicit falsy word turns
-    it on. Shared with Config, which reads the same variable out of a stand's .env file – a
+    it on. Shared with Config, which reads the same variable out of a stand's .env file - a
     typo there must lock a caller out no more than a typo in the process environment does.
     """
     return str(value or "").strip().lower() not in ("", "0", "false", "no")
@@ -101,8 +101,8 @@ def _describe(error):
 def _mask_proxy(url):
     """The proxy address without whatever credentials ride along in it: scheme://host:port.
 
-    HTTPS_PROXY carrying `user:pass@` is common enough – the proxy handler reads it from
-    there – and a connection failure is exactly the moment that address ends up in a message
+    HTTPS_PROXY carrying `user:pass@` is common enough - the proxy handler reads it from
+    there - and a connection failure is exactly the moment that address ends up in a message
     that a log or a bug report keeps. The address is diagnostic; the password in it is not.
     """
     parts = urllib.parse.urlsplit(url)
@@ -146,7 +146,7 @@ class UrllibTransport:
         )
         self._direct = None
         # None (no caller-resolved value, the direct-construction case most tests and every
-        # library caller outside Config use) falls back to the process variable alone – the
+        # library caller outside Config use) falls back to the process variable alone - the
         # behaviour before Config learned to read the stand's .env file as well. Config
         # resolves the file itself and hands over the decided bool, which is then final: the
         # transport must not re-read the process environment underneath an explicit False.
@@ -179,7 +179,7 @@ class UrllibTransport:
     def _opener(self, url):
         """The opener for this URL: the default one, or a direct one past the proxy.
 
-        A proxy is honoured as before – a stand behind a corporate proxy has to be reached
+        A proxy is honoured as before - a stand behind a corporate proxy has to be reached
         through it. Bypassed only where a proxy cannot possibly help: a loopback or private
         address, or when the caller asked for it outright.
         """
@@ -223,15 +223,15 @@ class UrllibTransport:
             with opener(request, **kwargs) as response:
                 return HttpResponse(response.status, response.headers, response.read())
         except urllib.error.HTTPError as error:
-            # HTTPError is a response by itself – we return its body and code.
+            # HTTPError is a response by itself - we return its body and code.
             return HttpResponse(error.code, error.headers, error.read())
 
     def _failure(self, method, url, error):
-        """The message of a failed call – naming the proxy when it was actually in the way.
+        """The message of a failed call - naming the proxy when it was actually in the way.
 
         A proxy that cannot reach an internal stand fails as a plain connection reset, and the
         stand looks dead while it is running. The hint is what turns that into a one-minute
-        diagnosis instead of an hour – but only when a proxy is actually why the request
+        diagnosis instead of an hour - but only when a proxy is actually why the request
         failed: this transport may have gone direct itself (the switch, or a loopback/private
         address), and a proxy that was configured but never touched is not the explanation.
         """

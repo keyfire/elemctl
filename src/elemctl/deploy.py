@@ -1,7 +1,7 @@
 """Deploy: build -> upload -> apply -> restart -> verify.
 
 The defining trait of the platform: when an apply fails, it silently rolls the
-application back to the previous build and starts it – the Running status says
+application back to the previous build and starts it - the Running status says
 nothing about success. That is why the deploy report rests on three checks:
 application tasks that failed after the deploy started, a comparison of the
 version actually applied and an informational HTTP request to the application uri.
@@ -28,21 +28,21 @@ __all__ = ["FAILED_TASK_STATUSES"]  # the name stays where importers already exp
 class DeployReport:
     """Deploy report.
 
-    applied: True – the version matched, False – it did not (this looks like a
-    rollback), None – the actual version could not be determined. ok – the final
-    verdict: no problems and no proven rollback. dirty_files – the uncommitted
-    changes of the project directory at build time (None – git is unavailable or
+    applied: True - the version matched, False - it did not (this looks like a
+    rollback), None - the actual version could not be determined. ok - the final
+    verdict: no problems and no proven rollback. dirty_files - the uncommitted
+    changes of the project directory at build time (None - git is unavailable or
     no build ran in this invocation): a build captures the disk as it is, so any
     divergence from HEAD has to be visible in the report.
 
-    problems – the refusal texts as the platform gave them, newlines and tabs
+    problems - the refusal texts as the platform gave them, newlines and tabs
     included; to_dict adds problems-lines, the same thing broken into plain lines.
     A JSON report escapes a multi-line string into \n and \t, and the refusal
     stops being readable exactly where it matters - the object and the keys that
     made the apply fail.
 
-    app_id_source / project_id_source – where the target came from: "flag" – an
-    explicit --app-id / --project-id, "env" – ELEMENT_APP_ID / ELEMENT_PROJECT_ID
+    app_id_source / project_id_source - where the target came from: "flag" - an
+    explicit --app-id / --project-id, "env" - ELEMENT_APP_ID / ELEMENT_PROJECT_ID
     of the environment or the .env file. A deploy to the wrong application is the
     cheapest mistake to make and the most expensive to notice, so the report names
     the target and the reason it was chosen rather than the id alone.
@@ -117,7 +117,7 @@ def deploy_from_sources(
 ):
     """The full deploy cycle from sources, verifying that the build really applied.
 
-    log – a callback for progress lines (print, for instance); the library itself
+    log - a callback for progress lines (print, for instance); the library itself
     prints nothing. app_id_source / project_id_source are carried through to the
     report and named in the very first progress line: the target is announced
     BEFORE the build, while there is still time to interrupt a deploy aimed at the
@@ -250,8 +250,8 @@ def deploy_from_sources(
 def verify_deploy(client, app_id, *, expected_version="", expected_assembly_id="", since=None, log=None):
     """A standalone check that the build applied (without deploying).
 
-    since – the moment before which task failures are ignored (old failures from
-    the history must not spoil the verdict). expected_assembly_id – the id of the
+    since - the moment before which task failures are ignored (old failures from
+    the history must not spoil the verdict). expected_assembly_id - the id of the
     uploaded build: comparing by it is reliable, unlike the version string.
     """
     log = log or (lambda message: None)
@@ -353,7 +353,7 @@ def _add_server_log_hint(error):
 
 
 def _source_label(source):
-    """The human label of where a target id came from ("" – it was not tracked)."""
+    """The human label of where a target id came from ("" - it was not tracked)."""
     if source == "flag":
         return i18n.t("deploy.source-flag")
     if source == "env":

@@ -18,27 +18,27 @@ from pathlib import Path
 #
 # mcp 2.0 renamed the ergonomic server class and moved it: FastMCP from
 # mcp.server.fastmcp became MCPServer in mcp.server.mcpserver, and the old
-# module is gone rather than aliased – an untouched server meets the rename as
+# module is gone rather than aliased - an untouched server meets the rename as
 # a ModuleNotFoundError the moment the environment resolves mcp to 2.x. What
 # the server itself uses of the class did not change: the constructor keyword
 # "instructions", the @tool()/add_tool() registration with the same arguments,
-# and run() over stdio. The one constructor trap is positional – 2.x inserts
-# title and description before instructions – and it is avoided by passing
+# and run() over stdio. The one constructor trap is positional - 2.x inserts
+# title and description before instructions - and it is avoided by passing
 # instructions by keyword, which create_server does.
 #
 # The reading side did change, and that is what tool_input_schema and
 # call_result_content below are for: in 2.x the wire types come from the
 # mcp-types package with snake_case fields (inputSchema -> input_schema), and
 # call_tool answers with a CallToolResult instead of a bare list of content
-# blocks. Anything that reads a listing or a call result – the tests, an
-# embedder driving the server in process – goes through those two helpers
+# blocks. Anything that reads a listing or a call result - the tests, an
+# embedder driving the server in process - goes through those two helpers
 # instead of forking on the version again.
 try:
     from mcp.server.mcpserver import MCPServer as McpServer  # mcp 2.x
 except ImportError:
     try:
         from mcp.server.fastmcp import FastMCP as McpServer  # mcp 1.x
-    except ImportError as error:  # neither home – the extra is not installed
+    except ImportError as error:  # neither home - the extra is not installed
         raise ImportError(
             'the MCP server needs the extra: pip install "elemctl[mcp]"'
         ) from error
@@ -90,7 +90,7 @@ def tool_input_schema(tool):
     """The JSON schema of a tool taken from a list_tools() listing.
 
     mcp 1.x spells the field inputSchema, mcp 2.x spells it input_schema (the
-    JSON on the wire stays camelCase either way – only the Python attribute
+    JSON on the wire stays camelCase either way - only the Python attribute
     changed). An absent schema comes back as an empty dictionary.
     """
     schema = getattr(tool, "input_schema", None)
@@ -115,7 +115,7 @@ def _brief_project(project):
     """A brief project card: what the project is recognized and picked by.
 
     The full card carries the group, the default image, the artifact code and the
-    dates – all of it redundant in a listing. The application counter is kept: it
+    dates - all of it redundant in a listing. The application counter is kept: it
     shows which projects are actually in use.
     """
     return {
@@ -129,7 +129,7 @@ def _brief_project(project):
 
 
 #: Fields of overrides that name a stand's identity rather than a process-wide setting. They
-#: apply only to a call that leaves out its own env_file (see create_server) – a call naming a
+#: apply only to a call that leaves out its own env_file (see create_server) - a call naming a
 #: different stand explicitly is built from that stand's own file, the same as it always was.
 _IDENTITY_OVERRIDE_KEYS = ("base_url", "client_id", "client_secret")
 
@@ -140,20 +140,20 @@ def _env_file_signature(path):
 
     None means there is nothing at the path. A client built with no file behind it is cached
     under that same None, and a file that later appears there invalidates it exactly like an
-    edit would – the signature only ever fails to change when the path keeps missing.
+    edit would - the signature only ever fails to change when the path keeps missing.
 
     What it will NOT notice: a file that turns unreadable without being edited, a permission
     change on the file itself rather than a rewrite of it, leaves both the modification time
     and the size exactly where they were, so the cache goes on handing back the client that
     last read the file successfully instead of ever attempting the read that would now fail.
     Left unfixed on purpose. Catching it would mean opening the file on every lookup instead
-    of only on a change – paying that cost on every call of a session for the one call an
-    edit actually touches – and even a lighter version, folding the POSIX mode bits into the
+    of only on a change - paying that cost on every call of a session for the one call an
+    edit actually touches - and even a lighter version, folding the POSIX mode bits into the
     signature, would still miss the same change on Windows, where read access is an ACL
     question os.stat does not surface at all; a fix that works on one platform elemctl runs
     on and not the other would be worse than none, standing as unearned reassurance. elemctl
     is a single operator's own tool over their own stand's file, not a boundary between
-    untrusted parties, and the promise this cache makes is about the file getting EDITED – a
+    untrusted parties, and the promise this cache makes is about the file getting EDITED - a
     permission flip with no edit at all is the rare case left outside it. Should it happen
     anyway, the fallback is the safe direction: the stand keeps working on the configuration
     last proven to read correctly, rather than a call failing over a file that has not, from
@@ -169,8 +169,8 @@ def _env_file_signature(path):
 def _release_client(client):
     """Let an outgoing client give up whatever it holds, if it holds anything at all.
 
-    ElementClient opens no lasting connection today – the transport is plain urllib, opened and
-    closed per request – so this is a no-op in practice. It stays here so that a future
+    ElementClient opens no lasting connection today - the transport is plain urllib, opened and
+    closed per request - so this is a no-op in practice. It stays here so that a future
     transport which DOES keep a session is not leaked the moment its cache entry is replaced by
     the client of an edited file.
     """
@@ -184,15 +184,15 @@ def create_server(config=None, *, overrides=None, env_file=None):
 
     Two ways to seed the connection, not meant to be combined:
 
-    config – a ready configuration handed in programmatically (library use: an application
+    config - a ready configuration handed in programmatically (library use: an application
     embedding elemctl already built one). It is pinned for every call without its own
-    env_file, for the life of the process – it has no file behind it for the cache below to
+    env_file, for the life of the process - it has no file behind it for the cache below to
     watch, unlike the other path.
 
-    overrides / env_file – what the CLI passes instead (cli.cmd_mcp checks an explicit
+    overrides / env_file - what the CLI passes instead (cli.cmd_mcp checks an explicit
     env_file exists before the server ever starts, then hands it on as a path, unresolved).
     base_url, client_id and client_secret in overrides name the stand at the startup address,
-    so they apply only to a call that leaves out its own env_file – a call naming a different
+    so they apply only to a call that leaves out its own env_file - a call naming a different
     stand explicitly is built from that stand's own file alone, exactly as it was before these
     parameters existed. timeout is a process-wide setting instead, not a stand's own, and is
     layered onto every call regardless. env_file is --env-file itself, if given; without one,
@@ -207,7 +207,7 @@ def create_server(config=None, *, overrides=None, env_file=None):
     # description before it in the positional order. The version parameter is
     # 2.x only, and without it serverInfo comes out with an empty version there
     # (1.x had no such parameter and stamped the version of the mcp package
-    # itself) – so it is passed wherever the class accepts it.
+    # itself) - so it is passed wherever the class accepts it.
     options = {"instructions": INSTRUCTIONS}
     if "version" in inspect.signature(McpServer).parameters:
         options["version"] = __version__
@@ -221,7 +221,7 @@ def create_server(config=None, *, overrides=None, env_file=None):
     # Guards every read and write of state["clients"] below: a lookup that finds the cache
     # stale and the build-and-store that follows it have to run as one step, or two callers
     # racing for the same stand can both find it stale, each build their own client, and
-    # overwrite one another's entry – the one that loses is never closed. Every tool call
+    # overwrite one another's entry - the one that loses is never closed. Every tool call
     # runs to completion before the next one starts today, the mcp package dispatches them
     # one at a time over stdio, so nothing exercises the race yet; the lock is what keeps
     # that guarantee true if a future async or threaded dispatcher changes how calls arrive.
@@ -230,8 +230,8 @@ def create_server(config=None, *, overrides=None, env_file=None):
     def client(env_file: str = ""):
         """A platform client for the requested environment.
 
-        Without env_file and a configuration the server started with – that configuration,
-        pinned for the life of the process (see create_server). Otherwise – a client for
+        Without env_file and a configuration the server started with - that configuration,
+        pinned for the life of the process (see create_server). Otherwise - a client for
         env_file, or without one the server's own default (--env-file at startup, or the
         .env of the current directory), cached under the resolved path together with a
         signature of that file (its modification time and size). An edit changes the
@@ -239,12 +239,12 @@ def create_server(config=None, *, overrides=None, env_file=None):
         handing back the one that read the file before the edit; a stand's own
         ELEMCTL_NO_PROXY switch, say, takes effect on the next call rather than needing a
         restart. base_url, client_id and client_secret given at startup apply only to THIS
-        call, the one without its own env_file – a call naming its own env_file is built from
+        call, the one without its own env_file - a call naming its own env_file is built from
         that file alone, the same as it was before these overrides existed; only timeout, a
         process-wide setting, still follows it. An env_file (or the server's own --env-file)
         that stops resolving to a file surfaces the same clear error Config.from_env always
         gave it, instead of the cache quietly going on with the last client that worked; the
-        bare .env of the current directory has no such guarantee – nothing named it, and
+        bare .env of the current directory has no such guarantee - nothing named it, and
         Config.from_env has always treated a missing one as no file at all.
 
         Called at most once per tool call (see _create_app), and everything from the lookup
@@ -270,7 +270,7 @@ def create_server(config=None, *, overrides=None, env_file=None):
             resolved = str(Path(target or ".env").resolve())
             # An identity override (see _IDENTITY_OVERRIDE_KEYS) applies only to the default
             # call, so it is the one thing that can make the default call and an explicit call
-            # naming the very same path build two DIFFERENT configurations – the cache key
+            # naming the very same path build two DIFFERENT configurations - the cache key
             # then has to keep them apart, or whichever call runs first would hand its answer
             # to the other. Without one, the two builds are identical and the plain resolved
             # path is left as the key, the shape that lets a.env, ./a.env and the no-env_file
@@ -290,7 +290,7 @@ def create_server(config=None, *, overrides=None, env_file=None):
             # The client being replaced is released AFTER the new one is stored, not before:
             # close() is foreign code (a future transport's own session teardown, say), and an
             # exception out of it must not cost the cache its already-built replacement. Store
-            # first, so a failed close only fails the close – the next call still finds the
+            # first, so a failed close only fails the close - the next call still finds the
             # new, working client instead of retrying the same close on the one that just
             # failed it.
             previous = cached[1] if cached is not None else None
@@ -307,24 +307,24 @@ def create_server(config=None, *, overrides=None, env_file=None):
         brief: bool = True,
         env_file: str = "",
     ) -> dict:
-        """Список приложений платформы; ответ – объект {total, live, shown, summary, applications}, сами карточки в applications.
+        """Список приложений платформы; ответ - объект {total, live, shown, summary, applications}, сами карточки в applications.
 
         Удалённые приложения по умолчанию СКРЫТЫ: платформа держит их в перечне со
         статусом Deleted и прежним ид, и на стенде, живущем не первый месяц, это
         сотни карточек, из которых живых единицы. Сколько скрыто, видно по счётчикам:
-        total – сколько карточек отдала платформа, live – сколько из них не удалено,
-        shown – сколько осталось в ответе; summary – та же мысль строкой ("живых N
+        total - сколько карточек отдала платформа, live - сколько из них не удалено,
+        shown - сколько осталось в ответе; summary - та же мысль строкой ("живых N
         из M"). include_deleted=true возвращает удалённые в ответ.
 
-        name – фильтр по подстроке имени без учёта регистра (выполняется на клиенте:
-        платформа query-параметр игнорирует). status – отбор по статусу целиком
-        (Running, Stopped, Error, Deleted; несколько – через запятую); статус Deleted,
+        name - фильтр по подстроке имени без учёта регистра (выполняется на клиенте:
+        платформа query-параметр игнорирует). status - отбор по статусу целиком
+        (Running, Stopped, Error, Deleted; несколько - через запятую); статус Deleted,
         запрошенный явно, сам снимает скрытие.
 
         brief (по умолчанию) оставляет от карточки только id, имя, статус, uri и
-        применённую версию: полные карточки всего пространства – это десятки тысяч
+        применённую версию: полные карточки всего пространства - это десятки тысяч
         символов, которые в ответе агенту почти всегда лишние. brief=false отдаёт
-        карточки целиком. env_file – путь к .env другого окружения.
+        карточки целиком. env_file - путь к .env другого окружения.
         """
         listing = client(env_file).list_apps_counted(
             name=name, status=status, include_deleted=include_deleted
@@ -342,7 +342,7 @@ def create_server(config=None, *, overrides=None, env_file=None):
 
     @server.tool()
     def get_app(app_id: str, env_file: str = "") -> dict:
-        """Карточка приложения: статус, uri, фактическая версия проекта (source.project-version). app_id – ид (UUID) либо точное имя приложения."""
+        """Карточка приложения: статус, uri, фактическая версия проекта (source.project-version). app_id - ид (UUID) либо точное имя приложения."""
         target = client(env_file)
         return target.get_app(target.resolve_app_id(app_id))
 
@@ -365,7 +365,7 @@ def create_server(config=None, *, overrides=None, env_file=None):
         """Create an application (the logic shared by create_app and ensure_app).
 
         target is the caller's own client(env_file), resolved once and handed in rather than
-        resolved again here – latest_assembly, create_app, wait_app_ready and the client
+        resolved again here - latest_assembly, create_app, wait_app_ready and the client
         verify takes are up to four separate steps of one call, and each used to call
         client(env_file) on its own, so a file edited mid-call could in principle hand two of
         them two different clients. One resolution per tool call rules that out.
@@ -437,11 +437,11 @@ def create_server(config=None, *, overrides=None, env_file=None):
         verify=True дожидается готовности приложения и проверяет, что оно правда
         работает на сборке-источнике: при неудачном применении платформа МОЛЧА
         откатывает приложение на прежнюю сборку, а статус Running этого не
-        показывает. Итог – поле verify ответа (ok, problems, applied-version-id);
+        показывает. Итог - поле verify ответа (ok, problems, applied-version-id);
         ожидание удлиняет вызов на минуты, поэтому такой вызов лучше делать
         командой elemctl фоновым процессом.
 
-        К карточке добавляется поле sign-in – способ войти в новое приложение:
+        К карточке добавляется поле sign-in - способ войти в новое приложение:
         адрес и учётная запись ПАНЕЛИ УПРАВЛЕНИЯ (учётные записи, которыми
         входят в другие приложения, в новом не работают).
 
@@ -474,18 +474,18 @@ def create_server(config=None, *, overrides=None, env_file=None):
 
         Существующее приложение НЕ пересоздаётся: при наличии возвращается
         {"id": ..., "created": false} без изменений (delete + create дали бы
-        новый URL и порвали внешние привязки – OIDC redirect и т.п.). Удалённые
-        приложения (статус Deleted) не в счёт. Параметры создания – как у
+        новый URL и порвали внешние привязки - OIDC redirect и т.п.). Удалённые
+        приложения (статус Deleted) не в счёт. Параметры создания - как у
         create_app; они действуют, только когда создание происходит.
 
         Поэтому version_id существующему приложению НЕ применяется: поле applied
         ответа говорит, стоит ли на приложении запрошенная сборка, а applied-version-id
-        – какая стоит на самом деле. Применить – инструментом apply_build (долгая
+        - какая стоит на самом деле. Применить - инструментом apply_build (долгая
         операция) либо командой elemctl apps apply.
 
         verify=True проверяет созданное приложение (или сборку существующего) по
         полной: применение при сбое платформа МОЛЧА откатывает, и созданное
-        приложение отвечало applied: true на веру. Итог – поле verify ответа;
+        приложение отвечало applied: true на веру. Итог - поле verify ответа;
         ожидание готовности удлиняет вызов на минуты.
 
         Поле sign-in обоих ответов говорит, как войти в приложение: адрес и
@@ -493,7 +493,7 @@ def create_server(config=None, *, overrides=None, env_file=None):
         другие приложения, в новом не работают).
 
         Если ожидание созданного приложения оборвалось, ответ всё равно несёт
-        его id; applied тогда null, а причина – в поле wait-error.
+        его id; applied тогда null, а причина - в поле wait-error.
         """
         started_at = datetime.now(timezone.utc)
         target = client(env_file)
@@ -537,14 +537,14 @@ def create_server(config=None, *, overrides=None, env_file=None):
 
     @server.tool()
     def start_app(app_id: str, env_file: str = "") -> dict:
-        """Запустить приложение. app_id – ид (UUID) либо точное имя приложения."""
+        """Запустить приложение. app_id - ид (UUID) либо точное имя приложения."""
         target = client(env_file)
         resolved = target.resolve_app_id(app_id)
         return target.start_app(resolved) or {"ok": True, "app-id": resolved}
 
     @server.tool()
     def stop_app(app_id: str, env_file: str = "") -> dict:
-        """Остановить приложение. app_id – ид (UUID) либо точное имя приложения."""
+        """Остановить приложение. app_id - ид (UUID) либо точное имя приложения."""
         target = client(env_file)
         resolved = target.resolve_app_id(app_id)
         return target.stop_app(resolved) or {"ok": True, "app-id": resolved}
@@ -553,7 +553,7 @@ def create_server(config=None, *, overrides=None, env_file=None):
     def debug_info(app_id: str, env_file: str = "") -> dict:
         """Данные для сессии отладки приложения: debug-token и debug-address.
 
-        app_id – ид (UUID) либо точное имя приложения. Требует включённой
+        app_id - ид (UUID) либо точное имя приложения. Требует включённой
         отладки на сервере (config/debug.yml: enabled: true).
         """
         target = client(env_file)
@@ -564,8 +564,8 @@ def create_server(config=None, *, overrides=None, env_file=None):
     def debug_adapter() -> dict:
         """Путь к debug-адаптеру платформы из плагина (для расширения VS Code).
 
-        Каталог содержит подкаталог repo/ с jar-файлами адаптера – готовое значение
-        настройки xbsl.debug.adapterPath. Отсутствие плагина – это ответ (found: false),
+        Каталог содержит подкаталог repo/ с jar-файлами адаптера - готовое значение
+        настройки xbsl.debug.adapterPath. Отсутствие плагина - это ответ (found: false),
         а не ошибка. Локальная операция, к платформе не обращается.
         """
         path = plugins.debug_adapter_path()
@@ -575,7 +575,7 @@ def create_server(config=None, *, overrides=None, env_file=None):
 
     @server.tool()
     def delete_app(app_id: str, env_file: str = "") -> dict:
-        """Удалить приложение. app_id – ид (UUID) либо точное имя (несколько совпадений – ошибка). НЕОБРАТИМО: данные теряются, а пересозданное приложение получит другой URL – внешние настройки (OIDC redirect и т.п.) придётся обновлять."""
+        """Удалить приложение. app_id - ид (UUID) либо точное имя (несколько совпадений - ошибка). НЕОБРАТИМО: данные теряются, а пересозданное приложение получит другой URL - внешние настройки (OIDC redirect и т.п.) придётся обновлять."""
         target = client(env_file)
         resolved = target.resolve_app_id(app_id)
         return target.delete_app(resolved) or {"deleted": True, "app-id": resolved}
@@ -589,17 +589,17 @@ def create_server(config=None, *, overrides=None, env_file=None):
     def list_projects(
         name: str = "", include_deleted: bool = False, brief: bool = True, env_file: str = ""
     ) -> list:
-        """Список проектов; name – фильтр по подстроке имени без учёта регистра (выполняется на клиенте: платформа отдаёт весь перечень).
+        """Список проектов; name - фильтр по подстроке имени без учёта регистра (выполняется на клиенте: платформа отдаёт весь перечень).
 
         Удалённые проекты по умолчанию скрыты: платформа держит их в перечне с
         признаком deleted, и на стенде, живущем не первый месяц, это сотни
-        карточек, из которых живых единицы, – проверка "нет ли проекта с таким
+        карточек, из которых живых единицы, - проверка "нет ли проекта с таким
         именем" не должна стоить полного перечня. include_deleted=true
         возвращает их в ответ.
 
         brief (по умолчанию) оставляет от карточки id, имя, вид проекта,
         пространство, счётчик приложений и признак удаления; brief=false
-        отдаёт карточки целиком. env_file – путь к .env другого окружения.
+        отдаёт карточки целиком. env_file - путь к .env другого окружения.
         """
         projects = client(env_file).list_projects(name=name, include_deleted=include_deleted)
         if not brief:
@@ -610,21 +610,21 @@ def create_server(config=None, *, overrides=None, env_file=None):
     def list_builds(
         project_id: str, limit: int = 10, brief: bool = True, env_file: str = ""
     ) -> dict:
-        """Сборки проекта, свежие первыми; ответ – объект {total, shown, summary, builds}, сами карточки в builds.
+        """Сборки проекта, свежие первыми; ответ - объект {total, shown, summary, builds}, сами карточки в builds.
 
-        Перечень платформы – НЕ вся история сборок проекта: платформа сама удаляет
+        Перечень платформы - НЕ вся история сборок проекта: платформа сама удаляет
         сборки, которыми никто не пользуется, и возраст тут ни при чём (сборка, на
         которой работает приложение, первая сборка проекта и релизная остаются), а
-        страниц у перечня нет. Поэтому рядом с карточками идут счётчики: total –
-        сколько сборок отдала платформа, shown – сколько осталось после limit;
-        summary – та же мысль строкой, и она прямо говорит, вся это история или
+        страниц у перечня нет. Поэтому рядом с карточками идут счётчики: total -
+        сколько сборок отдала платформа, shown - сколько осталось после limit;
+        summary - та же мысль строкой, и она прямо говорит, вся это история или
         то, что от неё осталось. Судит она по фактам ответа: платформа нумерует
-        сборки базовой версии подряд, поэтому пропуск в номерах – это сборка,
+        сборки базовой версии подряд, поэтому пропуск в номерах - это сборка,
         которую уборка уже сняла.
 
-        limit – сколько показать (по умолчанию 10, 0 – все). brief (по умолчанию)
+        limit - сколько показать (по умолчанию 10, 0 - все). brief (по умолчанию)
         оставляет от карточки ид, версии, дату, ветку и коммит; brief=false отдаёт
-        карточки целиком. env_file – путь к .env другого окружения.
+        карточки целиком. env_file - путь к .env другого окружения.
         """
         assemblies = newest_first(client(env_file).list_assemblies(project_id))
         shown = assemblies[:limit] if limit > 0 else assemblies
@@ -640,17 +640,17 @@ def create_server(config=None, *, overrides=None, env_file=None):
 
     @server.tool()
     def get_build(project_id: str, version: str, env_file: str = "") -> dict:
-        """Карточка сборки проекта целиком; version – ВЕРСИЯ сборки (`1.0-42`), ид тоже принимается.
+        """Карточка сборки проекта целиком; version - ВЕРСИЯ сборки (`1.0-42`), ид тоже принимается.
 
-        Метод платформы – `/projects/{id}/assemblies/{version}`, и последний сегмент
+        Метод платформы - `/projects/{id}/assemblies/{version}`, и последний сегмент
         адреса он называет версией: ид карточки адресом не является, на UUID платформа
         отвечает 404. Поэтому значение сначала ищется в перечне сборок проекта и версия
-        берётся оттуда, а на отказ по адресу пробуется и ид – на случай установки,
+        берётся оттуда, а на отказ по адресу пробуется и ид - на случай установки,
         которой нужна та форма. Сборка, которой в перечне нет, названа отсутствующей, а
         не превращается в отказ из глубины платформы.
 
-        Перечень сборок с краткими карточками – list_builds; здесь карточка одна и
-        целиком. env_file – путь к .env другого окружения.
+        Перечень сборок с краткими карточками - list_builds; здесь карточка одна и
+        целиком. env_file - путь к .env другого окружения.
         """
         return client(env_file).get_assembly(project_id, version)
 
@@ -679,7 +679,7 @@ def create_server(config=None, *, overrides=None, env_file=None):
         branch: str = "",
         env_file: str = "",
     ) -> dict:
-        """Полный цикл деплоя из исходников с честной проверкой применения; итог – поле ok, детали – problems и log."""
+        """Полный цикл деплоя из исходников с честной проверкой применения; итог - поле ok, детали - problems и log."""
         lines: list[str] = []
         report = deploy_from_sources(
             client(env_file),
@@ -707,12 +707,12 @@ def create_server(config=None, *, overrides=None, env_file=None):
         """Проверить компиляцию исходников серверным компилятором, НЕ трогая рабочее приложение.
 
         Собирает архив, заливает его без указания проекта (платформа сама кладёт
-        сборку в проект этих исходников – он определяется поставщиком и именем),
-        создаёт по ней одноразовое приложение – это и есть компиляция, – а затем
+        сборку в проект этих исходников - он определяется поставщиком и именем),
+        создаёт по ней одноразовое приложение - это и есть компиляция, - а затем
         убирает за собой приложение и сборку. ELEMENT_APP_ID и ELEMENT_PROJECT_ID
-        окружения намеренно не используются. Итог – поле ok; ошибки в errors
-        (файл, строка, колонка, окружение, текст), исходные сообщения платформы –
-        в messages, итог уборки – в cleanup. keep=true оставляет приложение и
+        окружения намеренно не используются. Итог - поле ok; ошибки в errors
+        (файл, строка, колонка, окружение, текст), исходные сообщения платформы -
+        в messages, итог уборки - в cleanup. keep=true оставляет приложение и
         сборку на стенде для разбора руками.
         """
         lines: list[str] = []
@@ -754,10 +754,10 @@ def create_server(config=None, *, overrides=None, env_file=None):
 
     @server.tool()
     def list_user_lists(name: str = "", env_file: str = "") -> list:
-        """Списки пользователей; name – фильтр по подстроке представления (на клиенте).
+        """Списки пользователей; name - фильтр по подстроке представления (на клиенте).
 
         Собственный список приложения назван по нему же ("Список пользователей
-        приложения ..."), список панели управления – один на стенд.
+        приложения ..."), список панели управления - один на стенд.
         """
         return client(env_file).list_user_lists(name=name)
 
@@ -771,13 +771,13 @@ def create_server(config=None, *, overrides=None, env_file=None):
     ) -> dict:
         """Настройки входа списка пользователей: самостоятельная регистрация и вход по паролю.
 
-        Список задаётся list_id (ид либо точное представление) ЛИБО app_id –
+        Список задаётся list_id (ид либо точное представление) ЛИБО app_id -
         тогда берётся собственный список приложения. Оба флага необязательны:
         без них команда только показывает состояние, поэтому её же удобно звать
         для проверки. За "входом по логину и паролю" стоит сервис учётных
-        записей типа Local; список без такого сервиса – не ошибка, в ответе
+        записей типа Local; список без такого сервиса - не ошибка, в ответе
         password-login-enabled будет null. Состав ФОРМ аутентификации в Console
-        API не живёт вовсе – он остаётся ручным.
+        API не живёт вовсе - он остаётся ручным.
         """
         target = client(env_file)
         if list_id and app_id:
@@ -817,7 +817,7 @@ def create_server(config=None, *, overrides=None, env_file=None):
 
     @server.tool()
     def list_app_tasks(app_id: str = "", env_file: str = "") -> list:
-        """Задачи приложений; app_id – необязательный фильтр (выполняется на клиенте)."""
+        """Задачи приложений; app_id - необязательный фильтр (выполняется на клиенте)."""
         return client(env_file).list_app_tasks(app_id)
 
     @server.tool()
@@ -861,7 +861,7 @@ def _plugin_tool(command, client_for_env):
     """Build the MCP tool function of a plugin command.
 
     The server derives the schema of a tool from the signature of the function,
-    and the signature here is only known at runtime – so it is assembled by hand
+    and the signature here is only known at runtime - so it is assembled by hand
     out of the declared arguments (checked against a live server of either major
     version: the schema comes out with the types and the defaults in place).
     env_file is added by the core to every such tool, exactly like the tools of
@@ -902,7 +902,7 @@ def _registered_tool_names(server):
 
     Neither major version has a synchronous public listing (list_tools is a
     coroutine in both), so the tool manager is asked directly. A version that
-    renames it must not break the server – hence the fallback to an empty set:
+    renames it must not break the server - hence the fallback to an empty set:
     a clash would then be left to the server class itself.
     """
     lister = getattr(getattr(server, "_tool_manager", None), "list_tools", None)
@@ -914,7 +914,7 @@ def _registered_tool_names(server):
 def add_plugin_tools(server, client_for_env):
     """Register the commands the plugins bring as tools of the server; return the failures.
 
-    A name already taken by a tool of the core is not taken over – the same rule the
+    A name already taken by a tool of the core is not taken over - the same rule the
     CLI subcommands follow. Neither that nor a plugin that did not load stops the
     server any more: one broken plugin used to take every tool away from the agent.
     Such a plugin is left out and named on stderr, which a client keeps as the log of
@@ -945,7 +945,7 @@ def add_plugin_tools(server, client_for_env):
 def main(config=None, *, overrides=None, env_file=None):
     """Start the MCP server on stdio.
 
-    config, overrides and env_file are exactly create_server's own parameters – see there for
+    config, overrides and env_file are exactly create_server's own parameters - see there for
     what each means. The CLI (cli.cmd_mcp) passes overrides and env_file, never config: a
     pre-resolved Config would pin the default stand for the life of the process and no edit
     of its .env would ever reach a call again. Without any of the three, the configuration is
