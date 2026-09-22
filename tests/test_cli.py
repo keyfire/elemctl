@@ -172,6 +172,21 @@ def test_an_answer_that_breaks_off_ends_the_command_with_the_error_json(
     assert "IncompleteRead" in json.loads(captured.err)["error"]
 
 
+def test_apps_list_rejects_a_base_url_without_an_http_scheme(monkeypatch, capsys):
+    """A malformed base URL reaches the CLI as a configuration error, not a traceback."""
+    monkeypatch.setenv("ELEMENT_BASE_URL", "api.test")
+    monkeypatch.setenv("ELEMENT_CLIENT_ID", "cid")
+    monkeypatch.setenv("ELEMENT_CLIENT_SECRET", "secret")
+
+    rc = cli.main(["apps", "list"])
+
+    captured = capsys.readouterr()
+    assert rc == 1
+    assert captured.out == ""
+    assert "http://" in json.loads(captured.err)["error"]
+    assert "Traceback" not in captured.err
+
+
 def test_apps_find_skips_deleted_unless_flag(monkeypatch, capsys):
     """By default a deleted application is not found; --include-deleted brings it back."""
 

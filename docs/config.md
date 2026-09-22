@@ -13,7 +13,7 @@ elemctl takes the connection credentials from environment variables or from a `.
 
 | Variable | Purpose |
 |---|---|
-| `ELEMENT_BASE_URL` | the platform base URL, e.g. `https://1cmycloud.com` |
+| `ELEMENT_BASE_URL` | the platform base URL starting with `http://` or `https://`, e.g. `https://1cmycloud.com` |
 | `ELEMENT_CLIENT_ID` | Client-Id used to obtain a token |
 | `ELEMENT_CLIENT_SECRET` | Client-Secret |
 | `ELEMENT_APP_ID` | default application (optional) |

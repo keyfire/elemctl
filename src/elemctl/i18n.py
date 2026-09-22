@@ -455,6 +455,10 @@ MESSAGES = {
         "ru": "неверное логическое значение {name}={value!r}; используйте true или false",
         "en": "invalid boolean value {name}={value!r}; use true or false",
     },
+    "config.invalid-base-url": {
+        "ru": "неверный базовый URL {value!r}; используйте адрес с http:// или https://",
+        "en": "invalid base URL {value!r}; use an address starting with http:// or https://",
+    },
     "config.ca-file-invalid": {
         "ru": "не удалось загрузить CA-файл {path}: {error}",
         "en": "failed to load CA file {path}: {error}",

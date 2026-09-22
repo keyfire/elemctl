@@ -39,6 +39,7 @@ from pathlib import Path
 
 from . import __version__, i18n
 from .errors import ElemctlError
+from .transport import _NETWORK_FAILURES
 
 #: Where the files come from. The simple index (PEP 691) is served straight from the upload,
 #: while the JSON metadata below is a cache that lags behind a release by minutes - see
@@ -75,7 +76,7 @@ def _fetch_json(url: str) -> dict:
         if error.code == 404:
             raise ElemctlError(i18n.t("selfupdate.version-not-found")) from error
         raise ElemctlError(i18n.t("selfupdate.pypi-http-error", status=error.code)) from error
-    except OSError as error:
+    except _NETWORK_FAILURES as error:
         raise ElemctlError(i18n.t("selfupdate.pypi-unreachable", error=error)) from error
 
 
@@ -91,7 +92,7 @@ def _simple_files() -> list[dict]:
     try:
         with urllib.request.urlopen(request, timeout=30) as resp:
             data = json.load(resp)
-    except (OSError, ValueError):
+    except _NETWORK_FAILURES + (ValueError,):
         return []
     files = []
     for item in data.get("files") or []:
@@ -367,7 +368,7 @@ def self_update(version: str | None = None, log=print, *, stop_busy: bool = Fals
     try:
         with urllib.request.urlopen(url, timeout=60) as resp:
             blob = resp.read()
-    except OSError as error:
+    except _NETWORK_FAILURES as error:
         raise ElemctlError(i18n.t("selfupdate.download-failed", error=error)) from error
 
     if stop_busy:

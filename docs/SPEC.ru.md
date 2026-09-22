@@ -37,7 +37,7 @@ README.md, .env.example и .gitignore заданы и не меняются.
 
 | Переменная | Смысл | Обязательна |
 |---|---|---|
-| `ELEMENT_BASE_URL` | базовый URL платформы, например `https://1cmycloud.com` | да |
+| `ELEMENT_BASE_URL` | базовый URL платформы с `http://` или `https://`, например `https://1cmycloud.com` | да |
 | `ELEMENT_CLIENT_ID` | Client-Id для получения токена | да |
 | `ELEMENT_CLIENT_SECRET` | Client-Secret | да |
 | `ELEMENT_APP_ID` | приложение по умолчанию | нет |
@@ -50,7 +50,8 @@ README.md, .env.example и .gitignore заданы и не меняются.
 Формат .env: строки `KEY=VALUE`. Пустые строки и строки, начинающиеся с `#`,
 пропускаются. Перед именем допускается префикс `export `, а значение можно взять
 в одинарные или двойные кавычки. Кодировка UTF-8, возможен BOM, поэтому читать
-надо как `utf-8-sig`. Хвостовой слэш у `ELEMENT_BASE_URL` обрезается.
+надо как `utf-8-sig`. Хвостовой слэш у `ELEMENT_BASE_URL` обрезается. Непустой базовый URL
+должен начинаться с `http://` или `https://`.
 
 ## 3. Аутентификация
 

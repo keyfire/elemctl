@@ -117,7 +117,7 @@ pip install "elemctl[mcp]"      # с MCP-сервером
 
 | Переменная | Назначение |
 |---|---|
-| `ELEMENT_BASE_URL` | базовый URL платформы, например `https://1cmycloud.com` |
+| `ELEMENT_BASE_URL` | базовый URL платформы с `http://` или `https://`, например `https://1cmycloud.com` |
 | `ELEMENT_CLIENT_ID` | Client-Id для получения токена |
 | `ELEMENT_CLIENT_SECRET` | Client-Secret |
 | `ELEMENT_APP_ID` | приложение по умолчанию (необязательно) |
