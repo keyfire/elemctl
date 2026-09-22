@@ -19,6 +19,7 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
 
 ### Changed
 - Python comments and docstrings consistently use hyphens. Ordinary string literals remain unchanged.
+  ([#40](https://github.com/keyfire/elemctl/pull/40))
 
 ## 2026-09-22 – 0.43.1
 
