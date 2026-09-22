@@ -1,6 +1,6 @@
 """Probe: an isolated compilation check of the project sources.
 
-A local build only packs an archive – the syntax, the types and the visibility
+A local build only packs an archive - the syntax, the types and the visibility
 of the sources are checked by the SERVER compiler, and it runs when a build is
 applied. That is why the only honest way to compile without touching the working
 application is to create a throwaway one out of the build and read the errors of
@@ -8,14 +8,14 @@ its task.
 
 What the probe is NOT allowed to do: touch the working application. The
 `ELEMENT_APP_ID` and `ELEMENT_PROJECT_ID` of the environment are deliberately
-ignored – the build goes to the platform without a project id at all, and the
+ignored - the build goes to the platform without a project id at all, and the
 platform routes it by the vendor and the name of the manifest (a project is
 identified by that pair, see the platform page). So the sources land in the
 project that owns them and nowhere else; a project that is not there yet is
 created by the upload.
 
 Cleanup is part of the operation: the throwaway application is deleted, then the
-probe build, and – if the probe created it – the project. The order matters: the
+probe build, and - if the probe created it - the project. The order matters: the
 platform rejects deleting a build while an application created from it still
 exists.
 """
@@ -38,7 +38,7 @@ PROBE_PREFIX = "elemctl-probe-"
 
 # A compilation error line of an application task: the archive path of the file,
 # the position in brackets and the text. The pattern is searched for rather than
-# matched, because the first line carries the platform's own prefix – the label
+# matched, because the first line carries the platform's own prefix - the label
 # of the CreateApplication task and its "failed to create the application" text.
 _ERROR_LINE = re.compile(
     r"(?P<entry>[^\s\[\]]+)\s+\[(?P<line>\d+):(?P<column>\d+)\]:\s*(?P<message>.*)$"
@@ -64,9 +64,9 @@ _COMPATIBILITY_REFUSED = re.compile(
 class ProbeReport:
     """The result of a compilation probe.
 
-    ok – the sources compiled. errors – the compilation errors parsed into
-    fields; messages – the same texts verbatim, as the platform gave them
-    (nothing is lost when the failure is not a compilation one). cleanup –
+    ok - the sources compiled. errors - the compilation errors parsed into
+    fields; messages - the same texts verbatim, as the platform gave them
+    (nothing is lost when the failure is not a compilation one). cleanup -
     what the probe managed to remove after itself.
     """
 
@@ -121,7 +121,7 @@ def parse_compilation_errors(messages, prefix=""):
 
     A message is one or more lines of the form
     `{vendor}/{name}/path/File.xbsl [line:column]: <environment> text`; the first
-    one also carries the platform's prefix. prefix – the `{vendor}/{name}/` of the
+    one also carries the platform's prefix. prefix - the `{vendor}/{name}/` of the
     archive: it is stripped off, so that `file` is the path relative to the
     project directory, the one the editor opens.
     """
@@ -206,14 +206,14 @@ def probe_project(
 ):
     """Run the project sources through the server compiler; return a ProbeReport.
 
-    log – a callback for progress lines (print, for instance); the library itself
-    prints nothing. keep – leave the throwaway application, the build and the
+    log - a callback for progress lines (print, for instance); the library itself
+    prints nothing. keep - leave the throwaway application, the build and the
     project in place (for a hands-on investigation of a failure).
     """
     log = log or (lambda message: None)
     # The token ends up as the version suffix after the last hyphen, and that suffix
     # picks the project's latest build when it parses as a number. Eight hex digits
-    # come out all-numeric once in ~43 draws – often enough that CI caught it live.
+    # come out all-numeric once in ~43 draws - often enough that CI caught it live.
     token = uuid.uuid4().hex[:8]
     while token.isdigit():
         token = uuid.uuid4().hex[:8]
@@ -229,7 +229,7 @@ def probe_project(
     # The version carries a non-numeric suffix on purpose: the platform refuses a
     # repeated upload of a version the project group already has (409
     # ALREADY_EXISTS), while the numeric counter of the version is what picks the
-    # project's latest build – a probe build must never become that.
+    # project's latest build - a probe build must never become that.
     result = build_assembly(
         meta.project_dir,
         output_dir=output_dir or tempfile.mkdtemp(prefix="elemctl-probe-"),
@@ -316,7 +316,7 @@ def _project_ids(client):
     """The ids of the platform projects before the upload, or None when unknown.
 
     It is the only way to tell whether the project was created by this very
-    upload – and therefore whether it has to be removed afterwards. A failure of
+    upload - and therefore whether it has to be removed afterwards. A failure of
     the request is not a reason to abort the probe: None means "do not touch the
     project". Deleted projects are asked for on purpose: an upload may land in
     one of them, and an id the set does not know reads as "created here".
@@ -344,7 +344,7 @@ def _cleanup(client, report, *, keep, delete_project, log):
 
     The order is forced by the platform: a build that an application was created
     from cannot be deleted while that application exists, so the application goes
-    first and the build only after it has really disappeared. None – nothing to
+    first and the build only after it has really disappeared. None - nothing to
     do; a failure is a problem in the report rather than an exception: the
     compilation verdict has already been obtained and must reach the caller.
     """

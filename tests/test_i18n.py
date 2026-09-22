@@ -108,7 +108,7 @@ def test_register_rejects_a_missing_language():
 
 def test_register_rejects_a_conflicting_redefinition():
     i18n.register({"тест.повтор": {"ru": "текст", "en": "text"}})
-    i18n.register({"тест.повтор": {"ru": "текст", "en": "text"}})  # identical – allowed
+    i18n.register({"тест.повтор": {"ru": "текст", "en": "text"}})  # identical - allowed
     with pytest.raises(i18n.MessageError, match="already registered"):
         i18n.register({"тест.повтор": {"ru": "другое", "en": "other"}})
 
@@ -163,7 +163,7 @@ def test_lang_from_argv_is_none_without_flag():
 
 
 def test_lang_from_argv_rejects_unknown_value():
-    # An unknown language is not pinned – argparse rejects it later with its own message.
+    # An unknown language is not pinned - argparse rejects it later with its own message.
     assert i18n.lang_from_argv(["--lang", "de"]) is None
 
 
@@ -205,10 +205,10 @@ def test_no_russian_string_literals_outside_the_catalog():
     # would stop them from matching, so they belong outside the catalog - but each
     # one has to be declared here, so a genuine message cannot slip in as a "marker".
     platform_recognizers = {
-        "BUSY_MARKERS",  # client.py – "the application is busy" in a refusal
-        "SOAP_CLIENT_KINDS",  # build.py – the element kind of a SOAP service client
-        "_ELEMENT_KIND",  # build.py – the ВидЭлемента line of a descriptor
-        "_COMPATIBILITY_REFUSED",  # probe.py – "unknown compatibility mode"
+        "BUSY_MARKERS",  # client.py - "the application is busy" in a refusal
+        "SOAP_CLIENT_KINDS",  # build.py - the element kind of a SOAP service client
+        "_ELEMENT_KIND",  # build.py - the ВидЭлемента line of a descriptor
+        "_COMPATIBILITY_REFUSED",  # probe.py - "unknown compatibility mode"
     }
     package = Path(i18n.__file__).parent
     offenders = []

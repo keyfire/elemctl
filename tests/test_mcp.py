@@ -96,7 +96,7 @@ def test_every_platform_tool_accepts_env_file():
     """The environment is picked per call, not only when the server starts.
 
     Otherwise a single server serves a single stand only, and the second one (a local
-    stand, say) is out of reach through MCP – one has to fall back to the CLI.
+    stand, say) is out of reach through MCP - one has to fall back to the CLI.
     """
     server = create_server()
     tools = asyncio.run(server.list_tools())
@@ -315,7 +315,7 @@ def test_app_tools_accept_name_in_docstring():
     """Tools that take an app_id parameter also accept the exact application name.
 
     client.resolve_app_id does the resolving; what is pinned here is that the tool
-    description says so – otherwise an agent never learns the option is there.
+    description says so - otherwise an agent never learns the option is there.
     """
     server = create_server()
     tools = asyncio.run(server.list_tools())
@@ -339,7 +339,7 @@ def _server_on(monkeypatch, fake_client):
 def test_ensure_app_returns_the_way_in(monkeypatch):
     """An agent sees only the JSON, so the way into the stand has to be inside it.
 
-    Both answers of ensure carry it – the application already existed just as
+    Both answers of ensure carry it - the application already existed just as
     often as it is created.
     """
 
@@ -548,7 +548,7 @@ def test_ensure_app_created_application_no_longer_claims_applied_on_trust(monkey
 
 
 def test_ensure_app_verify_checks_the_application_it_found(monkeypatch):
-    """The card of an existing application matches – --verify asks whether it is alive."""
+    """The card of an existing application matches - --verify asks whether it is alive."""
     existing = {
         "id": "app-7",
         "display-name": "crm-dev",
@@ -672,7 +672,7 @@ def _server_with(monkeypatch, *commands):
 
 
 def test_plugin_command_becomes_a_tool_with_a_schema(monkeypatch):
-    """One declaration – and the tool has the types, the defaults and env_file.
+    """One declaration - and the tool has the types, the defaults and env_file.
 
     The signature of such a tool is only known at runtime, so it is assembled by
     hand; this is the check that the server builds the schema out of it.
@@ -690,7 +690,7 @@ def test_plugin_command_becomes_a_tool_with_a_schema(monkeypatch):
 
 
 def test_plugin_command_with_a_cli_alias_keeps_one_mcp_parameter(monkeypatch):
-    """cli_alias is a CLI-only convenience (see test_plugins.py) – the schema here is
+    """cli_alias is a CLI-only convenience (see test_plugins.py) - the schema here is
     exactly what a plugin without one would get: one parameter per declared argument."""
     from elemctl import plugins
 
@@ -859,7 +859,7 @@ def _load_mcp_server(monkeypatch, *, mcpserver, fastmcp):
     the installed one is proven by substitution: the modules the compatibility
     import reaches for are put into sys.modules and the file is executed again
     under a name of its own. None as the value is how a module is made
-    unimportable – the import machinery raises on it. The real
+    unimportable - the import machinery raises on it. The real
     elemctl.mcp_server, which the rest of the tests hold, is left alone.
     """
     from elemctl import mcp_server
@@ -889,7 +889,7 @@ def test_the_old_home_is_the_fallback(monkeypatch):
 
 
 def test_without_either_home_the_error_names_the_extra(monkeypatch):
-    """Neither of the two – the extra is not installed, and the message says so."""
+    """Neither of the two - the extra is not installed, and the message says so."""
     with pytest.raises(ImportError, match=r"elemctl\[mcp\]"):
         _load_mcp_server(monkeypatch, mcpserver=None, fastmcp=None)
 
@@ -897,8 +897,8 @@ def test_without_either_home_the_error_names_the_extra(monkeypatch):
 class _ServerTakingVersion:
     """A stand-in server class of the mcp 2.x shape: it records the construction.
 
-    The positional order is the one 2.x has – title and description sit between
-    the name and the instructions – so a call that passed instructions
+    The positional order is the one 2.x has - title and description sit between
+    the name and the instructions - so a call that passed instructions
     positionally would land in the wrong parameter and be caught here.
     """
 
@@ -932,7 +932,7 @@ def test_the_server_is_told_its_own_version_where_the_class_takes_one(monkeypatc
 
 
 def test_a_class_without_a_version_parameter_is_not_given_one(monkeypatch):
-    """mcp 1.x has no such parameter – handing it one would be a TypeError."""
+    """mcp 1.x has no such parameter - handing it one would be a TypeError."""
     from elemctl import mcp_server
 
     monkeypatch.setattr(mcp_server, "McpServer", _ServerWithoutVersion)
@@ -978,7 +978,7 @@ def _no_stray_element_env(monkeypatch):
     The tests in this section build real clients through Config.from_env, which reads the
     actual process environment whenever nothing overrides it. A developer's own
     ELEMENT_BASE_URL, set in their shell for convenience and never touched by the test
-    itself, would then outrank the file content or override every assertion here is about –
+    itself, would then outrank the file content or override every assertion here is about -
     the failure would depend on who happened to run the suite, and where.
     """
     from elemctl.config import BOOL_ENV_KEYS, ENV_KEYS
@@ -990,7 +990,7 @@ def _no_stray_element_env(monkeypatch):
 
 def _recording_client_factory():
     """A stand-in for ElementClient that remembers which config built it and whether it was
-    later closed – exactly the facts the cache behaviour under test turns on, with no real
+    later closed - exactly the facts the cache behaviour under test turns on, with no real
     client or network involved.
     """
     counter = itertools.count(1)
@@ -1020,7 +1020,7 @@ def _call_list_spaces(server, env_file=None):
     """Call list_spaces (optionally for one stand) and return its single answer row.
 
     list_spaces is declared -> list, and a one-item list comes back from call_tool as a single
-    content block holding that one item's JSON, not an array wrapping it – the same shape
+    content block holding that one item's JSON, not an array wrapping it - the same shape
     test_list_projects_passes_the_filters_and_keeps_the_cards_brief relies on above.
     """
     arguments = {"env_file": env_file} if env_file is not None else {}
@@ -1030,7 +1030,7 @@ def _call_list_spaces(server, env_file=None):
 
 def _server_via_cli_mcp(monkeypatch, argv, elementclient):
     """Build the server exactly the way `elemctl mcp` builds it: cli.main's own dispatch to
-    cmd_mcp, which calls the real mcp_server.main (itself calling the real create_server) –
+    cmd_mcp, which calls the real mcp_server.main (itself calling the real create_server) -
     only McpServer.run is replaced, handing the built server back instead of starting it. The
     real .run() blocks on stdio forever waiting for a client that never connects, and that is
     exactly the entry point that hid the startup bug this file guards against; replacing
@@ -1053,7 +1053,7 @@ def _server_via_cli_mcp(monkeypatch, argv, elementclient):
 
 
 def test_two_stands_served_by_one_process_do_not_mix(monkeypatch, tmp_path):
-    """Two env files, two clients – and asking for the first one again is a cache hit,
+    """Two env files, two clients - and asking for the first one again is a cache hit,
     not a third client."""
     from elemctl import mcp_server
 
@@ -1078,7 +1078,7 @@ def test_two_stands_served_by_one_process_do_not_mix(monkeypatch, tmp_path):
 
 
 def test_editing_one_stands_file_replaces_only_its_own_client(monkeypatch, tmp_path):
-    """The proxy hint's own example – adding ELEMCTL_NO_PROXY=1 to a stand's .env – must take
+    """The proxy hint's own example - adding ELEMCTL_NO_PROXY=1 to a stand's .env - must take
     effect on the very next call, and a neighbour stand served by the same process must not
     notice anything happened."""
     from elemctl import mcp_server
@@ -1110,7 +1110,7 @@ def test_editing_one_stands_file_replaces_only_its_own_client(monkeypatch, tmp_p
 
 
 def test_a_client_with_nothing_to_close_is_simply_replaced(monkeypatch, tmp_path):
-    """Not every client has a close() – ElementClient itself does not today – and the cache
+    """Not every client has a close() - ElementClient itself does not today - and the cache
     must not choke on the one it is holding when a file changes underneath it."""
     from elemctl import mcp_server
 
@@ -1141,7 +1141,7 @@ def test_a_client_with_nothing_to_close_is_simply_replaced(monkeypatch, tmp_path
 
 def test_default_env_file_is_watched_the_same_way_as_an_explicit_one(monkeypatch, tmp_path):
     """The exact shape `elemctl mcp` runs in: no --env-file, no other flag. A tool call
-    without env_file must re-read the .env of the working directory on every miss – built
+    without env_file must re-read the .env of the working directory on every miss - built
     through the CLI's own construction (cli.main -> cmd_mcp -> mcp_server.main), not through
     calling create_server() with nothing at all: that shortcut and what the CLI actually does
     used to differ in exactly the way that mattered here (cmd_mcp handed the server a
@@ -1164,7 +1164,7 @@ def test_default_env_file_is_watched_the_same_way_as_an_explicit_one(monkeypatch
 
 
 def test_a_cli_startup_override_wins_over_the_file_even_after_it_is_rebuilt(monkeypatch, tmp_path):
-    """--base-url on the elemctl mcp command line is the most explicit source there is –
+    """--base-url on the elemctl mcp command line is the most explicit source there is -
     Config.from_env's own precedence, explicit arguments over the file. A file edit that
     forces the default stand's client to be rebuilt must not lose that override along the way.
     """
@@ -1209,7 +1209,7 @@ def test_explicit_env_file_equal_to_the_default_path_shares_the_entry_with_the_n
     monkeypatch, tmp_path
 ):
     """A call that happens to name the working directory's own .env explicitly must land on
-    the very same cache entry as a call that left env_file out – they are the same stand."""
+    the very same cache entry as a call that left env_file out - they are the same stand."""
     RecordingClient, _created = _recording_client_factory()
     monkeypatch.chdir(tmp_path)
     (tmp_path / ".env").write_text("ELEMENT_BASE_URL=https://default.test\n", encoding="utf-8")
@@ -1225,7 +1225,7 @@ def test_explicit_env_file_equal_to_the_default_path_shares_the_entry_with_the_n
 def test_a_config_passed_to_create_server_directly_stays_pinned_unlike_the_cli_path(
     monkeypatch, tmp_path
 ):
-    """create_server(config=...) is the library-embedding entry point – cmd_mcp does not use
+    """create_server(config=...) is the library-embedding entry point - cmd_mcp does not use
     it any more (see test_default_env_file_is_watched_the_same_way_as_an_explicit_one, which
     goes through the CLI's own construction and DOES re-read a file). A Config object handed
     in this way has no file behind it for the cache to watch, so it stays pinned for the life
@@ -1276,7 +1276,7 @@ def _root_config_error_message(exc):
 
 def test_a_missing_env_file_gives_a_clear_error_through_the_tool(tmp_path):
     """An env_file named by a tool call that does not exist is refused through the same
-    ConfigError Config.from_env always raised for one – the cache adds no path of its own
+    ConfigError Config.from_env always raised for one - the cache adds no path of its own
     that could swallow it."""
     server = create_server()
     missing = tmp_path / "nope.env"
@@ -1289,7 +1289,7 @@ def test_a_missing_env_file_gives_a_clear_error_through_the_tool(tmp_path):
 
 def test_an_env_file_deleted_after_being_cached_is_noticed_on_the_next_call(monkeypatch, tmp_path):
     """A first, successful call must not leave the server trusting a client whose file is gone
-    by the time of the second call – silently carrying on with stale credentials is worse than
+    by the time of the second call - silently carrying on with stale credentials is worse than
     an error that says so."""
     from elemctl import mcp_server
 
@@ -1313,12 +1313,12 @@ def test_an_env_file_deleted_after_being_cached_is_noticed_on_the_next_call(monk
 
 def test_startup_identity_overrides_apply_only_without_an_explicit_env_file(monkeypatch, tmp_path):
     """--base-url/--client-id/--client-secret at elemctl mcp startup name the stand at the
-    startup address – the default stand, a call without its own env_file. A call naming a
+    startup address - the default stand, a call without its own env_file. A call naming a
     DIFFERENT stand explicitly must be built from that stand's own file untouched, exactly as
     it was on 4813d0a, before these flags reached the cache at all: a call to another stand
     landing on the startup host with a mixed set of credentials is the regression this pins
     down (the probe that first found it: `elemctl --env-file cloud.env --base-url
-    https://cloud.test --client-secret cloud-secret mcp`, then a call naming local.env –
+    https://cloud.test --client-secret cloud-secret mcp`, then a call naming local.env -
     which came back https://cloud.test with the cloud secret, instead of local.env's own).
     """
     RecordingClient, _created = _recording_client_factory()
@@ -1358,7 +1358,7 @@ def test_a_missing_explicit_env_file_fails_at_cli_startup_before_the_server_runs
     monkeypatch, tmp_path
 ):
     """A bad --env-file must not slip past startup quietly, the way it did once main() stopped
-    resolving a Config there – it is checked at the same place and with the same clear error
+    resolving a Config there - it is checked at the same place and with the same clear error
     as on 4813d0a, before create_server ever runs, so McpServer.run must never be reached."""
     from elemctl import cli, mcp_server
 
@@ -1377,7 +1377,7 @@ def test_a_missing_explicit_env_file_fails_at_cli_startup_before_the_server_runs
 
 def _counting_env_file_signature(monkeypatch):
     """Replace _env_file_signature with a version that keeps behaving exactly the same way but
-    also remembers how many times it was asked – the number of times client() actually went
+    also remembers how many times it was asked - the number of times client() actually went
     through its cache-lookup logic for one tool call, the thing create_app and ensure_app used
     to do several times over."""
     from elemctl import mcp_server
@@ -1395,7 +1395,7 @@ def _counting_env_file_signature(monkeypatch):
 
 class _FakeCreatingClient:
     """Creates an application, the way FakeCreatingClient in the tests above does, but also
-    answers latest_assembly – the one call _create_app makes that FakeCreatingClient has no
+    answers latest_assembly - the one call _create_app makes that FakeCreatingClient has no
     need for, since every test up there always names version_id explicitly."""
 
     def __init__(self, config):
@@ -1417,7 +1417,7 @@ class _FakeCreatingClient:
 def test_create_app_resolves_the_client_once_per_call(monkeypatch, tmp_path):
     """create_app used to look client(env_file) up separately for the source assembly
     (latest_assembly), for the creation itself, for the readiness wait and for the
-    verification – four lookups where one was meant, each re-reading the .env file's
+    verification - four lookups where one was meant, each re-reading the .env file's
     modification time and size on every one of them. Worse, a file edited mid-call could in
     principle hand the four steps four different clients. One resolution per tool call closes
     both gaps; project_id (rather than version_id) is what exercises all four sites at once."""
@@ -1452,7 +1452,7 @@ def test_create_app_resolves_the_client_once_per_call(monkeypatch, tmp_path):
 def test_ensure_app_resolves_the_client_once_per_call(monkeypatch, tmp_path):
     """ensure_app's own lookup (does the application already exist) used to be a separate
     client(env_file) call on top of whatever _create_app made once the answer turned out to
-    be no – three more of them here, since version_id is given and project_id is not. One
+    be no - three more of them here, since version_id is given and project_id is not. One
     resolution, shared with _create_app, means every step of one ensure_app call sees the
     same client instead of possibly several built from different moments of the same file."""
     from elemctl import mcp_server
@@ -1484,7 +1484,7 @@ def test_ensure_app_resolves_the_client_once_per_call(monkeypatch, tmp_path):
 
 
 def test_a_close_failure_does_not_orphan_the_new_client(monkeypatch, tmp_path):
-    """The client an edit is replacing used to be released BEFORE the new one was stored – an
+    """The client an edit is replacing used to be released BEFORE the new one was stored - an
     exception from its close() then left the cache pointing at the entry that was there
     before: the very client whose close() just failed, instead of the new, working one that
     had already been built. Storing first means a close() failure loses at most the close,
@@ -1521,7 +1521,7 @@ def test_a_close_failure_does_not_orphan_the_new_client(monkeypatch, tmp_path):
         _call_list_spaces(server, str(env_file))
     assert len(close_attempts) == 1
 
-    # Despite the failed close(), the cache must already hold the new, working client – a
+    # Despite the failed close(), the cache must already hold the new, working client - a
     # second call must succeed outright, not try (and fail) to close the same old client again.
     second = _call_list_spaces(server, str(env_file))
     assert second["base-url"] == "https://stand.test"
@@ -1529,13 +1529,13 @@ def test_a_close_failure_does_not_orphan_the_new_client(monkeypatch, tmp_path):
 
 
 def test_concurrent_calls_for_the_same_stand_build_one_client(monkeypatch, tmp_path):
-    """Every tool runs to completion before the next one starts today – the mcp package drives
-    calls one at a time over stdio – so nothing exercises this race yet; the point of a lock
+    """Every tool runs to completion before the next one starts today - the mcp package drives
+    calls one at a time over stdio - so nothing exercises this race yet; the point of a lock
     around the cache dictionary is to hold the guarantee regardless of how calls end up being
     dispatched later. This drives the race directly with real threads instead of waiting for
     a future dispatcher to create it: without a lock, several callers can each see the same
     stale (or missing) cache entry before any of them stores a replacement, and each ends up
-    building its own client – correct by accident today only because nothing calls in
+    building its own client - correct by accident today only because nothing calls in
     concurrently, and silently leaking every client but the last one the dictionary keeps."""
     from elemctl import mcp_server
 
@@ -1548,7 +1548,7 @@ def test_concurrent_calls_for_the_same_stand_build_one_client(monkeypatch, tmp_p
     class SlowClient:
         def __init__(self, config):
             # Held here to widen the window between the cache-miss check and the cache being
-            # written to – exactly the window a lock around that whole sequence has to close.
+            # written to - exactly the window a lock around that whole sequence has to close.
             build_gate.wait(timeout=5)
             self.config = config
             with created_lock:

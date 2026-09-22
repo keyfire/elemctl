@@ -48,7 +48,7 @@ def parse_bool(value, *, name):
 
 def ensure_env_file_exists(env_file):
     """Raise the clear ConfigError Config.from_env gives a bad explicit env_file, without
-    building a Config – so the CLI's mcp command can fail fast on a bad --env-file at
+    building a Config - so the CLI's mcp command can fail fast on a bad --env-file at
     startup, before Config.from_env's own check would only ever run on the first call.
 
     Returns the resolved Path on success, since from_env needs it right after this check too.
@@ -112,7 +112,7 @@ class Config:
     tls_strict: bool = True
     #: Bypass the environment's proxy for every request of this configuration (ELEMCTL_NO_PROXY).
     #: A tool-behaviour switch rather than a platform contract field, so it has no ENV_KEYS
-    #: entry of its own – from_env resolves it through its own explicit-argument/NO_PROXY_ENV
+    #: entry of its own - from_env resolves it through its own explicit-argument/NO_PROXY_ENV
     #: precedence instead.
     no_proxy: bool = False
     timeout: float = field(default=DEFAULT_TIMEOUT)
@@ -129,8 +129,8 @@ class Config:
     def from_env(cls, env_file=None, environ=None, **overrides):
         """Collect the configuration: explicit arguments > environment > .env file.
 
-        env_file – the path to the .env; without it the .env file in the current
-        directory is taken, if it exists. environ – the source of the environment
+        env_file - the path to the .env; without it the .env file in the current
+        directory is taken, if it exists. environ - the source of the environment
         variables (os.environ by default; the parameter is there for the tests).
         """
         env = os.environ if environ is None else environ
@@ -163,8 +163,8 @@ class Config:
             elif file_values.get(env_key) not in (None, ""):
                 values[field_name] = parse_bool(file_values[env_key], name=env_key)
 
-        # no_proxy follows the same three-source precedence as every other field above –
-        # explicit argument, then process environment, then the file – but not the strict
+        # no_proxy follows the same three-source precedence as every other field above -
+        # explicit argument, then process environment, then the file - but not the strict
         # parse_bool of BOOL_ENV_KEYS: it keeps the permissive reading ELEMCTL_NO_PROXY always
         # had, so a typo does not raise where it used to just leave the proxy in place. The
         # file source matters for MCP: a call only carries env_file, and a process variable

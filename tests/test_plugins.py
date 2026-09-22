@@ -1,6 +1,6 @@
 """Plugin system tests: discovering the debug adapter through entry points.
 
-No real plugin package is installed – the entry points are replaced with stubs and the
+No real plugin package is installed - the entry points are replaced with stubs and the
 adapter directories are assembled in temporary folders.
 """
 
@@ -31,7 +31,7 @@ def _make_adapter_dir(path: Path, jar="com.e1c.g5rt.debugger.adapter-9.2.8-1.jar
 
 
 class _StubEP:
-    """An entry point with a ready-made object – no real package installed."""
+    """An entry point with a ready-made object - no real package installed."""
 
     value = "стаб"
 
@@ -192,7 +192,7 @@ def test_commands_discovered_from_a_list_and_from_a_callable(monkeypatch):
     found = plugins.plugin_commands()
 
     assert [c.name for c in found] == ["warm-up", "one", "two"]
-    # The source is filled in by discovery – that is what the diagnostics shows.
+    # The source is filled in by discovery - that is what the diagnostics shows.
     assert [c.source for c in found] == ["а-список", "б-одна", "в-функция"]
 
 
@@ -424,7 +424,7 @@ def test_cli_plugin_command_without_a_cli_alias_still_refuses_the_key_form(monke
 
 
 def test_cli_plugin_command_alias_falls_back_to_the_declared_default(monkeypatch, capsys):
-    """An optional aliased positional keeps its own default when neither form is given –
+    """An optional aliased positional keeps its own default when neither form is given -
     not argparse's own None, which would silently override what the plugin declared."""
     _with_commands(monkeypatch, _command(
         arguments=[plugins.Argument("retries", type=int, default=7, cli_alias="--retries")],

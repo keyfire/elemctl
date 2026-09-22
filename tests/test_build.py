@@ -44,7 +44,7 @@ def _fill_library(project_dir):
         encoding="utf-8",
     )
     (subsystem / "Структуры" / "ОписаниеТокена.yaml").write_text(
-        # Without ОбластьВидимости – the default is ВПодсистеме, the type is not visible outside.
+        # Without ОбластьВидимости - the default is ВПодсистеме, the type is not visible outside.
         "ВидЭлемента: Структура\nИмя: ОписаниеТокена\n",
         encoding="utf-8",
     )
@@ -69,7 +69,7 @@ def _fill_project(project_dir):
     (project_dir / "Основная" / "Ресурсы" / "Шаблон.docx").write_bytes(b"DOCX fake")
     # The junk that must not get into the archive:
     (project_dir / "заметка.tmp").write_text("temp", encoding="utf-8")
-    (project_dir / "протокол.pdf").write_bytes(b"%PDF fake")  # outside Ресурсы – the whitelist
+    (project_dir / "протокол.pdf").write_bytes(b"%PDF fake")  # outside Ресурсы - the whitelist
     (project_dir / "Ресурсы" / ".env").write_text("SECRET=1", encoding="utf-8")
     (project_dir / "Ресурсы" / "сборка 1.0-2.xasm").write_bytes(b"PK")
     (project_dir / ".env").write_text("SECRET=1", encoding="utf-8")
@@ -111,7 +111,7 @@ def test_archive_composition_and_manifest(project_factory, tmp_path):
         "acme/crm/Ресурсы/СчётНаОплату.mxl",
         "acme/crm/Ресурсы/Шаблоны/Письмо.htm",
     }
-    # Path separators – forward slashes only.
+    # Path separators - forward slashes only.
     assert not any("\\" in name for name in names)
 
     assert "ManifestVersion: 1.0" in manifest
@@ -237,7 +237,7 @@ def test_library_gets_release_line_and_xlib_extension(project_factory, tmp_path)
     with zipfile.ZipFile(result.file) as archive:
         manifest = archive.read("Assembly.yaml").decode("utf-8")
     assert "ProjectKind: Library" in manifest
-    # The Release: line (with an empty value) – at the end of the manifest.
+    # The Release: line (with an empty value) - at the end of the manifest.
     assert manifest.rstrip().splitlines()[-1] == "Release:"
 
 
@@ -290,7 +290,7 @@ def test_missing_project_yaml_raises(tmp_path):
 
 
 def test_layout_scheme_enforced(tmp_path):
-    # The directory name does not match the "Имя" field – that breaks the layout scheme.
+    # The directory name does not match the "Имя" field - that breaks the layout scheme.
     project_dir = tmp_path / "repo" / "acme" / "другое-имя"
     project_dir.mkdir(parents=True)
     (project_dir / "Проект.yaml").write_text(
@@ -461,7 +461,7 @@ def test_project_meta_english_library_kind(tmp_path):
 def test_project_meta_mixed_keys_version_not_lost(tmp_path):
     """Russian Имя/Поставщик and an English Version: the version is not replaced by the default.
 
-    The build used to silently get "1.0" instead of the declared one – the artifact
+    The build used to silently get "1.0" instead of the declared one - the artifact
     name and the version drifted apart from the project.
     """
     project_dir = tmp_path / "repo-mixed" / "acme" / "crm"
@@ -749,7 +749,7 @@ def _soap_client(project_dir, name="КлиентСервисаМагазина",
 
 
 def test_the_description_of_a_soap_client_goes_into_the_archive(project_factory):
-    """.Wsdl.1 and .Xsd lie NEXT TO the element, not in Ресурсы – and are still taken."""
+    """.Wsdl.1 and .Xsd lie NEXT TO the element, not in Ресурсы - and are still taken."""
     project_dir = project_factory()
     _soap_client(project_dir)
 
@@ -762,7 +762,7 @@ def test_the_description_of_a_soap_client_goes_into_the_archive(project_factory)
 
 
 def test_further_wsdl_files_of_a_soap_client_are_taken_too(project_factory):
-    """A referenced WSDL arrives as .Wsdl.2 and further – the pattern covers the numbering."""
+    """A referenced WSDL arrives as .Wsdl.2 and further - the pattern covers the numbering."""
     project_dir = project_factory()
     package = _soap_client(project_dir)
     (package / "КлиентСервисаМагазина.Wsdl.2").write_text("<definitions/>", encoding="utf-8")

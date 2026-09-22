@@ -44,7 +44,7 @@ def test_version_flag(capsys):
 def test_help_text_follows_lang_flag(capsys):
     """--lang translates the help text (--help) as well, not only the runtime errors: the
     language is resolved before the parser is built. Both directions are checked with an
-    explicit flag – that does not depend on the machine locale. conftest pinned ru; restore
+    explicit flag - that does not depend on the machine locale. conftest pinned ru; restore
     it afterwards."""
     from elemctl import i18n
 
@@ -62,7 +62,7 @@ def test_help_text_follows_lang_flag(capsys):
 
 
 def test_module_entry_point():
-    """python -m elemctl – the fallback path for callers without the console entry point in PATH."""
+    """python -m elemctl - the fallback path for callers without the console entry point in PATH."""
     import_root = Path(elemctl.__file__).resolve().parent.parent
     env = {**os.environ, "PYTHONPATH": str(import_root)}
     result = subprocess.run([sys.executable, "-m", "elemctl", "--version"],
@@ -403,7 +403,7 @@ def test_apps_ensure_says_how_to_sign_in(monkeypatch, capsys):
 
 
 def test_apps_create_adds_the_way_in_without_losing_the_card(monkeypatch, capsys):
-    """create prints the card of the platform as before – the hint is an ADDITION to it."""
+    """create prints the card of the platform as before - the hint is an ADDITION to it."""
 
     class FakeClient:
         def create_app(self, display_name, **kwargs):
@@ -494,7 +494,7 @@ def test_apps_create_wait_now_proves_the_build_really_landed(monkeypatch, capsys
     """--wait used to report a Running application and nothing more.
 
     A failed apply is rolled back by the platform to the previous build, and the
-    application comes up Running all the same – so waiting without checking hands
+    application comes up Running all the same - so waiting without checking hands
     back a card that says success on a stand that has none.
     """
     fake = FakeCreateClient()
@@ -547,7 +547,7 @@ def test_apps_create_no_verify_brings_the_plain_wait_back(monkeypatch, capsys):
 
 
 def test_apps_create_verify_waits_by_itself(monkeypatch, capsys):
-    """There is nothing to check on an application still being created – --verify waits."""
+    """There is nothing to check on an application still being created - --verify waits."""
     fake = FakeCreateClient()
     monkeypatch.setattr(cli, "make_client", lambda config: fake)
     _record_verify(monkeypatch, ok=True)
@@ -650,7 +650,7 @@ def test_apps_ensure_verify_checks_the_application_it_found(monkeypatch, capsys)
     """--verify over an existing application: the card matches, but is it alive?
 
     The comparison out of the card is free and answers the main question; the rest
-    of the check – the failed tasks and the uri – is what --verify adds to it.
+    of the check - the failed tasks and the uri - is what --verify adds to it.
     """
     fake = FakeApplyClient(applied="asm-1")
     monkeypatch.setattr(cli, "make_client", lambda config: fake)
@@ -867,7 +867,7 @@ class FakeAssembliesClient:
 
 def test_builds_list_shows_the_latest_ten_and_says_so(monkeypatch, capsys):
     """A project accumulates assemblies by the thousand: the default answer is the ten
-    newest, and the cut is not silent – the count of what was left out goes to stderr."""
+    newest, and the cut is not silent - the count of what was left out goes to stderr."""
     monkeypatch.setattr(cli, "make_client", lambda config: FakeAssembliesClient(_assembly_cards(15)))
 
     rc = cli.main(["builds", "list", "--project-id", "proj-1"])
@@ -879,12 +879,12 @@ def test_builds_list_shows_the_latest_ten_and_says_so(monkeypatch, capsys):
         f"1.0-{number}" for number in range(15, 5, -1)
     ]
     assert "10" in captured.err and "15" in captured.err
-    # The full cards stay full by default – brevity is a separate flag.
+    # The full cards stay full by default - brevity is a separate flag.
     assert payload[0]["project-developer"] == "acme"
 
 
 def test_builds_list_limit_zero_prints_everything(monkeypatch, capsys):
-    """The whole answer in stdout – and the count line still in stderr: what the platform
+    """The whole answer in stdout - and the count line still in stderr: what the platform
     keeps is a fact about the answer, not about the cut, so it is said every time."""
     monkeypatch.setattr(cli, "make_client", lambda config: FakeAssembliesClient(_assembly_cards(15)))
 
@@ -997,7 +997,7 @@ def test_builds_upload_reports_env_project_id_source(
 ):
     """The target from ELEMENT_PROJECT_ID is no longer silent: the source in JSON, a hint on stderr.
 
-    An assembly of a foreign project once landed in the project from env – the recipe
+    An assembly of a foreign project once landed in the project from env - the recipe
     "an upload without --project-id creates a new project" did not work, and nothing
     reported it.
     """
@@ -1017,7 +1017,7 @@ def test_builds_upload_reports_env_project_id_source(
     assert fake.upload_kwargs["project_id"] == "proj-env"
     assert "ELEMENT_PROJECT_ID" in captured.err
     assert "--new-project" in captured.err
-    # The assembly name (crm) matched the project name – there is no mismatch warning.
+    # The assembly name (crm) matched the project name - there is no mismatch warning.
     assert "внимание" not in captured.err
 
 
@@ -1035,7 +1035,7 @@ def test_builds_upload_new_project_ignores_env(monkeypatch, capsys, project_fact
     assert payload["project-id"] is None
     assert payload["project-id-source"] is None
     assert fake.upload_kwargs["project_id"] is None
-    # There is no target project – the project card is not requested.
+    # There is no target project - the project card is not requested.
     assert fake.get_project_calls == []
 
 
@@ -1060,7 +1060,7 @@ def test_builds_upload_refuses_when_assembly_name_differs(
     """A mismatch between the assembly name and the target project is a refusal.
 
     The console shows the project under the name of the last uploaded assembly, so a
-    foreign assembly renames the project and its group – and deleting the assembly does
+    foreign assembly renames the project and its group - and deleting the assembly does
     not undo it. A warning printed a moment before the irreversible act reads as a hint;
     the fork has to be taken deliberately.
     """
@@ -1149,7 +1149,7 @@ def test_builds_upload_force_rename_uploads_and_names_the_price(
     assert payload["project-id-source"] == "flag"
     assert fake.upload_kwargs["project_id"] == "proj-1"
     assert "'crm'" in captured.err and "'acme-site'" in captured.err
-    # The target is set by a flag rather than by the environment – there is no env hint.
+    # The target is set by a flag rather than by the environment - there is no env hint.
     assert "ELEMENT_PROJECT_ID" not in captured.err
 
 
@@ -1196,7 +1196,7 @@ def test_deploy_exit_code_reflects_ok(monkeypatch, capsys, project_factory, tmp_
     assert rc == 0
     assert json.loads(captured.out)["ok"] is True
 
-    # A rollback: the version did not match – exit code 1.
+    # A rollback: the version did not match - exit code 1.
     monkeypatch.setattr(
         cli, "make_client", lambda config: FakeDeployClient(applied_version="1.0-0")
     )
@@ -1227,7 +1227,7 @@ def test_mcp_command_forwards_env_file(monkeypatch, tmp_path):
     configuration resolved from it up front.
 
     A pre-resolved Config would pin the server to whatever the file said at that one instant
-    – mcp_server.client() only re-reads a file it was itself handed a path to watch.
+    - mcp_server.client() only re-reads a file it was itself handed a path to watch.
     """
     pytest.importorskip("mcp", reason="extra elemctl[mcp] не установлен")
     from elemctl import mcp_server
@@ -1260,9 +1260,9 @@ def test_mcp_command_forwards_startup_overrides(monkeypatch):
     overrides, not folded once into a pre-resolved configuration the way
     test_mcp_command_forwards_env_file shows env_file itself no longer is.
 
-    What mcp_server.client() does with them once they arrive – base_url/client_id/
+    What mcp_server.client() does with them once they arrive - base_url/client_id/
     client_secret applied only to a call without its own env_file, timeout applied to every
-    stand – is that function's own contract, covered where it is implemented."""
+    stand - is that function's own contract, covered where it is implemented."""
     pytest.importorskip("mcp", reason="extra elemctl[mcp] не установлен")
     from elemctl import mcp_server
 
@@ -1319,7 +1319,7 @@ def test_build_version_from_ci_env_via_cli(project_factory, tmp_path, capsys, mo
 
 
 def test_build_require_clean_dirty_tree_aborts(project_factory, tmp_path, capsys, monkeypatch):
-    """--require-clean: a dirty tree – a refusal BEFORE the build, no archive is created."""
+    """--require-clean: a dirty tree - a refusal BEFORE the build, no archive is created."""
     monkeypatch.setattr(cli, "git_dirty_files", lambda directory: ["acme/crm/Проект.xbsl"])
     out_dir = tmp_path / "dist"
     rc = cli.main(
@@ -1357,7 +1357,7 @@ def test_build_refuses_connection_options(project_factory, tmp_path, capsys):
     """--env-file on a local build is a refusal, not a silently dropped option.
 
     The option changed nothing, and a call carrying it read as a build bound to a
-    stand – twice that left the reader asking whether the build talks to the server.
+    stand - twice that left the reader asking whether the build talks to the server.
     The refusal comes BEFORE the work: no archive is written.
     """
     env_file = tmp_path / "stand.env"
@@ -1607,7 +1607,7 @@ def test_apps_list_brief_cards(monkeypatch, capsys):
 
 def test_apps_list_hides_the_deleted_ones_and_counts_them_out_loud(monkeypatch, capsys):
     """The listing of a long-lived stand is nearly all deleted cards. They are cut,
-    and the count line says how much was cut – on stderr, so stdout stays the JSON
+    and the count line says how much was cut - on stderr, so stdout stays the JSON
     array a script parses."""
 
     class FakeClient:
@@ -1654,7 +1654,7 @@ def test_apps_list_include_deleted_reaches_the_client(monkeypatch, capsys):
     ],
 )
 def test_other_list_commands_answer_in_stdout_alone(monkeypatch, capsys, argv, client_attr, answer):
-    """Every other list command prints nothing of its own before or after the answer – stdout
+    """Every other list command prints nothing of its own before or after the answer - stdout
     is the array, start to finish, and stderr is empty. None of them call _progress at all, so
     there is no line that could ever race the answer."""
     client = type("FakeClient", (), {client_attr: lambda self, *a, **k: answer})()
@@ -1734,7 +1734,7 @@ def test_json_flag_is_accepted_after_the_subcommand():
 def test_json_keeps_a_stray_print_out_of_stdout(monkeypatch, capsys):
     """The promise of --json is kept by the streams, not by the discipline of handlers.
 
-    A command that prints a line of its own – a plugin's report, a library's warning –
+    A command that prints a line of its own - a plugin's report, a library's warning -
     used to leave that line in stdout ahead of the JSON, which is exactly what made
     callers hunt for the first brace instead of parsing the stream whole.
     """
@@ -1763,7 +1763,7 @@ def test_without_json_a_stray_print_still_lands_in_stdout(monkeypatch, capsys):
 
 
 def test_json_leaves_progress_lines_on_stderr(monkeypatch, capsys):
-    """The summary of apps list goes to stderr as before – stdout holds the cards alone."""
+    """The summary of apps list goes to stderr as before - stdout holds the cards alone."""
     cards = [{"id": "a1", "name": "crm-dev", "status": "Running"}]
 
     class FakeClient:
@@ -1783,7 +1783,7 @@ def _run_cli_child(tmp_path, script_body, argv):
 
     A real process is the only way to see this class of bug: capsys replaces sys.stdout/stderr
     with in-memory objects and never exercises the operating system's own buffering, which is
-    exactly where it lives – off a terminal Python block-buffers stdout while stderr goes
+    exactly where it lives - off a terminal Python block-buffers stdout while stderr goes
     through right away, so bytes can leave in a different order than the calls that wrote them.
     """
     script = tmp_path / "probe.py"
@@ -1845,13 +1845,13 @@ def test_the_answer_is_the_json_a_merged_stream_starts_with(
     tmp_path, script_body, argv, note_substring
 ):
     """The contract: stdout captured alone is pure JSON (that is what --json guarantees, and
-    what a caller who separates the streams – the normal way to call a CLI tool – already
-    gets). In a merged capture (`2>&1`, or stderr=STDOUT – a plain way to catch "everything the
+    what a caller who separates the streams - the normal way to call a CLI tool - already
+    gets). In a merged capture (`2>&1`, or stderr=STDOUT - a plain way to catch "everything the
     tool printed" for a log) a whole-string json.loads is NOT promised: the notes still follow
     the answer as "extra data" once decoded, and that is fine, because the answer is what a
     parser needs and it is exactly where raw_decode expects the first value to start. What IS
     promised, and what this checks: the JSON decodes from the very first character of a merged
-    capture, in full, and only the explanatory notes – never part of the answer – trail it.
+    capture, in full, and only the explanatory notes - never part of the answer - trail it.
     """
     alone, merged = _run_cli_child(tmp_path, script_body, argv)
     assert alone.returncode == 0, alone.stderr

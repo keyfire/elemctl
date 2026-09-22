@@ -27,8 +27,8 @@ def test_extract_token_field_order_and_not_implemented():
 
 
 def test_config_no_proxy_reaches_the_real_transport():
-    """ElementClient builds its own transport straight from the config – the same way
-    tls_verify and ca_file already do – so a no_proxy resolved from a stand's .env has to
+    """ElementClient builds its own transport straight from the config - the same way
+    tls_verify and ca_file already do - so a no_proxy resolved from a stand's .env has to
     reach it too, or the value Config just worked out has nowhere to take effect."""
     config = Config(
         base_url="https://api.test", client_id="cid", client_secret="secret", no_proxy=True
@@ -38,10 +38,10 @@ def test_config_no_proxy_reaches_the_real_transport():
 
 
 def test_hand_built_config_still_lets_the_process_variable_switch_the_proxy_off(monkeypatch):
-    """Config(...) built by hand, without from_env, carries no_proxy=False by default – not
+    """Config(...) built by hand, without from_env, carries no_proxy=False by default - not
     because ELEMCTL_NO_PROXY was read and found unset, but because nothing read it at all.
     ElementClient must not treat that default as a final, resolved "no" and silence the
-    process variable underneath it – only Config.from_env's own resolution is final."""
+    process variable underneath it - only Config.from_env's own resolution is final."""
     monkeypatch.setenv("ELEMCTL_NO_PROXY", "1")
     config = Config(base_url="https://api.test", client_id="cid", client_secret="secret")
     client = ElementClient(config)
@@ -113,7 +113,7 @@ def test_find_app_skips_deleted(api):
             {"id": "live", "display-name": "site", "status": "Running"},
         ],
     )
-    # The deleted card is skipped – the live application with the same name is found.
+    # The deleted card is skipped - the live application with the same name is found.
     assert client.find_app("site")["id"] == "live"
 
 
@@ -381,7 +381,7 @@ def _error_card(app_id="app-1"):
 def test_wait_app_ready_reports_task_errors(api):
     """Status Error: the platform's generic text is enriched with the task errors.
 
-    That is the very reason the method exists – the compilation details live in the task
+    That is the very reason the method exists - the compilation details live in the task
     alone, and without them the cause has to be dug out of the server logs.
     """
     client, transport = api
@@ -620,7 +620,7 @@ def test_resolve_app_id_unknown_name_is_config_error(api):
 
 
 def test_resolve_app_id_ambiguous_name_is_config_error(api):
-    """Several matches – an error listing the ids: delete must never guess which one is meant."""
+    """Several matches - an error listing the ids: delete must never guess which one is meant."""
     client, transport = api
     transport.add(
         "GET",
@@ -649,7 +649,7 @@ def _failed_compile_task(app_id="app-1"):
 
 
 def test_ensure_running_stops_immediately_on_error_status(api):
-    """A steady Error after the apply – an immediate error carrying the task texts.
+    """A steady Error after the apply - an immediate error carrying the task texts.
 
     ensure_running used to try to stop such an application and waited for Stopped
     until the full timeout (180 s), even though Error never turns into Stopped.
@@ -908,7 +908,7 @@ def test_list_apps_counted_says_how_many_were_answered_and_shown(api):
 
 def test_list_apps_counted_keeps_the_total_of_the_whole_answer(api):
     """A name filter narrows what is shown; total and live stay the numbers of the
-    platform answer – that is what "N of M" is counted against."""
+    platform answer - that is what "N of M" is counted against."""
     client, transport = api
     transport.add("GET", f"{API}/applications", APPS_PAGE)
 
@@ -926,7 +926,7 @@ def test_apps_summary_names_the_live_ones_and_the_whole_answer(api):
 
 
 def test_apps_summary_adds_the_shown_count_when_it_differs(api):
-    """With a filter of its own – or with the deleted ones asked for – the number
+    """With a filter of its own - or with the deleted ones asked for - the number
     shown is not the number of live applications, and the line says both."""
     client, transport = api
     transport.add("GET", f"{API}/applications", APPS_PAGE)

@@ -21,6 +21,11 @@ entry either – say what the behaviour was, not which id or response field was 
 The link is written by `python scripts/changelog-link.py <number>`, which rebuilds the generated
 pages of the site in the same run – writing it by hand is how the mirrors get left behind.
 
+## Unreleased
+
+### Changed
+- Python comments and docstrings consistently use hyphens. Ordinary string literals remain unchanged.
+
 ## 2026-09-22 – 0.43.1
 
 ### Fixed

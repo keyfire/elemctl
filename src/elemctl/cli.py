@@ -63,7 +63,7 @@ _answer_stream = None
 def _emit(data):
     """Print the answer and flush it immediately.
 
-    Off a terminal Python block-buffers stdout, while stderr goes through right away – a
+    Off a terminal Python block-buffers stdout, while stderr goes through right away - a
     caller who merges the streams (`2>&1`, or stderr=STDOUT, a plain way to capture "everything
     the tool printed" for a log) then saw a later _progress line overtake an _emit that ran
     first in the source, and a parser hunting for the first brace found a summary line instead.
@@ -80,7 +80,7 @@ def _json_only():
     """--json: only the answer reaches stdout, everything else goes to stderr.
 
     The promise is kept by the streams themselves rather than by discipline: a
-    print of a plugin command, a warning of a library, a stray debug line – all of
+    print of a plugin command, a warning of a library, a stray debug line - all of
     them land on stderr, because for the duration of the call sys.stdout IS stderr.
     _emit keeps writing to the real stdout, which is remembered here.
     """
@@ -95,7 +95,7 @@ def _json_only():
 
 def _progress(message):
     # stderr is already line-buffered on every supported Python, so this changes nothing in
-    # practice – it is here so the order _emit relies on is an explicit guarantee in the code,
+    # practice - it is here so the order _emit relies on is an explicit guarantee in the code,
     # not an assumption about the interpreter's default that the next reader has to go verify.
     print(message, file=sys.stderr)
     sys.stderr.flush()
@@ -108,7 +108,7 @@ def _fail(payload):
 
 
 def _reconfigure_streams():
-    """Switch the console output to UTF-8 – otherwise Cyrillic breaks on Windows."""
+    """Switch the console output to UTF-8 - otherwise Cyrillic breaks on Windows."""
     for stream in (sys.stdout, sys.stderr):
         reconfigure = getattr(stream, "reconfigure", None)
         if reconfigure is not None:
@@ -169,14 +169,14 @@ def _refuse_connection_options(args, command):
 
     `build` and `inspect` never reach the platform: the archive is assembled from
     the sources on disk, and no version number is reserved on the server. The
-    options used to be accepted and quietly dropped – and a call that carries
+    options used to be accepted and quietly dropped - and a call that carries
     `--env-file` LOOKS like a build bound to a stand, which twice left the reader
     asking whether the build talks to the server after all.
 
     A refusal rather than a warning, for three reasons. Nothing stops working:
     the options changed nothing, so the only calls it breaks are the ones that
     already meant something else. A warning would land on stderr, next to the
-    progress lines, where a CI log buries it – and silence of exactly that kind is
+    progress lines, where a CI log buries it - and silence of exactly that kind is
     what caused the doubt. And the refusal answers the question the caller really
     had: it says outright that a local build does not go to the platform, and
     names the commands that do.
@@ -262,7 +262,7 @@ def cmd_apps_find(args):
 
     The exit code is 0 in both cases: the found field carries the verdict. A non-zero exit
     code means the request itself failed (no access, network, configuration) and comes with
-    JSON carrying an error field on stderr – otherwise the caller cannot tell "there is no
+    JSON carrying an error field on stderr - otherwise the caller cannot tell "there is no
     stand" from "we failed to ask".
 
     Deleted applications (status Deleted) are skipped by default, so that the id found is fit
@@ -401,7 +401,7 @@ def _report_sign_in(card):
     A stand nobody can get into is not a ready stand, and the way in is not
     guessable: the accounts used elsewhere do not work in a fresh application
     (client.sign_in_hint). The text goes to stderr, where the rest
-    of the progress goes, and the machine-readable twin goes into the JSON – an
+    of the progress goes, and the machine-readable twin goes into the JSON - an
     agent reading only stdout must learn it too.
     """
     hint = sign_in_hint(card)
@@ -500,8 +500,8 @@ def cmd_apps_ensure(args):
     """Idempotently bring an application with the given name into existence.
 
     It looks the application up by the rules of apps find (deleted ones, in
-    status Deleted, do not count): if it is already there – it does nothing and
-    returns created: false; if it is not – it creates one from the creation flags
+    status Deleted, do not count): if it is already there - it does nothing and
+    returns created: false; if it is not - it creates one from the creation flags
     and returns created: true. An existing application is never re-created:
     delete + create give a new URL and break the external links to the previous
     one. The exit code is 0 in both cases; a failed request is JSON with an error
@@ -690,9 +690,9 @@ def cmd_builds_list(args):
 
     Neither cut is silent, and there are two of them. The tool's own is the limit.
     The platform's is its housekeeping: it deletes the builds nobody uses, whatever
-    their age, so a listing is not the project's history – it is what survived. The
+    their age, so a listing is not the project's history - it is what survived. The
     count line says which of the two the reader is looking at (builds_summary reads
-    that off the gaps in the build numbering), and it is printed always – after the
+    that off the gaps in the build numbering), and it is printed always - after the
     answer, the same order apps list uses: a listing without it was read as "the
     project has exactly these builds", and a caller capturing the two streams as one
     must still find the answer first.
@@ -707,7 +707,7 @@ def cmd_builds_list(args):
     truncated = args.limit > 0 and len(assemblies) > args.limit
     if truncated:
         shown = assemblies[: args.limit]
-    # Counted before --brief reshapes the cards: the whole answer, not the cut one –
+    # Counted before --brief reshapes the cards: the whole answer, not the cut one -
     # what the platform left out is judged by the numbering of everything it did
     # return, and the count of a card does not change when its fields do.
     shown_count = len(shown)
@@ -733,8 +733,8 @@ def cmd_builds_get(args):
 def _upload_target(args, config):
     """The target project of the upload and the source of that choice.
 
-    The sources: "flag" – the --project-id flag, "env" – ELEMENT_PROJECT_ID from
-    the environment or the .env file, None – no project is set, the platform will
+    The sources: "flag" - the --project-id flag, "env" - ELEMENT_PROJECT_ID from
+    the environment or the .env file, None - no project is set, the platform will
     create a new one. The --new-project flag switches the binding from the
     environment off; together with --project-id it is contradictory, which is a
     call error.
@@ -950,7 +950,7 @@ def _user_list_id(client, args):
     """The id of the target user list: from the argument or from the application.
 
     Exactly one of the two is expected. --app takes the application's own list
-    (default-user-list of its card) – that is the everyday case: the settings of
+    (default-user-list of its card) - that is the everyday case: the settings of
     the checklist are made on the list of a particular application, and its
     presentation is named after the application anyway.
     """
@@ -1026,8 +1026,8 @@ def _calculation_rules(args):
 def cmd_user_lists_calculation_rules(args):
     """The rules that build a user from the provider's answer: show the target or write them.
 
-    Without values the command does not pretend to show the rules – the platform does not
-    return them – it names the service they would go to and says why there is nothing to
+    Without values the command does not pretend to show the rules - the platform does not
+    return them - it names the service they would go to and says why there is nothing to
     show. Writing reports honestly what was confirmed and what could not be.
     """
     client = make_client(_config(args))
@@ -1061,7 +1061,7 @@ def cmd_user_lists_calculation_rules(args):
 
 
 def cmd_user_lists_password_login(args):
-    """Signing in with a login and a password – the account service of type Local.
+    """Signing in with a login and a password - the account service of type Local.
 
     Without a flag the command answers with the current state; the answer says
     `enabled: null` when the list has no such service at all (nothing to sign in
@@ -1209,7 +1209,7 @@ def cmd_tech_set(args):
 def cmd_debug_adapter(args):
     """The path to the platform debug adapter directory brought by the plugin.
 
-    The directory holds a repo/ subdirectory with the jar files of the adapter – that is
+    The directory holds a repo/ subdirectory with the jar files of the adapter - that is
     the ready value of the xbsl.debug.adapterPath setting for the VS Code extension. A
     missing plugin is an answer (found: false, code 0), not an error: a non-zero code
     would mean a failure.
@@ -1223,10 +1223,10 @@ def cmd_debug_adapter(args):
 
 
 def cmd_plugins(args):
-    """Plugin diagnostics: what the plugins bring – adapter directories and commands.
+    """Plugin diagnostics: what the plugins bring - adapter directories and commands.
 
     The adapter directories are listed jar-less ones included (that is exactly
-    what a diagnostic is for), the commands – with the entry point they arrived
+    what a diagnostic is for), the commands - with the entry point they arrived
     through and whether they are exposed to MCP. The failures name the plugins
     left out and the reason: a plugin that did not load, or a command that would
     have taken over a name of the core.
@@ -1271,15 +1271,15 @@ def cmd_mcp(args):
         from . import mcp_server
     except ImportError:
         raise ElemctlError(i18n.t("cli.mcp-extra-required"))
-    # A bad --env-file still fails right here, before the server starts – the same check
+    # A bad --env-file still fails right here, before the server starts - the same check
     # Config.from_env would raise on the first call, just not deferred to it: a typo in a
     # path given explicitly on this command line is worth knowing about immediately, not
     # minutes into a session. Other default-stand configuration problems (a bad
     # ELEMENT_TLS_VERIFY, credentials missing entirely) are NOT resolved here on purpose: not
     # _config(args), which used to build a whole Config up front and hand it to mcp_server as
-    # a ready object – that pinned it for the life of the process, so the default stand's
+    # a ready object - that pinned it for the life of the process, so the default stand's
     # .env, edited after the server started, was never re-read. Only the genuine overrides
-    # (the flags actually given – base URL, client id and the rest) and --env-file, if any,
+    # (the flags actually given - base URL, client id and the rest) and --env-file, if any,
     # are passed instead; every call still without its own env_file rebuilds from the file on
     # an edit, the overrides applied on top each time.
     if args.env_file:
@@ -1348,7 +1348,7 @@ class _AliasedPositional(argparse.Action):
 
     argparse hands an optional positional its own default when the command line carried
     none, and that default would land on the dest the key form had just filled. Here the
-    default is _MISSING, and seeing it means write nothing at all – the dest keeps what
+    default is _MISSING, and seeing it means write nothing at all - the dest keeps what
     the key form put there, or stays out of the namespace when neither form was given.
     """
 
@@ -1363,7 +1363,7 @@ class _AliasedPositional(argparse.Action):
 def _add_aliased_positional(parser, argument):
     """A positional plugin argument and its CLI-only key synonym (Argument.cli_alias).
 
-    The MCP tool keeps the one parameter it always had (see mcp_server._plugin_tool) –
+    The MCP tool keeps the one parameter it always had (see mcp_server._plugin_tool) -
     the alias changes what THIS parser accepts, nothing about the declared arguments.
     A mutually exclusive group lets either form fill the same dest: both at once is a
     parser refusal ("not allowed with argument ..."), and required carries over to the
@@ -1371,7 +1371,7 @@ def _add_aliased_positional(parser, argument):
 
     Neither half writes a default: an option left at its own implicit default of None
     would win the namespace the moment the parser builds it (the option is added second,
-    and it is not the positional's nargs="?" default that argparse falls back to first) –
+    and it is not the positional's nargs="?" default that argparse falls back to first) -
     silently overriding a non-None default the plugin declared. With both halves quiet the
     dest stays out of the namespace whenever neither form is given, and _plugin_handler
     already falls back to Argument.value_default for exactly that case, the same way it
@@ -1612,7 +1612,7 @@ def build_parser():
                         version=f"elemctl {__version__}")
 
     # title= renders the list under a "commands:" heading instead of argparse's default
-    # "positional arguments: command" – the same heading the sibling tools use.
+    # "positional arguments: command" - the same heading the sibling tools use.
     sub = parser.add_subparsers(
         dest="command",
         metavar=i18n.t("cli.help.command-metavar"),

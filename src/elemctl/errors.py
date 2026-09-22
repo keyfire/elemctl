@@ -30,7 +30,7 @@ class PluginError(ElemctlError):
 class ApiError(ElemctlError):
     """A Console API error: the HTTP status and the response body of the server.
 
-    The details are JSON-serializable (the to_dict method) – that is how the CLI
+    The details are JSON-serializable (the to_dict method) - that is how the CLI
     prints them to stderr without losing information.
     """
 

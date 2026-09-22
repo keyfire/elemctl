@@ -60,7 +60,7 @@ SOAP_CLIENT_KINDS = ("КлиентSoapСервиса", "SoapServiceClient")
 # by extension.
 RESOURCES_DIR = "Ресурсы"
 
-# Directories excluded entirely (plus every hidden one – starting with a dot).
+# Directories excluded entirely (plus every hidden one - starting with a dot).
 EXCLUDED_DIRS = {".git", ".claude", ".github", "__pycache__", "node_modules", ".venv"}
 
 # Files excluded by exact name.
@@ -69,7 +69,7 @@ EXCLUDED_FILES = {".gitignore", ".env", ".DS_Store"}
 # Files excluded by extension (prebuilt build archives).
 EXCLUDED_SUFFIXES = (".xasm", ".xlib")
 
-# The CI environment variables carrying the run number – the source of the build
+# The CI environment variables carrying the run number - the source of the build
 # version suffix when neither an explicit version nor a last build is given: every
 # CI run happens in a clean working directory, so local numbering would always
 # yield "-1".
@@ -105,9 +105,9 @@ class LibraryRef:
 class BuildResult:
     """The result of a local archive build.
 
-    version_source – where the build version came from: "flag" (set explicitly),
+    version_source - where the build version came from: "flag" (set explicitly),
     "last-build" (auto-increment from the last build), the name of a CI variable
-    (the run number from the environment) or "default". dirty_files – the files
+    (the run number from the environment) or "default". dirty_files - the files
     with uncommitted changes in the project directory; None when git is
     unavailable or the directory is not inside a repository.
     """
@@ -132,7 +132,7 @@ class BuildResult:
 def parse_flat_yaml(text):
     """Parse the flat top-level "key: value" pairs of a YAML text.
 
-    Nested lines (the indented ones), blank lines and comments are skipped –
+    Nested lines (the indented ones), blank lines and comments are skipped -
     for Проект.yaml that is enough.
     """
     values = {}
@@ -334,7 +334,7 @@ def collect_project_files(project_dir):
 
     Outside the resource directories an allowlist of extensions applies; inside a
     `Ресурсы` directory (at any level, including its subdirectories) files of any
-    extension are taken – a resource may be an arbitrary file: .pdf, .htm, .mxl etc.
+    extension are taken - a resource may be an arbitrary file: .pdf, .htm, .mxl etc.
     """
     return collect_with_skipped(project_dir)[0]
 
@@ -432,7 +432,7 @@ def _detached_branch(environ=None):
 def git_metadata(project_dir, environ=None):
     """The commit hash and the branch name of the git repository holding the project.
 
-    When git is unavailable (no command, not a repository) – empty strings.
+    When git is unavailable (no command, not a repository) - empty strings.
 
     A detached checkout is answered by the CI, not by git: `rev-parse --abbrev-ref HEAD`
     says the literal `HEAD` there, and that is what every assembly built on a runner used
@@ -452,7 +452,7 @@ def git_dirty_files(project_dir):
 
     A build captures the disk as it is at the moment it starts, so a divergence
     from HEAD has to be visible to the caller. Returned is the list of paths from
-    git status --porcelain limited to the directory; None – when git is unavailable
+    git status --porcelain limited to the directory; None - when git is unavailable
     or the directory is not inside a repository (as opposed to an empty list,
     meaning "clean").
     """
@@ -510,8 +510,8 @@ def build_assembly(
 
     The version: the explicit version, otherwise an auto-increment from
     last_build_version, otherwise a suffix taken from the CI run number (the
-    CI_BUILD_NUMBER_VARS variables), and with none of that – "{base version}-1".
-    branch and commit override the git metadata (None – take it from git). kind
+    CI_BUILD_NUMBER_VARS variables), and with none of that - "{base version}-1".
+    branch and commit override the git metadata (None - take it from git). kind
     overrides the project kind ("application"/"library").
     """
     directory = find_project_dir(project_dir) if project_dir else find_project_dir()
@@ -643,10 +643,10 @@ def read_assembly_project(path):
 
 
 def inspect_assembly(path):
-    """Inspect a prebuilt assembly archive (.xasm/.xlib) – the inverse of build_assembly.
+    """Inspect a prebuilt assembly archive (.xasm/.xlib) - the inverse of build_assembly.
 
     Returns the manifest, the project properties, its subsystems and the types
-    available to the project that plugged it in (ОбластьВидимости: Глобально) –
+    available to the project that plugged it in (ОбластьВидимости: Глобально) -
     with their qualified names. The namespace of a type is
     {vendor}::{name}::{subsystem}[::{package}], where a package is a nested
     directory of a subsystem (a package has no descriptor file of its own).
@@ -686,7 +686,7 @@ def inspect_assembly(path):
         "vendor": vendor,
         "name": name,
         "version": manifest.get("Version", ""),
-        # There is no ВерсияТехнологии in Проект.yaml – compatibility is set by
+        # There is no ВерсияТехнологии in Проект.yaml - compatibility is set by
         # РежимСовместимости, and it is exactly what is matched against the target project.
         "compatibility": descriptor_value(project, "РежимСовместимости", "CompatibilityMode"),
         "representation": descriptor_value(project, "Представление", "Presentation"),
@@ -759,7 +759,7 @@ def _archive_elements(archive, names, prefix):
 
 
 def _subsystems(elements, vendor, name):
-    """The project's subsystems and their packages – from the directory layout.
+    """The project's subsystems and their packages - from the directory layout.
 
     A subsystem is a first-level directory; Подсистема.yaml is optional (a library
     may have none at all), so it cannot be relied upon.

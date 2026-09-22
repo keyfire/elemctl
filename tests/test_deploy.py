@@ -122,7 +122,7 @@ def test_deploy_detects_silent_rollback(project_factory, tmp_path):
 
 def test_deploy_trusts_assembly_id_over_renumbered_version(project_factory, tmp_path):
     # A freshly created application numbers versions from scratch (archive 1.0-1139 is
-    # applied as 1.0-3) – matching by the version string reported a false rollback. What
+    # applied as 1.0-3) - matching by the version string reported a false rollback. What
     # confirms the apply is the id of the applied assembly matching the uploaded one.
     client = FakeDeployClient(
         latest={"assembly-version": "1.0-1138", "id": "asm-old"},
@@ -299,7 +299,7 @@ def test_deploy_applied_none_when_version_unknown(project_factory, tmp_path):
 
 
 def test_uri_status_401_is_not_a_problem(project_factory, tmp_path):
-    # A closed application answers 401 – that is information, not a problem.
+    # A closed application answers 401 - that is information, not a problem.
     client = FakeDeployClient(applied_version="1.0-1", uri_status=401)
     report = deploy_from_sources(
         client,

@@ -1,7 +1,7 @@
 """Language of elemctl runtime output: message catalog and lookup.
 
-elemctl is small and has no rule modules, so every user-facing runtime string – error
-texts and progress lines – lives right here in MESSAGES and is registered on import:
+elemctl is small and has no rule modules, so every user-facing runtime string - error
+texts and progress lines - lives right here in MESSAGES and is registered on import:
 
     MESSAGES = {
         "deploy.verify-failed": {
@@ -12,15 +12,15 @@ texts and progress lines – lives right here in MESSAGES and is registered on i
     register(MESSAGES)
 
 A key is `<module>.<name>`. Placeholders are `str.format` fields and must be the same in
-every language – `tests/test_i18n.py` enforces that. A brace that is part of the text –
-`() [] {{}}` – has to be doubled, because every template is formatted.
+every language - `tests/test_i18n.py` enforces that. A brace that is part of the text -
+`() [] {{}}` - has to be doubled, because every template is formatted.
 
 The language is chosen by: set_lang() (CLI --lang) > env ELEMCTL_LANG > system locale > ru.
 An unknown key is returned as is, so a caller that passes a literal string rather than a key
 keeps working.
 
 Scope: runtime output AND the argparse --help text are translated. Help strings are routed
-through t() as well, so the parser has to be built after the language is resolved – cli.main
+through t() as well, so the parser has to be built after the language is resolved - cli.main
 reads --lang out of argv with lang_from_argv() before build_parser(), because argparse itself
 learns --lang only when it parses, which is too late to pick the help language. Docstrings and
 code comments are source text rather than runtime output and stay outside this scope.
@@ -1686,11 +1686,11 @@ def set_lang(lang: str | None) -> None:
 def lang_from_argv(argv) -> str | None:
     """Read --lang out of raw argv, before the parser is built.
 
-    The parser is built with translated help=, but argparse learns --lang only when it parses –
+    The parser is built with translated help=, but argparse learns --lang only when it parses -
     too late to choose the help language. So the value is scanned out of argv beforehand.
     Accepts "--lang en" and "--lang=en". A value outside LANGS returns None: the language stays
     at its default and argparse rejects the bad value with its own message. env / locale need no
-    prescan – t() already reads them through current_lang() when the parser is built.
+    prescan - t() already reads them through current_lang() when the parser is built.
     """
     for i, arg in enumerate(argv):
         value = None
@@ -1730,7 +1730,7 @@ def t(key: str, /, **fields) -> str:
     """Translate a key and substitute the fields. An unknown key is returned unchanged.
 
     A template is always run through str.format, so a literal brace must be doubled: `{{}}`.
-    Formatting conditionally – only when fields are passed – would turn a literal brace into a
+    Formatting conditionally - only when fields are passed - would turn a literal brace into a
     field the day someone adds one, and the failure would surface as a crash at runtime.
     """
     entry = _catalog.get(key)

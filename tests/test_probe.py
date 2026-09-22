@@ -140,7 +140,7 @@ def test_probe_default_version_is_not_a_numeric_counter(project_factory, tmp_pat
     """The default version has to be new every time and must never look like the latest build.
 
     A repeated upload of the same version is rejected by the platform, and the
-    project's latest build is picked by the numeric counter after the last hyphen –
+    project's latest build is picked by the numeric counter after the last hyphen -
     a probe build must not win that comparison.
     """
     from elemctl.versions import version_counter
@@ -154,7 +154,7 @@ def test_probe_default_version_is_not_a_numeric_counter(project_factory, tmp_pat
 
 
 def test_probe_skips_an_all_digit_token(monkeypatch, project_factory, tmp_path):
-    """Eight hex digits come out all-numeric once in ~43 draws – CI caught one live
+    """Eight hex digits come out all-numeric once in ~43 draws - CI caught one live
     (28229801): such a version parses as a numeric counter and would win the
     latest-build pick. An all-digit token must be redrawn, however many in a row."""
     import elemctl.probe as probe_module
@@ -186,7 +186,7 @@ def test_probe_reports_compilation_errors_and_fails(project_factory, tmp_path):
     assert report.status == "Error"
     assert [error["line"] for error in report.errors] == [4, 8]
     assert report.messages == [TASK_MESSAGE]
-    # A failed compilation is cleaned up exactly like a successful one – that is
+    # A failed compilation is cleaned up exactly like a successful one - that is
     # the whole point of the probe.
     assert report.cleanup["app-deleted"] is True
     assert report.cleanup["assembly-deleted"] is True
@@ -281,7 +281,7 @@ def test_probe_keeps_an_existing_project(project_factory, tmp_path):
 
 
 def test_probe_does_not_touch_the_build_while_the_application_is_alive(project_factory, tmp_path):
-    """The application has not disappeared – the build and the project stay put.
+    """The application has not disappeared - the build and the project stay put.
 
     Deleting a build an application was created from is rejected by the platform
     with a 500, so the probe reports a leftover instead of running into it.
