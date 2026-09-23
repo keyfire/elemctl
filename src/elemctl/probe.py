@@ -28,7 +28,13 @@ import uuid
 from dataclasses import dataclass, field
 
 from . import i18n
-from .build import build_assembly, find_project_dir, read_project_meta
+from .build import (
+    build_assembly,
+    descriptor_value,
+    find_project_dir,
+    parse_flat_yaml,
+    read_project_meta,
+)
 from .client import extract_assembly_id, extract_project_id
 from .errors import ApiError, ElemctlError
 
@@ -183,6 +189,48 @@ def compatibility_refusal(messages):
     return ""
 
 
+def manifest_problems(project_file):
+    """What the manifest lacks for the server to take a probe; [] when nothing.
+
+    A hand-written probe project tends to carry only the name, the vendor and the version,
+    and the server answers each missing key in its own unhelpful way. Without
+    `Представление` the console refuses the upload with a bare 500 and names the field only
+    in its own event log. `ЯзыкРазработки` is a required property of the project
+    descriptor: without it no application is created, so a probe can never come out ok. A
+    `ЯзыкПоУмолчанию` without `ЯзыкиЛокализации` is refused with no word about the cause at
+    all. Every key is read in both spellings, and the example of a fix is written in the
+    spelling the manifest itself uses.
+    """
+    values = parse_flat_yaml(project_file.read_text(encoding="utf-8-sig"))
+    english = "Name" in values and "Имя" not in values
+    problems = []
+    if not descriptor_value(values, "Представление", "Presentation"):
+        problems.append(i18n.t(
+            "probe.manifest-no-presentation",
+            example="Presentation: Probe" if english else "Представление: Пробник",
+        ))
+    if not descriptor_value(values, "ЯзыкРазработки", "DevelopmentLanguage"):
+        problems.append(i18n.t(
+            "probe.manifest-no-development-language",
+            example="DevelopmentLanguage: English" if english else "ЯзыкРазработки: Русский",
+        ))
+    # The list may be written inline or as a nested block; a block leaves the value of the
+    # key itself empty, so the key counts by its presence, and only an empty inline list
+    # counts as no list.
+    languages = [
+        values[key] for key in ("ЯзыкиЛокализации", "LocalizationLanguages") if key in values
+    ]
+    no_list = all(value.replace(" ", "") == "[]" for value in languages)
+    if descriptor_value(values, "ЯзыкПоУмолчанию", "DefaultLanguage") and no_list:
+        problems.append(i18n.t(
+            "probe.manifest-no-localization-languages",
+            example=(
+                "LocalizationLanguages: [English]" if english else "ЯзыкиЛокализации: [Русский]"
+            ),
+        ))
+    return problems
+
+
 def _all_lines(messages):
     """Every non-empty line of the messages, in order."""
     return [
@@ -219,6 +267,13 @@ def probe_project(
         token = uuid.uuid4().hex[:8]
 
     meta = read_project_meta(find_project_dir(project_dir) if project_dir else find_project_dir())
+    # Checked before anything is built or uploaded: each of these ends the run on the
+    # server anyway, and the server's own answer does not say which key was missing.
+    problems = manifest_problems(meta.project_file)
+    if problems:
+        raise ElemctlError(i18n.t(
+            "probe.manifest-incomplete", file=meta.project_file, problems=" ".join(problems)
+        ))
     report = ProbeReport(
         project_dir=str(meta.project_dir),
         vendor=meta.vendor,

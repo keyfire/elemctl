@@ -933,6 +933,33 @@ MESSAGES = {
         "ru": "уборка: {problem}",
         "en": "cleanup: {problem}",
     },
+    "probe.manifest-incomplete": {
+        "ru": "{file}: сервер не примет этот пробник, поэтому он остановлен до сборки. {problems}",
+        "en": "{file}: the server will not take this probe, so it stopped before the build. "
+              "{problems}",
+    },
+    "probe.manifest-no-presentation": {
+        "ru": "Нет Представление (Presentation): без него консоль отвечает на загрузку сборки "
+              "500 \"Internal exception\" и причины не называет. Нужна строка \"{example}\".",
+        "en": "There is no Представление (Presentation): without it the console answers the "
+              "upload with a 500 \"Internal exception\" and names no cause. The line "
+              "\"{example}\" is needed.",
+    },
+    "probe.manifest-no-development-language": {
+        "ru": "Нет ЯзыкРазработки (DevelopmentLanguage): это обязательное свойство проекта, и без "
+              "него приложение не создаётся. Нужна строка \"{example}\".",
+        "en": "There is no ЯзыкРазработки (DevelopmentLanguage): it is a required property of "
+              "the project, and no application is created without it. The line \"{example}\" "
+              "is needed.",
+    },
+    "probe.manifest-no-localization-languages": {
+        "ru": "ЯзыкПоУмолчанию (DefaultLanguage) задан без ЯзыкиЛокализации "
+              "(LocalizationLanguages): такой проект сервер отклоняет, не называя причины. "
+              "Нужна строка \"{example}\".",
+        "en": "ЯзыкПоУмолчанию (DefaultLanguage) is set without ЯзыкиЛокализации "
+              "(LocalizationLanguages): the server refuses such a project and names no cause. "
+              "The line \"{example}\" is needed.",
+    },
     # -- help: argparse help texts (cli.py) ---------------------------------------
     # CLI help strings. Key: cli.help.<command> or cli.help.<command>-<flag>.
     # Metavars that already read as English (NAME/APP_ID/FILE) are left untranslated.

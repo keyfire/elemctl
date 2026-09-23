@@ -5,7 +5,20 @@ from __future__ import annotations
 import pytest
 
 from elemctl.errors import ApiError, ElemctlError
-from elemctl.probe import PROBE_PREFIX, parse_compilation_errors, probe_project
+from elemctl.probe import PROBE_PREFIX, manifest_problems, parse_compilation_errors, probe_project
+
+
+@pytest.fixture
+def project_factory(project_factory):
+    """A probe project carries the manifest keys the server asks for, unless a test drops one."""
+
+    def make(*args, **kwargs):
+        kwargs.setdefault("presentation", "Пробник")
+        kwargs.setdefault("language", "Русский")
+        return project_factory(*args, **kwargs)
+
+    return make
+
 
 # A task message exactly as the platform gives it: the first line carries the
 # platform's own prefix, the rest are bare.
@@ -403,3 +416,89 @@ def test_the_english_wording_of_the_refusal_is_recognized(project_factory, tmp_p
     report = probe_project(client, project_dir=project_factory(), output_dir=tmp_path / "dist")
 
     assert report.compatibility_refused == "99.0"
+
+
+def _append(project_dir, text):
+    descriptor = project_dir / "Проект.yaml"
+    descriptor.write_text(descriptor.read_text(encoding="utf-8") + text, encoding="utf-8")
+
+
+def test_a_manifest_without_a_presentation_stops_the_probe_before_the_build(
+    project_factory, tmp_path
+):
+    """Without the presentation the console refused the upload with a bare 500.
+
+    The field was named only in the event log of the console, so the probe names it before
+    it builds or uploads anything.
+    """
+    client = FakeProbeClient()
+
+    with pytest.raises(ElemctlError) as caught:
+        probe_project(
+            client, project_dir=project_factory(presentation=""), output_dir=tmp_path / "dist"
+        )
+
+    assert "Представление (Presentation)" in str(caught.value)
+    assert '"Представление: Пробник"' in str(caught.value)
+    assert client.calls == []
+    assert not (tmp_path / "dist").exists()
+
+
+def test_a_manifest_without_a_development_language_stops_the_probe(project_factory, tmp_path):
+    """The application is never created without it, so the probe could never come out ok."""
+    client = FakeProbeClient()
+
+    with pytest.raises(ElemctlError) as caught:
+        probe_project(
+            client, project_dir=project_factory(language=""), output_dir=tmp_path / "dist"
+        )
+
+    assert "ЯзыкРазработки (DevelopmentLanguage)" in str(caught.value)
+    assert '"ЯзыкРазработки: Русский"' in str(caught.value)
+    assert client.calls == []
+
+
+def test_every_missing_key_is_named_at_once(project_factory):
+    problems = manifest_problems(project_factory(presentation="", language="") / "Проект.yaml")
+
+    assert len(problems) == 2
+
+
+def test_a_default_language_needs_the_list_of_localization_languages(project_factory):
+    """The server refused such a project and pointed at nothing.
+
+    The list may be written inline or as a nested block.
+    """
+    project_dir = project_factory()
+    _append(project_dir, "ЯзыкПоУмолчанию: Русский\n")
+    descriptor = project_dir / "Проект.yaml"
+
+    problems = manifest_problems(descriptor)
+    assert len(problems) == 1 and "ЯзыкиЛокализации (LocalizationLanguages)" in problems[0]
+
+    _append(project_dir, "ЯзыкиЛокализации: []\n")
+    assert len(manifest_problems(descriptor)) == 1
+
+    block = descriptor.read_text(encoding="utf-8").replace(
+        "ЯзыкиЛокализации: []\n", "ЯзыкиЛокализации:\n    - Русский\n"
+    )
+    descriptor.write_text(block, encoding="utf-8")
+    assert manifest_problems(descriptor) == []
+
+
+def test_an_english_manifest_is_answered_in_its_own_spelling(tmp_path):
+    project_dir = tmp_path / "repo" / "acme" / "crm"
+    project_dir.mkdir(parents=True)
+    descriptor = project_dir / "Project.yaml"
+    descriptor.write_text("Name: crm\nVendor: acme\nVersion: 1.0\n", encoding="utf-8")
+
+    problems = manifest_problems(descriptor)
+
+    assert '"Presentation: Probe"' in problems[0]
+    assert '"DevelopmentLanguage: English"' in problems[1]
+
+    descriptor.write_text(
+        "Name: crm\nVendor: acme\nVersion: 1.0\nPresentation: CRM\nDevelopmentLanguage: English\n",
+        encoding="utf-8",
+    )
+    assert manifest_problems(descriptor) == []
