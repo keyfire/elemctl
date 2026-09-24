@@ -439,7 +439,7 @@ def test_a_manifest_without_a_presentation_stops_the_probe_before_the_build(
         )
 
     assert "Представление (Presentation)" in str(caught.value)
-    assert '"Представление: Пробник"' in str(caught.value)
+    assert '"Представление: crm"' in str(caught.value)
     assert client.calls == []
     assert not (tmp_path / "dist").exists()
 
@@ -494,7 +494,7 @@ def test_an_english_manifest_is_answered_in_its_own_spelling(tmp_path):
 
     problems = manifest_problems(descriptor)
 
-    assert '"Presentation: Probe"' in problems[0]
+    assert '"Presentation: crm"' in problems[0]
     assert '"DevelopmentLanguage: English"' in problems[1]
 
     descriptor.write_text(

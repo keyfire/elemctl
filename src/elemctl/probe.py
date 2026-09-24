@@ -199,20 +199,26 @@ def manifest_problems(project_file):
     descriptor: without it no application is created, so a probe can never come out ok. A
     `ЯзыкПоУмолчанию` without `ЯзыкиЛокализации` is refused with no word about the cause at
     all. Every key is read in both spellings, and the example of a fix is written in the
-    spelling the manifest itself uses.
+    spelling the manifest itself uses; the project's own name stands in for a presentation.
     """
     values = parse_flat_yaml(project_file.read_text(encoding="utf-8-sig"))
     english = "Name" in values and "Имя" not in values
+
+    def spelled(russian, english_key):
+        return english_key if english else russian
+
+    language = spelled("Русский", "English")
     problems = []
     if not descriptor_value(values, "Представление", "Presentation"):
+        name = descriptor_value(values, "Имя", "Name")
         problems.append(i18n.t(
             "probe.manifest-no-presentation",
-            example="Presentation: Probe" if english else "Представление: Пробник",
+            example=f"{spelled('Представление', 'Presentation')}: {name}",
         ))
     if not descriptor_value(values, "ЯзыкРазработки", "DevelopmentLanguage"):
         problems.append(i18n.t(
             "probe.manifest-no-development-language",
-            example="DevelopmentLanguage: English" if english else "ЯзыкРазработки: Русский",
+            example=f"{spelled('ЯзыкРазработки', 'DevelopmentLanguage')}: {language}",
         ))
     # The list may be written inline or as a nested block; a block leaves the value of the
     # key itself empty, so the key counts by its presence, and only an empty inline list
@@ -224,9 +230,7 @@ def manifest_problems(project_file):
     if descriptor_value(values, "ЯзыкПоУмолчанию", "DefaultLanguage") and no_list:
         problems.append(i18n.t(
             "probe.manifest-no-localization-languages",
-            example=(
-                "LocalizationLanguages: [English]" if english else "ЯзыкиЛокализации: [Русский]"
-            ),
+            example=f"{spelled('ЯзыкиЛокализации', 'LocalizationLanguages')}: [{language}]",
         ))
     return problems
 
