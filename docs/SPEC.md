@@ -293,7 +293,15 @@ Commands, with the significant flags in parentheses:
 - `probe [--project-dir --output --build-version --name --space-id --keep
   --require-clean]` – an isolated compilation check of the sources: build ->
   upload -> a throwaway application (that is the compilation, section 6.10) ->
-  errors with file and position -> cleanup. `ELEMENT_APP_ID` and
+  errors with file and position -> cleanup. Before the build the manifest is
+  checked for what the server needs to take a probe: `Представление`
+  (`Presentation`), without which the console refuses the upload with a bare 500;
+  `ЯзыкРазработки` (`DevelopmentLanguage`), a required property without which no
+  application is created; and `ЯзыкиЛокализации` (`LocalizationLanguages`)
+  whenever `ЯзыкПоУмолчанию` (`DefaultLanguage`) is set, since the server refuses
+  that pair without naming the cause. A missing key stops the probe before
+  anything is built or uploaded, and the error names every such key with the
+  line to add, in the spelling the manifest uses. `ELEMENT_APP_ID` and
   `ELEMENT_PROJECT_ID` are deliberately left unused: the probe must not be able to
   reach the working application, and the target project is chosen by the platform
   out of the vendor and the name of the manifest (section 6.8). The default build
