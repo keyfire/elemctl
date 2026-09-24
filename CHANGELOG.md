@@ -22,7 +22,7 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
   `Представление` was refused by the console with a bare 500, one without `ЯзыкРазработки`
   never got an application, and a `ЯзыкПоУмолчанию` without `ЯзыкиЛокализации` was refused
   with no cause named. Now the probe stops before the build and names each missing key with
-  the line to add.
+  the line to add. ([#41](https://github.com/keyfire/elemctl/pull/41))
 
 ## 2026-09-23 – 0.43.2
 
