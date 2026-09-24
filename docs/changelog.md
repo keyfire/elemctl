@@ -21,6 +21,15 @@ entry either – say what the behaviour was, not which id or response field was 
 The link is written by `python scripts/changelog-link.py <number>`, which rebuilds the generated
 pages of the site in the same run – writing it by hand is how the mirrors get left behind.
 
+## Unreleased
+
+### Added
+- **`probe` checks the manifest before it builds anything.** A probe project without
+  `Представление` was refused by the console with a bare 500, one without `ЯзыкРазработки`
+  never got an application, and a `ЯзыкПоУмолчанию` without `ЯзыкиЛокализации` was refused
+  with no cause named. Now the probe stops before the build and names each missing key with
+  the line to add.
+
 ## 2026-09-23 – 0.43.2
 
 ### Changed
