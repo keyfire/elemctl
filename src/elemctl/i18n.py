@@ -859,17 +859,34 @@ MESSAGES = {
               "project; this does NOT mean the apply is safe",
     },
     "deploy.schema-skipped-no-commit-id": {
-        "ru": "сверка схемы не выполнена: у применённой сборки {detail} не записан коммит – "
-              "сравнивать не с чем. Коммит в карточку записывает загрузка elemctl в "
-              "существующий проект; у сборок, загруженных иначе, прежними версиями или в новый "
-              "проект, его нет, а выкат из git-репозитория запишет свой, и следующей сверке "
+        "ru": "сверка схемы не выполнена: у применённой сборки {detail} не записан коммит, и "
+              "локальный реестр загрузок его не знает – сравнивать не с чем. Коммит в карточку "
+              "записывает загрузка elemctl в существующий проект, а загрузки этой машины помнит "
+              "реестр; сборки, загруженные иначе, с другой машины или прежними версиями, "
+              "коммита не несут, а выкат из git-репозитория запишет свой, и следующей сверке "
               "будет с чем сравнить. Это НЕ значит, что применение безопасно",
-        "en": "the schema check did not run: the applied build {detail} carries no commit – "
-              "there is nothing to compare against. The commit is written to the card by an "
-              "elemctl upload into an existing project; builds uploaded otherwise, by earlier "
-              "versions or into a new project carry none, and a deploy from a git repository "
-              "writes its own, so the next check has something to compare. This does NOT mean "
-              "the apply is safe",
+        "en": "the schema check did not run: the applied build {detail} carries no commit, and "
+              "the local registry of uploads does not know it – there is nothing to compare "
+              "against. The commit is written to the card by an elemctl upload into an existing "
+              "project, and the registry remembers the uploads of this machine; builds uploaded "
+              "otherwise, from another machine or by earlier versions carry none, and a deploy "
+              "from a git repository writes its own, so the next check has something to "
+              "compare. This does NOT mean the apply is safe",
+    },
+    "deploy.schema-commit-from-registry": {
+        "ru": "сверка схемы идёт с коммитом {commit} из локального реестра загрузок: в "
+              "карточке применённой сборки {build} коммита нет",
+        "en": "the schema is compared with the commit {commit} from the local registry of "
+              "uploads: the card of the applied build {build} carries no commit",
+    },
+    "deploy.schema-commit-from-registry-dirty": {
+        "ru": "сверка схемы идёт с коммитом {commit} из локального реестра загрузок: в "
+              "карточке применённой сборки {build} коммита нет. Реестр помнит, что эта сборка "
+              "собрана из дерева с незакоммиченными правками, и их сверка не увидит",
+        "en": "the schema is compared with the commit {commit} from the local registry of "
+              "uploads: the card of the applied build {build} carries no commit. The registry "
+              "remembers that this build was made from a tree with uncommitted changes, and "
+              "the check does not see them",
     },
     "deploy.schema-skipped-commit-unavailable": {
         "ru": "сверка схемы не выполнена: коммита {detail} применённой сборки нет в локальном "

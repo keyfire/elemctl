@@ -26,7 +26,7 @@ from .client import (
 )
 from .errors import ApiError, ElemctlError, ServerStartingError
 from .probe import server_log_hint
-from .registry import remember_build
+from .registry import remember_build, remembered_uploads
 from .schema import review_tree
 
 __all__ = ["FAILED_TASK_STATUSES"]  # the name stays where importers already expect it
@@ -82,6 +82,11 @@ class DeployReport:
     # What the apply took away: the attributes, resources and tabular parts the sources no
     # longer have, one line each. Their data went with them; the server does not ask.
     schema_warnings: list = field(default_factory=list)
+    # The commit the guard compared the sources against, and where it came from: "platform" -
+    # the card of the applied build, "registry" - the local registry of uploads, which
+    # remembers the commit of a build whose card carries none. "" when nothing was compared.
+    schema_commit: str = ""
+    schema_commit_source: str = ""
     # Where to look when a task was refused without a compilation error in its text: the
     # log of the server (probe.server_log_hint). "" when the report itself names the cause.
     hint: str = ""
@@ -109,6 +114,8 @@ class DeployReport:
             "dirty-files": None if self.dirty_files is None else list(self.dirty_files),
             "schema-check": self.schema_check or None,
             "schema-warnings": list(self.schema_warnings),
+            "schema-commit": self.schema_commit or None,
+            "schema-commit-source": self.schema_commit_source or None,
             "hint": self.hint or None,
         }
 
@@ -198,6 +205,15 @@ def _deploy_from_sources(
     # object, and refusing here means nothing was built and nothing uploaded. A removal
     # is named here too, while the deploy can still be interrupted.
     verdict = review_schema(client, app_id, project_id, project_dir)
+    if verdict.commit_source == "registry":
+        # The commit is this machine's memory of the upload, not the platform's record, so
+        # the report says which one the sources were compared against.
+        log(i18n.t(
+            "deploy.schema-commit-from-registry-dirty" if verdict.commit_dirty
+            else "deploy.schema-commit-from-registry",
+            commit=verdict.commit,
+            build=verdict.build,
+        ))
     for removal in verdict.removals:
         log(i18n.t("deploy.schema-removal", change=removal))
     if verdict.changes and not allow_data_loss:
@@ -304,6 +320,8 @@ def _deploy_from_sources(
     report.dirty_files = result.dirty_files
     report.schema_check = schema_check
     report.schema_warnings = list(verdict.removals)
+    report.schema_commit = verdict.commit
+    report.schema_commit_source = verdict.commit_source
     report.app_id_source = app_id_source or ""
     report.project_id = str(project_id or "")
     report.project_id_source = project_id_source or ""
@@ -340,24 +358,52 @@ class SchemaVerdict:
 
     changes - the narrowings a deploy refuses without --allow-data-loss; removals - what
     the apply takes away, named without stopping it; skipped - why nothing was compared
-    ("" when it was), with detail naming what could not be read or found.
+    ("" when it was), with detail naming what could not be read or found. commit - what the
+    sources were compared against, commit_source - where it came from ("platform" or
+    "registry"), commit_dirty - the registry's word on whether that build was made from a
+    tree with uncommitted changes (None when it does not know), build - the applied build
+    as a person reads it.
     """
 
     changes: list = field(default_factory=list)
     removals: list = field(default_factory=list)
     skipped: str = ""
     detail: str = ""
+    commit: str = ""
+    commit_source: str = ""
+    commit_dirty: bool | None = None
+    build: str = ""
+
+
+@dataclass
+class _AppliedCommit:
+    """The commit of the applied build, where it came from, or why it is not known.
+
+    reason is "" when the commit is known; otherwise it names the way of not having it, and
+    detail says what could not be read or found. build names the applied build for a
+    person: its id with the version beside it.
+    """
+
+    commit: str = ""
+    source: str = ""
+    reason: str = ""
+    detail: str = ""
+    build: str = ""
+    dirty: bool | None = None
 
 
 def _applied_commit(client, app_id, project_id):
     """The commit the applied build was made from, or why it is not known.
 
-    Returns (commit, reason, detail). The Console API does NOT hand out the contents
-    of an assembly - there is no download method - so an archive-to-archive comparison
-    is impossible. What the assembly card does carry is commit-id, which makes the
-    sources of that commit the thing to compare against. Every way of not having it
-    is a reason of its own: a card that could not be read used to be reported as a
-    build without a commit, and the report then explained a cause that was not there.
+    Returns an _AppliedCommit. The Console API does NOT hand out the contents of an
+    assembly - there is no download method - so an archive-to-archive comparison is
+    impossible. What the assembly card does carry is commit-id, which makes the sources of
+    that commit the thing to compare against. A card without one - a build that created its
+    project, or one uploaded before elemctl sent the commit - is looked up in the local
+    registry of uploads: a build this machine uploaded is remembered with its commit. Every
+    way of not having a commit is a reason of its own: a card that could not be read used to
+    be reported as a build without a commit, and the report then explained a cause that was
+    not there.
     """
     try:
         card = client.get_app(app_id) or {}
@@ -367,26 +413,36 @@ def _applied_commit(client, app_id, project_id):
         raise
     except Exception as error:
         # The guard is auxiliary: no failure of it may get in the way of a deploy.
-        return "", "read-failed", str(error)
+        return _AppliedCommit(reason="read-failed", detail=str(error))
     applied_id = str((card.get("source") or {}).get("project-version-id") or "")
     if not applied_id:
-        return "", "no-applied-build", ""
+        return _AppliedCommit(reason="no-applied-build")
     try:
         assemblies = client.list_assemblies(project_id)
     except ServerStartingError:
         raise
     except Exception as error:
-        return "", "read-failed", str(error)
+        return _AppliedCommit(reason="read-failed", detail=str(error))
     for assembly in assemblies:
         if not isinstance(assembly, dict):
             continue
-        if applied_id in {str(assembly.get(key) or "") for key in ASSEMBLY_ID_KEYS}:
-            commit = str(assembly.get("commit-id") or "")
-            if commit:
-                return commit, "", ""
-            version = assembly.get("assembly-version") or assembly.get("project-version")
-            return "", "no-commit-id", assembly_label(applied_id, version)
-    return "", "applied-build-not-listed", applied_id
+        if applied_id not in {str(assembly.get(key) or "") for key in ASSEMBLY_ID_KEYS}:
+            continue
+        version = assembly.get("assembly-version") or assembly.get("project-version")
+        build = assembly_label(applied_id, version)
+        commit = str(assembly.get("commit-id") or "")
+        if commit:
+            return _AppliedCommit(commit=commit, source="platform", build=build)
+        remembered = remembered_uploads([applied_id]).get(applied_id) or {}
+        commit = str(remembered.get("commit") or "")
+        if commit:
+            dirty = remembered.get("dirty")
+            return _AppliedCommit(
+                commit=commit, source="registry", build=build,
+                dirty=None if dirty is None else bool(dirty),
+            )
+        return _AppliedCommit(reason="no-commit-id", detail=build, build=build)
+    return _AppliedCommit(reason="applied-build-not-listed", detail=applied_id)
 
 
 def _git_show(project_dir, commit, relative_path):
@@ -417,8 +473,9 @@ def review_schema(client, app_id, project_id, project_dir):
     "no-project-dir" - no project directory to read; "read-failed" - the application
     card or the build list did not come; "no-applied-build" - the card names no build;
     "applied-build-not-listed" - the applied build is not among the project's builds;
-    "no-commit-id" - the applied build carries no commit; "commit-unavailable" - the
-    local repository does not have that commit.
+    "no-commit-id" - neither the card of the applied build nor the local registry of
+    uploads knows its commit; "commit-unavailable" - the local repository does not have
+    that commit.
 
     The project directory is found the way the build finds it: a deploy without an
     explicit one used to skip the guard as "no-project-dir" and then build that very
@@ -428,13 +485,21 @@ def review_schema(client, app_id, project_id, project_dir):
         directory = find_project_dir(project_dir) if project_dir else find_project_dir()
     except ElemctlError:
         return SchemaVerdict(skipped="no-project-dir")
-    commit, reason, detail = _applied_commit(client, app_id, project_id)
-    if reason:
-        return SchemaVerdict(skipped=reason, detail=detail)
+    applied = _applied_commit(client, app_id, project_id)
+    if applied.reason:
+        return SchemaVerdict(skipped=applied.reason, detail=applied.detail)
+    commit = applied.commit
     if all(_git_show(directory, commit, name) is None for name in PROJECT_FILES):
         return SchemaVerdict(skipped="commit-unavailable", detail=commit)
     review = review_tree(directory, lambda relative: _git_show(directory, commit, relative))
-    return SchemaVerdict(changes=review.changes, removals=review.removals)
+    return SchemaVerdict(
+        changes=review.changes,
+        removals=review.removals,
+        commit=commit,
+        commit_source=applied.source,
+        commit_dirty=applied.dirty,
+        build=applied.build,
+    )
 
 
 def _skip_message(verdict, project_id):

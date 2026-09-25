@@ -345,6 +345,8 @@ def test_report_to_dict_kebab_case(project_factory, tmp_path):
         "dirty-files",
         "schema-check",
         "schema-warnings",
+        "schema-commit",
+        "schema-commit-source",
         "hint",
     }
     assert payload["ok"] is True
@@ -765,6 +767,125 @@ def test_the_applied_build_is_found_under_any_id_field(project_factory, tmp_path
     )
 
     assert report.schema_check == "clean"
+
+
+# --- the commit of the applied build from the local registry -------------------
+
+
+def _remember_applied(**fields):
+    """The registry line of the applied build of SchemaGuardClient, as an upload wrote it."""
+    from elemctl.registry import remember_upload
+
+    values = {
+        "assembly_id": "asm-applied",
+        "project_id": "proj-1",
+        "version": "1.0-1",
+        "branch": "main",
+        "commit": "c0ffee",
+        "dirty": False,
+        "project_dir": None,
+        "file": None,
+        "stand": "",
+        "command": "probe",
+    }
+    values.update(fields)
+    assert remember_upload(**values) == ""
+
+
+def test_the_registry_gives_the_guard_the_commit_the_card_lacks(
+    project_factory, tmp_path, monkeypatch
+):
+    """A build that created its project carries no commit on its card, and the guard used to
+    step aside as "no-commit-id" while the registry of this machine knew the commit."""
+    project_dir = project_factory()
+    _guard_catalog(project_dir, CATALOG_BEFORE.replace("МаксимальнаяДлина: 100", "МаксимальнаяДлина: 20"))
+    _earlier(monkeypatch, {"Задачи.yaml": CATALOG_BEFORE})
+    _remember_applied()
+    client = SchemaGuardClient(commit_id="")
+    log_lines = []
+
+    with pytest.raises(ElemctlError) as error:
+        deploy_from_sources(
+            client, "app-1", "proj-1", project_dir=project_dir, output_dir=tmp_path / "d",
+            log=log_lines.append,
+        )
+
+    assert "Шаги.Шаг" in str(error.value)
+    assert client.upload_kwargs is None
+    said = next(line for line in log_lines if "из локального реестра загрузок" in line)
+    assert "c0ffee" in said and "asm-applied" in said
+
+
+def test_the_report_names_the_commit_it_compared_with_and_its_source(
+    project_factory, tmp_path, monkeypatch
+):
+    project_dir = project_factory()
+    _guard_catalog(project_dir, CATALOG_BEFORE)
+    _earlier(monkeypatch, {"Задачи.yaml": CATALOG_BEFORE})
+    _remember_applied(commit="beef42")
+
+    from_registry = deploy_from_sources(
+        SchemaGuardClient(commit_id=""), "app-1", "proj-1", project_dir=project_dir,
+        output_dir=tmp_path / "d", version="1.0-1",
+    ).to_dict()
+    from_card = deploy_from_sources(
+        SchemaGuardClient(), "app-1", "proj-1", project_dir=project_dir,
+        output_dir=tmp_path / "e", version="1.0-1",
+    ).to_dict()
+
+    assert from_registry["schema-check"] == "clean"
+    assert (from_registry["schema-commit"], from_registry["schema-commit-source"]) == (
+        "beef42", "registry",
+    )
+    # The card wins when it has a commit: the registry is this machine's memory, the card is
+    # the platform's record.
+    assert (from_card["schema-commit"], from_card["schema-commit-source"]) == (
+        "c0ffee", "platform",
+    )
+
+
+def test_a_skipped_check_names_no_commit(project_factory, tmp_path):
+    report = deploy_from_sources(
+        SchemaGuardClient(commit_id=""), "app-1", "proj-1", project_dir=project_factory(),
+        output_dir=tmp_path / "d", version="1.0-1",
+    ).to_dict()
+
+    assert report["schema-check"] == "skipped:no-commit-id"
+    assert report["schema-commit"] is None and report["schema-commit-source"] is None
+
+
+def test_a_registry_commit_of_a_dirty_tree_is_said_to_miss_the_changes(
+    project_factory, tmp_path, monkeypatch
+):
+    """The build was made from uncommitted changes, which its commit does not carry."""
+    project_dir = project_factory()
+    _guard_catalog(project_dir, CATALOG_BEFORE)
+    _earlier(monkeypatch, {"Задачи.yaml": CATALOG_BEFORE})
+    _remember_applied(dirty=True)
+    log_lines = []
+
+    deploy_from_sources(
+        SchemaGuardClient(commit_id=""), "app-1", "proj-1", project_dir=project_dir,
+        output_dir=tmp_path / "d", version="1.0-1", log=log_lines.append,
+    )
+
+    said = next(line for line in log_lines if "из локального реестра загрузок" in line)
+    assert "незакоммиченными правками" in said
+
+
+def test_a_registry_line_without_a_commit_leaves_the_check_skipped(project_factory, tmp_path):
+    """A build uploaded as a file outside a repository is remembered without a commit."""
+    _remember_applied(commit="", dirty=None)
+    log_lines = []
+
+    report = deploy_from_sources(
+        SchemaGuardClient(commit_id=""), "app-1", "proj-1", project_dir=project_factory(),
+        output_dir=tmp_path / "d", version="1.0-1", log=log_lines.append,
+    )
+
+    assert report.schema_check == "skipped:no-commit-id"
+    skip = next(line for line in log_lines if "сверка схемы не выполнена" in line)
+    assert "реестр загрузок его не знает" in skip
 
 
 # --- a refusal several lines long ---------------------------------------------

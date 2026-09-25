@@ -15,6 +15,13 @@ entry either – say what the behaviour was, not which id or response field was 
 The link is written by `python scripts/changelog-link.py <number>`, which rebuilds the generated
 pages of the site in the same run – writing it by hand is how the mirrors get left behind.
 
+## Unreleased
+
+### Changed
+- **The schema guard of `deploy` takes a missing commit from the registry of uploads.** A build
+  that created its project carries no commit on its card, so the guard stepped aside while this
+  machine remembered the commit. Now it compares against that commit and says where it came from.
+
 ## 2026-09-25 – 0.45.0
 
 ### Added
