@@ -33,6 +33,9 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
 - **The schema guard of `deploy` takes a missing commit from the registry of uploads.** A build
   that created its project carries no commit on its card, so the guard stepped aside while this
   machine remembered the commit. Now it compares against that commit and says where it came from.
+- **The registry of uploads keeps the newest thousand uploads.** It grew by a line with every
+  upload for as long as the machine deployed. Once it grows past the limit by a tenth, the next
+  upload cuts it back; `ELEMCTL_REGISTRY_LIMIT` sets another number, and `0` keeps every one.
 
 ## 2026-09-25 – 0.45.0
 

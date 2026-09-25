@@ -919,6 +919,12 @@ MESSAGES = {
         "en": "warning: the upload was not written to the local registry ({path}): {error}. The "
               "build is uploaded; the listings will not show its branch and source directory",
     },
+    "registry.limit-invalid": {
+        "ru": "внимание: {variable}={value} – не целое число; реестр загрузок хранит "
+              "последние {default} загрузок, как по умолчанию (0 – хранить все)",
+        "en": "warning: {variable}={value} is not a whole number; the registry of uploads keeps "
+              "the last {default} uploads, the default (0 keeps them all)",
+    },
     # -- schema.py ----------------------------------------------------------------
     "schema.kind-attribute": {"ru": "реквизит", "en": "attribute"},
     "schema.kind-dimension": {"ru": "измерение", "en": "dimension"},

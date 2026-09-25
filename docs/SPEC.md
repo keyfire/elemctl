@@ -286,12 +286,17 @@ Commands, with the significant flags in parentheses:
   id, the project id, the version, the branch, the commit, the `dirty` flag, the directory
   of the sources, the archive, the stand, the command and the time. The platform keeps the
   commit alone, and with several sessions deploying from one machine a build on an
-  application could not be traced to the working tree it came from. The registry is
-  local: a build uploaded from another machine, from CI or by an elemctl that had no
-  registry yet is not in it. A registry that cannot be written is a warning on stderr,
-  never a failure – the build is on the server by then – and one that cannot be read
-  reads as empty. The schema guard of `deploy` takes the commit of an applied build from
-  here when the card of that build carries none.
+  application could not be traced to the working tree it came from. The registry is local:
+  a build uploaded from another machine, from CI or by an elemctl that had no registry yet
+  is not in it. A registry that cannot be written is a warning on stderr, never a failure
+  – the build is on the server by then – and one that cannot be read reads as empty. The
+  schema guard of `deploy` takes the commit of an applied build from here when the card of
+  that build carries none. The registry keeps the newest 1000 uploads,
+  `ELEMCTL_REGISTRY_LIMIT` sets another number and `0` keeps every one: once the file has
+  grown past the limit by a tenth, the next upload cuts it back to the newest lines. The
+  file is rewritten beside itself and swapped in by a rename, and a line another process
+  appended meanwhile is carried over; a swap the system refuses leaves the file as it was
+  until the next upload.
 - `build [--project-dir --output --build-version --last-build --commit
   --branch --kind {application,library} --require-clean]` – build the archive locally.
   Output: `file`, `name`, `vendor`, `version`, `version-source`

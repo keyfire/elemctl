@@ -19,8 +19,11 @@ from elemctl.deploy import deploy_from_sources
 from elemctl.probe import probe_project
 from elemctl.registry import (
     DATA_DIR_ENV,
+    DEFAULT_LIMIT,
+    LIMIT_ENV,
     REGISTRY_FILE,
     data_dir,
+    registry_limit,
     registry_path,
     remember_upload,
     remembered_uploads,
@@ -120,6 +123,111 @@ def test_a_registry_that_cannot_be_written_is_a_warning_not_a_failure(monkeypatc
 
     assert "не записана в локальный реестр" in warning
     assert remembered_uploads() == {}
+
+
+# -- the registry keeps the newest uploads -----------------------------------------
+
+
+def _lines():
+    return [line for line in registry_path().read_text(encoding="utf-8").splitlines() if line]
+
+
+def test_the_registry_is_cut_back_to_its_newest_uploads(monkeypatch):
+    """The file grew with every upload for as long as the machine deployed."""
+    monkeypatch.setenv(LIMIT_ENV, "10")
+    for number in range(1, 12):
+        assert _entry(f"asm-{number}") == ""
+    assert len(_lines()) == 11  # a tenth over the limit is left alone...
+
+    _entry("asm-12")
+
+    assert len(_lines()) == 10  # ...and one line more cuts it back to the newest ten
+    assert set(remembered_uploads()) == {f"asm-{number}" for number in range(3, 13)}
+
+
+def test_a_thousand_uploads_is_the_default():
+    assert registry_limit({}) == (DEFAULT_LIMIT, "") and DEFAULT_LIMIT == 1000
+
+
+def test_zero_keeps_every_upload(monkeypatch):
+    monkeypatch.setenv(LIMIT_ENV, "0")
+    for number in range(30):
+        _entry(f"asm-{number}")
+
+    assert len(_lines()) == 30
+
+
+def test_a_limit_that_is_not_a_number_is_named_and_the_default_stands(monkeypatch):
+    monkeypatch.setenv(LIMIT_ENV, "many")
+
+    warning = _entry("asm-7")
+
+    assert LIMIT_ENV in warning and "many" in warning and str(DEFAULT_LIMIT) in warning
+    assert set(remembered_uploads()) == {"asm-7"}  # the upload is written down all the same
+    assert registry_limit({LIMIT_ENV: "-5"})[0] == DEFAULT_LIMIT
+
+
+def test_what_another_session_appends_during_the_trim_is_carried_over(monkeypatch):
+    """Parallel sessions append to one file: a rewrite must not swallow their lines."""
+    from elemctl import registry
+
+    monkeypatch.setenv(LIMIT_ENV, "10")
+    for number in range(1, 12):
+        _entry(f"asm-{number}")
+    carry_over = registry._carry_over
+
+    def with_a_neighbour(path, stream, offset):
+        with open(path, "a", encoding="utf-8", newline="") as neighbour:
+            neighbour.write(json.dumps({"assembly-id": "asm-neighbour"}) + "\n")
+        return carry_over(path, stream, offset)
+
+    monkeypatch.setattr(registry, "_carry_over", with_a_neighbour)
+    _entry("asm-12")
+
+    remembered = set(remembered_uploads())
+    assert "asm-neighbour" in remembered and "asm-12" in remembered
+    assert len(_lines()) == 11  # the newest ten and the neighbour's line
+
+
+def test_a_trim_the_system_refuses_leaves_the_file_whole(monkeypatch):
+    """Another process holding the file open makes the swap fail on Windows."""
+    from elemctl import registry
+
+    monkeypatch.setenv(LIMIT_ENV, "10")
+
+    def refused(source, target):
+        raise PermissionError("the file is open in another process")
+
+    monkeypatch.setattr(registry.os, "replace", refused)
+    for number in range(1, 13):
+        assert _entry(f"asm-{number}") == ""
+
+    assert len(_lines()) == 12
+    assert not list(registry_path().parent.glob("*.tmp"))
+
+
+def test_a_line_still_being_written_is_not_cut_in_two(monkeypatch):
+    """The file is read while a neighbour is halfway through its line: that line counts as
+    appended later and is carried over whole once it is finished."""
+    from elemctl import registry
+
+    monkeypatch.setenv(LIMIT_ENV, "0")  # nothing is trimmed while the file is filled
+    for number in range(1, 13):
+        _entry(f"asm-{number}")
+    with open(registry_path(), "a", encoding="utf-8", newline="") as stream:
+        stream.write('{"assembly-id": "asm-ha')
+    carry_over = registry._carry_over
+
+    def finished_meanwhile(path, stream, offset):
+        with open(path, "a", encoding="utf-8", newline="") as neighbour:
+            neighbour.write('lf"}\n')
+        return carry_over(path, stream, offset)
+
+    monkeypatch.setattr(registry, "_carry_over", finished_meanwhile)
+
+    assert registry.trim(registry_path(), 10) == 2
+    assert _lines()[-1] == '{"assembly-id": "asm-half"}'
+    assert set(remembered_uploads()) == {f"asm-{number}" for number in range(3, 13)} | {"asm-half"}
 
 
 # -- the brief card: the card first, the registry for what the card left empty ------

@@ -12,6 +12,11 @@ The registry is LOCAL: a build uploaded from another machine, from CI or by an e
 had no registry yet is not in it. A registry that cannot be written costs a warning and
 never the upload - the build is on the server by then - and one that cannot be read reads
 as empty.
+
+The registry keeps the newest uploads, a thousand by default: every line is an upload, and
+a file nobody trimmed grew with each of them for as long as the machine deployed. What it
+answers is the origin of the builds that still matter, the ones a project lists and an
+application runs, and those are the recent ones.
 """
 
 from __future__ import annotations
@@ -30,6 +35,10 @@ DATA_DIR_ENV = "ELEMCTL_DATA_DIR"
 #: append of one short line does not lose the line another process wrote meanwhile, the way a
 #: rewrite of the whole file would.
 REGISTRY_FILE = "uploads.jsonl"
+#: How many uploads the registry keeps instead of DEFAULT_LIMIT; 0 keeps every one.
+LIMIT_ENV = "ELEMCTL_REGISTRY_LIMIT"
+#: A thousand lines are about half a megabyte, read whole by every listing that asks.
+DEFAULT_LIMIT = 1000
 
 
 def data_dir(environ=None, *, platform=None):
@@ -104,7 +113,82 @@ def remember_upload(
     except (OSError, RuntimeError, ValueError) as error:
         # RuntimeError: Path.home() of an environment that has no home directory at all.
         return i18n.t("registry.write-failed", path=path or DATA_DIR_ENV, error=error)
-    return ""
+    limit, warning = registry_limit(environ)
+    try:
+        trim(path, limit)
+    except OSError:
+        # The upload is written down; a trim that did not happen is tried by the next one.
+        pass
+    return warning
+
+
+def registry_limit(environ=None):
+    """How many uploads the registry keeps, and a warning when the variable is not a number.
+
+    ELEMCTL_REGISTRY_LIMIT when it holds a whole number, 0 keeping every upload;
+    DEFAULT_LIMIT otherwise. A value that is not a number is named rather than guessed at.
+    """
+    env = os.environ if environ is None else environ
+    raw = (env.get(LIMIT_ENV) or "").strip()
+    if not raw:
+        return DEFAULT_LIMIT, ""
+    if raw.isascii() and raw.isdigit():
+        return int(raw), ""
+    return DEFAULT_LIMIT, i18n.t(
+        "registry.limit-invalid", variable=LIMIT_ENV, value=raw, default=DEFAULT_LIMIT
+    )
+
+
+def trim(path, limit):
+    """Cut the registry back to its newest `limit` lines; return how many were dropped.
+
+    The file is left alone until it grows past the limit by a tenth, so that a registry at
+    its limit is not rewritten by every upload. Parallel sessions append to the same file,
+    so it is rewritten beside itself and swapped in by a rename, and what another process
+    appended while the kept lines were being written is carried over before the swap. A
+    swap the system refuses - another process holds the file open - leaves the file as it
+    was, and the next upload tries again. A line still being written when the file was read
+    is not cut in two: it counts as appended later and is carried over whole.
+    """
+    if limit <= 0:
+        return 0
+    data = path.read_bytes()
+    complete = data[: data.rfind(b"\n") + 1]
+    lines = [line for line in complete.splitlines(keepends=True) if line.strip()]
+    if len(lines) <= limit + max(limit // 10, 1):
+        return 0
+    temp = path.with_name(f"{path.name}.{os.getpid()}.tmp")
+    try:
+        with open(temp, "wb") as stream:
+            stream.writelines(lines[-limit:])
+            carried = _carry_over(path, stream, len(complete))
+        if carried:
+            os.replace(temp, path)
+    finally:
+        if temp.exists():
+            temp.unlink()
+    return len(lines) - limit if carried else 0
+
+
+def _carry_over(path, stream, offset):
+    """Copy what was appended to path past offset into stream; False when that cannot be done.
+
+    A file that became shorter than what was read has been trimmed by another process in
+    the meantime, and its trim stands. A file still growing after a few rounds is left for
+    the next upload.
+    """
+    for _ in range(3):
+        size = path.stat().st_size
+        if size < offset:
+            return False
+        if size == offset:
+            return True
+        with open(path, "rb") as source:
+            source.seek(offset)
+            appended = source.read(size - offset)
+        stream.write(appended)
+        offset += len(appended)
+    return path.stat().st_size == offset
 
 
 def remember_build(result, *, response, project_id, stand, command, environ=None):
