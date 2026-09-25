@@ -35,6 +35,10 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
   named before the build without stopping it, a narrowing inside a tabular part is refused like
   any other, and a skipped check gives its real reason instead of always blaming a missing commit.
   ([#42](https://github.com/keyfire/elemctl/pull/42))
+- **`self-update` sees a release published minutes ago.** Both PyPI listings may name the
+  previous version for a while after a release, and the command answered "already current". It
+  now reads both listings and the pages of the next versions, says when the sources disagree,
+  and never replaces an installation with an older release.
 
 ## 2026-09-24 – 0.44.0
 

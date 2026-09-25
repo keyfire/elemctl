@@ -640,6 +640,31 @@ MESSAGES = {
         "ru": "уже актуально: elemctl {version}",
         "en": "already current: elemctl {version}",
     },
+    "selfupdate.sources-differ": {
+        "ru": "источники PyPI расходятся: {sources}. Беру {version}: списки выпусков догоняют "
+              "новую версию за несколько минут",
+        "en": "the PyPI sources disagree: {sources}. Taking {version}: the release listings "
+              "catch up with a new version within minutes",
+    },
+    "selfupdate.source-simple": {
+        "ru": "простой индекс называет последней {version}",
+        "en": "the simple index names {version} as the latest",
+    },
+    "selfupdate.source-summary": {
+        "ru": "сводный JSON – {version}",
+        "en": "the JSON summary names {version}",
+    },
+    "selfupdate.source-page": {
+        "ru": "страница версии {version} уже опубликована",
+        "en": "the page of version {version} is already published",
+    },
+    "selfupdate.newer-installed": {
+        "ru": "установлена elemctl {installed}, а PyPI пока называет последней {latest}: "
+              "списки выпусков ещё не догнали новую версию. Ничего не меняю",
+        "en": "elemctl {installed} is installed, while PyPI still names {latest} as the "
+              "latest: the release listings have not caught up with the new version yet. "
+              "Nothing changed",
+    },
     "selfupdate.downloading": {
         "ru": "скачиваю elemctl {version} с PyPI...",
         "en": "downloading elemctl {version} from PyPI...",
