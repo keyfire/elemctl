@@ -554,6 +554,7 @@ usage: elemctl inspect [-h] FILE
 usage: elemctl deploy [-h] [--app-id APP_ID] [--project-id PROJECT_ID] [--project-dir PROJECT_DIR]
                       [--output OUTPUT] [--build-version BUILD_VERSION] [--branch BRANCH]
                       [--commit COMMIT] [--dry-run] [--require-clean] [--allow-data-loss]
+                      [--server-start-timeout SERVER_START_TIMEOUT]
 ```
 
 **Параметры**
@@ -571,6 +572,7 @@ usage: elemctl deploy [-h] [--app-id APP_ID] [--project-id PROJECT_ID] [--projec
 | `--dry-run` | только сборка, без загрузки |
 | `--require-clean` | прервать развёртывание, если в каталоге проекта есть незакоммиченные изменения |
 | `--allow-data-loss` | разрешить применение, пересоздающее данные объектов (сужение длины, смена типа реквизита); без флага такое развёртывание отклоняется до сборки |
+| `--server-start-timeout SERVER_START_TIMEOUT` | сколько секунд ждать сервер 1С:Элемент, пока он стартует и его консоль отвечает 404 "Application "console" not found" (по умолчанию 900; 0 – не ждать) |
 
 ## `elemctl user-lists`
 

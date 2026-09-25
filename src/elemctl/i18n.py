@@ -368,6 +368,32 @@ MESSAGES = {
         "ru": "приложение освободилось, применение начато",
         "en": "the application is free again, the apply has started",
     },
+    "client.server-starting": {
+        "ru": "сервер 1С:Элемент ещё стартует: его консоль не поднялась и отвечает 404 "
+              "\"Application \"console\" not found\" ({method} {url}). Запрос тут ни при чём – "
+              "повторите, когда {console} начнёт отвечать 302",
+        "en": "the 1C:Element server is still starting: its console is not up yet and answers "
+              "404 \"Application \"console\" not found\" ({method} {url}). The request is not "
+              "at fault – repeat once {console} answers 302",
+    },
+    "client.server-start-timeout": {
+        "ru": "сервер 1С:Элемент не поднял консоль за {seconds} с: она всё ещё отвечает 404 "
+              "\"Application \"console\" not found\" ({method} {url}). Повторите, когда "
+              "{console} начнёт отвечать 302",
+        "en": "the 1C:Element server did not bring its console up in {seconds} s: it still "
+              "answers 404 \"Application \"console\" not found\" ({method} {url}). Repeat once "
+              "{console} answers 302",
+    },
+    "client.server-starting-wait": {
+        "ru": "сервер 1С:Элемент стартует: консоль отвечает 404 \"Application \"console\" not "
+              "found\" – жду её до {seconds} с, спрашиваю раз в {poll} с",
+        "en": "the 1C:Element server is starting: its console answers 404 \"Application "
+              "\"console\" not found\" – waiting for it up to {seconds} s, asking every {poll} s",
+    },
+    "client.server-started": {
+        "ru": "консоль сервера поднялась – продолжаю",
+        "en": "the server console is up – going on",
+    },
     "client.api-error": {
         "ru": "Console API ответил {status} на {method} {url}",
         "en": "Console API responded {status} to {method} {url}",
@@ -1427,6 +1453,13 @@ MESSAGES = {
               "реквизита); без флага такое развёртывание отклоняется до сборки",
         "en": "allow an apply that recreates the data of the objects (a narrowed length, a changed "
               "attribute type); without the flag such a deploy is refused before the build",
+    },
+    "cli.help.deploy-server-start-timeout": {
+        "ru": "сколько секунд ждать сервер 1С:Элемент, пока он стартует и его консоль отвечает "
+              "404 \"Application \"console\" not found\" (по умолчанию 900; 0 – не ждать)",
+        "en": "how many seconds to wait for the 1C:Element server while it is starting and its "
+              "console answers 404 \"Application \"console\" not found\" (default 900; 0 – do "
+              "not wait)",
     },
     "cli.help.user-lists": {
         "ru": "списки пользователей и их настройки входа",

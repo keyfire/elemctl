@@ -9,6 +9,7 @@ version actually applied and an informational HTTP request to the application ur
 
 from __future__ import annotations
 
+import contextlib
 import subprocess
 import tempfile
 from dataclasses import dataclass, field
@@ -16,8 +17,8 @@ from datetime import datetime, timezone
 
 from . import i18n
 from .build import PROJECT_FILES, build_assembly, find_project_dir, read_project_meta
-from .client import FAILED_TASK_STATUSES, extract_assembly_id
-from .errors import ApiError, ElemctlError
+from .client import FAILED_TASK_STATUSES, SERVER_START_TIMEOUT, extract_assembly_id
+from .errors import ApiError, ElemctlError, ServerStartingError
 from .probe import server_log_hint
 from .schema import narrowing_in_tree
 
@@ -113,6 +114,7 @@ def deploy_from_sources(
     app_id_source="",
     project_id_source="",
     allow_data_loss=False,
+    server_start_timeout=SERVER_START_TIMEOUT,
     log=None,
 ):
     """The full deploy cycle from sources, verifying that the build really applied.
@@ -121,9 +123,55 @@ def deploy_from_sources(
     prints nothing. app_id_source / project_id_source are carried through to the
     report and named in the very first progress line: the target is announced
     BEFORE the build, while there is still time to interrupt a deploy aimed at the
-    wrong application.
+    wrong application. server_start_timeout - how many seconds a server whose console
+    is still starting is waited out, at any step of the cycle; 0 fails at once.
     """
     log = log or (lambda message: None)
+    with server_wait(client, server_start_timeout, log):
+        return _deploy_from_sources(
+            client,
+            app_id,
+            project_id,
+            project_dir=project_dir,
+            output_dir=output_dir,
+            version=version,
+            branch=branch,
+            commit=commit,
+            app_id_source=app_id_source,
+            project_id_source=project_id_source,
+            allow_data_loss=allow_data_loss,
+            log=log,
+        )
+
+
+def server_wait(client, timeout, log=None):
+    """The block inside which the client waits out a starting server.
+
+    A client without waiting_for_server - a stand-in of the tests or of a caller that
+    brings its own - gets an empty block rather than a failure: the wait is a courtesy
+    of the real client, not a requirement of the deploy.
+    """
+    waiting = getattr(client, "waiting_for_server", None)
+    if waiting is None:
+        return contextlib.nullcontext()
+    return waiting(timeout, log=log)
+
+
+def _deploy_from_sources(
+    client,
+    app_id,
+    project_id,
+    *,
+    project_dir,
+    output_dir,
+    version,
+    branch,
+    commit,
+    app_id_source,
+    project_id_source,
+    allow_data_loss,
+    log,
+):
     started_at = datetime.now(timezone.utc)
 
     log(i18n.t(
@@ -286,6 +334,10 @@ def _applied_commit(client, app_id, project_id):
         for assembly in client.list_assemblies(project_id):
             if isinstance(assembly, dict) and str(assembly.get("id") or "") == applied_id:
                 return str(assembly.get("commit-id") or "")
+    except ServerStartingError:
+        # Not a failure of the guard: the server refuses everything for now, and the deploy
+        # waits it out or stops on it - swallowed here, it read as a build without a commit.
+        raise
     except Exception:
         # The guard is auxiliary: no failure of it may get in the way of a deploy.
         return ""

@@ -290,7 +290,7 @@ The server reads connection credentials from the same `ELEMENT_*` variables / `.
 | `get_build` | the whole card of one build; `version` is the build's version (`1.0-42`), an id is accepted too and resolved through the listing |
 | `build_assembly` | build a `.xasm`/`.xlib` archive from the sources locally (does not talk to the platform) |
 | `inspect_assembly` | parse a built archive: manifest, project properties, subsystems and global types with qualified names (local) |
-| `deploy` | the whole cycle from sources, with a check that the build was applied; the verdict is `ok`, the details are `problems` and `log` |
+| `deploy` | the whole cycle from sources, with a check that the build was applied; the verdict is `ok`, the details are `problems` and `log`; a server that is still starting is waited out for up to `server_start_timeout` seconds (900 by default) |
 | `probe` | check the compilation with the server compiler without touching the working application; errors with file, line and column, cleans up after itself |
 | `apply_build` | apply an uploaded build to the application by its id |
 | `verify_deploy` | verify the apply actually took effect: failed tasks, the applied build, the availability of the uri |

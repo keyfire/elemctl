@@ -554,6 +554,7 @@ usage: elemctl inspect [-h] FILE
 usage: elemctl deploy [-h] [--app-id APP_ID] [--project-id PROJECT_ID] [--project-dir PROJECT_DIR]
                       [--output OUTPUT] [--build-version BUILD_VERSION] [--branch BRANCH]
                       [--commit COMMIT] [--dry-run] [--require-clean] [--allow-data-loss]
+                      [--server-start-timeout SERVER_START_TIMEOUT]
 ```
 
 **Options**
@@ -571,6 +572,7 @@ usage: elemctl deploy [-h] [--app-id APP_ID] [--project-id PROJECT_ID] [--projec
 | `--dry-run` | build only, no upload |
 | `--require-clean` | abort the deploy if the project directory has uncommitted changes |
 | `--allow-data-loss` | allow an apply that recreates the data of the objects (a narrowed length, a changed attribute type); without the flag such a deploy is refused before the build |
+| `--server-start-timeout SERVER_START_TIMEOUT` | how many seconds to wait for the 1C:Element server while it is starting and its console answers 404 "Application "console" not found" (default 900; 0 – do not wait) |
 
 ## `elemctl user-lists`
 

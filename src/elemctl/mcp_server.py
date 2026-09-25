@@ -46,6 +46,7 @@ except ImportError:
 from . import __version__, i18n, plugins
 from .build import build_assembly, inspect_assembly
 from .client import (
+    SERVER_START_TIMEOUT,
     ElementClient,
     apps_summary,
     assembly_label,
@@ -677,9 +678,15 @@ def create_server(config=None, *, overrides=None, env_file=None):
         project_dir: str = "",
         version: str = "",
         branch: str = "",
+        server_start_timeout: int = int(SERVER_START_TIMEOUT),
         env_file: str = "",
     ) -> dict:
-        """Полный цикл деплоя из исходников с честной проверкой применения; итог - поле ok, детали - problems и log."""
+        """Полный цикл деплоя из исходников с честной проверкой применения; итог - поле ok, детали - problems и log.
+
+        Сервер 1С:Элемент, который ещё стартует (его консоль отвечает 404 "Application
+        "console" not found"), деплой пережидает сам - до server_start_timeout секунд
+        (по умолчанию 900; 0 - не ждать).
+        """
         lines: list[str] = []
         report = deploy_from_sources(
             client(env_file),
@@ -691,6 +698,7 @@ def create_server(config=None, *, overrides=None, env_file=None):
             # Both ids are required parameters of the tool, so they are always explicit.
             app_id_source="flag",
             project_id_source="flag",
+            server_start_timeout=server_start_timeout,
             log=lines.append,
         )
         payload = report.to_dict()

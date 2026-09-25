@@ -32,6 +32,7 @@ from .build import (
 from .client import (
     CALCULATION_RULE_FIELDS,
     OIDC_SERVICE,
+    SERVER_START_TIMEOUT,
     ElementClient,
     apps_summary,
     assembly_label,
@@ -42,7 +43,7 @@ from .client import (
     sign_in_hint,
 )
 from .config import Config, ensure_env_file_exists
-from .deploy import deploy_from_sources, verify_deploy
+from .deploy import deploy_from_sources, server_wait, verify_deploy
 from .errors import ApiError, ConfigError, ElemctlError, PluginError
 from .probe import probe_project
 from .versions import newest_first
@@ -921,27 +922,31 @@ def cmd_deploy(args):
     app_id, app_id_source = _require_with_source(
         args.app_id, config.app_id, i18n.t("cli.require.app-id-flag")
     )
-    # An application is addressed by its id or by its exact name, the way apps get/start/stop do:
-    # the name is what a person has in front of them, the id is what the API wants. A UUID passes
-    # through without a request.
-    app_id = client.resolve_app_id(app_id)
     project_id, project_id_source = _require_with_source(
         args.project_id, config.project_id, i18n.t("cli.require.project-id-flag")
     )
-    report = deploy_from_sources(
-        client,
-        app_id,
-        project_id,
-        project_dir=args.project_dir,
-        output_dir=args.output,
-        version=args.build_version or "",
-        branch=args.branch,
-        commit=args.commit,
-        app_id_source=app_id_source,
-        project_id_source=project_id_source,
-        allow_data_loss=args.allow_data_loss,
-        log=_progress,
-    )
+    # The name is resolved inside the same wait as the deploy itself: a server that is still
+    # starting refuses the listing behind the name just as it refuses the upload.
+    with server_wait(client, args.server_start_timeout, log=_progress):
+        # An application is addressed by its id or by its exact name, the way apps
+        # get/start/stop do: the name is what a person has in front of them, the id is what
+        # the API wants. A UUID passes through without a request.
+        app_id = client.resolve_app_id(app_id)
+        report = deploy_from_sources(
+            client,
+            app_id,
+            project_id,
+            project_dir=args.project_dir,
+            output_dir=args.output,
+            version=args.build_version or "",
+            branch=args.branch,
+            commit=args.commit,
+            app_id_source=app_id_source,
+            project_id_source=project_id_source,
+            allow_data_loss=args.allow_data_loss,
+            server_start_timeout=args.server_start_timeout,
+            log=_progress,
+        )
     _emit(report.to_dict())
     return 0 if report.ok else 1
 
@@ -1790,6 +1795,12 @@ def build_parser():
         "--allow-data-loss",
         action="store_true",
         help=i18n.t("cli.help.deploy-allow-data-loss"),
+    )
+    p.add_argument(
+        "--server-start-timeout",
+        type=float,
+        default=SERVER_START_TIMEOUT,
+        help=i18n.t("cli.help.deploy-server-start-timeout"),
     )
     p.set_defaults(handler=cmd_deploy)
 

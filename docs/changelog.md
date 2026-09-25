@@ -21,6 +21,14 @@ entry either – say what the behaviour was, not which id or response field was 
 The link is written by `python scripts/changelog-link.py <number>`, which rebuilds the generated
 pages of the site in the same run – writing it by hand is how the mirrors get left behind.
 
+## Unreleased
+
+### Fixed
+- **A server that is still starting is called what it is.** While its console was coming up,
+  every command answered with a bare 404, and `deploy` died on the list of builds. That answer
+  now says the server is starting and to repeat once `/console` answers 302, and `deploy` waits
+  for the console by itself, for up to `--server-start-timeout` seconds.
+
 ## 2026-09-24 – 0.44.0
 
 ### Added
