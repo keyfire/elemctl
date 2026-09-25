@@ -321,7 +321,7 @@ Commands, with the significant flags in parentheses:
   after `apps create`: a build that failed to apply is rolled back silently, and a status
   of `Running` proves nothing.
 - `probe [--project-dir --output --build-version --name --space-id --keep
-  --require-clean]` – an isolated compilation check of the sources: build ->
+  --require-clean]`, `probe --cleanup APP_ID` – an isolated compilation check of the sources: build ->
   upload -> a throwaway application (that is the compilation, section 6.10) ->
   errors with file and position -> cleanup. Before the build the manifest is
   checked for what the server needs to take a probe: `Представление`
@@ -341,12 +341,14 @@ Commands, with the significant flags in parentheses:
   comparison. Cleanup runs whether the compilation passed or failed, in the order
   of section 6.9: the application, then the build, then the project, and the
   project only if the probe itself created it. Output: `ok`, `project-dir`,
-  `vendor`, `name`, `file`, `version`, `project-id`, `assembly-id`, `app-id`,
+  `vendor`, `name`, `file`, `version`, `project-id`, `project-created`,
+  `assembly-id`, `app-id`,
   `app-name`, `status`, `errors` (a list of `{file, entry, line, column,
   environment, message}`, where `file` is the path relative to the project
   directory), `messages` (the platform texts verbatim, so nothing is lost when the
   failure is not a compilation one), `cleanup` (`kept`, `app-deleted`,
-  `assembly-deleted`, `project-deleted`, `problems`) and `hint`, the pointer to the
+  `assembly-deleted`, `project-deleted`, `problems`, `command`, `steps`) and
+  `hint`, the pointer to the
   server log that the `deploy` report carries too. `hint` is filled when the server
   refused and named no file; a wait that ran out of time leaves it empty. A stand that does not know
   the compatibility mode of the project refuses the whole project and then
@@ -360,6 +362,34 @@ Commands, with the significant flags in parentheses:
   does leave behind is a tombstone: the platform keeps deleted applications in
   the list with the `Deleted` status and their former id, and there is no API to
   remove them.
+  Whatever a probe leaves, on purpose with `--keep` or through a cleanup step that
+  failed, comes with the commands that remove it, in `cleanup` and on stderr:
+  `command` is the one command, `probe --cleanup APP_ID`, and `steps` are the same
+  by hand in the order of section 6.9, with the build addressed in the probe's own
+  project. A bare `builds delete` looks in the project of `ELEMENT_PROJECT_ID`, where
+  the probe build is not, and a build deleted right after its application is
+  refused with a 500 until the application is gone. Both lines name the `--env-file`
+  the probe was run with.
+  `probe --cleanup APP_ID` removes a probe left on the stand, starting from its
+  application, an id or a name. The application card names the project and the build
+  it was created from, so nothing has to be remembered between the runs. Only a
+  probe's application is touched: its name starts with `elemctl-probe-`, or the build
+  it runs carries `-probe-` in its version, which covers a probe named with `--name`.
+  Any other application is refused with the reason, and so is the one
+  `ELEMENT_APP_ID` names. The order is that of section 6.9: the application, a wait
+  until it is gone, the build of this very probe (its token in the version), and the
+  project last. The project goes only when no build is left in it and no live
+  application runs it, and never when it is the project of `ELEMENT_PROJECT_ID`: a
+  probe usually lands in the project that owns its sources, the working one, while a
+  project the probe created ends up empty. The builds other runs uploaded into the
+  probe's application are left to the platform, which deletes the builds nobody
+  uses. A second run finishes what the first one left: an application that is
+  already a tombstone is not deleted twice, since the list keeps its card, and a
+  project deleted already is not deleted again. The run builds nothing, so the flags
+  of a probe run are refused beside `--cleanup`. Output: `ok`, `app-id`, `app-name`,
+  `project-id`, `app-deleted`, `builds` (`{id, version, deleted}` each),
+  `project-deleted`, `project-kept` (why the project stayed) and `problems`; return
+  code 0 only when `ok`.
 - `branches list [--project-id --name]`, `branches get ID`,
   `branches create NAME [--project-id --app-id]`,
   `branches update ID [--app-id]`, `branches delete ID`,
@@ -417,7 +447,8 @@ version (section 4.4; an id is accepted and resolved through the listing),
 server_start_timeout=900)` – returns the deploy report plus a `log` field with progress
 lines, and waits out a server that is still starting (section 6.12); `probe(project_dir="", space_id="", keep=False)` – an isolated
 compilation check that does not touch the working application (section 7),
-the report plus a `log` field; `apply_build(app_id, version_id)`, `verify_deploy(app_id,
+the report plus a `log` field; `probe_cleanup(app_id)` – `probe --cleanup` (section 7),
+the removal of a probe left on the stand, the report plus a `log` field; `apply_build(app_id, version_id)`, `verify_deploy(app_id,
 expected_version="", since_minutes=30)` – verification of the apply per section 6.1;
 `list_app_tasks(app_id="")`, `list_branches(project_id="", name="")`,
 `merge_branch(branch_id)`, `list_user_lists(name="")` and

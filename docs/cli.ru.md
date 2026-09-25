@@ -730,7 +730,7 @@ usage: elemctl user-lists calculation-rules [-h] [--app APP] [--rules-file RULES
 ```bash
 usage: elemctl probe [-h] [--project-dir PROJECT_DIR] [--output OUTPUT]
                      [--build-version BUILD_VERSION] [--name NAME] [--space-id SPACE_ID] [--keep]
-                     [--require-clean]
+                     [--require-clean] [--cleanup APP_ID]
 ```
 
 **Параметры**
@@ -743,8 +743,9 @@ usage: elemctl probe [-h] [--project-dir PROJECT_DIR] [--output OUTPUT]
 | `--build-version BUILD_VERSION` | явная версия сборки (по умолчанию {база}`-probe-`{токен} – она обязана быть новой) |
 | `--name NAME` | имя одноразового приложения (по умолчанию elemctl-probe-{токен}) |
 | `--space-id SPACE_ID` | пространство для проекта и приложения (ELEMENT_SPACE_ID) |
-| `--keep` | не убирать за собой: оставить приложение и сборку для разбора руками |
+| `--keep` | не убирать за собой: оставить приложение и сборку для разбора руками; отчёт называет команду уборки |
 | `--require-clean` | прервать проверку, если в каталоге проекта есть незакоммиченные изменения |
+| `--cleanup APP_ID` | убрать оставленный пробник по его приложению (ид или имя): приложение, сборку пробника в его проекте и проект, если в нём больше ничего нет; чужое приложение команда не тронет |
 
 ## `elemctl verify-deploy`
 

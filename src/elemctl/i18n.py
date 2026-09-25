@@ -1086,6 +1086,99 @@ MESSAGES = {
         "ru": "уборка отключена (--keep): приложение {app}, сборка {version} остались на стенде",
         "en": "cleanup is off (--keep): the application {app} and the build {version} are left in place",
     },
+    "probe.cleanup-command": {
+        "ru": "убрать всё одной командой: {command}",
+        "en": "to remove it all in one command: {command}",
+    },
+    "probe.cleanup-steps": {
+        "ru": "или по шагам, в этом порядке: {steps}. Сборку удаляют только после того, как "
+              "приложение исчезнет (apps get ответит 404 или статусом Deleted): пока оно живо, "
+              "платформа отвечает на удаление сборки 500",
+        "en": "or step by step, in this order: {steps}. The build is deleted only after the "
+              "application is gone (apps get answers 404 or the Deleted status): while it is "
+              "alive, the platform answers the deletion of the build with a 500",
+    },
+    "probe.cleanup-working-app": {
+        "ru": "приложение {app} окружение называет рабочим (ELEMENT_APP_ID) – уборка пробника "
+              "его не трогает. Если его действительно нужно удалить, это делает apps delete",
+        "en": "the environment names the application {app} as the working one "
+              "(ELEMENT_APP_ID) – a probe's cleanup does not touch it. If it really has to go, "
+              "apps delete removes it",
+    },
+    "probe.cleanup-not-a-probe": {
+        "ru": "приложение '{name}' ({app}) оставил не пробник: имя не начинается с {prefix}, "
+              "а сборка, на которой оно работает ({version}), не сборка пробника – в версии "
+              "нет -probe-. --cleanup убирает только то, что оставил probe; прочие приложения "
+              "удаляет apps delete",
+        "en": "the application '{name}' ({app}) was not left by a probe: its name does not "
+              "start with {prefix}, and the build it runs ({version}) is not a probe build – "
+              "the version carries no -probe-. --cleanup removes only what probe left; other "
+              "applications are deleted with apps delete",
+    },
+    "probe.cleanup-app-already-deleted": {
+        "ru": "приложение {app} уже удалено: платформа держит его в перечне со статусом Deleted",
+        "en": "the application {app} is deleted already: the platform keeps it in the list "
+              "under the Deleted status",
+    },
+    "probe.cleanup-deleting-app": {
+        "ru": "удаляю приложение {name} ({app})...",
+        "en": "deleting the application {name} ({app})...",
+    },
+    "probe.cleanup-app-still-there": {
+        "ru": "приложение {app} не исчезло за отведённое время – сборки и проект не тронуты; "
+              "повторите probe --cleanup {app} позже",
+        "en": "the application {app} has not disappeared in time – the builds and the project "
+              "are untouched; repeat probe --cleanup {app} later",
+    },
+    "probe.cleanup-app-not-deleted": {
+        "ru": "приложение {app} удалить не удалось ({error}) – сборки и проект не тронуты",
+        "en": "the application {app} could not be deleted ({error}) – the builds and the "
+              "project are untouched",
+    },
+    "probe.cleanup-no-project": {
+        "ru": "карточка приложения {app} не называет проект – искать сборку пробника негде",
+        "en": "the card of the application {app} names no project – there is nowhere to look "
+              "for the probe build",
+    },
+    "probe.cleanup-no-build": {
+        "ru": "сборки пробника в проекте {project} уже нет: её убрала платформа или прошлая уборка",
+        "en": "the probe build is no longer in the project {project}: the platform or an "
+              "earlier cleanup removed it",
+    },
+    "probe.cleanup-build-deleted": {
+        "ru": "удалена сборка {version} проекта {project}",
+        "en": "deleted the build {version} of the project {project}",
+    },
+    "probe.cleanup-project-already": {
+        "ru": "проект {project} уже удалён",
+        "en": "the project {project} is deleted already",
+    },
+    "probe.cleanup-project-deleted": {
+        "ru": "удалён проект {project}",
+        "en": "deleted the project {project}",
+    },
+    "probe.cleanup-project-kept": {
+        "ru": "проект {project} оставлен: {reason}",
+        "en": "the project {project} is kept: {reason}",
+    },
+    "probe.cleanup-project-working": {
+        "ru": "окружение называет его рабочим проектом (ELEMENT_PROJECT_ID)",
+        "en": "the environment names it as the working project (ELEMENT_PROJECT_ID)",
+    },
+    "probe.cleanup-project-has-builds": {
+        "ru": "в нём остались сборки: {builds}",
+        "en": "builds are left in it: {builds}",
+    },
+    "probe.cleanup-project-in-use": {
+        "ru": "на нём работают приложения: {apps}",
+        "en": "applications run it: {apps}",
+    },
+    "probe.cleanup-flags": {
+        "ru": "--cleanup убирает уже оставленный пробник и работает один: вместе с ним не "
+              "задают {flags}",
+        "en": "--cleanup removes a probe already left behind and works alone: {flags} are not "
+              "given with it",
+    },
     "probe.app-still-there": {
         "ru": "приложение {app} не исчезло за отведённое время – сборку и проект оставили",
         "en": "the application {app} has not disappeared in time – the build and the project are left",
@@ -1761,8 +1854,18 @@ MESSAGES = {
         "en": "the space for the project and the application (ELEMENT_SPACE_ID)",
     },
     "cli.help.probe-keep": {
-        "ru": "не убирать за собой: оставить приложение и сборку для разбора руками",
-        "en": "skip the cleanup: leave the application and the build for a hands-on look",
+        "ru": "не убирать за собой: оставить приложение и сборку для разбора руками; отчёт "
+              "называет команду уборки",
+        "en": "skip the cleanup: leave the application and the build for a hands-on look; the "
+              "report names the command that removes them",
+    },
+    "cli.help.probe-cleanup": {
+        "ru": "убрать оставленный пробник по его приложению (ид или имя): приложение, сборку "
+              "пробника в его проекте и проект, если в нём больше ничего нет; чужое приложение "
+              "команда не тронет",
+        "en": "remove a probe left behind, starting from its application (id or name): the "
+              "application, the probe build in its project and the project when nothing else "
+              "is left in it; an application that is not a probe's is refused",
     },
     "cli.help.probe-require-clean": {
         "ru": "прервать проверку, если в каталоге проекта есть незакоммиченные изменения",

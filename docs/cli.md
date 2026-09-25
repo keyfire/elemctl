@@ -730,7 +730,7 @@ usage: elemctl user-lists calculation-rules [-h] [--app APP] [--rules-file RULES
 ```bash
 usage: elemctl probe [-h] [--project-dir PROJECT_DIR] [--output OUTPUT]
                      [--build-version BUILD_VERSION] [--name NAME] [--space-id SPACE_ID] [--keep]
-                     [--require-clean]
+                     [--require-clean] [--cleanup APP_ID]
 ```
 
 **Options**
@@ -743,8 +743,9 @@ usage: elemctl probe [-h] [--project-dir PROJECT_DIR] [--output OUTPUT]
 | `--build-version BUILD_VERSION` | explicit build version (default {base}`-probe-`{token} – it has to be a new one) |
 | `--name NAME` | name of the throwaway application (default elemctl-probe-{token}) |
 | `--space-id SPACE_ID` | the space for the project and the application (ELEMENT_SPACE_ID) |
-| `--keep` | skip the cleanup: leave the application and the build for a hands-on look |
+| `--keep` | skip the cleanup: leave the application and the build for a hands-on look; the report names the command that removes them |
 | `--require-clean` | abort the check if the project directory has uncommitted changes |
+| `--cleanup APP_ID` | remove a probe left behind, starting from its application (id or name): the application, the probe build in its project and the project when nothing else is left in it; an application that is not a probe's is refused |
 
 ## `elemctl verify-deploy`
 

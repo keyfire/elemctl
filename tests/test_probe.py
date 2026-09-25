@@ -334,6 +334,74 @@ def test_probe_keep_skips_the_cleanup(project_factory, tmp_path):
     assert "delete_assembly" not in client.names()
 
 
+def test_a_kept_probe_names_the_commands_that_remove_it(project_factory, tmp_path):
+    """The build lives in the probe's own project: a bare `builds delete` looked in the
+    project of the environment and answered "not found", so the steps name the project."""
+    client = FakeProbeClient()
+    lines = []
+
+    report = probe_project(
+        client, project_dir=project_factory(), output_dir=tmp_path / "dist", keep=True,
+        log=lines.append,
+    )
+
+    cleanup = report.cleanup
+    assert cleanup["command"] == "elemctl probe --cleanup app-1"
+    assert cleanup["steps"] == [
+        "elemctl apps delete app-1",
+        f"elemctl builds delete {report.version} --project-id proj-1",
+    ]
+    # The project existed before the upload, so no step deletes it.
+    assert report.project_created is False
+    assert any("elemctl probe --cleanup app-1" in line for line in lines)
+    assert any("404" in line and "Deleted" in line for line in lines)
+
+
+def test_the_steps_delete_a_project_the_probe_created_and_name_the_env_file(
+    project_factory, tmp_path
+):
+    client = FakeProbeClient(projects=())
+
+    report = probe_project(
+        client, project_dir=project_factory(), output_dir=tmp_path / "dist", keep=True,
+        env_file="X:/stands/local stand.env",
+    )
+
+    suffix = ' --env-file "X:/stands/local stand.env"'
+    assert report.project_created is True
+    assert report.cleanup["command"] == f"elemctl probe --cleanup app-1{suffix}"
+    assert report.cleanup["steps"][-1] == f"elemctl projects delete proj-1{suffix}"
+    assert report.to_dict()["project-created"] is True
+
+
+def test_a_cleanup_that_broke_off_names_the_command_that_finishes_it(project_factory, tmp_path):
+    client = FakeProbeClient(deleted=False)
+
+    report = probe_project(client, project_dir=project_factory(), output_dir=tmp_path / "dist")
+
+    assert report.cleanup["problems"]
+    assert report.cleanup["command"] == "elemctl probe --cleanup app-1"
+
+
+def test_the_steps_left_after_a_broken_cleanup_skip_what_was_done(project_factory, tmp_path):
+    client = FakeProbeClient(
+        delete_assembly_error=ApiError("Console API ответил 500", status=500)
+    )
+
+    report = probe_project(client, project_dir=project_factory(), output_dir=tmp_path / "dist")
+
+    steps = report.cleanup["steps"]
+    assert steps and not any("apps delete" in step for step in steps)
+    assert any("builds delete" in step and "--project-id proj-1" in step for step in steps)
+
+
+def test_a_clean_run_names_no_commands(project_factory, tmp_path):
+    report = probe_project(
+        FakeProbeClient(), project_dir=project_factory(), output_dir=tmp_path / "dist"
+    )
+    assert report.cleanup["command"] is None and report.cleanup["steps"] is None
+
+
 def test_probe_without_an_assembly_id_is_an_error(project_factory, tmp_path):
     """No build id in the response means there is nothing to compile."""
     client = FakeProbeClient(upload_response={"artifact": {"artifact-id": "proj-1"}})

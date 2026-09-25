@@ -18,6 +18,12 @@ Cleanup is part of the operation: the throwaway application is deleted, then the
 probe build, and - if the probe created it - the project. The order matters: the
 platform rejects deleting a build while an application created from it still
 exists.
+
+A probe kept with `keep` (or one whose cleanup broke off) is finished by
+`cleanup_probe`, which starts from the application alone: its card names the
+project and the build, so nothing has to be remembered between the two runs, and
+the build is looked for in the probe's own project rather than in the project of
+the environment.
 """
 
 from __future__ import annotations
@@ -35,13 +41,20 @@ from .build import (
     parse_flat_yaml,
     read_project_meta,
 )
-from .client import extract_assembly_id, extract_project_id
-from .errors import ApiError, ElemctlError
+from .client import (
+    APP_NAME_KEYS,
+    assembly_id_of,
+    extract_assembly_id,
+    extract_project_id,
+)
+from .errors import ApiError, ConfigError, ElemctlError
 from .registry import remember_build
 
 # The prefix of the throwaway application name; the same token goes into the
 # build version, so that leftovers of an interrupted run can be matched up.
 PROBE_PREFIX = "elemctl-probe-"
+# What marks a probe build: its version is `{base}-probe-{token}`.
+PROBE_VERSION_MARK = "-probe-"
 
 # A compilation error line of an application task: the archive path of the file,
 # the position in brackets and the text. The pattern is searched for rather than
@@ -84,6 +97,9 @@ class ProbeReport:
     file: str = ""
     version: str = ""
     project_id: str = ""
+    # Whether this very upload created the project: True, False, or None when the list of
+    # projects could not be read before the upload.
+    project_created: bool | None = None
     assembly_id: str = ""
     app_id: str = ""
     app_name: str = ""
@@ -110,6 +126,7 @@ class ProbeReport:
             "file": self.file,
             "version": self.version,
             "project-id": self.project_id,
+            "project-created": self.project_created,
             "assembly-id": self.assembly_id,
             "app-id": self.app_id,
             "app-name": self.app_name,
@@ -255,13 +272,16 @@ def probe_project(
     app_name="",
     version="",
     keep=False,
+    env_file=None,
     log=None,
 ):
     """Run the project sources through the server compiler; return a ProbeReport.
 
     log - a callback for progress lines (print, for instance); the library itself
     prints nothing. keep - leave the throwaway application, the build and the
-    project in place (for a hands-on investigation of a failure).
+    project in place (for a hands-on investigation of a failure). env_file - the
+    .env the caller reached the stand with; it is only written into the cleanup
+    commands of a probe that left something behind, so that they reach the same stand.
     """
     log = log or (lambda message: None)
     # The token ends up as the version suffix after the last hyphen, and that suffix
@@ -311,6 +331,7 @@ def probe_project(
         report.project_id and known_projects is not None
         and report.project_id not in known_projects
     )
+    report.project_created = created_project if known_projects is not None else None
     log(i18n.t(
         "probe.uploaded",
         assembly=report.assembly_id,
@@ -376,7 +397,8 @@ def probe_project(
                 log(report.hint)
     finally:
         report.cleanup = _cleanup(
-            client, report, keep=keep, delete_project=created_project, log=log
+            client, report, keep=keep, delete_project=created_project, env_file=env_file,
+            log=log,
         )
     return report
 
@@ -411,7 +433,7 @@ def _status_of(error):
     return ""
 
 
-def _cleanup(client, report, *, keep, delete_project, log):
+def _cleanup(client, report, *, keep, delete_project, env_file=None, log):
     """Remove what the probe created; return the report of that.
 
     The order is forced by the platform: a build that an application was created
@@ -419,6 +441,9 @@ def _cleanup(client, report, *, keep, delete_project, log):
     first and the build only after it has really disappeared. None - nothing to
     do; a failure is a problem in the report rather than an exception: the
     compilation verdict has already been obtained and must reach the caller.
+
+    Whatever is left behind - on purpose with keep, or by a step that failed - comes
+    with the commands that remove it: `command` does it all, `steps` by hand.
     """
     outcome = {
         "kept": bool(keep),
@@ -426,9 +451,15 @@ def _cleanup(client, report, *, keep, delete_project, log):
         "assembly-deleted": None,
         "project-deleted": None,
         "problems": [],
+        "command": None,
+        "steps": None,
     }
     if keep:
+        outcome["command"], outcome["steps"] = cleanup_commands(
+            report, project_created=delete_project, env_file=env_file
+        )
         log(i18n.t("probe.kept", app=report.app_id or "-", version=report.version))
+        _announce_commands(outcome, log)
         return outcome
 
     gone = False
@@ -467,4 +498,319 @@ def _cleanup(client, report, *, keep, delete_project, log):
 
     for problem in outcome["problems"]:
         log(i18n.t("probe.cleanup-problem", problem=problem))
+    if outcome["problems"]:
+        outcome["command"], outcome["steps"] = cleanup_commands(
+            report, project_created=delete_project, env_file=env_file, done=outcome
+        )
+        _announce_commands(outcome, log)
     return outcome
+
+
+def _quoted(value):
+    """A value as it goes into a command line: in double quotes when it has blanks in it.
+
+    Double quotes read the same in a POSIX shell, in PowerShell and in cmd, which is the
+    one spelling a copied line needs.
+    """
+    text = str(value)
+    return f'"{text}"' if any(char.isspace() for char in text) else text
+
+
+def cleanup_commands(report, *, project_created, env_file=None, done=None):
+    """The commands that remove what a probe left: (the one command, the steps by hand).
+
+    The one command is `probe --cleanup` over the application, and None when there is no
+    application to start from. The steps go in the order the platform demands: the
+    application, then the build - addressed in the probe's own project, which is not the
+    project of the environment - and the project only when this probe created it. A step
+    the cleanup already made (done, its outcome) is left out. The .env the probe reached the
+    stand with is named in every line, so that a copied line goes to the same stand.
+    """
+    done = done or {}
+    suffix = f" --env-file {_quoted(env_file)}" if env_file else ""
+    command = f"elemctl probe --cleanup {report.app_id}{suffix}" if report.app_id else None
+    steps = []
+    if report.app_id and not done.get("app-deleted"):
+        steps.append(f"elemctl apps delete {report.app_id}{suffix}")
+    if report.version and report.project_id and not done.get("assembly-deleted"):
+        steps.append(
+            f"elemctl builds delete {report.version} --project-id {report.project_id}{suffix}"
+        )
+    if project_created and report.project_id and not done.get("project-deleted"):
+        steps.append(f"elemctl projects delete {report.project_id}{suffix}")
+    return command, steps
+
+
+def _announce_commands(outcome, log):
+    """Say how to finish the cleanup: the one command first, then the steps by hand."""
+    if outcome.get("command"):
+        log(i18n.t("probe.cleanup-command", command=outcome["command"]))
+    if outcome.get("steps"):
+        log(i18n.t("probe.cleanup-steps", steps="; ".join(outcome["steps"])))
+
+
+# -- finishing the cleanup of a kept probe -------------------------------------------------
+
+
+def probe_token(name):
+    """The token of an application named the way a probe names it; "" for any other name."""
+    name = str(name or "")
+    return name[len(PROBE_PREFIX):] if name.startswith(PROBE_PREFIX) else ""
+
+
+def is_probe_build(version, token=""):
+    """Whether a build version is a probe's: `{base}-probe-{token}`.
+
+    With a token, the version has to carry that very token: the build of this probe and of no
+    other. Without one, any probe version counts.
+    """
+    version = str(version or "")
+    if token:
+        return version.endswith(f"{PROBE_VERSION_MARK}{token}")
+    return PROBE_VERSION_MARK in version
+
+
+def _version_of(assembly):
+    """The version of an assembly card, the address its card and its deletion take."""
+    return str(assembly.get("assembly-version") or assembly.get("project-version") or "")
+
+
+@dataclass
+class CleanupReport:
+    """What `cleanup_probe` removed and what it left, with the reasons.
+
+    app_deleted - True once the application is gone (now or before this run), False when
+    it did not disappear in time. builds - the probe builds found in the project, each with
+    whether it was deleted. project_deleted - True when the project went (now or before),
+    None when it was kept on purpose, and then project_kept says why; False when its
+    deletion failed.
+    """
+
+    ok: bool = False
+    app_id: str = ""
+    app_name: str = ""
+    project_id: str = ""
+    app_deleted: bool | None = None
+    builds: list = field(default_factory=list)
+    project_deleted: bool | None = None
+    project_kept: str = ""
+    problems: list = field(default_factory=list)
+
+    def to_dict(self):
+        """Render the report as a dict with kebab-case keys (for JSON output)."""
+        return {
+            "ok": self.ok,
+            "app-id": self.app_id,
+            "app-name": self.app_name,
+            "project-id": self.project_id,
+            "app-deleted": self.app_deleted,
+            "builds": list(self.builds),
+            "project-deleted": self.project_deleted,
+            "project-kept": self.project_kept or None,
+            "problems": list(self.problems),
+        }
+
+
+def _is_deleted_card(card):
+    return str(card.get("status") or "").strip().lower() == "deleted"
+
+
+def _probe_card(client, app):
+    """The card of the application out of the full list, deleted ones included.
+
+    The list and not the card request: the card of a deleted application answers 404,
+    while the list keeps it under the Deleted status with its source and project - and a
+    second run after a cleanup that stopped halfway starts from exactly such an
+    application. An id matches as it is; a name matches exactly, a live application first.
+    """
+    wanted = str(app or "").strip()
+    if not wanted:
+        raise ConfigError(i18n.t("client.app-not-found", name=app))
+    cards = [card for card in client.list_apps(include_deleted=True) if isinstance(card, dict)]
+    for card in cards:
+        if str(card.get("id") or "") == wanted:
+            return card
+    target = wanted.lower()
+    named = [
+        card for card in cards
+        if any(str(card.get(key) or "").strip().lower() == target for key in APP_NAME_KEYS)
+    ]
+    chosen = [card for card in named if not _is_deleted_card(card)] or named
+    if not chosen:
+        raise ConfigError(i18n.t("client.app-not-found", name=app))
+    if len(chosen) > 1:
+        ids = ", ".join(str(card.get("id")) for card in chosen)
+        raise ConfigError(i18n.t("client.app-name-ambiguous", name=app, ids=ids))
+    return chosen[0]
+
+
+def _project_listing(client, project_id):
+    """The builds of the project; an empty list when the project is gone already."""
+    try:
+        return [item for item in client.list_assemblies(project_id) if isinstance(item, dict)]
+    except ApiError as error:
+        if error.status == 404:
+            return []
+        raise
+
+
+def _project_deleted_already(client, project_id):
+    """Whether the platform lists the project as deleted (it keeps such projects in the list)."""
+    for project in client.list_projects(include_deleted=True):
+        if isinstance(project, dict) and str(project.get("id") or "") == project_id:
+            return bool(project.get("deleted"))
+    return False
+
+
+def _users_of_project(client, project_id, app_id):
+    """The names of the live applications other than this one that run the project."""
+    names = []
+    for card in client.list_apps():
+        if not isinstance(card, dict) or str(card.get("id") or "") == app_id:
+            continue
+        source = card.get("source") if isinstance(card.get("source"), dict) else {}
+        project = card.get("project") if isinstance(card.get("project"), dict) else {}
+        if project_id in (str(project.get("id") or ""), str(source.get("image-id") or "")):
+            names.append(str(card.get("name") or card.get("display-name") or card.get("id")))
+    return names
+
+
+def _project_kept_reason(client, project_id, app_id, working_project):
+    """Why the project has to stay, or "" when it may go.
+
+    A probe usually lands in the project that owns its sources - the working one - so the
+    project goes only when nothing is left in it: no build at all after the probe's, and no
+    live application that runs it. A real project keeps its first build for good, so an
+    empty project is a throwaway one; the environment's own project is kept whatever it holds.
+    """
+    if working_project and project_id == working_project:
+        return i18n.t("probe.cleanup-project-working")
+    left = [_version_of(item) or assembly_id_of(item) for item in _project_listing(client, project_id)]
+    if left:
+        shown = ", ".join(left[:5]) + (", ..." if len(left) > 5 else "")
+        return i18n.t("probe.cleanup-project-has-builds", builds=shown)
+    users = _users_of_project(client, project_id, app_id)
+    if users:
+        return i18n.t("probe.cleanup-project-in-use", apps=", ".join(users))
+    return ""
+
+
+def cleanup_probe(client, app, *, log=None):
+    """Remove what a probe left on the stand, starting from its application; a CleanupReport.
+
+    This is how a probe kept with --keep is taken away, and a cleanup that broke off is
+    finished: a second run picks up where the first one stopped. The application's card
+    names the rest - the project the build landed in and the build it was created from -
+    so the build is looked for in that project and not in the project of the environment.
+
+    Only a probe's application is touched: one whose name carries the probe prefix, or one
+    that runs a probe build (a probe named with --name). Anything else is refused with the
+    reason, and so is the application the environment names as the working one. The order is
+    the platform's: the application, a wait until it is really gone, the builds of the probe,
+    and the project last - only when nothing is left in it (_project_kept_reason). The
+    builds other runs uploaded into the probe's application are not the probe's; the
+    platform deletes the builds nobody uses by itself.
+
+    A failure is a problem in the report, not an exception: what was removed stays removed,
+    and the next run finishes the rest.
+    """
+    log = log or (lambda message: None)
+    config = getattr(client, "config", None)
+    working_app = str(getattr(config, "app_id", "") or "")
+    working_project = str(getattr(config, "project_id", "") or "")
+
+    card = _probe_card(client, app)
+    source = card.get("source") if isinstance(card.get("source"), dict) else {}
+    project = card.get("project") if isinstance(card.get("project"), dict) else {}
+    report = CleanupReport(
+        app_id=str(card.get("id") or ""),
+        app_name=str(card.get("name") or card.get("display-name") or ""),
+        project_id=str(project.get("id") or source.get("image-id") or ""),
+    )
+    applied_id = str(source.get("project-version-id") or "")
+    applied_version = str(source.get("project-version") or "")
+    token = probe_token(report.app_name)
+
+    if working_app and report.app_id == working_app:
+        raise ElemctlError(i18n.t("probe.cleanup-working-app", app=report.app_id))
+    if not token and not is_probe_build(applied_version):
+        raise ElemctlError(i18n.t(
+            "probe.cleanup-not-a-probe",
+            name=report.app_name or report.app_id, app=report.app_id, prefix=PROBE_PREFIX,
+            version=applied_version or i18n.t("probe.unknown"),
+        ))
+
+    # The application first: while it exists the platform refuses to delete its build.
+    if _is_deleted_card(card):
+        report.app_deleted = True
+        log(i18n.t("probe.cleanup-app-already-deleted", app=report.app_id))
+    else:
+        try:
+            log(i18n.t("probe.cleanup-deleting-app", app=report.app_id, name=report.app_name))
+            client.delete_app(report.app_id)
+            report.app_deleted = client.wait_app_deleted(report.app_id, log=log)
+            if not report.app_deleted:
+                report.problems.append(
+                    i18n.t("probe.cleanup-app-still-there", app=report.app_id)
+                )
+        except (ApiError, ElemctlError) as error:
+            report.app_deleted = False
+            report.problems.append(
+                i18n.t("probe.cleanup-app-not-deleted", app=report.app_id, error=error)
+            )
+        if not report.app_deleted:
+            return _finish(report, log)
+
+    if not report.project_id:
+        report.problems.append(i18n.t("probe.cleanup-no-project", app=report.app_id))
+        return _finish(report, log)
+
+    try:
+        listing = _project_listing(client, report.project_id)
+    except (ApiError, ElemctlError) as error:
+        report.problems.append(str(error))
+        return _finish(report, log)
+    ours = [
+        item for item in listing
+        if (token and is_probe_build(_version_of(item), token))
+        or (assembly_id_of(item) == applied_id and is_probe_build(_version_of(item)))
+    ]
+    if not ours:
+        log(i18n.t("probe.cleanup-no-build", project=report.project_id))
+    for item in ours:
+        entry = {"id": assembly_id_of(item), "version": _version_of(item), "deleted": False}
+        try:
+            client.delete_assembly(report.project_id, entry["version"] or entry["id"])
+            entry["deleted"] = True
+            log(i18n.t("probe.cleanup-build-deleted", version=entry["version"],
+                       project=report.project_id))
+        except (ApiError, ElemctlError) as error:
+            entry["error"] = str(error)
+            report.problems.append(str(error))
+        report.builds.append(entry)
+
+    try:
+        if _project_deleted_already(client, report.project_id):
+            report.project_deleted = True
+            log(i18n.t("probe.cleanup-project-already", project=report.project_id))
+            return _finish(report, log)
+        reason = _project_kept_reason(client, report.project_id, report.app_id, working_project)
+        if reason:
+            report.project_kept = reason
+            log(i18n.t("probe.cleanup-project-kept", project=report.project_id, reason=reason))
+        else:
+            client.delete_project(report.project_id)
+            report.project_deleted = True
+            log(i18n.t("probe.cleanup-project-deleted", project=report.project_id))
+    except (ApiError, ElemctlError) as error:
+        report.project_deleted = False
+        report.problems.append(str(error))
+    return _finish(report, log)
+
+
+def _finish(report, log):
+    """Settle the verdict: the cleanup went well when nothing went wrong on the way."""
+    for problem in report.problems:
+        log(i18n.t("probe.cleanup-problem", problem=problem))
+    report.ok = not report.problems
+    return report

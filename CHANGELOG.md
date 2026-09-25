@@ -27,6 +27,11 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
   service with a user's token was refused with a 500 "Token access is denied" until the flag was
   switched in the control panel. The command and the MCP tool `token_access` show the flag,
   switch it and read it back, and name a user who is not connected to the application.
+- **`probe --cleanup` removes a kept probe in one command.** Taking a probe away by hand
+  went wrong: a bare `builds delete` looked in the project of the environment, not in the
+  probe's. The new command starts from the application, deletes it, its build and an empty
+  project in the platform's order and refuses an application no probe left; the report of
+  `probe --keep` names that command and the steps by hand.
 
 ### Fixed
 - **A server that is still starting is called what it is.** While its console was coming up,
