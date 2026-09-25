@@ -843,6 +843,28 @@ def create_server(config=None, *, overrides=None, env_file=None):
         }
 
     @server.tool()
+    def token_access(
+        app_id: str,
+        user: str = "",
+        enabled: bool | None = None,
+        env_file: str = "",
+    ) -> dict:
+        """Доступ пользователя к HTTP-сервисам приложения по токену: показать или переключить.
+
+        Без этого доступа вызов HTTP-сервиса приложения токеном пользователя получает
+        500 "Token access is denied", какие бы права у пользователя ни были. app_id - ид
+        (UUID) либо точное имя приложения, его нужно назвать явно. user - логин,
+        представление или ид пользователя; пусто - учётная запись, под которой работает
+        elemctl. Без enabled инструмент только показывает признак; enabled=true/false
+        переключает его и перечитывает подключение, так что token-access-enabled в ответе -
+        то, что хранит платформа после изменения, а changed говорит, менял ли вызов что-то.
+        Пользователя, не подключённого к приложению, инструмент называет сам, а не
+        отправляет на изменение.
+        """
+        target = client(env_file)
+        return target.token_access(target.resolve_app_id(app_id), user=user, enabled=enabled)
+
+    @server.tool()
     def list_app_tasks(app_id: str = "", env_file: str = "") -> list:
         """Задачи приложений; app_id - необязательный фильтр (выполняется на клиенте)."""
         return client(env_file).list_app_tasks(app_id)

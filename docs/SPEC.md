@@ -71,6 +71,9 @@ Common prefix: `{base}/console/api/v2`. Request and response bodies are JSON, ap
 - `POST /applications/{id}/project/update` – apply a build to the application. Body: `{"source": {"type": "repository", "image-id": "<build id>"}}` or `{"source": {"type": "repository", "project-id": "<id>", "assembly-version": "<version>"}}` (assembly-version is optional).
 - `POST /applications/{id}/dumps` – create a dump. Body: `include-users`, `include-binary-data` (booleans), `description` (string).
 - `GET /applications/{id}/dumps/{dumpId}` – dump status.
+- `GET /applications/{id}/users` – the users connected to the application, each `{user-list-id, user-id, presentation, is-admin, token-access-enabled}`. The users of the control panel are among them: the platform connects them itself, and it names such a user by the login. `token-access-enabled` is the access of the user to the HTTP services of the application by a token. Without it a call of a service with the user's token is refused with a 500 "Token access is denied", whatever the rights of the user.
+- `PUT /applications/{id}/users/change-token-access` – switch that access. Body: `{"user-list-id", "user-id", "enable-access"}`, all three required; the answer is the connection as it became. A user who is not connected to the application is refused with a 500 "Can't change user token access" and no word about the cause, so the client finds the connection first and names the user when there is none. The reference documents the method under v2 and v2.1 with the same body, and a live check got the same answer from both; the client takes the v2 prefix, like every other request.
+- `GET /me` – the user the credentials belong to: `id`, `login`, `presentation`, `user-list-id`.
 
 Application statuses: stable `Running`, `Stopped`, `Error`; transitional `Starting`, `Stopping`, `Initializing`, `Updating`, `Frozen`, `Creating`. During transitions the `status` field may also be empty.
 
@@ -120,6 +123,7 @@ A user list holds either the users of an application, which has a list of its ow
 - `GET|PUT /user-lists/{id}/settings/self-registration` – `{enabled, phone-required, email-required}`. This is the panel's "allow users to register themselves". The PUT wants the whole object.
 - `GET|POST /user-lists/{id}/settings/account-services-settings`, `PUT|DELETE .../{account-service-id}` – the account services of the list. An entry is `{account-service-id, account-service-type, local-id, enabled, create-user-on-auth, additional-settings}`. The type `Local` authenticates by a password, so the panel's "allow signing in with a login and a password" is that entry being `enabled`. The other types are external services: `OIDC`, `Cas`, `ActiveDirectory`, `Esia`. The PUT wants the whole entry back.
 - `GET /applications/{id}/userlists` – the ids of the lists connected to the application; `POST` connects, `DELETE` disconnects. Note the spelling: no dash here. There are no per-connection settings: the link is a set of ids and nothing more.
+- `GET /user-lists/{id}/users` – the users of the list, `id` and `login` among their fields. An entry carries the access tokens of the user as well, secrets included, so the client takes nothing but the ids out of it.
 - The application card names the application's own list in `default-user-list`. That is the list of its users, and the panel list connected to it is a separate one.
 
 Two things the panel can do and the API cannot, so both stay manual:
@@ -220,7 +224,8 @@ Commands, with the significant flags in parentheses:
   `apps ensure NAME [--project-id --version-id --latest-build --space-id
   --tech-version --no-dev-mode --wait --verify --no-verify --apply]`,
   `apps apply [APP_ID] VERSION_ID`,
-  `apps delete APP_ID`, `apps start [APP_ID]`, `apps stop [APP_ID]`.
+  `apps delete APP_ID`, `apps start [APP_ID]`, `apps stop [APP_ID]`,
+  `apps token-access APP_ID [--user --enable --disable]`.
   - `apps list --name` filters by a case-insensitive name substring, and it does so on the client because the platform ignores the query parameter (section 4.1). `--status` selects by the whole status word, several of them separated by commas. `--brief` prints brief cards instead of full ones: id, name, status, uri, applied version.
   - `apps list` hides the deleted applications. They stay in the platform list under the `Deleted` status, and a stand a few months old answers with hundreds of cards of which a handful are alive. `--include-deleted` brings them back, and so does `--status deleted`: a filter that would answer with nothing is worse than no filter. A cut nobody is told about is a trap of its own, so the command ends with a count line on stderr, "7 live of 324", plus the number shown when a filter narrowed the answer further. Whatever is cut, stdout stays the same JSON array.
   - `apps get` adds `applied-build` to the card: the brief card of the build the application runs, with its branch and commit from the build card or from the local registry of uploads, in the shape `builds list --brief` prints. It is null when the card names no applied build.
@@ -234,6 +239,7 @@ Commands, with the significant flags in parentheses:
   - A source given by `--version-id` is looked up in the build list of the project before anything is created. The project is `--project-id`, or `ELEMENT_PROJECT_ID` when the flag is absent. The platform deletes the builds nobody uses and cannot create an application from a deleted one: it answers with a bare 400 "Can't create application", which reads like a limit on the number of applications. So the command refuses by itself. The refusal names the cause and offers the build that a running application of the project runs, or `--latest-build` when no application runs one. A project taken from `ELEMENT_PROJECT_ID` is named in the refusal, because the build may belong to another project. Without a project there is no list to look in, and the create goes as before.
   - Waiting means verifying. A failed apply is rolled back by the platform to the previous build, and the application comes up `Running` all the same, so a card handed back after a wait is not evidence that the build asked for is the one running. `--wait` therefore ends with the same check `apps apply` and `verify-deploy` do: the applied build id against the requested one, the application tasks that failed since the creation started, the uri. It puts the report into the `verify` field of the output and answers with exit code 1 when the check does not pass. `--verify` asks for the check on its own, and waits too, because there is nothing to check on an application still being created. `--no-verify` brings back the plain wait. Without either flag nothing is waited for and nothing is checked, as before.
   - The application exists once the create has answered, so a wait or a check that breaks off does not lose it. The output still carries the id: the card of `apps create`, the `id` of `apps ensure` with `applied: null`, since nothing was checked. The `wait-error` field holds the error that ended the wait, stderr names the `verify-deploy` call that checks the build later, and the exit code is 1. The answer used to be a bare network error without the id, and the id of an application that came up minutes later had to be looked up by name.
+  - `apps token-access APP_ID` shows or switches the access of a user to the HTTP services of the application by a token (section 4.1). The application is named explicitly, by the argument or by `--app-id`: `ELEMENT_APP_ID` names the working application, and a switch that opens its services must not land there by default. `--user` is a login, a presentation or a user id, and without it the command speaks about the account elemctl itself signs in with (`GET /me`). Without `--enable` or `--disable` it only reads; both at once is an error. A switch reads the connection back, so `token-access-enabled` in the output is what the platform keeps after the change, and a flag that did not move is an error with exit code 1. The output is `{"app-id", "user", "user-id", "user-list-id", "token-access-enabled", "changed"}`, where `changed` says whether this very call altered anything: the state that is already there sends no request. A user who is not connected to the application is named as such, with the users that are, before anything is sent.
 - `spaces list`.
 - `user-lists list [--name]`, `user-lists get [LIST] [--app]`,
   `user-lists self-registration [LIST] [--app --enable --disable]`,
@@ -419,7 +425,10 @@ expected_version="", since_minutes=30)` – verification of the apply per sectio
 the sign-in settings of a user list (section 4.7) in one call: the list is given by id, by
 presentation or by the application whose own list it is; both flags are optional, and
 without them the tool only reports the state (`self-registration-enabled`,
-`password-login-enabled`, `changed`).
+`password-login-enabled`, `changed`); `token_access(app_id, user="", enabled=None)` – the
+access of a user to the HTTP services of the application by a token, as `apps token-access`
+shows and switches it (section 7): `app_id` is required, an empty `user` means the account
+elemctl signs in with, and without `enabled` the tool only reads.
 
 The tools the plugins bring (section 10, the `elemctl.commands` group) are registered
 alongside these: the schema is built out of the declared arguments, the description is the

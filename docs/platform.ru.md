@@ -47,6 +47,20 @@ sidebar:
 - `POST /applications/{id}/dumps` - создать дамп. Тело: `include-users`,
   `include-binary-data` (булевы), `description` (строка).
 - `GET /applications/{id}/dumps/{dumpId}` - статус дампа.
+- `GET /applications/{id}/users` – пользователи, подключённые к приложению, каждый
+  `{user-list-id, user-id, presentation, is-admin, token-access-enabled}`. Среди них и
+  пользователи панели управления: их платформа подключает сама и называет такого
+  пользователя по логину. `token-access-enabled` – доступ пользователя к HTTP-сервисам
+  приложения по токену; без него вызов сервиса токеном этого пользователя получает 500
+  "Token access is denied".
+- `PUT /applications/{id}/users/change-token-access` – переключить этот доступ. Тело:
+  `{"user-list-id", "user-id", "enable-access"}`, все три обязательны; ответ – подключение
+  в том виде, в каком оно стало. Пользователь, не подключённый к приложению, получает 500
+  "Can't change user token access" без объяснения причины. Метод описан и в v2, и в v2.1.
+  `elemctl apps token-access` сначала находит подключение, а после переключения
+  перечитывает признак.
+- `GET /me` – пользователь, которому принадлежат реквизиты: `id`, `login`, `presentation`,
+  `user-list-id`.
 
 Статусы приложения: стабильные `Running`, `Stopped`, `Error`; переходные
 `Starting`, `Stopping`, `Initializing`, `Updating`, `Frozen`, `Creating`.
@@ -182,6 +196,9 @@ sidebar:
 - `GET|POST|DELETE /applications/{id}/userlists` - ид списков, подключённых к
   приложению. Обратите внимание на написание: здесь `userlists`, а на верхнем
   уровне `user-lists`. Собственных настроек у связи нет.
+- `GET /user-lists/{id}/users` – пользователи списка, среди полей `id` и `login`. Запись
+  несёт и токены доступа пользователя вместе с секретами, так что в журнал такой ответ
+  как есть не попадает.
 
 Что стоит знать, прежде чем на это опираться:
 

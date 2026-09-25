@@ -85,6 +85,10 @@ MESSAGES = {
         "ru": "app-id (аргумент APP_ID или ELEMENT_APP_ID)",
         "en": "app-id (APP_ID argument or ELEMENT_APP_ID)",
     },
+    "cli.require.app-ref": {
+        "ru": "app-id (аргумент APP_ID или --app-id; ELEMENT_APP_ID здесь не берётся)",
+        "en": "app-id (APP_ID argument or --app-id; ELEMENT_APP_ID is not taken here)",
+    },
     "cli.require.app-id-flag": {
         "ru": "--app-id (или ELEMENT_APP_ID)",
         "en": "--app-id (or ELEMENT_APP_ID)",
@@ -438,6 +442,38 @@ MESSAGES = {
         "ru": "под представление '{name}' подходит несколько списков пользователей: {ids} – "
               "укажите ид",
         "en": "several user lists match the presentation '{name}': {ids} – give the id",
+    },
+    "client.app-user-not-connected": {
+        "ru": "пользователь '{user}' не подключён к приложению {app}: среди пользователей "
+              "приложения его нет, а доступ по токену платформа меняет только подключённым. "
+              "Подключены: {connected}",
+        "en": "the user '{user}' is not connected to the application {app}: the users of the "
+              "application do not include them, and the platform changes token access for "
+              "connected users only. Connected: {connected}",
+    },
+    "client.app-users-none": {
+        "ru": "никто",
+        "en": "nobody",
+    },
+    "client.app-user-ambiguous": {
+        "ru": "пользователю '{user}' в приложении {app} соответствует несколько подключений: "
+              "{ids} – укажите ид пользователя",
+        "en": "several connections of the application {app} match the user '{user}': {ids} – "
+              "give the user id",
+    },
+    "client.token-access-not-changed": {
+        "ru": "платформа приняла изменение доступа по токену для '{user}' в приложении {app}, "
+              "но перечитанное подключение показывает token-access-enabled: {now} вместо "
+              "{wanted}",
+        "en": "the platform accepted the change of token access for '{user}' in the "
+              "application {app}, but the connection read back shows token-access-enabled: "
+              "{now} instead of {wanted}",
+    },
+    "client.token-access-user-gone": {
+        "ru": "платформа приняла изменение доступа по токену для '{user}' в приложении {app}, "
+              "но после него приложение этого пользователя среди своих не называет",
+        "en": "the platform accepted the change of token access for '{user}' in the "
+              "application {app}, but after it the application no longer lists that user",
     },
     "client.app-has-no-user-list": {
         "ru": "у приложения {app} нет собственного списка пользователей (default-user-list пуст)",
@@ -1333,6 +1369,28 @@ MESSAGES = {
     "cli.help.apps-debug": {
         "ru": "данные для сессии отладки (debug-token, debug-address)",
         "en": "data for a debug session (debug-token, debug-address)",
+    },
+    "cli.help.apps-token-access": {
+        "ru": "доступ пользователя к HTTP-сервисам приложения по токену: показать или "
+              "переключить (без него вызов сервиса токеном получает 500 \"Token access is "
+              "denied\")",
+        "en": "a user's access to the HTTP services of the application by a token: show or "
+              "switch it (without it a call of a service with a token gets a 500 \"Token access "
+              "is denied\")",
+    },
+    "cli.help.apps-token-access-user": {
+        "ru": "логин, представление или ид пользователя (по умолчанию – учётная запись, под "
+              "которой работает elemctl)",
+        "en": "the login, the presentation or the id of the user (default: the account elemctl "
+              "signs in with)",
+    },
+    "cli.help.apps-token-access-enable": {
+        "ru": "разрешить доступ по токену и перечитать признак",
+        "en": "allow the access by a token and read the flag back",
+    },
+    "cli.help.apps-token-access-disable": {
+        "ru": "запретить доступ по токену и перечитать признак",
+        "en": "forbid the access by a token and read the flag back",
     },
     "cli.help.create-project-id": {
         "ru": "проект-источник; с --version-id по перечню его сборок команда проверяет, "

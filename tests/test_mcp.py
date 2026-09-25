@@ -49,6 +49,7 @@ EXPECTED_TOOLS = {
     "verify_deploy",
     "list_user_lists",
     "configure_user_list",
+    "token_access",
     "list_app_tasks",
     "list_branches",
     "merge_branch",
@@ -819,6 +820,7 @@ EXPECTED_TOOL_PARAMETERS = {
     "probe": ("env_file keep project_dir space_id", ""),
     "start_app": ("app_id env_file", "app_id"),
     "stop_app": ("app_id env_file", "app_id"),
+    "token_access": ("app_id enabled env_file user", "app_id"),
     "verify_deploy": (
         "app_id env_file expected_assembly_id expected_version since_minutes",
         "app_id",

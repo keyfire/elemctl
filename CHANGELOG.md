@@ -23,6 +23,10 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
   The branch, the state of the tree and the directory the platform does not keep, so a local
   registry of uploads remembers them; `builds list --brief` and `apps get` name the source of each.
   ([#42](https://github.com/keyfire/elemctl/pull/42))
+- **`apps token-access` opens the HTTP services of an application to a token.** A call of a
+  service with a user's token was refused with a 500 "Token access is denied" until the flag was
+  switched in the control panel. The command and the MCP tool `token_access` show the flag,
+  switch it and read it back, and name a user who is not connected to the application.
 
 ### Fixed
 - **A server that is still starting is called what it is.** While its console was coming up,

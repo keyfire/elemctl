@@ -665,6 +665,28 @@ def cmd_apps_stop(args):
     return 0
 
 
+def cmd_apps_token_access(args):
+    """Access of a user to the HTTP services of an application by a token: read or switch.
+
+    The application has to be named: the switch opens the services of an application to a
+    token, and ELEMENT_APP_ID names the working one - the same reason `apps delete` takes no
+    default. --user is a login, a presentation or a user id; without it the command speaks
+    about the account elemctl signs in with. Without --enable or --disable it only reads, and
+    after a switch the flag in the answer is the one read back from the platform.
+    """
+    reference = _app_ref(args)
+    if not reference:
+        raise ConfigError(i18n.t("cli.not-set", what=i18n.t("cli.require.app-ref")))
+    if args.enable and args.disable:
+        raise ElemctlError(i18n.t("cli.enable-disable-conflict"))
+    client = make_client(_config(args))
+    enabled = True if args.enable else False if args.disable else None
+    _emit(client.token_access(
+        client.resolve_app_id(reference), user=args.user or "", enabled=enabled
+    ))
+    return 0
+
+
 def cmd_spaces_list(args):
     client = make_client(_config(args))
     _emit(client.list_spaces())
@@ -1730,6 +1752,13 @@ def build_parser():
     p = apps_sub.add_parser("debug", help=i18n.t("cli.help.apps-debug"))
     _add_app_ref(p)
     p.set_defaults(handler=cmd_apps_debug)
+
+    p = apps_sub.add_parser("token-access", help=i18n.t("cli.help.apps-token-access"))
+    _add_app_ref(p, required=True)
+    p.add_argument("--user", help=i18n.t("cli.help.apps-token-access-user"))
+    p.add_argument("--enable", action="store_true", help=i18n.t("cli.help.apps-token-access-enable"))
+    p.add_argument("--disable", action="store_true", help=i18n.t("cli.help.apps-token-access-disable"))
+    p.set_defaults(handler=cmd_apps_token_access)
 
     # spaces ----------------------------------------------------------------
     spaces = sub.add_parser("spaces", help=i18n.t("cli.help.spaces"))
