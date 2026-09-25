@@ -2,7 +2,14 @@
 
 from __future__ import annotations
 
-from elemctl.schema import narrowing_changes, parse_attributes
+from elemctl.schema import (
+    narrowing_changes,
+    parse_attributes,
+    parse_block,
+    parse_tabular_parts,
+    removals,
+    review_tree,
+)
 
 BEFORE = """\
 ВидЭлемента: Справочник
@@ -131,6 +138,9 @@ def test_a_translation_of_the_description_does_not_blind_the_guard():
 def test_a_pure_translation_is_silent():
     """Translating a description changes no schema - the guard must not refuse it."""
     assert narrowing_changes(BEFORE, BEFORE_EN) == []
+    # Nor name a removal: the standard Наименование has no Ид and becomes Description,
+    # so across a translation only an Ид can say that an element is gone.
+    assert removals(BEFORE, BEFORE_EN) == []
 
 
 # -- registers: the records are keyed by the dimensions -------------------------
@@ -195,8 +205,8 @@ def test_a_changed_resource_type_is_reported_as_a_resource():
     assert "ресурс" in changes[0] and "ЗакрытоUtc" in changes[0]
 
 
-def test_a_removed_resource_is_not_reported():
-    """Only a dimension is singled out: the platform asks about the rest."""
+def test_a_removed_resource_is_named_but_does_not_refuse():
+    """Only a removed dimension refuses: it breaks the apply. A resource is simply gone."""
     after = REGISTER.replace(
         """    -
         Ид: e4fb211e-bad1-4dfa-98db-a5b0abbc701e
@@ -206,6 +216,9 @@ def test_a_removed_resource_is_not_reported():
         "",
     )
     assert narrowing_changes(REGISTER, after) == []
+    lines = removals(REGISTER, after, where="СостоянияЗаказов.yaml")
+    assert len(lines) == 1
+    assert "ресурс ЗакрытоUtc" in lines[0] and "СостоянияЗаказов" in lines[0]
 
 
 def test_a_register_untouched_reports_nothing():
@@ -245,3 +258,277 @@ Dimensions:
     changes = narrowing_changes(before, after, where="ClosedNotices.yaml")
     assert len(changes) == 1
     assert "NoticeKey" in changes[0]
+
+
+# -- tabular parts: the server removes one with its rows and asks nothing ----------
+
+TASKS = """\
+ВидЭлемента: Справочник
+Ид: 6f1d2c3b-4a59-4e68-8d7c-1b2a3c4d5e6f
+Имя: Задачи
+Реквизиты:
+    -
+        Имя: Наименование
+        Длина: 250
+    -
+        Ид: 7a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d
+        Имя: Срок
+        Тип: Дата
+ТабличныеЧасти:
+    -
+        Ид: 8b3c4d5e-6f7a-4b8c-9d0e-1f2a3b4c5d6e
+        Имя: Шаги
+        Реквизиты:
+            -
+                Ид: 9c4d5e6f-7a8b-4c9d-8e1f-2a3b4c5d6e7f
+                Имя: Шаг
+                Тип: Строка
+                МаксимальнаяДлина: 100
+            -
+                Ид: 0d5e6f7a-8b9c-4d0e-9f2a-3b4c5d6e7f80
+                Имя: Готово
+                Тип: Булево
+    -
+        Ид: 1e6f7a8b-9c0d-4e1f-8a3b-4c5d6e7f8091
+        Имя: Исполнители
+        Реквизиты:
+            -
+                Ид: 2f7a8b9c-0d1e-4f2a-9b4c-5d6e7f809102
+                Имя: Исполнитель
+                Тип: Строка
+Интерфейс:
+    Объект:
+        Форма: КарточкаЗадачи
+"""
+
+PERFORMERS = """\
+    -
+        Ид: 1e6f7a8b-9c0d-4e1f-8a3b-4c5d6e7f8091
+        Имя: Исполнители
+        Реквизиты:
+            -
+                Ид: 2f7a8b9c-0d1e-4f2a-9b4c-5d6e7f809102
+                Имя: Исполнитель
+                Тип: Строка
+"""
+
+DONE = """\
+            -
+                Ид: 0d5e6f7a-8b9c-4d0e-9f2a-3b4c5d6e7f80
+                Имя: Готово
+                Тип: Булево
+"""
+
+
+def test_tabular_parts_are_read_with_their_own_attributes():
+    parts = parse_tabular_parts(TASKS)
+    steps = parts["8b3c4d5e-6f7a-4b8c-9d0e-1f2a3b4c5d6e"]
+    assert steps["name"] == "Шаги"
+    assert {item["name"] for item in steps["attributes"].values()} == {"Шаг", "Готово"}
+    assert steps["attributes"]["9c4d5e6f-7a8b-4c9d-8e1f-2a3b4c5d6e7f"]["length"] == 100
+    assert len(parts) == 2
+
+
+def test_the_attributes_of_a_tabular_part_are_not_the_object_attributes():
+    """The top-level block ends where ТабличныеЧасти begins."""
+    names = {item["name"] for item in parse_attributes(TASKS).values()}
+    assert names == {"Наименование", "Срок"}
+
+
+def test_a_removed_tabular_part_is_named_with_its_object_and_does_not_refuse():
+    """The case that lost the rows: applied without a question, and the guard said nothing."""
+    after = TASKS.replace(PERFORMERS, "")
+
+    lines = removals(TASKS, after, where="Основное/Задачи.yaml")
+
+    assert lines == [
+        "Основное/Задачи.yaml: снимается табличная часть Исполнители объекта Задачи – "
+        "строки будут удалены"
+    ]
+    # A removal is a deliberate edit, like a removed attribute: named, not refused.
+    assert narrowing_changes(TASKS, after) == []
+
+
+def test_a_removed_attribute_of_a_remaining_tabular_part_is_named():
+    after = TASKS.replace(DONE, "")
+
+    lines = removals(TASKS, after, where="Задачи.yaml")
+
+    assert len(lines) == 1
+    assert "реквизит Готово" in lines[0] and "табличной части Шаги" in lines[0]
+    assert "объекта Задачи" in lines[0]
+    assert narrowing_changes(TASKS, after) == []
+
+
+def test_removing_every_tabular_part_drops_the_block_and_is_still_seen():
+    after = TASKS[: TASKS.index("ТабличныеЧасти:")] + TASKS[TASKS.index("Интерфейс:"):]
+
+    lines = removals(TASKS, after)
+
+    assert len(lines) == 2
+    assert any("Шаги" in line for line in lines) and any("Исполнители" in line for line in lines)
+
+
+def test_a_removed_attribute_of_the_object_is_named_too():
+    after = TASKS.replace(
+        "    -\n        Ид: 7a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d\n        Имя: Срок\n"
+        "        Тип: Дата\n",
+        "",
+    )
+
+    lines = removals(TASKS, after)
+
+    assert len(lines) == 1 and "реквизит Срок объекта Задачи" in lines[0]
+    assert narrowing_changes(TASKS, after) == []
+
+
+def test_a_narrowed_attribute_of_a_tabular_part_refuses_like_any_other():
+    after = TASKS.replace("МаксимальнаяДлина: 100", "МаксимальнаяДлина: 50")
+
+    changes = narrowing_changes(TASKS, after, where="Задачи.yaml")
+
+    assert len(changes) == 1
+    assert "Шаги.Шаг" in changes[0] and "100" in changes[0] and "50" in changes[0]
+
+
+def test_a_changed_type_inside_a_tabular_part_refuses():
+    after = TASKS.replace("Тип: Булево", "Тип: Строка")
+    changes = narrowing_changes(TASKS, after)
+    assert len(changes) == 1 and "Шаги.Готово" in changes[0]
+
+
+def test_a_renamed_tabular_part_under_the_same_id_keeps_its_rows():
+    after = TASKS.replace("Имя: Исполнители", "Имя: Участники")
+    assert removals(TASKS, after) == []
+
+
+def test_a_part_recreated_under_the_same_name_is_a_removal():
+    """The platform maps a part by Ид: a new Ид under the old name starts it empty."""
+    after = TASKS.replace(
+        "Ид: 1e6f7a8b-9c0d-4e1f-8a3b-4c5d6e7f8091", "Ид: 3a8b9c0d-1e2f-4a3b-8c5d-6e7f80910213"
+    )
+    lines = removals(TASKS, after)
+    assert len(lines) == 1 and "Исполнители" in lines[0]
+
+
+def test_an_untouched_description_names_nothing():
+    assert removals(TASKS, TASKS) == []
+    assert narrowing_changes(TASKS, TASKS) == []
+
+
+TASKS_EN = """\
+ElementKind: Catalog
+Id: 6f1d2c3b-4a59-4e68-8d7c-1b2a3c4d5e6f
+Name: Tasks
+Attributes:
+    -
+        Name: Description
+        Length: 250
+TabularParts:
+    -
+        Id: 8b3c4d5e-6f7a-4b8c-9d0e-1f2a3b4c5d6e
+        Name: Steps
+        Attributes:
+            -
+                Id: 9c4d5e6f-7a8b-4c9d-8e1f-2a3b4c5d6e7f
+                Name: Step
+                Type: String
+                MaxLength: 100
+    -
+        Id: 1e6f7a8b-9c0d-4e1f-8a3b-4c5d6e7f8091
+        Name: Performers
+        Attributes:
+            -
+                Id: 2f7a8b9c-0d1e-4f2a-9b4c-5d6e7f809102
+                Name: Performer
+                Type: String
+"""
+
+
+def test_english_tabular_parts_are_read_on_a_par_with_the_russian_ones():
+    parts = parse_tabular_parts(TASKS_EN)
+    assert {part["name"] for part in parts.values()} == {"Steps", "Performers"}
+
+    after = TASKS_EN[: TASKS_EN.index("    -\n        Id: 1e6f7a8b")]
+    lines = removals(TASKS_EN, after, where="Tasks.yaml")
+    assert len(lines) == 1 and "Performers" in lines[0] and "Tasks" in lines[0]
+
+    narrowed = TASKS_EN.replace("MaxLength: 100", "MaxLength: 40")
+    changes = narrowing_changes(TASKS_EN, narrowed)
+    assert len(changes) == 1 and "Steps.Step" in changes[0]
+
+
+def test_a_translated_description_keeps_its_tabular_parts():
+    """The spellings switch, the Ид stays: a translation removes nothing."""
+    russian = TASKS.replace(DONE, "")  # the English twin has no Готово either
+    russian = russian.replace(
+        "    -\n        Ид: 7a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d\n        Имя: Срок\n"
+        "        Тип: Дата\n",
+        "",
+    )
+    assert removals(russian, TASKS_EN) == []
+    assert narrowing_changes(russian, TASKS_EN) == []
+
+
+def test_an_item_with_its_first_key_on_the_dash_line_is_read():
+    """A file edited by hand writes `- Имя: ...`; the platform writes a bare dash."""
+    text = (
+        "Имя: Задачи\n"
+        "ТабличныеЧасти:\n"
+        "  - Ид: 8b3c4d5e-6f7a-4b8c-9d0e-1f2a3b4c5d6e\n"
+        "    Имя: Шаги\n"
+        "    Реквизиты:\n"
+        "      - Имя: Шаг\n"
+        "        Тип: Строка\n"
+        "        МаксимальнаяДлина: 100\n"
+    )
+    parts = parse_tabular_parts(text)
+    steps = parts["8b3c4d5e-6f7a-4b8c-9d0e-1f2a3b4c5d6e"]
+    assert steps["name"] == "Шаги"
+    assert steps["attributes"]["Шаг"]["length"] == 100
+
+
+def test_a_nested_list_inside_an_attribute_does_not_become_an_attribute():
+    """A list under an attribute's own key belongs to that attribute, not to the block."""
+    text = (
+        "Имя: Статусы\n"
+        "Реквизиты:\n"
+        "    -\n"
+        "        Ид: 4b9c0d1e-2f3a-4b4c-9d6e-7f8091021324\n"
+        "        Имя: Этап\n"
+        "        Тип: Строка\n"
+        "        Варианты:\n"
+        "            -\n"
+        "                Имя: Черновик\n"
+        "            -\n"
+        "                Имя: Готово\n"
+    )
+    assert {item["name"] for item in parse_block(text, ("Реквизиты",)).values()} == {"Этап"}
+
+
+def test_a_comment_after_the_block_key_does_not_hide_the_block():
+    text = TASKS.replace("ТабличныеЧасти:\n", "ТабличныеЧасти: # строки задачи\n")
+    assert len(parse_tabular_parts(text)) == 2
+
+
+def test_a_block_in_a_form_the_reader_does_not_take_is_not_read_as_emptied():
+    """The guard must not invent a change: an unreadable block is not a removal of everything."""
+    flow = TASKS[: TASKS.index("ТабличныеЧасти:")] + "ТабличныеЧасти: [Шаги, Исполнители]\n"
+    assert removals(TASKS, flow) == []
+
+    emptied = TASKS[: TASKS.index("ТабличныеЧасти:")] + "ТабличныеЧасти: []\n"
+    assert len(removals(TASKS, emptied)) == 2
+
+
+def test_review_tree_collects_both_kinds_across_the_files(tmp_path):
+    (tmp_path / "Основное").mkdir()
+    (tmp_path / "Основное" / "Задачи.yaml").write_text(
+        TASKS.replace(PERFORMERS, "").replace("МаксимальнаяДлина: 100", "МаксимальнаяДлина: 80"),
+        encoding="utf-8",
+    )
+    earlier = {"Основное/Задачи.yaml": TASKS}
+
+    review = review_tree(tmp_path, earlier.get)
+
+    assert len(review.changes) == 1 and "Шаги.Шаг" in review.changes[0]
+    assert len(review.removals) == 1 and "Исполнители" in review.removals[0]

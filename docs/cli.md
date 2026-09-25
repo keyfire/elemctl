@@ -571,7 +571,7 @@ usage: elemctl deploy [-h] [--app-id APP_ID] [--project-id PROJECT_ID] [--projec
 | `--commit COMMIT` | commit hash for the metadata (default: from git) |
 | `--dry-run` | build only, no upload |
 | `--require-clean` | abort the deploy if the project directory has uncommitted changes |
-| `--allow-data-loss` | allow an apply that recreates the data of the objects (a narrowed length, a changed attribute type); without the flag such a deploy is refused before the build |
+| `--allow-data-loss` | allow an apply that recreates the data of the objects (a narrowed length, a changed attribute type, a tabular part included); without the flag such a deploy is refused before the build. A removed attribute or tabular part needs no flag: the deploy names it and goes on |
 | `--server-start-timeout SERVER_START_TIMEOUT` | how many seconds to wait for the 1C:Element server while it is starting and its console answers 404 "Application "console" not found" (default 900; 0 – do not wait) |
 
 ## `elemctl user-lists`

@@ -771,14 +771,67 @@ MESSAGES = {
         "en": "the schema check did not run ({reason}) – there is nothing to compare against, "
               "which does NOT mean the apply is safe",
     },
-    "deploy.schema-check-no-repo-link": {
-        "ru": "сверка схемы недоступна: у применённой сборки не записан коммит, а коммит "
-              "проставляется только связью проекта с репозиторием – без неё сверке не с чем "
-              "сравнивать никогда; это НЕ значит, что применение безопасно",
-        "en": "the schema check is unavailable: the applied assembly carries no commit, and a "
-              "commit only comes from the project's link to its repository – without the link "
-              "the check never has anything to compare against; this does NOT mean the apply "
-              "is safe",
+    "deploy.schema-skipped-no-project-dir": {
+        "ru": "сверка схемы не выполнена: каталог проекта не найден – сравнивать нечего; это НЕ "
+              "значит, что применение безопасно",
+        "en": "the schema check did not run: the project directory was not found – there is "
+              "nothing to compare; this does NOT mean the apply is safe",
+    },
+    "deploy.schema-skipped-read-failed": {
+        "ru": "сверка схемы не выполнена: не удалось прочитать карточку приложения или перечень "
+              "сборок ({detail}); это НЕ значит, что применение безопасно",
+        "en": "the schema check did not run: the application card or the build list could not "
+              "be read ({detail}); this does NOT mean the apply is safe",
+    },
+    "deploy.schema-skipped-no-applied-build": {
+        "ru": "сверка схемы не выполнена: карточка приложения не называет применённую сборку – "
+              "сравнивать не с чем",
+        "en": "the schema check did not run: the application card names no applied build – "
+              "there is nothing to compare against",
+    },
+    "deploy.schema-skipped-applied-build-not-listed": {
+        "ru": "сверка схемы не выполнена: применённой сборки {detail} нет в перечне сборок "
+              "проекта {project} – похоже, приложение работает на сборке другого проекта; это "
+              "НЕ значит, что применение безопасно",
+        "en": "the schema check did not run: the applied build {detail} is not in the build "
+              "list of project {project} – the application seems to run a build of another "
+              "project; this does NOT mean the apply is safe",
+    },
+    "deploy.schema-skipped-no-commit-id": {
+        "ru": "сверка схемы не выполнена: у применённой сборки {detail} не записан коммит – "
+              "сравнивать не с чем. Коммит в карточку записывает загрузка elemctl в "
+              "существующий проект; у сборок, загруженных иначе, прежними версиями или в новый "
+              "проект, его нет, а выкат из git-репозитория запишет свой, и следующей сверке "
+              "будет с чем сравнить. Это НЕ значит, что применение безопасно",
+        "en": "the schema check did not run: the applied build {detail} carries no commit – "
+              "there is nothing to compare against. The commit is written to the card by an "
+              "elemctl upload into an existing project; builds uploaded otherwise, by earlier "
+              "versions or into a new project carry none, and a deploy from a git repository "
+              "writes its own, so the next check has something to compare. This does NOT mean "
+              "the apply is safe",
+    },
+    "deploy.schema-skipped-commit-unavailable": {
+        "ru": "сверка схемы не выполнена: коммита {detail} применённой сборки нет в локальном "
+              "репозитории (не сделан git fetch?) – сравнивать не с чем; это НЕ значит, что "
+              "применение безопасно",
+        "en": "the schema check did not run: the commit {detail} of the applied build is not in "
+              "the local repository (no git fetch?) – there is nothing to compare against; this "
+              "does NOT mean the apply is safe",
+    },
+    "deploy.schema-removal": {
+        "ru": "внимание: {change}; сервер применяет такое без вопросов",
+        "en": "warning: {change}; the server applies that without asking",
+    },
+    "deploy.schema-not-checked": {
+        "ru": "сверка схемы в этот раз не проводилась ({reason}): что применение сузило или "
+              "сняло, не проверено",
+        "en": "the schema was not checked this time ({reason}): what the apply narrowed or "
+              "removed went unchecked",
+    },
+    "deploy.schema-removed-summary": {
+        "ru": "применение сняло элементы с данными: {count} – строки \"снимается\" выше",
+        "en": "the apply removed elements that hold data: {count} – see the \"removed\" lines "
+              "above",
     },
     # -- schema.py ----------------------------------------------------------------
     "schema.kind-attribute": {"ru": "реквизит", "en": "attribute"},
@@ -805,6 +858,26 @@ MESSAGES = {
               "ключах и станут неуникальными",
         "en": "{where}: dimension {name} removed – the records of the register will collapse "
               "onto the keys that are left and stop being unique",
+    },
+    "schema.attribute-removed": {
+        "ru": "{where}: снимается реквизит {name} объекта {object} – его значения будут удалены",
+        "en": "{where}: attribute {name} of {object} is removed – its values will be deleted",
+    },
+    "schema.resource-removed": {
+        "ru": "{where}: снимается ресурс {name} регистра {object} – его значения будут удалены",
+        "en": "{where}: resource {name} of the register {object} is removed – its values will "
+              "be deleted",
+    },
+    "schema.tabular-part-removed": {
+        "ru": "{where}: снимается табличная часть {part} объекта {object} – строки будут удалены",
+        "en": "{where}: the tabular part {part} of {object} is removed – its rows will be "
+              "deleted",
+    },
+    "schema.tabular-attribute-removed": {
+        "ru": "{where}: снимается реквизит {name} табличной части {part} объекта {object} – "
+              "его значения в строках будут удалены",
+        "en": "{where}: attribute {name} of the tabular part {part} of {object} is removed – "
+              "its values in the rows will be deleted",
     },
     "deploy.skipped-files": {
         "ru": "внимание: в архив НЕ вошли файлы ({count}): {files} – расширение вне списка "
@@ -1450,9 +1523,13 @@ MESSAGES = {
     },
     "cli.help.deploy-allow-data-loss": {
         "ru": "разрешить применение, пересоздающее данные объектов (сужение длины, смена типа "
-              "реквизита); без флага такое развёртывание отклоняется до сборки",
+              "реквизита, в том числе в табличной части); без флага такое развёртывание "
+              "отклоняется до сборки. Снятие реквизита или табличной части флага не требует: "
+              "деплой называет его и идёт дальше",
         "en": "allow an apply that recreates the data of the objects (a narrowed length, a changed "
-              "attribute type); without the flag such a deploy is refused before the build",
+              "attribute type, a tabular part included); without the flag such a deploy is "
+              "refused before the build. A removed attribute or tabular part needs no flag: the "
+              "deploy names it and goes on",
     },
     "cli.help.deploy-server-start-timeout": {
         "ru": "сколько секунд ждать сервер 1С:Элемент, пока он стартует и его консоль отвечает "

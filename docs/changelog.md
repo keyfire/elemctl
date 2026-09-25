@@ -28,6 +28,10 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
   every command answered with a bare 404, and `deploy` died on the list of builds. That answer
   now says the server is starting and to repeat once `/console` answers 302, and `deploy` waits
   for the console by itself, for up to `--server-start-timeout` seconds.
+- **The schema guard of `deploy` sees tabular parts.** A build without a tabular part took its
+  rows along while the guard said nothing. A removed tabular part, attribute or resource is now
+  named before the build without stopping it, a narrowing inside a tabular part is refused like
+  any other, and a skipped check gives its real reason instead of always blaming a missing commit.
 
 ## 2026-09-24 – 0.44.0
 
