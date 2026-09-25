@@ -15,7 +15,7 @@ entry either – say what the behaviour was, not which id or response field was 
 The link is written by `python scripts/changelog-link.py <number>`, which rebuilds the generated
 pages of the site in the same run – writing it by hand is how the mirrors get left behind.
 
-## Unreleased
+## 2026-09-25 – 0.45.0
 
 ### Added
 - **A build can be traced to the code it came from.** An upload into a project now sends its
