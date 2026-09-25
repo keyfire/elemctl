@@ -92,6 +92,7 @@ usage: elemctl apps [-h] действие ...
 | `start` | запустить приложение |
 | `stop` | остановить приложение |
 | `debug` | данные для сессии отладки (debug-token, debug-address) |
+| `token-access` | доступ пользователя к HTTP-сервисам приложения по токену: показать или переключить (без него вызов сервиса токеном получает 500 "Token access is denied") |
 
 **Параметры**
 
@@ -309,6 +310,29 @@ usage: elemctl apps debug [-h] [--app-id APP_ID] [APP_ID]
 |---|---|
 | `-h, --help` | показать эту справку и выйти |
 | `--app-id APP_ID` | то же приложение ключом: deploy и apps ensure принимают только эту форму |
+
+### `elemctl apps token-access`
+
+```bash
+usage: elemctl apps token-access [-h] [--app-id APP_ID] [--user USER] [--enable] [--disable]
+                                 [APP_ID]
+```
+
+**Аргументы**
+
+| Параметр | Описание |
+|---|---|
+| `APP_ID` | ид (UUID) либо точное имя приложения |
+
+**Параметры**
+
+| Параметр | Описание |
+|---|---|
+| `-h, --help` | показать эту справку и выйти |
+| `--app-id APP_ID` | то же приложение ключом: deploy и apps ensure принимают только эту форму |
+| `--user USER` | логин, представление или ид пользователя (по умолчанию – учётная запись, под которой работает elemctl) |
+| `--enable` | разрешить доступ по токену и перечитать признак |
+| `--disable` | запретить доступ по токену и перечитать признак |
 
 ## `elemctl spaces`
 
@@ -706,7 +730,7 @@ usage: elemctl user-lists calculation-rules [-h] [--app APP] [--rules-file RULES
 ```bash
 usage: elemctl probe [-h] [--project-dir PROJECT_DIR] [--output OUTPUT]
                      [--build-version BUILD_VERSION] [--name NAME] [--space-id SPACE_ID] [--keep]
-                     [--require-clean]
+                     [--require-clean] [--cleanup APP_ID]
 ```
 
 **Параметры**
@@ -719,8 +743,9 @@ usage: elemctl probe [-h] [--project-dir PROJECT_DIR] [--output OUTPUT]
 | `--build-version BUILD_VERSION` | явная версия сборки (по умолчанию {база}`-probe-`{токен} – она обязана быть новой) |
 | `--name NAME` | имя одноразового приложения (по умолчанию elemctl-probe-{токен}) |
 | `--space-id SPACE_ID` | пространство для проекта и приложения (ELEMENT_SPACE_ID) |
-| `--keep` | не убирать за собой: оставить приложение и сборку для разбора руками |
+| `--keep` | не убирать за собой: оставить приложение и сборку для разбора руками; отчёт называет команду уборки |
 | `--require-clean` | прервать проверку, если в каталоге проекта есть незакоммиченные изменения |
+| `--cleanup APP_ID` | убрать оставленный пробник по его приложению (ид или имя): приложение, сборку пробника в его проекте и проект, если в нём больше ничего нет; чужое приложение команда не тронет |
 
 ## `elemctl verify-deploy`
 

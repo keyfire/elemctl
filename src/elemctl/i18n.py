@@ -85,6 +85,10 @@ MESSAGES = {
         "ru": "app-id (аргумент APP_ID или ELEMENT_APP_ID)",
         "en": "app-id (APP_ID argument or ELEMENT_APP_ID)",
     },
+    "cli.require.app-ref": {
+        "ru": "app-id (аргумент APP_ID или --app-id; ELEMENT_APP_ID здесь не берётся)",
+        "en": "app-id (APP_ID argument or --app-id; ELEMENT_APP_ID is not taken here)",
+    },
     "cli.require.app-id-flag": {
         "ru": "--app-id (или ELEMENT_APP_ID)",
         "en": "--app-id (or ELEMENT_APP_ID)",
@@ -439,6 +443,38 @@ MESSAGES = {
               "укажите ид",
         "en": "several user lists match the presentation '{name}': {ids} – give the id",
     },
+    "client.app-user-not-connected": {
+        "ru": "пользователь '{user}' не подключён к приложению {app}: среди пользователей "
+              "приложения его нет, а доступ по токену платформа меняет только подключённым. "
+              "Подключены: {connected}",
+        "en": "the user '{user}' is not connected to the application {app}: the users of the "
+              "application do not include them, and the platform changes token access for "
+              "connected users only. Connected: {connected}",
+    },
+    "client.app-users-none": {
+        "ru": "никто",
+        "en": "nobody",
+    },
+    "client.app-user-ambiguous": {
+        "ru": "пользователю '{user}' в приложении {app} соответствует несколько подключений: "
+              "{ids} – укажите ид пользователя",
+        "en": "several connections of the application {app} match the user '{user}': {ids} – "
+              "give the user id",
+    },
+    "client.token-access-not-changed": {
+        "ru": "платформа приняла изменение доступа по токену для '{user}' в приложении {app}, "
+              "но перечитанное подключение показывает token-access-enabled: {now} вместо "
+              "{wanted}",
+        "en": "the platform accepted the change of token access for '{user}' in the "
+              "application {app}, but the connection read back shows token-access-enabled: "
+              "{now} instead of {wanted}",
+    },
+    "client.token-access-user-gone": {
+        "ru": "платформа приняла изменение доступа по токену для '{user}' в приложении {app}, "
+              "но после него приложение этого пользователя среди своих не называет",
+        "en": "the platform accepted the change of token access for '{user}' in the "
+              "application {app}, but after it the application no longer lists that user",
+    },
     "client.app-has-no-user-list": {
         "ru": "у приложения {app} нет собственного списка пользователей (default-user-list пуст)",
         "en": "the application {app} has no user list of its own (default-user-list is empty)",
@@ -639,6 +675,31 @@ MESSAGES = {
     "selfupdate.already-current": {
         "ru": "уже актуально: elemctl {version}",
         "en": "already current: elemctl {version}",
+    },
+    "selfupdate.sources-differ": {
+        "ru": "источники PyPI расходятся: {sources}. Беру {version}: списки выпусков догоняют "
+              "новую версию за несколько минут",
+        "en": "the PyPI sources disagree: {sources}. Taking {version}: the release listings "
+              "catch up with a new version within minutes",
+    },
+    "selfupdate.source-simple": {
+        "ru": "простой индекс называет последней {version}",
+        "en": "the simple index names {version} as the latest",
+    },
+    "selfupdate.source-summary": {
+        "ru": "сводный JSON – {version}",
+        "en": "the JSON summary names {version}",
+    },
+    "selfupdate.source-page": {
+        "ru": "страница версии {version} уже опубликована",
+        "en": "the page of version {version} is already published",
+    },
+    "selfupdate.newer-installed": {
+        "ru": "установлена elemctl {installed}, а PyPI пока называет последней {latest}: "
+              "списки выпусков ещё не догнали новую версию. Ничего не меняю",
+        "en": "elemctl {installed} is installed, while PyPI still names {latest} as the "
+              "latest: the release listings have not caught up with the new version yet. "
+              "Nothing changed",
     },
     "selfupdate.downloading": {
         "ru": "скачиваю elemctl {version} с PyPI...",
@@ -1025,6 +1086,99 @@ MESSAGES = {
         "ru": "уборка отключена (--keep): приложение {app}, сборка {version} остались на стенде",
         "en": "cleanup is off (--keep): the application {app} and the build {version} are left in place",
     },
+    "probe.cleanup-command": {
+        "ru": "убрать всё одной командой: {command}",
+        "en": "to remove it all in one command: {command}",
+    },
+    "probe.cleanup-steps": {
+        "ru": "или по шагам, в этом порядке: {steps}. Сборку удаляют только после того, как "
+              "приложение исчезнет (apps get ответит 404 или статусом Deleted): пока оно живо, "
+              "платформа отвечает на удаление сборки 500",
+        "en": "or step by step, in this order: {steps}. The build is deleted only after the "
+              "application is gone (apps get answers 404 or the Deleted status): while it is "
+              "alive, the platform answers the deletion of the build with a 500",
+    },
+    "probe.cleanup-working-app": {
+        "ru": "приложение {app} окружение называет рабочим (ELEMENT_APP_ID) – уборка пробника "
+              "его не трогает. Если его действительно нужно удалить, это делает apps delete",
+        "en": "the environment names the application {app} as the working one "
+              "(ELEMENT_APP_ID) – a probe's cleanup does not touch it. If it really has to go, "
+              "apps delete removes it",
+    },
+    "probe.cleanup-not-a-probe": {
+        "ru": "приложение '{name}' ({app}) оставил не пробник: имя не начинается с {prefix}, "
+              "а сборка, на которой оно работает ({version}), не сборка пробника – в версии "
+              "нет -probe-. --cleanup убирает только то, что оставил probe; прочие приложения "
+              "удаляет apps delete",
+        "en": "the application '{name}' ({app}) was not left by a probe: its name does not "
+              "start with {prefix}, and the build it runs ({version}) is not a probe build – "
+              "the version carries no -probe-. --cleanup removes only what probe left; other "
+              "applications are deleted with apps delete",
+    },
+    "probe.cleanup-app-already-deleted": {
+        "ru": "приложение {app} уже удалено: платформа держит его в перечне со статусом Deleted",
+        "en": "the application {app} is deleted already: the platform keeps it in the list "
+              "under the Deleted status",
+    },
+    "probe.cleanup-deleting-app": {
+        "ru": "удаляю приложение {name} ({app})...",
+        "en": "deleting the application {name} ({app})...",
+    },
+    "probe.cleanup-app-still-there": {
+        "ru": "приложение {app} не исчезло за отведённое время – сборки и проект не тронуты; "
+              "повторите probe --cleanup {app} позже",
+        "en": "the application {app} has not disappeared in time – the builds and the project "
+              "are untouched; repeat probe --cleanup {app} later",
+    },
+    "probe.cleanup-app-not-deleted": {
+        "ru": "приложение {app} удалить не удалось ({error}) – сборки и проект не тронуты",
+        "en": "the application {app} could not be deleted ({error}) – the builds and the "
+              "project are untouched",
+    },
+    "probe.cleanup-no-project": {
+        "ru": "карточка приложения {app} не называет проект – искать сборку пробника негде",
+        "en": "the card of the application {app} names no project – there is nowhere to look "
+              "for the probe build",
+    },
+    "probe.cleanup-no-build": {
+        "ru": "сборки пробника в проекте {project} уже нет: её убрала платформа или прошлая уборка",
+        "en": "the probe build is no longer in the project {project}: the platform or an "
+              "earlier cleanup removed it",
+    },
+    "probe.cleanup-build-deleted": {
+        "ru": "удалена сборка {version} проекта {project}",
+        "en": "deleted the build {version} of the project {project}",
+    },
+    "probe.cleanup-project-already": {
+        "ru": "проект {project} уже удалён",
+        "en": "the project {project} is deleted already",
+    },
+    "probe.cleanup-project-deleted": {
+        "ru": "удалён проект {project}",
+        "en": "deleted the project {project}",
+    },
+    "probe.cleanup-project-kept": {
+        "ru": "проект {project} оставлен: {reason}",
+        "en": "the project {project} is kept: {reason}",
+    },
+    "probe.cleanup-project-working": {
+        "ru": "окружение называет его рабочим проектом (ELEMENT_PROJECT_ID)",
+        "en": "the environment names it as the working project (ELEMENT_PROJECT_ID)",
+    },
+    "probe.cleanup-project-has-builds": {
+        "ru": "в нём остались сборки: {builds}",
+        "en": "builds are left in it: {builds}",
+    },
+    "probe.cleanup-project-in-use": {
+        "ru": "на нём работают приложения: {apps}",
+        "en": "applications run it: {apps}",
+    },
+    "probe.cleanup-flags": {
+        "ru": "--cleanup убирает уже оставленный пробник и работает один: вместе с ним не "
+              "задают {flags}",
+        "en": "--cleanup removes a probe already left behind and works alone: {flags} are not "
+              "given with it",
+    },
     "probe.app-still-there": {
         "ru": "приложение {app} не исчезло за отведённое время – сборку и проект оставили",
         "en": "the application {app} has not disappeared in time – the build and the project are left",
@@ -1308,6 +1462,28 @@ MESSAGES = {
     "cli.help.apps-debug": {
         "ru": "данные для сессии отладки (debug-token, debug-address)",
         "en": "data for a debug session (debug-token, debug-address)",
+    },
+    "cli.help.apps-token-access": {
+        "ru": "доступ пользователя к HTTP-сервисам приложения по токену: показать или "
+              "переключить (без него вызов сервиса токеном получает 500 \"Token access is "
+              "denied\")",
+        "en": "a user's access to the HTTP services of the application by a token: show or "
+              "switch it (without it a call of a service with a token gets a 500 \"Token access "
+              "is denied\")",
+    },
+    "cli.help.apps-token-access-user": {
+        "ru": "логин, представление или ид пользователя (по умолчанию – учётная запись, под "
+              "которой работает elemctl)",
+        "en": "the login, the presentation or the id of the user (default: the account elemctl "
+              "signs in with)",
+    },
+    "cli.help.apps-token-access-enable": {
+        "ru": "разрешить доступ по токену и перечитать признак",
+        "en": "allow the access by a token and read the flag back",
+    },
+    "cli.help.apps-token-access-disable": {
+        "ru": "запретить доступ по токену и перечитать признак",
+        "en": "forbid the access by a token and read the flag back",
     },
     "cli.help.create-project-id": {
         "ru": "проект-источник; с --version-id по перечню его сборок команда проверяет, "
@@ -1678,8 +1854,18 @@ MESSAGES = {
         "en": "the space for the project and the application (ELEMENT_SPACE_ID)",
     },
     "cli.help.probe-keep": {
-        "ru": "не убирать за собой: оставить приложение и сборку для разбора руками",
-        "en": "skip the cleanup: leave the application and the build for a hands-on look",
+        "ru": "не убирать за собой: оставить приложение и сборку для разбора руками; отчёт "
+              "называет команду уборки",
+        "en": "skip the cleanup: leave the application and the build for a hands-on look; the "
+              "report names the command that removes them",
+    },
+    "cli.help.probe-cleanup": {
+        "ru": "убрать оставленный пробник по его приложению (ид или имя): приложение, сборку "
+              "пробника в его проекте и проект, если в нём больше ничего нет; чужое приложение "
+              "команда не тронет",
+        "en": "remove a probe left behind, starting from its application (id or name): the "
+              "application, the probe build in its project and the project when nothing else "
+              "is left in it; an application that is not a probe's is refused",
     },
     "cli.help.probe-require-clean": {
         "ru": "прервать проверку, если в каталоге проекта есть незакоммиченные изменения",

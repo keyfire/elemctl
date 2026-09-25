@@ -5,6 +5,7 @@ from __future__ import annotations
 import io
 import json
 import os
+import urllib.error
 import zipfile
 from http.client import IncompleteRead
 
@@ -50,7 +51,7 @@ def test_self_update_extracts_wheel(monkeypatch, tmp_path):
     (site / "elemctl" / "__init__.py").write_text('__version__ = "0.0.1"\n', encoding="utf-8")
     (site / "elemctl-0.0.1.dist-info").mkdir()
     monkeypatch.setattr(selfupdate, "_site_packages", lambda: site)
-    monkeypatch.setattr(selfupdate, "_wheel_url", lambda v: ("http://pypi/elemctl.whl", "9.9.9"))
+    monkeypatch.setattr(selfupdate, "_wheel_url", lambda v, log=None: ("http://pypi/elemctl.whl", "9.9.9"))
     monkeypatch.setattr(selfupdate.urllib.request, "urlopen", lambda url, timeout=0: _FakeResp(_fake_wheel("9.9.9")))
 
     old, new = selfupdate.self_update(log=lambda *a: None)
@@ -63,7 +64,7 @@ def test_self_update_extracts_wheel(monkeypatch, tmp_path):
 
 def test_self_update_noop_when_current(monkeypatch, tmp_path):
     """When the PyPI version equals the current one and no version is asked for - nothing is downloaded."""
-    monkeypatch.setattr(selfupdate, "_wheel_url", lambda v: ("http://pypi/x.whl", elemctl.__version__))
+    monkeypatch.setattr(selfupdate, "_wheel_url", lambda v, log=None: ("http://pypi/x.whl", elemctl.__version__))
 
     def boom(*a, **k):
         raise AssertionError("скачивание не должно происходить")
@@ -81,7 +82,7 @@ def test_updates_pipx_metadata(monkeypatch, tmp_path):
     meta = tmp_path / "venv" / "pipx_metadata.json"
     meta.write_text(json.dumps({"main_package": {"package": "elemctl", "package_version": "0.0.1"}}), encoding="utf-8")
     monkeypatch.setattr(selfupdate, "_site_packages", lambda: site)
-    monkeypatch.setattr(selfupdate, "_wheel_url", lambda v: ("http://pypi/x.whl", "9.9.9"))
+    monkeypatch.setattr(selfupdate, "_wheel_url", lambda v, log=None: ("http://pypi/x.whl", "9.9.9"))
     monkeypatch.setattr(selfupdate.urllib.request, "urlopen", lambda url, timeout=0: _FakeResp(_fake_wheel("9.9.9")))
 
     selfupdate.self_update(log=lambda *a: None)
@@ -109,7 +110,7 @@ def _install(monkeypatch, tmp_path, payload=None):
     (site / "elemctl" / "__init__.py").write_text('__version__ = "0.0.1"\n', encoding="utf-8")
     (site / "elemctl-0.0.1.dist-info").mkdir()
     monkeypatch.setattr(selfupdate, "_site_packages", lambda: site)
-    monkeypatch.setattr(selfupdate, "_wheel_url", lambda v: ("http://pypi/elemctl.whl", "9.9.9"))
+    monkeypatch.setattr(selfupdate, "_wheel_url", lambda v, log=None: ("http://pypi/elemctl.whl", "9.9.9"))
     monkeypatch.setattr(
         selfupdate.urllib.request, "urlopen",
         lambda url, timeout=0: _FakeResp(_fake_wheel("9.9.9") if payload is None else payload),
@@ -231,7 +232,11 @@ def _simple_payload(*names: str, yanked: tuple[str, ...] = ()) -> bytes:
 
 
 def _serve(monkeypatch, index: bytes | None, meta: dict | None = None) -> list[str]:
-    """Answer the index and the JSON metadata separately; returns the list of asked urls."""
+    """Answer the index and the JSON summary; returns the list of asked urls.
+
+    The page of any other version answers 404, the way the page of an unpublished one does:
+    the latest version is also looked for past the listings (test_selfupdate_latest.py).
+    """
     asked: list[str] = []
 
     def urlopen(target, timeout=0):
@@ -243,11 +248,17 @@ def _serve(monkeypatch, index: bytes | None, meta: dict | None = None) -> list[s
             if index is None:
                 raise OSError("index unreachable")
             return _FakeResp(index)
-        assert meta is not None, "the JSON metadata must not be asked at all"
-        return _FakeResp(json.dumps(meta).encode("utf-8"))
+        if url == selfupdate.PYPI_LATEST and meta is not None:
+            return _FakeResp(json.dumps(meta).encode("utf-8"))
+        raise urllib.error.HTTPError(url, 404, "Not Found", {}, None)
 
     monkeypatch.setattr(selfupdate.urllib.request, "urlopen", urlopen)
     return asked
+
+
+def _pages_after(version: str) -> list[str]:
+    """The addresses of the next patch, minor and major pages, in the order they are asked."""
+    return [selfupdate.PYPI_VERSION.format(version=v) for v in selfupdate._next_versions(version)]
 
 
 def test_wheel_url_reads_the_simple_index(monkeypatch):
@@ -260,7 +271,8 @@ def test_wheel_url_reads_the_simple_index(monkeypatch):
     url, version = selfupdate._wheel_url(None)
 
     assert version == "0.23.0" and url.endswith("elemctl-0.23.0-py3-none-any.whl")
-    assert asked == [selfupdate.PYPI_SIMPLE]
+    # The index answers for the files; the summary and the next pages are asked beside it.
+    assert asked == [selfupdate.PYPI_SIMPLE, selfupdate.PYPI_LATEST, *_pages_after("0.23.0")]
 
 
 def test_a_fresh_release_is_installable_while_the_json_still_lags(monkeypatch):
@@ -300,7 +312,7 @@ def test_an_index_without_pep691_falls_back_to_the_json(monkeypatch):
     asked = _serve(monkeypatch, None, meta=meta)
 
     assert selfupdate._wheel_url(None) == ("http://pypi/pure.whl", "0.22.0")
-    assert asked == [selfupdate.PYPI_SIMPLE, selfupdate.PYPI_LATEST]
+    assert asked == [selfupdate.PYPI_SIMPLE, selfupdate.PYPI_LATEST, *_pages_after("0.22.0")]
 
 
 def test_incomplete_simple_index_falls_back_to_json_metadata(monkeypatch):
@@ -340,7 +352,8 @@ def test_incomplete_wheel_download_leaves_the_installation_untouched(monkeypatch
 
 
 def test_a_version_the_index_does_not_carry_is_named_as_such(monkeypatch):
-    """A readable index is the answer: no second guess at the lagging JSON."""
-    _serve(monkeypatch, _simple_payload("elemctl-0.23.0-py3-none-any.whl"))
+    """The index lagging is possible, so the page of the version is asked; its 404 is the answer."""
+    asked = _serve(monkeypatch, _simple_payload("elemctl-0.23.0-py3-none-any.whl"))
     with pytest.raises(Exception, match="версия"):
         selfupdate._wheel_url("9.9.9")
+    assert asked == [selfupdate.PYPI_SIMPLE, selfupdate.PYPI_VERSION.format(version="9.9.9")]

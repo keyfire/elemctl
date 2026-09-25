@@ -47,7 +47,7 @@ from .client import (
 from .config import Config, ensure_env_file_exists
 from .deploy import deploy_from_sources, server_wait, verify_deploy
 from .errors import ApiError, ConfigError, ElemctlError, PluginError
-from .probe import probe_project
+from .probe import cleanup_probe, probe_project
 from .registry import remember_upload
 from .versions import newest_first
 
@@ -665,6 +665,28 @@ def cmd_apps_stop(args):
     return 0
 
 
+def cmd_apps_token_access(args):
+    """Access of a user to the HTTP services of an application by a token: read or switch.
+
+    The application has to be named: the switch opens the services of an application to a
+    token, and ELEMENT_APP_ID names the working one - the same reason `apps delete` takes no
+    default. --user is a login, a presentation or a user id; without it the command speaks
+    about the account elemctl signs in with. Without --enable or --disable it only reads, and
+    after a switch the flag in the answer is the one read back from the platform.
+    """
+    reference = _app_ref(args)
+    if not reference:
+        raise ConfigError(i18n.t("cli.not-set", what=i18n.t("cli.require.app-ref")))
+    if args.enable and args.disable:
+        raise ElemctlError(i18n.t("cli.enable-disable-conflict"))
+    client = make_client(_config(args))
+    enabled = True if args.enable else False if args.disable else None
+    _emit(client.token_access(
+        client.resolve_app_id(reference), user=args.user or "", enabled=enabled
+    ))
+    return 0
+
+
 def cmd_spaces_list(args):
     client = make_client(_config(args))
     _emit(client.list_spaces())
@@ -1153,7 +1175,21 @@ def cmd_probe(args):
     project is chosen by the platform out of the vendor and the name of the
     manifest. The exit code follows the compilation verdict; leftovers of a
     failed cleanup go to stderr, they do not change the verdict.
+
+    --cleanup APP_ID is the other half of --keep: it removes a probe already left on
+    the stand, starting from its application, and builds nothing. The flags of a run
+    make no sense beside it and are refused rather than ignored.
     """
+    if args.cleanup:
+        given = [
+            flag for attribute, flag in _PROBE_RUN_OPTIONS
+            if getattr(args, attribute, None) not in (None, "", False)
+        ]
+        if given:
+            raise ElemctlError(i18n.t("probe.cleanup-flags", flags=", ".join(given)))
+        cleanup = cleanup_probe(make_client(_config(args)), args.cleanup, log=_progress)
+        _emit(cleanup.to_dict())
+        return 0 if cleanup.ok else 1
     if args.require_clean:
         _ensure_clean_tree(args.project_dir)
     config = _config(args)
@@ -1166,10 +1202,23 @@ def cmd_probe(args):
         app_name=args.name or "",
         version=args.build_version or "",
         keep=args.keep,
+        env_file=args.env_file,
         log=_progress,
     )
     _emit(report.to_dict())
     return 0 if report.ok else 1
+
+
+#: The options of a probe run, which --cleanup does not take: dest, the spelling typed.
+_PROBE_RUN_OPTIONS = (
+    ("project_dir", "--project-dir"),
+    ("output", "--output"),
+    ("build_version", "--build-version"),
+    ("name", "--name"),
+    ("space_id", "--space-id"),
+    ("keep", "--keep"),
+    ("require_clean", "--require-clean"),
+)
 
 
 def cmd_branches_list(args):
@@ -1731,6 +1780,13 @@ def build_parser():
     _add_app_ref(p)
     p.set_defaults(handler=cmd_apps_debug)
 
+    p = apps_sub.add_parser("token-access", help=i18n.t("cli.help.apps-token-access"))
+    _add_app_ref(p, required=True)
+    p.add_argument("--user", help=i18n.t("cli.help.apps-token-access-user"))
+    p.add_argument("--enable", action="store_true", help=i18n.t("cli.help.apps-token-access-enable"))
+    p.add_argument("--disable", action="store_true", help=i18n.t("cli.help.apps-token-access-disable"))
+    p.set_defaults(handler=cmd_apps_token_access)
+
     # spaces ----------------------------------------------------------------
     spaces = sub.add_parser("spaces", help=i18n.t("cli.help.spaces"))
     spaces_sub = spaces.add_subparsers(dest="subcommand", metavar=action, required=True)
@@ -1908,6 +1964,7 @@ def build_parser():
         action="store_true",
         help=i18n.t("cli.help.probe-require-clean"),
     )
+    p.add_argument("--cleanup", metavar="APP_ID", help=i18n.t("cli.help.probe-cleanup"))
     p.set_defaults(handler=cmd_probe)
 
     # verify-deploy -------------------------------------------------------

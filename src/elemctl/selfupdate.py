@@ -41,14 +41,20 @@ from . import __version__, i18n
 from .errors import ElemctlError
 from .transport import _NETWORK_FAILURES
 
-#: Where the files come from. The simple index (PEP 691) is served straight from the upload,
-#: while the JSON metadata below is a cache that lags behind a release by minutes - see
-#: `_wheel_url`. The JSON is kept as the fallback for an index that does not speak PEP 691.
+#: Where the files come from. Two of these LIST the releases, the simple index (PEP 691) and
+#: the JSON summary, and the CDN caches both of them node by node, so either may name the
+#: previous release for minutes after a new one is out. The page of one version is the fresh
+#: document: nobody asks for it before the release exists. See `_latest_wheel`.
 PYPI_SIMPLE = "https://pypi.org/simple/elemctl/"
 PYPI_VERSION = "https://pypi.org/pypi/elemctl/{version}/json"
 PYPI_LATEST = "https://pypi.org/pypi/elemctl/json"
 #: The same URL answers an HTML page unless JSON is asked for by name.
 SIMPLE_ACCEPT = "application/vnd.pypi.simple.v1+json"
+#: The only wheel elemctl ships: the package is pure Python.
+_WHEEL_SUFFIX = "-py3-none-any.whl"
+#: How many releases past the listings the version pages are followed (`_newer_on_pages`).
+#: Two releases inside one window of lag are rare already, and every round costs three requests.
+_PAGE_ROUNDS = 3
 
 #: What belongs to the elemctl wheel in site-packages.
 _OWNED_PATTERNS = ("elemctl", "elemctl-*.dist-info")
@@ -69,15 +75,22 @@ def _site_packages() -> Path:
 
 
 def _fetch_json(url: str) -> dict:
+    """One JSON document of PyPI; every way of not getting it is an ElemctlError in words.
+
+    A body that is not JSON (a proxy's error page, a mirror that answers HTML) counts as an
+    unreachable PyPI rather than surfacing as a traceback of the decoder. JSON of another
+    shape than an object reads as an empty document.
+    """
     try:
         with urllib.request.urlopen(url, timeout=30) as resp:
-            return json.load(resp)
+            data = json.load(resp)
     except urllib.error.HTTPError as error:
         if error.code == 404:
             raise ElemctlError(i18n.t("selfupdate.version-not-found")) from error
         raise ElemctlError(i18n.t("selfupdate.pypi-http-error", status=error.code)) from error
-    except _NETWORK_FAILURES as error:
+    except _NETWORK_FAILURES + (ValueError,) as error:
         raise ElemctlError(i18n.t("selfupdate.pypi-unreachable", error=error)) from error
+    return data if isinstance(data, dict) else {}
 
 
 def _simple_files() -> list[dict]:
@@ -129,43 +142,171 @@ def _release_key(version: str) -> tuple[tuple[int, ...], int] | None:
     return tuple(int(part) for part in parts), int(post or 0)
 
 
-def _latest_release(files: list[dict]) -> str:
-    """The newest plain release among the files; "" when none of them ranks."""
-    ranked = []
-    for version in {item["version"] for item in files if item["filename"].lower().endswith(".whl")}:
-        key = _release_key(version)
-        if key is not None:
-            ranked.append((key, version))
+def _newest(*versions: str) -> str:
+    """The newest plain release among the versions; "" when none of them ranks."""
+    ranked = [(key, version) for version in versions
+              if version and (key := _release_key(version)) is not None]
     return max(ranked)[1] if ranked else ""
 
 
-def _wheel_url(version: str | None) -> tuple[str, str]:
+def _latest_release(files: list[dict]) -> str:
+    """The newest plain release among the wheels of the files; "" when none of them ranks."""
+    return _newest(*{item["version"] for item in files
+                     if item["filename"].lower().endswith(".whl")})
+
+
+def _wheels(entries: list, version: str) -> list[dict]:
+    """The pure-Python wheels of one version among file entries, the yanked ones left out.
+
+    An entry of the simple index carries its version already; an entry of a JSON document
+    does not, so the version is read off the file name for both.
+    """
+    return [
+        item for item in entries or []
+        if isinstance(item, dict)
+        and str(item.get("filename") or "").endswith(_WHEEL_SUFFIX)
+        and _version_of(str(item.get("filename"))) == version
+        and item.get("url") and not item.get("yanked")
+    ]
+
+
+def _next_versions(version: str) -> list[str]:
+    """The numbers the release after `version` may carry: the next patch, minor and major.
+
+    `0.44.0` gives `0.44.1`, `0.45.0` and `1.0.0`. A post-release steps from its base, and a
+    version that does not rank gives nothing to ask about.
+    """
+    key = _release_key(version)
+    if key is None:
+        return []
+    parts = list(key[0])
+    bumped = []
+    for index in range(len(parts) - 1, -1, -1):
+        step = parts[:index] + [parts[index] + 1] + [0] * (len(parts) - index - 1)
+        bumped.append(".".join(str(part) for part in step))
+    return bumped
+
+
+def _page_wheels(version: str) -> list[dict]:
+    """The wheels the page of one version lists; empty when PyPI does not know the version.
+
+    Quiet on purpose. This is a look past the listings, and a 404 is its usual answer, so no
+    failure here may stop an update the listings already allow. A yanked release does not
+    count, and neither does a page that names another version than the one asked for.
+    """
+    try:
+        with urllib.request.urlopen(PYPI_VERSION.format(version=version), timeout=30) as resp:
+            data = json.load(resp)
+    except _NETWORK_FAILURES + (ValueError,):  # HTTPError, the 404 included, is an OSError
+        return []
+    info = data.get("info") if isinstance(data, dict) else None
+    if not isinstance(info, dict) or info.get("yanked") or info.get("version") != version:
+        return []
+    return _wheels(data.get("urls"), version)
+
+
+def _newer_on_pages(version: str) -> tuple[str, list[dict]]:
+    """A release newer than `version` that only its own page shows so far: (version, wheels).
+
+    The listings lag behind a release while the page of the new version does not: nobody asked
+    the CDN for it before it existed, so its first answer comes from PyPI itself. The pages of
+    the next patch, minor and major are asked, the newest one found wins, and the look goes on
+    from it in case two releases fell into one window of lag. ("", []) when nothing newer is
+    published.
+
+    The CDN keeps a 404 of such a page for about a minute (measured on the engine of the
+    toolkit: one request in four at 15-second steps missed the cache). That is the price: an
+    explicit `--version` asked in the minute after a look like this one, and before the
+    release, may be told the version is not there, and the next minute settles it.
+    """
+    found, wheels, current = "", [], version
+    for _round in range(_PAGE_ROUNDS):
+        step, step_wheels = "", []
+        for candidate in _next_versions(current):
+            listed = _page_wheels(candidate)
+            if listed and _newest(step, candidate) == candidate:
+                step, step_wheels = candidate, listed
+        if not step:
+            break
+        found, wheels, current = step, step_wheels, step
+    return found, wheels
+
+
+def _wheel_url(version: str | None, log=None) -> tuple[str, str]:
     """The URL and the exact version of the py3-none-any wheel (latest, or the given one).
 
-    The file list is taken from the SIMPLE index, not from the JSON metadata. Caught on the
-    engine of the toolkit on 31.07.2026 and true here for the same reason: the JSON is a
-    cache that catches up minutes after an upload, so right after a release the command
-    answers "already current" - or, with an explicit version, "no wheel", because the files
-    are read from that same lagging document. The JSON stays as the fallback for an index
-    that does not answer PEP 691 (and it is the one that reports an outage in words).
+    Files are looked up in the SIMPLE index first. Caught on the engine of the toolkit on
+    31.07.2026: the JSON summary is a cache that catches up minutes after an upload. The
+    index lags too, though: on 23.09.2026 it named the previous release of the engine for
+    more than half an hour, while the page of the new version listed every file. So a
+    version named explicitly and missing from the index is looked up on its own page, and
+    only a 404 there means the version does not exist. The latest version is not taken from
+    one listing either, see `_latest_wheel`; `log` hears when the sources disagree.
     """
     files = _simple_files()
-    if files:
-        target = version or _latest_release(files)
-        entries = [
-            item for item in files
-            if item["version"] == target and item["filename"].endswith("-py3-none-any.whl")
+    if version is None:
+        target, wheels = _latest_wheel(files, log or (lambda _message: None))
+        return wheels[0]["url"], target
+    entries = _wheels(files, version)
+    if entries:
+        return entries[0]["url"], version
+    data = _fetch_json(PYPI_VERSION.format(version=version))
+    info = data.get("info") if isinstance(data.get("info"), dict) else {}
+    resolved = str(info.get("version") or version)
+    entries = _wheels(data.get("urls"), resolved)
+    if not entries:
+        raise ElemctlError(i18n.t("selfupdate.no-wheel", version=resolved))
+    return entries[0]["url"], resolved
+
+
+def _latest_wheel(files: list[dict], log) -> tuple[str, list[dict]]:
+    """The newest release and its wheels, asked of every source PyPI has.
+
+    The engine of the toolkit showed the failure live on 24.09.2026: two minutes after a
+    release the command answered "already current" with the previous version, while an
+    explicit `--version` went through at once. The latest version came from the simple index
+    alone, and the index still listed the release before. elemctl read it the same way. Both
+    listings are cached node by node, and each of them has been seen lagging while the other
+    was fresh. So:
+
+    1. both listings are read, the simple index and the JSON summary, and the newer of their
+       answers is taken;
+    2. the pages of the next versions are asked (`_newer_on_pages`): a release the listings
+       do not show yet is there already;
+    3. when the sources disagree, `log` hears one line naming what each of them said, so an
+       answer given the minute after a release is not taken for a settled fact.
+
+    The failure is raised only when neither listing answers, in the words of the summary.
+    """
+    listed = _latest_release(files)
+    try:
+        summary = _fetch_json(PYPI_LATEST)
+    except ElemctlError:
+        if not files:
+            raise
+        summary = {}
+    info = summary.get("info") if isinstance(summary.get("info"), dict) else {}
+    summarized = _newest(str(info.get("version") or ""))
+    best = _newest(listed, summarized)
+    paged, paged_wheels = _newer_on_pages(best) if best else ("", [])
+    target = paged or best
+    if paged or (listed and summarized and listed != summarized):
+        said = [
+            i18n.t(key, version=version)
+            for key, version in (
+                ("selfupdate.source-simple", listed),
+                ("selfupdate.source-summary", summarized),
+                ("selfupdate.source-page", paged),
+            )
+            if version
         ]
-        if target and entries:
-            return entries[0]["url"], target
-        if version:  # the index is readable and simply does not carry this version
-            raise ElemctlError(i18n.t("selfupdate.version-not-found"))
-    data = _fetch_json(PYPI_VERSION.format(version=version) if version else PYPI_LATEST)
-    resolved = data["info"]["version"]
-    for entry in data["urls"]:
-        if entry["filename"].endswith("-py3-none-any.whl"):
-            return entry["url"], resolved
-    raise ElemctlError(i18n.t("selfupdate.no-wheel", version=resolved))
+        log(i18n.t("selfupdate.sources-differ", sources="; ".join(said), version=target))
+    wheels = paged_wheels if paged else _wheels(files, target)
+    if not wheels and target and summarized == target:
+        wheels = _wheels(summary.get("urls"), target)
+    if not target or not wheels:
+        raise ElemctlError(i18n.t("selfupdate.no-wheel", version=target or "?"))
+    return target, wheels
 
 
 # -- holders -------------------------------------------------------------------------------
@@ -358,9 +499,14 @@ def verify_install(site: Path) -> str:
 
 def self_update(version: str | None = None, log=print, *, stop_busy: bool = False) -> tuple[str, str]:
     """Update elemctl in site-packages by unpacking the wheel. Return (before, after)."""
-    url, target = _wheel_url(version)
+    url, target = _wheel_url(version, log=log)
     if version is None and target == __version__:
         log(i18n.t("selfupdate.already-current", version=__version__))
+        return __version__, __version__
+    if version is None and _newest(target, __version__) == __version__:
+        # A release installed by its number a minute ago is newer than what every source
+        # names yet: without this the plain command would "update" back to the release before.
+        log(i18n.t("selfupdate.newer-installed", installed=__version__, latest=target))
         return __version__, __version__
 
     site = _site_packages()

@@ -307,11 +307,13 @@ The server reads connection credentials from the same `ELEMENT_*` variables / `.
 | `build_assembly` | build a `.xasm`/`.xlib` archive from the sources locally (does not talk to the platform) |
 | `inspect_assembly` | parse a built archive: manifest, project properties, subsystems and global types with qualified names (local) |
 | `deploy` | the whole cycle from sources, with a check that the build was applied; the verdict is `ok`, the details are `problems` and `log`; a server that is still starting is waited out for up to `server_start_timeout` seconds (900 by default) |
-| `probe` | check the compilation with the server compiler without touching the working application; errors with file, line and column, cleans up after itself |
+| `probe` | check the compilation with the server compiler without touching the working application; errors with file, line and column, cleans up after itself; with `keep` the report names the command that removes what was left |
+| `probe_cleanup` | remove a probe left on the stand, by `keep` or by a cleanup that broke off, starting from its application: the application, the probe build in the probe's own project and the project when nothing is left in it; an application that is not a probe's is refused |
 | `apply_build` | apply an uploaded build to the application by its id |
 | `verify_deploy` | verify the apply actually took effect: failed tasks, the applied build, the availability of the uri |
 | `list_user_lists` | user lists; `name` filters by a substring of the presentation |
 | `configure_user_list` | self-registration and password sign-in; without the flags it only reports the current state |
+| `token_access` | a user's access to the HTTP services of an application by a token, the flag behind a 500 "Token access is denied"; shows it, and with `enabled` switches it and reads it back; an empty `user` means the account elemctl signs in with |
 | `list_branches` | list of development-environment branches; the `project_id` and `name` filters are optional |
 | `merge_branch` | accept the changes of a development-environment branch |
 | `debug_adapter` | the path to the platform debug adapter from a plugin; a missing plugin is an answer (`found: false`), not an error (local) |

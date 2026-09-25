@@ -14,7 +14,7 @@ from urllib.parse import urlencode
 
 from . import i18n
 from .auth import TokenManager
-from .errors import ApiError, ConfigError, ServerStartingError, TransportError
+from .errors import ApiError, ConfigError, ElemctlError, ServerStartingError, TransportError
 from .registry import remembered_uploads
 from .transport import UrllibTransport
 from .versions import missing_counters, newest_first, pick_latest
@@ -873,6 +873,126 @@ class ElementClient:
     def stop_app(self, app_id):
         """Stop the application."""
         return self._api("PUT", f"/applications/{app_id}/status/stop")
+
+    # -- users of an application and their access by a token -------------------
+
+    def list_app_users(self, app_id):
+        """The users connected to the application: GET /applications/{id}/users.
+
+        An entry is {user-list-id, user-id, presentation, is-admin, token-access-enabled}.
+        The users of the control panel are among them, connected by the platform itself.
+        """
+        payload = self._api("GET", f"/applications/{app_id}/users")
+        return [user for user in _as_list(payload, "items", "users") if isinstance(user, dict)]
+
+    def current_user(self):
+        """The user the credentials of this client belong to: GET /me."""
+        return self._api("GET", "/me") or {}
+
+    def _user_ids_by_login(self, connected, login):
+        """The ids of the users with this login in the lists the connected users come from.
+
+        The listing of an application names a user by a presentation only; the login is a
+        field of the user in its list. Every list read here carries access tokens as well, so
+        nothing but the ids leaves this method.
+        """
+        ids = set()
+        for list_id in sorted({str(item.get("user-list-id")) for item in connected
+                               if item.get("user-list-id")}):
+            people = _as_list(self._api("GET", f"/user-lists/{list_id}/users"), "items", "users")
+            for person in people:
+                if (isinstance(person, dict)
+                        and str(person.get("login") or "").strip().lower() == login):
+                    ids.add(str(person.get("id") or ""))
+        return ids - {""}
+
+    def find_app_user(self, app_id, user=""):
+        """The connection of one user to the application, out of list_app_users.
+
+        user is a login, a presentation or a user id. An empty one means the user the
+        credentials of this client belong to (current_user), the account elemctl itself signs
+        in with. The listing names a control-panel user by the login, and a login that is not
+        a presentation is looked up in the user lists of the connected users besides. No match
+        is an error saying the user is not connected: the change of access for such a user is
+        answered by the platform with a bare 500 "Can't change user token access". Several
+        matches are an error listing the ids, as every resolution here is.
+        """
+        connected = self.list_app_users(app_id)
+        wanted = str(user or "").strip()
+        if not wanted:
+            me = self.current_user()
+            ids = {str(me.get("id") or "")} - {""}
+            label = str(me.get("login") or me.get("presentation") or me.get("id") or "")
+        elif _looks_like_uuid(wanted):
+            ids, label = {wanted}, wanted
+        else:
+            target = wanted.lower()
+            ids = {str(item.get("user-id")) for item in connected
+                   if str(item.get("presentation") or "").strip().lower() == target}
+            if not ids:
+                ids = self._user_ids_by_login(connected, target)
+            label = wanted
+        matches = [item for item in connected if str(item.get("user-id") or "") in ids]
+        if not matches:
+            names = [str(item.get("presentation") or item.get("user-id")) for item in connected]
+            shown = ", ".join(names[:10]) + (", ..." if len(names) > 10 else "")
+            raise ConfigError(i18n.t(
+                "client.app-user-not-connected", user=label, app=app_id,
+                connected=shown or i18n.t("client.app-users-none"),
+            ))
+        if len(matches) > 1:
+            raise ConfigError(i18n.t(
+                "client.app-user-ambiguous", user=label, app=app_id,
+                ids=", ".join(str(item.get("user-id")) for item in matches),
+            ))
+        return matches[0]
+
+    def token_access(self, app_id, user="", enabled=None):
+        """Whether a user reaches the HTTP services of the application by a token; switch it.
+
+        The access is a flag of the user's connection to the application,
+        `token-access-enabled`. Without it a call of the application's HTTP services with the
+        user's token is refused with a 500 "Token access is denied", whatever the rights of the
+        user. enabled=None reads the flag and changes nothing. True or False switches it
+        through PUT /applications/{id}/users/change-token-access and reads the connection
+        back: the answer carries the flag as the platform keeps it after the change, and a flag
+        that did not move is an error rather than a report. Asking for the state that is
+        already there sends no request, and `changed` says so.
+        """
+        entry = self.find_app_user(app_id, user)
+        user_id, list_id = str(entry.get("user-id") or ""), str(entry.get("user-list-id") or "")
+        report = {
+            "app-id": app_id,
+            "user": entry.get("presentation"),
+            "user-id": user_id,
+            "user-list-id": list_id,
+            "token-access-enabled": bool(entry.get("token-access-enabled")),
+            "changed": False,
+        }
+        if enabled is None or bool(enabled) == report["token-access-enabled"]:
+            return report
+        self._api(
+            "PUT",
+            f"/applications/{app_id}/users/change-token-access",
+            json_body={"user-list-id": list_id, "user-id": user_id, "enable-access": bool(enabled)},
+        )
+        after = next(
+            (item for item in self.list_app_users(app_id)
+             if str(item.get("user-id") or "") == user_id
+             and str(item.get("user-list-id") or "") == list_id),
+            None,
+        )
+        label = report["user"] or user_id
+        if after is None:
+            raise ElemctlError(i18n.t("client.token-access-user-gone", user=label, app=app_id))
+        now = bool(after.get("token-access-enabled"))
+        if now is not bool(enabled):
+            raise ElemctlError(i18n.t(
+                "client.token-access-not-changed", user=label, app=app_id,
+                wanted=str(bool(enabled)).lower(), now=str(now).lower(),
+            ))
+        report.update({"token-access-enabled": now, "changed": True})
+        return report
 
     def get_debug_info(self, app_id):
         """The data for an application debug session: {debug-token, debug-address}.

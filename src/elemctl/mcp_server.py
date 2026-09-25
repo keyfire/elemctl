@@ -63,7 +63,7 @@ from .deploy import (
     verify_deploy as _verify_deploy,
 )
 from .errors import ApiError, ElemctlError, PluginError
-from .probe import probe_project
+from .probe import cleanup_probe, probe_project
 from .versions import newest_first
 
 INSTRUCTIONS = (
@@ -72,7 +72,7 @@ INSTRUCTIONS = (
     "на предыдущую сборку и запускает его – статус Running не означает успех "
     "деплоя. Доверяйте только отчёту инструментов deploy/verify_deploy: поле ok, "
     "список problems и сверка применённой сборки с загруженной (надёжно - по applied-version-id; строка версии у нового приложения нумеруется заново). "
-    "Асинхронность: build_assembly, deploy, probe, apply_build, create_app, "
+    "Асинхронность: build_assembly, deploy, probe, probe_cleanup, apply_build, create_app, "
     "ensure_app, delete_app и merge_branch выполняются минутами и синхронно блокируют вызов "
     "до конца – в чате это выглядит зависанием без вывода. Такие операции "
     "запускать CLI-командой elemctl фоновым процессом (у агента – механизм "
@@ -738,9 +738,11 @@ def create_server(config=None, *, overrides=None, env_file=None):
         окружения намеренно не используются. Итог - поле ok; ошибки в errors
         (файл, строка, колонка, окружение, текст), исходные сообщения платформы -
         в messages, итог уборки - в cleanup. keep=true оставляет приложение и
-        сборку на стенде для разбора руками. До сборки проверяется Проект.yaml: без
-        Представление, без ЯзыкРазработки или с ЯзыкПоУмолчанию без ЯзыкиЛокализации
-        сервер пробник не примет, и инструмент сразу называет недостающий ключ.
+        сборку на стенде для разбора руками, а cleanup в отчёте называет команду уборки
+        (command) и шаги вручную (steps); убирает такой пробник probe_cleanup. До сборки
+        проверяется Проект.yaml: без Представление, без ЯзыкРазработки или с
+        ЯзыкПоУмолчанию без ЯзыкиЛокализации сервер пробник не примет, и инструмент сразу
+        называет недостающий ключ.
         """
         lines: list[str] = []
         report = probe_project(
@@ -748,9 +750,29 @@ def create_server(config=None, *, overrides=None, env_file=None):
             project_dir=project_dir or None,
             space_id=space_id or None,
             keep=keep,
+            env_file=env_file or None,
             log=lines.append,
         )
         payload = report.to_dict()
+        payload["log"] = lines
+        return payload
+
+    @server.tool()
+    def probe_cleanup(app_id: str, env_file: str = "") -> dict:
+        """Убрать оставленный пробник (probe с keep=true или с оборвавшейся уборкой) по его приложению.
+
+        app_id - ид либо имя одноразового приложения пробника. Карточка приложения
+        называет проект и сборку, поэтому сборка ищется в проекте пробника, а не в
+        проекте окружения. Порядок - платформенный: приложение, ожидание, пока оно
+        исчезнет, сборка пробника, а проект последним и только если в нём не осталось
+        сборок и на нём не работает ни одно приложение. Чужое приложение (имя не
+        начинается с elemctl-probe- и сборка не пробника) и рабочее приложение окружения
+        инструмент не трогает и называет причину. Повторный вызов доделывает то, что не
+        удалось в прошлый раз. Итог - поле ok, по шагам - app-deleted, builds,
+        project-deleted и project-kept.
+        """
+        lines: list[str] = []
+        payload = cleanup_probe(client(env_file), app_id, log=lines.append).to_dict()
         payload["log"] = lines
         return payload
 
@@ -841,6 +863,28 @@ def create_server(config=None, *, overrides=None, env_file=None):
             "password-login-enabled": None if local is None else bool(local.get("enabled")),
             "changed": changed,
         }
+
+    @server.tool()
+    def token_access(
+        app_id: str,
+        user: str = "",
+        enabled: bool | None = None,
+        env_file: str = "",
+    ) -> dict:
+        """Доступ пользователя к HTTP-сервисам приложения по токену: показать или переключить.
+
+        Без этого доступа вызов HTTP-сервиса приложения токеном пользователя получает
+        500 "Token access is denied", какие бы права у пользователя ни были. app_id - ид
+        (UUID) либо точное имя приложения, его нужно назвать явно. user - логин,
+        представление или ид пользователя; пусто - учётная запись, под которой работает
+        elemctl. Без enabled инструмент только показывает признак; enabled=true/false
+        переключает его и перечитывает подключение, так что token-access-enabled в ответе -
+        то, что хранит платформа после изменения, а changed говорит, менял ли вызов что-то.
+        Пользователя, не подключённого к приложению, инструмент называет сам, а не
+        отправляет на изменение.
+        """
+        target = client(env_file)
+        return target.token_access(target.resolve_app_id(app_id), user=user, enabled=enabled)
 
     @server.tool()
     def list_app_tasks(app_id: str = "", env_file: str = "") -> list:

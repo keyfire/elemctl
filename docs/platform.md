@@ -35,6 +35,9 @@ Common prefix: `{base}/console/api/v2`. Request and response bodies are JSON, ap
 - `POST /applications/{id}/project/update` – apply a build to the application. Body: `{"source": {"type": "repository", "image-id": "<build id>"}}` or `{"source": {"type": "repository", "project-id": "<id>", "assembly-version": "<version>"}}` (assembly-version is optional).
 - `POST /applications/{id}/dumps` – create a dump. Body: `include-users`, `include-binary-data` (booleans), `description` (string).
 - `GET /applications/{id}/dumps/{dumpId}` – dump status.
+- `GET /applications/{id}/users` – the users connected to the application, each `{user-list-id, user-id, presentation, is-admin, token-access-enabled}`. The users of the control panel are among them: the platform connects them itself and names such a user by the login. `token-access-enabled` is the access of the user to the HTTP services of the application by a token; without it a call of a service with the user's token is refused with a 500 "Token access is denied".
+- `PUT /applications/{id}/users/change-token-access` – switch that access. Body: `{"user-list-id", "user-id", "enable-access"}`, all three required; the answer is the connection as it became. A user who is not connected to the application gets a 500 "Can't change user token access" that does not say why. The method is documented under v2 and v2.1 alike. `elemctl apps token-access` finds the connection first and reads the flag back after a switch.
+- `GET /me` – the user the credentials belong to: `id`, `login`, `presentation`, `user-list-id`.
 
 Application statuses: stable `Running`, `Stopped`, `Error`; transitional `Starting`, `Stopping`, `Initializing`, `Updating`, `Frozen`, `Creating`. During transitions the `status` field may also be empty.
 
@@ -79,6 +82,7 @@ A user list holds either the users of an application or the users of the control
 - `GET|PUT /user-lists/{id}/settings/self-registration` – `{enabled, phone-required, email-required}`, the control panel's "allow users to register themselves".
 - `GET|POST /user-lists/{id}/settings/account-services-settings`, `PUT|DELETE .../{account-service-id}` – the account services. An entry is `{account-service-id, account-service-type, local-id, enabled, create-user-on-auth, additional-settings}`. The type `Local` authenticates by a password; the rest are external: `OIDC`, `Cas`, `ActiveDirectory`, `Esia`. Both writes want the whole entry.
 - `GET|POST|DELETE /applications/{id}/userlists` – the ids of the lists connected to an application. Note the spelling: `userlists` here, `user-lists` at the top level. The link carries no settings of its own.
+- `GET /user-lists/{id}/users` – the users of the list, `id` and `login` among their fields. An entry carries the access tokens of the user too, secrets included, so such an answer does not belong in a log as it is.
 
 Worth knowing before you build on this:
 

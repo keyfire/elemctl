@@ -92,6 +92,7 @@ usage: elemctl apps [-h] action ...
 | `start` | start an application |
 | `stop` | stop an application |
 | `debug` | data for a debug session (debug-token, debug-address) |
+| `token-access` | a user's access to the HTTP services of the application by a token: show or switch it (without it a call of a service with a token gets a 500 "Token access is denied") |
 
 **Options**
 
@@ -309,6 +310,29 @@ usage: elemctl apps debug [-h] [--app-id APP_ID] [APP_ID]
 |---|---|
 | `-h, --help` | show this help message and exit |
 | `--app-id APP_ID` | the same application as an option: deploy and apps ensure take this form only |
+
+### `elemctl apps token-access`
+
+```bash
+usage: elemctl apps token-access [-h] [--app-id APP_ID] [--user USER] [--enable] [--disable]
+                                 [APP_ID]
+```
+
+**Arguments**
+
+| Option | Description |
+|---|---|
+| `APP_ID` | the application id (UUID) or its exact name |
+
+**Options**
+
+| Option | Description |
+|---|---|
+| `-h, --help` | show this help message and exit |
+| `--app-id APP_ID` | the same application as an option: deploy and apps ensure take this form only |
+| `--user USER` | the login, the presentation or the id of the user (default: the account elemctl signs in with) |
+| `--enable` | allow the access by a token and read the flag back |
+| `--disable` | forbid the access by a token and read the flag back |
 
 ## `elemctl spaces`
 
@@ -706,7 +730,7 @@ usage: elemctl user-lists calculation-rules [-h] [--app APP] [--rules-file RULES
 ```bash
 usage: elemctl probe [-h] [--project-dir PROJECT_DIR] [--output OUTPUT]
                      [--build-version BUILD_VERSION] [--name NAME] [--space-id SPACE_ID] [--keep]
-                     [--require-clean]
+                     [--require-clean] [--cleanup APP_ID]
 ```
 
 **Options**
@@ -719,8 +743,9 @@ usage: elemctl probe [-h] [--project-dir PROJECT_DIR] [--output OUTPUT]
 | `--build-version BUILD_VERSION` | explicit build version (default {base}`-probe-`{token} – it has to be a new one) |
 | `--name NAME` | name of the throwaway application (default elemctl-probe-{token}) |
 | `--space-id SPACE_ID` | the space for the project and the application (ELEMENT_SPACE_ID) |
-| `--keep` | skip the cleanup: leave the application and the build for a hands-on look |
+| `--keep` | skip the cleanup: leave the application and the build for a hands-on look; the report names the command that removes them |
 | `--require-clean` | abort the check if the project directory has uncommitted changes |
+| `--cleanup APP_ID` | remove a probe left behind, starting from its application (id or name): the application, the probe build in its project and the project when nothing else is left in it; an application that is not a probe's is refused |
 
 ## `elemctl verify-deploy`
 

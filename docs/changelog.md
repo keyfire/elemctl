@@ -29,6 +29,17 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
   The branch, the state of the tree and the directory the platform does not keep, so a local
   registry of uploads remembers them; `builds list --brief` and `apps get` name the source of each.
   ([#42](https://github.com/keyfire/elemctl/pull/42))
+- **`apps token-access` opens the HTTP services of an application to a token.** A call of a
+  service with a user's token was refused with a 500 "Token access is denied" until the flag was
+  switched in the control panel. The command and the MCP tool `token_access` show the flag,
+  switch it and read it back, and name a user who is not connected to the application.
+  ([#43](https://github.com/keyfire/elemctl/pull/43))
+- **`probe --cleanup` removes a kept probe in one command.** Taking a probe away by hand
+  went wrong: a bare `builds delete` looked in the project of the environment, not in the
+  probe's. The new command starts from the application, deletes it, its build and an empty
+  project in the platform's order and refuses an application no probe left; the report of
+  `probe --keep` names that command and the steps by hand.
+  ([#43](https://github.com/keyfire/elemctl/pull/43))
 
 ### Fixed
 - **A server that is still starting is called what it is.** While its console was coming up,
@@ -41,6 +52,11 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
   named before the build without stopping it, a narrowing inside a tabular part is refused like
   any other, and a skipped check gives its real reason instead of always blaming a missing commit.
   ([#42](https://github.com/keyfire/elemctl/pull/42))
+- **`self-update` sees a release published minutes ago.** Both PyPI listings may name the
+  previous version for a while after a release, and the command answered "already current". It
+  now reads both listings and the pages of the next versions, says when the sources disagree,
+  and never replaces an installation with an older release.
+  ([#43](https://github.com/keyfire/elemctl/pull/43))
 
 ## 2026-09-24 – 0.44.0
 

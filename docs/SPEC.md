@@ -71,6 +71,9 @@ Common prefix: `{base}/console/api/v2`. Request and response bodies are JSON, ap
 - `POST /applications/{id}/project/update` – apply a build to the application. Body: `{"source": {"type": "repository", "image-id": "<build id>"}}` or `{"source": {"type": "repository", "project-id": "<id>", "assembly-version": "<version>"}}` (assembly-version is optional).
 - `POST /applications/{id}/dumps` – create a dump. Body: `include-users`, `include-binary-data` (booleans), `description` (string).
 - `GET /applications/{id}/dumps/{dumpId}` – dump status.
+- `GET /applications/{id}/users` – the users connected to the application, each `{user-list-id, user-id, presentation, is-admin, token-access-enabled}`. The users of the control panel are among them: the platform connects them itself, and it names such a user by the login. `token-access-enabled` is the access of the user to the HTTP services of the application by a token. Without it a call of a service with the user's token is refused with a 500 "Token access is denied", whatever the rights of the user.
+- `PUT /applications/{id}/users/change-token-access` – switch that access. Body: `{"user-list-id", "user-id", "enable-access"}`, all three required; the answer is the connection as it became. A user who is not connected to the application is refused with a 500 "Can't change user token access" and no word about the cause, so the client finds the connection first and names the user when there is none. The reference documents the method under v2 and v2.1 with the same body, and a live check got the same answer from both; the client takes the v2 prefix, like every other request.
+- `GET /me` – the user the credentials belong to: `id`, `login`, `presentation`, `user-list-id`.
 
 Application statuses: stable `Running`, `Stopped`, `Error`; transitional `Starting`, `Stopping`, `Initializing`, `Updating`, `Frozen`, `Creating`. During transitions the `status` field may also be empty.
 
@@ -120,6 +123,7 @@ A user list holds either the users of an application, which has a list of its ow
 - `GET|PUT /user-lists/{id}/settings/self-registration` – `{enabled, phone-required, email-required}`. This is the panel's "allow users to register themselves". The PUT wants the whole object.
 - `GET|POST /user-lists/{id}/settings/account-services-settings`, `PUT|DELETE .../{account-service-id}` – the account services of the list. An entry is `{account-service-id, account-service-type, local-id, enabled, create-user-on-auth, additional-settings}`. The type `Local` authenticates by a password, so the panel's "allow signing in with a login and a password" is that entry being `enabled`. The other types are external services: `OIDC`, `Cas`, `ActiveDirectory`, `Esia`. The PUT wants the whole entry back.
 - `GET /applications/{id}/userlists` – the ids of the lists connected to the application; `POST` connects, `DELETE` disconnects. Note the spelling: no dash here. There are no per-connection settings: the link is a set of ids and nothing more.
+- `GET /user-lists/{id}/users` – the users of the list, `id` and `login` among their fields. An entry carries the access tokens of the user as well, secrets included, so the client takes nothing but the ids out of it.
 - The application card names the application's own list in `default-user-list`. That is the list of its users, and the panel list connected to it is a separate one.
 
 Two things the panel can do and the API cannot, so both stay manual:
@@ -220,7 +224,8 @@ Commands, with the significant flags in parentheses:
   `apps ensure NAME [--project-id --version-id --latest-build --space-id
   --tech-version --no-dev-mode --wait --verify --no-verify --apply]`,
   `apps apply [APP_ID] VERSION_ID`,
-  `apps delete APP_ID`, `apps start [APP_ID]`, `apps stop [APP_ID]`.
+  `apps delete APP_ID`, `apps start [APP_ID]`, `apps stop [APP_ID]`,
+  `apps token-access APP_ID [--user --enable --disable]`.
   - `apps list --name` filters by a case-insensitive name substring, and it does so on the client because the platform ignores the query parameter (section 4.1). `--status` selects by the whole status word, several of them separated by commas. `--brief` prints brief cards instead of full ones: id, name, status, uri, applied version.
   - `apps list` hides the deleted applications. They stay in the platform list under the `Deleted` status, and a stand a few months old answers with hundreds of cards of which a handful are alive. `--include-deleted` brings them back, and so does `--status deleted`: a filter that would answer with nothing is worse than no filter. A cut nobody is told about is a trap of its own, so the command ends with a count line on stderr, "7 live of 324", plus the number shown when a filter narrowed the answer further. Whatever is cut, stdout stays the same JSON array.
   - `apps get` adds `applied-build` to the card: the brief card of the build the application runs, with its branch and commit from the build card or from the local registry of uploads, in the shape `builds list --brief` prints. It is null when the card names no applied build.
@@ -234,6 +239,7 @@ Commands, with the significant flags in parentheses:
   - A source given by `--version-id` is looked up in the build list of the project before anything is created. The project is `--project-id`, or `ELEMENT_PROJECT_ID` when the flag is absent. The platform deletes the builds nobody uses and cannot create an application from a deleted one: it answers with a bare 400 "Can't create application", which reads like a limit on the number of applications. So the command refuses by itself. The refusal names the cause and offers the build that a running application of the project runs, or `--latest-build` when no application runs one. A project taken from `ELEMENT_PROJECT_ID` is named in the refusal, because the build may belong to another project. Without a project there is no list to look in, and the create goes as before.
   - Waiting means verifying. A failed apply is rolled back by the platform to the previous build, and the application comes up `Running` all the same, so a card handed back after a wait is not evidence that the build asked for is the one running. `--wait` therefore ends with the same check `apps apply` and `verify-deploy` do: the applied build id against the requested one, the application tasks that failed since the creation started, the uri. It puts the report into the `verify` field of the output and answers with exit code 1 when the check does not pass. `--verify` asks for the check on its own, and waits too, because there is nothing to check on an application still being created. `--no-verify` brings back the plain wait. Without either flag nothing is waited for and nothing is checked, as before.
   - The application exists once the create has answered, so a wait or a check that breaks off does not lose it. The output still carries the id: the card of `apps create`, the `id` of `apps ensure` with `applied: null`, since nothing was checked. The `wait-error` field holds the error that ended the wait, stderr names the `verify-deploy` call that checks the build later, and the exit code is 1. The answer used to be a bare network error without the id, and the id of an application that came up minutes later had to be looked up by name.
+  - `apps token-access APP_ID` shows or switches the access of a user to the HTTP services of the application by a token (section 4.1). The application is named explicitly, by the argument or by `--app-id`: `ELEMENT_APP_ID` names the working application, and a switch that opens its services must not land there by default. `--user` is a login, a presentation or a user id, and without it the command speaks about the account elemctl itself signs in with (`GET /me`). Without `--enable` or `--disable` it only reads; both at once is an error. A switch reads the connection back, so `token-access-enabled` in the output is what the platform keeps after the change, and a flag that did not move is an error with exit code 1. The output is `{"app-id", "user", "user-id", "user-list-id", "token-access-enabled", "changed"}`, where `changed` says whether this very call altered anything: the state that is already there sends no request. A user who is not connected to the application is named as such, with the users that are, before anything is sent.
 - `spaces list`.
 - `user-lists list [--name]`, `user-lists get [LIST] [--app]`,
   `user-lists self-registration [LIST] [--app --enable --disable]`,
@@ -315,7 +321,7 @@ Commands, with the significant flags in parentheses:
   after `apps create`: a build that failed to apply is rolled back silently, and a status
   of `Running` proves nothing.
 - `probe [--project-dir --output --build-version --name --space-id --keep
-  --require-clean]` – an isolated compilation check of the sources: build ->
+  --require-clean]`, `probe --cleanup APP_ID` – an isolated compilation check of the sources: build ->
   upload -> a throwaway application (that is the compilation, section 6.10) ->
   errors with file and position -> cleanup. Before the build the manifest is
   checked for what the server needs to take a probe: `Представление`
@@ -335,12 +341,14 @@ Commands, with the significant flags in parentheses:
   comparison. Cleanup runs whether the compilation passed or failed, in the order
   of section 6.9: the application, then the build, then the project, and the
   project only if the probe itself created it. Output: `ok`, `project-dir`,
-  `vendor`, `name`, `file`, `version`, `project-id`, `assembly-id`, `app-id`,
+  `vendor`, `name`, `file`, `version`, `project-id`, `project-created`,
+  `assembly-id`, `app-id`,
   `app-name`, `status`, `errors` (a list of `{file, entry, line, column,
   environment, message}`, where `file` is the path relative to the project
   directory), `messages` (the platform texts verbatim, so nothing is lost when the
   failure is not a compilation one), `cleanup` (`kept`, `app-deleted`,
-  `assembly-deleted`, `project-deleted`, `problems`) and `hint`, the pointer to the
+  `assembly-deleted`, `project-deleted`, `problems`, `command`, `steps`) and
+  `hint`, the pointer to the
   server log that the `deploy` report carries too. `hint` is filled when the server
   refused and named no file; a wait that ran out of time leaves it empty. A stand that does not know
   the compatibility mode of the project refuses the whole project and then
@@ -354,6 +362,34 @@ Commands, with the significant flags in parentheses:
   does leave behind is a tombstone: the platform keeps deleted applications in
   the list with the `Deleted` status and their former id, and there is no API to
   remove them.
+  Whatever a probe leaves, on purpose with `--keep` or through a cleanup step that
+  failed, comes with the commands that remove it, in `cleanup` and on stderr:
+  `command` is the one command, `probe --cleanup APP_ID`, and `steps` are the same
+  by hand in the order of section 6.9, with the build addressed in the probe's own
+  project. A bare `builds delete` looks in the project of `ELEMENT_PROJECT_ID`, where
+  the probe build is not, and a build deleted right after its application is
+  refused with a 500 until the application is gone. Both lines name the `--env-file`
+  the probe was run with.
+  `probe --cleanup APP_ID` removes a probe left on the stand, starting from its
+  application, an id or a name. The application card names the project and the build
+  it was created from, so nothing has to be remembered between the runs. Only a
+  probe's application is touched: its name starts with `elemctl-probe-`, or the build
+  it runs carries `-probe-` in its version, which covers a probe named with `--name`.
+  Any other application is refused with the reason, and so is the one
+  `ELEMENT_APP_ID` names. The order is that of section 6.9: the application, a wait
+  until it is gone, the build of this very probe (its token in the version), and the
+  project last. The project goes only when no build is left in it and no live
+  application runs it, and never when it is the project of `ELEMENT_PROJECT_ID`: a
+  probe usually lands in the project that owns its sources, the working one, while a
+  project the probe created ends up empty. The builds other runs uploaded into the
+  probe's application are left to the platform, which deletes the builds nobody
+  uses. A second run finishes what the first one left: an application that is
+  already a tombstone is not deleted twice, since the list keeps its card, and a
+  project deleted already is not deleted again. The run builds nothing, so the flags
+  of a probe run are refused beside `--cleanup`. Output: `ok`, `app-id`, `app-name`,
+  `project-id`, `app-deleted`, `builds` (`{id, version, deleted}` each),
+  `project-deleted`, `project-kept` (why the project stayed) and `problems`; return
+  code 0 only when `ok`.
 - `branches list [--project-id --name]`, `branches get ID`,
   `branches create NAME [--project-id --app-id]`,
   `branches update ID [--app-id]`, `branches delete ID`,
@@ -364,7 +400,7 @@ Commands, with the significant flags in parentheses:
 - `debug-adapter` – the path to the platform debug adapter directory supplied by a plugin (the `elemctl.debug_adapter` entry-point group, section 10). Output `{"path": ..., "found": true, "adapter-class": ...}` when present or `{"path": null, "found": false}`; exit code 0 in both cases. The `path` is a ready value for the VS Code extension's `xbsl.debug.adapterPath` (a directory with a `repo/` subdirectory).
 - `plugins` – diagnostics: what the plugins bring. `debug-adapter` holds the declared adapter directories and whether each of them holds jars. `commands` holds the commands of the plugins with the entry point they arrived through and the name of their MCP tool, which is `null` when the command stays out of MCP. `failures` holds what was left out: a plugin that did not load, or a command that would have taken over a name of the core, each with the entry point and the reason. The answer looks like `{"debug-adapter": [{"path": ..., "has-jars": true|false}], "commands": [{"name": ..., "source": ..., "mcp": ...}], "failures": [{"source": ..., "error": ...}]}`.
 - The subcommands the plugins bring (section 10, the `elemctl.commands` group) stand alongside the commands of the core and are listed by `--help`. They may not take over a name of the core; the command reference describes the core alone. A plugin that fails to load is left out and does not take the CLI down (section 10): every command names it on stderr, and a call to a command that is missing while plugins failed is refused with JSON on stderr, the failures in its `plugin-failures` field.
-- `self-update [--version X]` – update the installed elemctl by unpacking the wheel from PyPI into site-packages, without touching busy exe files. Plain pipx or pip breaks the install when `elemctl.exe` is held by a running MCP server. Here only the package files are updated, and the exe stub calls the new code. The command also fixes `pipx_metadata.json`. Output is `{updated, from, to}`.
+- `self-update [--version X]` – update the installed elemctl by unpacking the wheel from PyPI into site-packages, without touching busy exe files. Plain pipx or pip breaks the install when `elemctl.exe` is held by a running MCP server. Here only the package files are updated, and the exe stub calls the new code. The command also fixes `pipx_metadata.json`. Output is `{updated, from, to}`. Without `--version` the latest release is asked of every source PyPI has. Both listings of releases, the simple index and the JSON summary, are cached node by node and may name the previous release for minutes after a new one is out, so the command reads both, takes the newer answer and then asks for the pages of the three next numbers (`0.44.1`, `0.45.0` and `1.0.0` after `0.44.0`): the page of a new release is there as soon as it is published. When the sources disagree, a line on stderr says what each of them named. An installation newer than every source is left as it is rather than replaced with the release before. A version given with `--version` that the index does not list yet is looked up on its own page, and only a 404 there means the version does not exist.
 - `mcp` – start the MCP server; without the extra installed – a clear error with the hint `pip install "elemctl[mcp]"`.
 
 Positional APP_ID and PROJECT_ID marked as optional above are taken from the configuration when absent, from `ELEMENT_APP_ID` and `ELEMENT_PROJECT_ID`. If those are empty too, the command errors out.
@@ -411,7 +447,8 @@ version (section 4.4; an id is accepted and resolved through the listing),
 server_start_timeout=900)` – returns the deploy report plus a `log` field with progress
 lines, and waits out a server that is still starting (section 6.12); `probe(project_dir="", space_id="", keep=False)` – an isolated
 compilation check that does not touch the working application (section 7),
-the report plus a `log` field; `apply_build(app_id, version_id)`, `verify_deploy(app_id,
+the report plus a `log` field; `probe_cleanup(app_id)` – `probe --cleanup` (section 7),
+the removal of a probe left on the stand, the report plus a `log` field; `apply_build(app_id, version_id)`, `verify_deploy(app_id,
 expected_version="", since_minutes=30)` – verification of the apply per section 6.1;
 `list_app_tasks(app_id="")`, `list_branches(project_id="", name="")`,
 `merge_branch(branch_id)`, `list_user_lists(name="")` and
@@ -419,7 +456,10 @@ expected_version="", since_minutes=30)` – verification of the apply per sectio
 the sign-in settings of a user list (section 4.7) in one call: the list is given by id, by
 presentation or by the application whose own list it is; both flags are optional, and
 without them the tool only reports the state (`self-registration-enabled`,
-`password-login-enabled`, `changed`).
+`password-login-enabled`, `changed`); `token_access(app_id, user="", enabled=None)` – the
+access of a user to the HTTP services of the application by a token, as `apps token-access`
+shows and switches it (section 7): `app_id` is required, an empty `user` means the account
+elemctl signs in with, and without `enabled` the tool only reads.
 
 The tools the plugins bring (section 10, the `elemctl.commands` group) are registered
 alongside these: the schema is built out of the declared arguments, the description is the
