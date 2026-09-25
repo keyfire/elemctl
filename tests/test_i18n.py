@@ -198,6 +198,9 @@ def test_no_russian_string_literals_outside_the_catalog():
         "Реквизиты", "Измерения", "Ид", "Тип", "Длина", "МаксимальнаяДлина", "ТабличныеЧасти",
         # The primitive type names the guard canonicalizes across the spellings.
         "Строка", "Число", "Булево", "Дата", "ДатаВремя", "Время",
+        # The kinds of element that keep data of their own, whose removal the guard refuses.
+        "Справочник", "Документ", "РегистрСведений", "РегистрНакопления", "НаборКонстант",
+        "ПланОбмена", "ХранилищеНастроек",
         # The language keys of a descriptor and the value of the language enumeration:
         # the probe checks the keys and quotes them in the line it asks to add.
         "ЯзыкРазработки", "ЯзыкПоУмолчанию", "ЯзыкиЛокализации", "Русский",

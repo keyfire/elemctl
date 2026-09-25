@@ -813,17 +813,18 @@ MESSAGES = {
         "en": " and {count} more",
     },
     "deploy.destructive-changes": {
-        "ru": "ОТКАЗ: применение пересоздаст данные объектов – сужений найдено {count}: {changes}. "
-              "Расширение длин данные сохраняет, сужение и смена типа – нет. Если потеря данных "
-              "допустима, повторите с флагом --allow-data-loss",
-        "en": "REFUSED: the apply would recreate the data of the objects – {count} narrowing(s) "
-              "found: {changes}. Widening keeps the data, narrowing and a type change do not. If "
-              "losing the data is acceptable, repeat with --allow-data-loss",
+        "ru": "ОТКАЗ: применение уничтожит данные – находок {count}: {changes}. Расширение длин "
+              "данные сохраняет, а сужение, смена типа и снятие целиком элемента со своими "
+              "данными – нет. Если потеря данных допустима, повторите с флагом --allow-data-loss",
+        "en": "REFUSED: the apply would destroy data – {count} finding(s): {changes}. Widening "
+              "keeps the data; a narrowing, a type change and an element with data of its own "
+              "removed whole do not. If losing the data is acceptable, repeat with "
+              "--allow-data-loss",
     },
     "deploy.destructive-allowed": {
-        "ru": "внимание: сужений найдено {count}, данные объектов будут пересозданы "
+        "ru": "внимание: находок {count}, данные будут пересозданы или удалены "
               "(--allow-data-loss): {changes}",
-        "en": "warning: {count} narrowing(s) found, the data of the objects will be recreated "
+        "en": "warning: {count} finding(s), the data will be recreated or deleted "
               "(--allow-data-loss): {changes}",
     },
     "deploy.schema-check-skipped": {
@@ -964,6 +965,25 @@ MESSAGES = {
         "en": "{where}: attribute {name} of the tabular part {part} of {object} is removed – "
               "its values in the rows will be deleted",
     },
+    "schema.element-removed": {
+        "ru": "{where}: снимается {kind} {name} целиком – вся его таблица будет удалена вместе "
+              "со строками",
+        "en": "{where}: the {kind} {name} is removed whole – its whole table will be deleted "
+              "with every row",
+    },
+    "schema.element-catalog": {"ru": "справочник", "en": "catalog"},
+    "schema.element-document": {"ru": "документ", "en": "document"},
+    "schema.element-information-register": {
+        "ru": "регистр сведений",
+        "en": "information register",
+    },
+    "schema.element-accumulation-register": {
+        "ru": "регистр накопления",
+        "en": "accumulation register",
+    },
+    "schema.element-constants-set": {"ru": "набор констант", "en": "constants set"},
+    "schema.element-exchange-plan": {"ru": "план обмена", "en": "exchange plan"},
+    "schema.element-settings-storage": {"ru": "хранилище настроек", "en": "settings storage"},
     "deploy.skipped-files": {
         "ru": "внимание: в архив НЕ вошли файлы ({count}): {files} – расширение вне списка "
               "разрешённых, а файл лежит не в каталоге Ресурсы; на применении это даёт "
@@ -1726,14 +1746,15 @@ MESSAGES = {
         "en": "abort the deploy if the project directory has uncommitted changes",
     },
     "cli.help.deploy-allow-data-loss": {
-        "ru": "разрешить применение, пересоздающее данные объектов (сужение длины, смена типа "
-              "реквизита, в том числе в табличной части); без флага такое развёртывание "
-              "отклоняется до сборки. Снятие реквизита или табличной части флага не требует: "
-              "деплой называет его и идёт дальше",
-        "en": "allow an apply that recreates the data of the objects (a narrowed length, a changed "
-              "attribute type, a tabular part included); without the flag such a deploy is "
-              "refused before the build. A removed attribute or tabular part needs no flag: the "
-              "deploy names it and goes on",
+        "ru": "разрешить применение, которое пересоздаёт или удаляет данные (сужение длины, "
+              "смена типа реквизита, в том числе в табличной части, снятие целиком справочника, "
+              "документа или регистра); без флага такое развёртывание отклоняется до сборки. "
+              "Снятие реквизита или табличной части флага не требует: деплой называет его и "
+              "идёт дальше",
+        "en": "allow an apply that recreates or deletes data (a narrowed length, a changed "
+              "attribute type, a tabular part included, a catalog, a document or a register "
+              "removed whole); without the flag such a deploy is refused before the build. A "
+              "removed attribute or tabular part needs no flag: the deploy names it and goes on",
     },
     "cli.help.deploy-server-start-timeout": {
         "ru": "сколько секунд ждать сервер 1С:Элемент, пока он стартует и его консоль отвечает "

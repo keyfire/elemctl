@@ -637,12 +637,14 @@ CATALOG_BEFORE = (
 
 
 def _earlier(monkeypatch, files):
+    """The applied commit as the guard reads it: these files and nothing else."""
     from elemctl import deploy as deploy_module
 
     monkeypatch.setattr(
         deploy_module, "_git_show",
         lambda project_dir, commit, relative: files.get(relative, ""),
     )
+    monkeypatch.setattr(deploy_module, "_git_files", lambda project_dir, commit: list(files))
 
 
 def test_a_removed_tabular_part_is_named_and_the_deploy_goes_on(
@@ -886,6 +888,90 @@ def test_a_registry_line_without_a_commit_leaves_the_check_skipped(project_facto
     assert report.schema_check == "skipped:no-commit-id"
     skip = next(line for line in log_lines if "сверка схемы не выполнена" in line)
     assert "реестр загрузок его не знает" in skip
+
+
+# --- an element with data of its own removed whole -----------------------------
+
+# The catalog as the platform writes it: an element carries its Ид, and the guard follows
+# an element by it.
+CATALOG_WITH_ID = CATALOG_BEFORE.replace(
+    "Имя: Задачи\n", "Ид: 3c5d7e9f-2a4b-4c6d-8e0f-1a3b5c7d9e2f\nИмя: Задачи\n", 1
+)
+
+
+def test_a_catalog_removed_whole_refuses_the_deploy_before_the_build(
+    project_factory, tmp_path, monkeypatch
+):
+    """The guard read the files on disk, so a catalog whose file is gone went unnoticed and
+    its table went with every row. It weighs as much as a narrowing now."""
+    project_dir = project_factory()
+    _earlier(monkeypatch, {"Задачи.yaml": CATALOG_WITH_ID})
+    client = SchemaGuardClient()
+
+    with pytest.raises(ElemctlError) as error:
+        deploy_from_sources(
+            client, "app-1", "proj-1", project_dir=project_dir, output_dir=tmp_path / "d",
+        )
+
+    assert "снимается справочник Задачи целиком" in str(error.value)
+    assert "--allow-data-loss" in str(error.value)
+    assert client.upload_kwargs is None
+
+
+def test_allow_data_loss_lets_a_removed_catalog_through(project_factory, tmp_path, monkeypatch):
+    project_dir = project_factory()
+    _earlier(monkeypatch, {"Задачи.yaml": CATALOG_WITH_ID})
+    log_lines = []
+
+    report = deploy_from_sources(
+        SchemaGuardClient(), "app-1", "proj-1", project_dir=project_dir,
+        output_dir=tmp_path / "d", version="1.0-1", allow_data_loss=True,
+        log=log_lines.append,
+    )
+
+    assert report.ok is True and report.schema_check == "allowed"
+    allowed = next(line for line in log_lines if "--allow-data-loss" in line)
+    assert "снимается справочник Задачи целиком" in allowed
+
+
+def _commit_all(root, message):
+    import subprocess
+
+    def run(*args):
+        return subprocess.run(
+            ["git", "-C", str(root), *args], capture_output=True, text=True, check=True,
+            encoding="utf-8", errors="replace",
+        ).stdout.strip()
+
+    if not (root / ".git").exists():
+        run("init", "-q")
+        run("config", "user.email", "guard@example.test")
+        run("config", "user.name", "Guard")
+    run("add", "-A")
+    run("commit", "-q", "-m", message)
+    return run("rev-parse", "HEAD")
+
+
+def test_the_files_of_the_applied_commit_come_from_git(project_factory, tmp_path):
+    """The whole path on a real repository: the list of the commit, the Cyrillic names in it
+    and the text of the file that is gone from the disk."""
+    import shutil
+
+    if shutil.which("git") is None:
+        pytest.skip("git недоступен")
+    project_dir = project_factory()
+    (project_dir / "Основное").mkdir()
+    (project_dir / "Основное" / "Задачи.yaml").write_text(CATALOG_WITH_ID, encoding="utf-8")
+    commit = _commit_all(project_dir.parents[1], "catalog")
+    (project_dir / "Основное" / "Задачи.yaml").unlink()
+
+    with pytest.raises(ElemctlError) as error:
+        deploy_from_sources(
+            SchemaGuardClient(commit_id=commit), "app-1", "proj-1", project_dir=project_dir,
+            output_dir=tmp_path / "d",
+        )
+
+    assert "Основное/Задачи.yaml: снимается справочник Задачи целиком" in str(error.value)
 
 
 # --- a refusal several lines long ---------------------------------------------

@@ -74,7 +74,8 @@ class DeployReport:
     dirty_files: list | None = None
     # The schema guard's verdict: "clean" - ran and found nothing, "warned" - found only
     # removals, which are named in schema_warnings and do not stop a deploy, "allowed" -
-    # narrowings overridden by --allow-data-loss, "skipped:<reason>" - there was nothing to
+    # what the guard refuses (a narrowing, an element with data of its own removed whole)
+    # let through by --allow-data-loss, "skipped:<reason>" - there was nothing to
     # compare against (the reasons are listed at review_schema). "" - the guard was not
     # involved (verify without deploy). Named in the report on purpose: a skipped check
     # must not read as a passed one.
@@ -202,8 +203,9 @@ def _deploy_from_sources(
     ))
 
     # The schema guard runs BEFORE the build: a narrowing recreates the data of the
-    # object, and refusing here means nothing was built and nothing uploaded. A removal
-    # is named here too, while the deploy can still be interrupted.
+    # object, a removed catalog takes its table away, and refusing here means nothing was
+    # built and nothing uploaded. A removal of a field is named here too, while the deploy
+    # can still be interrupted.
     verdict = review_schema(client, app_id, project_id, project_dir)
     if verdict.commit_source == "registry":
         # The commit is this machine's memory of the upload, not the platform's record, so
@@ -356,8 +358,9 @@ def verify_deploy(client, app_id, *, expected_version="", expected_assembly_id="
 class SchemaVerdict:
     """What the schema guard found, or why it could not look.
 
-    changes - the narrowings a deploy refuses without --allow-data-loss; removals - what
-    the apply takes away, named without stopping it; skipped - why nothing was compared
+    changes - what a deploy refuses without --allow-data-loss: the narrowings and the
+    elements with data of their own removed whole; removals - what the apply takes away,
+    named without stopping it; skipped - why nothing was compared
     ("" when it was), with detail naming what could not be read or found. commit - what the
     sources were compared against, commit_source - where it came from ("platform" or
     "registry"), commit_dirty - the registry's word on whether that build was made from a
@@ -464,6 +467,30 @@ def _git_show(project_dir, commit, relative_path):
     return completed.stdout if completed.returncode == 0 else None
 
 
+def _git_files(project_dir, commit):
+    """The files of the project directory at a commit, relative to it; None when git cannot say.
+
+    `ls-tree` run inside the directory lists what lies under it, with the paths relative to
+    it - the same paths `_git_show` reads - and `-z` hands a Cyrillic name over as it is
+    rather than quoted.
+    """
+    try:
+        completed = subprocess.run(
+            ["git", "-C", str(project_dir), "ls-tree", "-r", "-z", "--name-only", commit],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            stdin=subprocess.DEVNULL,
+            timeout=15,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if completed.returncode != 0:
+        return None
+    return [name for name in completed.stdout.split("\0") if name]
+
+
 def review_schema(client, app_id, project_id, project_dir):
     """The schema guard: the sources on disk against the commit of the applied build.
 
@@ -491,7 +518,13 @@ def review_schema(client, app_id, project_id, project_dir):
     commit = applied.commit
     if all(_git_show(directory, commit, name) is None for name in PROJECT_FILES):
         return SchemaVerdict(skipped="commit-unavailable", detail=commit)
-    review = review_tree(directory, lambda relative: _git_show(directory, commit, relative))
+    review = review_tree(
+        directory,
+        lambda relative: _git_show(directory, commit, relative),
+        # The files of the applied commit: what the disk no longer has cannot be read off
+        # the disk, and a catalog whose description is gone takes its table with it.
+        lambda: _git_files(directory, commit),
+    )
     return SchemaVerdict(
         changes=review.changes,
         removals=review.removals,

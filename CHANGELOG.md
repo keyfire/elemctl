@@ -17,6 +17,12 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
 
 ## Unreleased
 
+### Added
+- **`deploy` refuses to drop a catalog whose description is gone.** The schema guard read only
+  the files on disk, so a catalog, a document or a register removed from the sources took its
+  whole table away unnoticed. Now it lists the files of the applied commit and refuses such a
+  removal like a narrowing, unless `--allow-data-loss` is given.
+
 ### Changed
 - **The schema guard of `deploy` takes a missing commit from the registry of uploads.** A build
   that created its project carries no commit on its card, so the guard stepped aside while this
