@@ -173,15 +173,31 @@ for the cache to watch and stays pinned for the life of the process instead.
 
 ### Behaviour of the tool
 
-`ELEMCTL_LANG` and `ELEMCTL_NO_PLUGINS` are set through the environment only – a
-connection `.env` is not their place. `ELEMCTL_NO_PROXY` is the exception,
-explained above: it reads the same file the connection does.
+`ELEMCTL_LANG`, `ELEMCTL_NO_PLUGINS` and `ELEMCTL_DATA_DIR` are set through the
+environment only – a connection `.env` is not their place. `ELEMCTL_NO_PROXY` is the
+exception, explained above: it reads the same file the connection does.
 
 | Variable | Purpose |
 |---|---|
 | `ELEMCTL_LANG` | language of the messages and the help (`ru`, `en`); the `--lang` flag wins over it |
 | `ELEMCTL_NO_PROXY` | set it to bypass the environment's proxy for every call (loopback and private addresses are bypassed anyway); also readable from the stand's `.env` |
 | `ELEMCTL_NO_PLUGINS` | do not look for plugins: work with the core capabilities only |
+| `ELEMCTL_DATA_DIR` | the directory of the local registry of uploads; by default `%LOCALAPPDATA%\elemctl` on Windows and `$XDG_STATE_HOME/elemctl` (`~/.local/state/elemctl`) elsewhere |
+
+### The local registry of uploads
+
+The platform keeps the commit of a build uploaded into an existing project and nothing else
+of where the build came from. So every upload elemctl makes – `deploy`, `builds upload`,
+`probe` – also appends a line to `uploads.jsonl` in the data directory above: the build id,
+the project, the version, the branch, the commit, whether the tree had uncommitted changes,
+the directory of the sources, the stand, the command and the time. `builds list --brief`
+and `apps get` fill the branch and the commit the card left empty from it and name the
+source of each value.
+
+The registry is local. A build uploaded from another machine, from CI or by an elemctl that
+had no registry yet is not in it, and there the listings show what the platform knows. A
+registry that cannot be written is a warning and never a failed upload; the file can be
+deleted at any time, and only the history of this machine goes with it.
 
 ### The CI environment
 
@@ -276,7 +292,7 @@ The server reads connection credentials from the same `ELEMENT_*` variables / `.
 |---|---|
 | `list_apps` | list of applications; the deleted ones are hidden unless `include_deleted` asks for them, `name` filters by a substring of the name on the client and `status` by the status word; the answer carries the counters and a `summary` line next to `applications`, `brief` (the default) keeps id, name, status, uri and the applied version |
 | `find_app` | find an application by its exact name: the id and a `found` flag; deleted ones are skipped unless `include_deleted` is set |
-| `get_app` | application card: status, uri, the actual project version |
+| `get_app` | application card: status, uri, the actual project version; `applied-build` carries the branch and the commit of the build it runs, from the build card or from the local registry of uploads |
 | `create_app` | create an application; with only a `project_id` the source is the project's latest build. The answer carries `sign-in` – the way in; `verify` waits for the application and checks the build it really runs |
 | `ensure_app` | create an application by name only if it does not exist yet; an existing one is not recreated (`created: false`); `verify` checks the build the application really runs |
 | `start_app` | start the application |
@@ -286,7 +302,7 @@ The server reads connection credentials from the same `ELEMENT_*` variables / `.
 | `debug_info` | debug-session data: `debug-token` and `debug-address` (debugging must be enabled on the server) |
 | `list_spaces` | list of spaces |
 | `list_projects` | list of projects; `name` filters by a substring of the name on the client, the deleted ones are hidden unless `include_deleted` is set; `brief` (the default) – id, name, project kind, space, application count, deletion flag |
-| `list_builds` | a project's builds, newest first; the answer is an object `{total, shown, summary, builds}`; `limit` (default 10, 0 – all), `brief` (the default) keeps id, versions, date, branch and commit |
+| `list_builds` | a project's builds, newest first; the answer is an object `{total, shown, summary, builds}`; `limit` (default 10, 0 – all), `brief` (the default) keeps id, versions, date, branch and commit, and names where the branch and the commit came from: the card or the local registry of uploads |
 | `get_build` | the whole card of one build; `version` is the build's version (`1.0-42`), an id is accepted too and resolved through the listing |
 | `build_assembly` | build a `.xasm`/`.xlib` archive from the sources locally (does not talk to the platform) |
 | `inspect_assembly` | parse a built archive: manifest, project properties, subsystems and global types with qualified names (local) |

@@ -951,13 +951,18 @@ def test_builds_list_brief_keeps_only_the_identifying_fields(monkeypatch, capsys
 
     assert rc == 0
     payload = json.loads(capsys.readouterr().out)
+    # The source of each value is named; the registry of this test remembers nothing.
     assert payload[0] == {
         "id": "asm-2",
         "assembly-version": "1.0-2",
         "project-version": "1.0-2",
         "created": "2026-01-02T10:00:00.000Z",
         "branch-name": None,
+        "branch-name-source": None,
         "commit-id": "c2",
+        "commit-id-source": "platform",
+        "dirty": None,
+        "project-dir": None,
     }
 
 

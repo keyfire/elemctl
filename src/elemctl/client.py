@@ -15,6 +15,7 @@ from urllib.parse import urlencode
 from . import i18n
 from .auth import TokenManager
 from .errors import ApiError, ConfigError, ServerStartingError, TransportError
+from .registry import remembered_uploads
 from .transport import UrllibTransport
 from .versions import missing_counters, newest_first, pick_latest
 
@@ -329,22 +330,92 @@ def apps_summary(listing):
     return i18n.t(key, live=live, total=total, shown=shown)
 
 
-def brief_assembly(assembly):
+def brief_assembly(assembly, remembered=None):
     """A brief assembly card: what a build is recognized and picked by.
 
     The question a listing answers is "which commit is that build from": the
     versions, the date, the branch and the commit, plus the id an assembly is
     addressed by. The rest of the full card names the project over again or
     serves the platform itself.
+
+    The branch and the commit come from the card when the platform filled them,
+    otherwise from what this machine remembers of the upload - remembered is the
+    build's entry of the local registry (registry.remembered_uploads). Which of the
+    two answered is said beside each value: `branch-name-source` and
+    `commit-id-source` are "platform", "registry", or null when neither knows. The
+    registry alone knows `dirty` - whether the tree had uncommitted changes - and
+    `project-dir`, the directory the build was made from.
     """
-    return {
+    remembered = remembered or {}
+    brief = {
         "id": assembly.get("id"),
         "assembly-version": assembly.get("assembly-version"),
         "project-version": assembly.get("project-version"),
         "created": assembly.get("created"),
-        "branch-name": assembly.get("branch-name"),
-        "commit-id": assembly.get("commit-id"),
     }
+    for card_field, registry_field in (("branch-name", "branch"), ("commit-id", "commit")):
+        value, source = assembly.get(card_field), None
+        if value:
+            source = "platform"
+        elif remembered.get(registry_field):
+            value, source = remembered[registry_field], "registry"
+        brief[card_field] = value
+        brief[f"{card_field}-source"] = source
+    brief["dirty"] = remembered.get("dirty")
+    brief["project-dir"] = remembered.get("project-dir")
+    return brief
+
+
+def assembly_id_of(assembly):
+    """The id of an assembly card, whichever of the id fields carries it ("" when none)."""
+    if not isinstance(assembly, dict):
+        return ""
+    for key in ASSEMBLY_ID_KEYS:
+        if assembly.get(key):
+            return str(assembly[key])
+    return ""
+
+
+def brief_assemblies(assemblies):
+    """Brief cards of a listing, each with what the local registry remembers of its upload."""
+    remembered = remembered_uploads([assembly_id_of(item) for item in assemblies])
+    return [
+        brief_assembly(item, remembered.get(assembly_id_of(item)))
+        for item in assemblies
+        if isinstance(item, dict)
+    ]
+
+
+def applied_build(client, card):
+    """The build an application runs, as a brief card with its origin; None when none is named.
+
+    The branch and the commit of a build are on the build card, not on the card of the
+    application, so the build is looked up in the list of its project; what the platform
+    did not fill, the local registry of uploads may know. A list that cannot be read
+    leaves the registry alone to answer: the card of the application was read, and this is
+    an addition to it, not a reason to fail.
+    """
+    card = card if isinstance(card, dict) else {}
+    source = card.get("source") if isinstance(card.get("source"), dict) else {}
+    applied_id = str(source.get("project-version-id") or "")
+    if not applied_id:
+        return None
+    project = card.get("project") if isinstance(card.get("project"), dict) else {}
+    project_id = str(project.get("id") or source.get("image-id") or "")
+    assembly = {"id": applied_id}
+    if project_id:
+        try:
+            for item in client.list_assemblies(project_id):
+                if isinstance(item, dict) and applied_id in {
+                    str(item.get(key) or "") for key in ASSEMBLY_ID_KEYS
+                }:
+                    assembly = item
+                    break
+        except Exception:
+            # Any failure of the list - the network, the rights, a stand-in without the
+            # method - leaves the answer to the registry.
+            pass
+    return brief_assembly(assembly, remembered_uploads([applied_id]).get(applied_id))
 
 
 def assembly_label(assembly_id, version=None):
@@ -1121,24 +1192,32 @@ class ElementClient:
         *,
         project_id=None,
         space_id=None,
+        commit_id=None,
     ):
         """Upload an assembly file (.xasm/.xlib) to the platform.
 
         With project_id the assembly is added to an existing project, without
-        it a new project is created. The platform spells its query parameter
-        names in PascalCase.
+        it a new project is created. The space goes as SpaceId, the spelling of
+        the reference it was taken from.
 
-        No commit or branch parameters: the documented method does not take
-        them, and the server ignores them when sent - proven by a direct POST
-        with a real commit hash answered by `commit-id: null`. The commit on an
-        assembly card comes from the project's link to its repository, not from
-        the upload.
+        commit_id is the commit the build was made from, sent as the `commit-id`
+        query parameter of an upload into an existing project: the reference
+        documents it there, and the server puts it on the assembly card, which is
+        what the schema guard of a deploy compares against. The same method also
+        documents `branch-name`, `commit-message` and `modified`, and none of them
+        is sent. The server takes them and shows none on the card: its
+        `branch-name` is a branch of group development, not of git, and `modified=1`
+        is refused with a 500. Creating a project documents no commit parameter
+        at all, so a build that creates one carries no commit.
         """
         path = f"/projects/{project_id}/assemblies" if project_id else "/projects"
+        query = {"SpaceId": space_id}
+        if project_id and commit_id:
+            query["commit-id"] = commit_id
         return self._api(
             "POST",
             path,
-            query={"SpaceId": space_id},
+            query=query,
             data=bytes(data),
             content_type="application/octet-stream",
         )

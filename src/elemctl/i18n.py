@@ -833,6 +833,13 @@ MESSAGES = {
         "en": "the apply removed elements that hold data: {count} – see the \"removed\" lines "
               "above",
     },
+    # -- registry.py --------------------------------------------------------------
+    "registry.write-failed": {
+        "ru": "внимание: загрузка не записана в локальный реестр ({path}): {error}. Сборка "
+              "загружена; ветку и каталог исходников этой сборки листинги не покажут",
+        "en": "warning: the upload was not written to the local registry ({path}): {error}. The "
+              "build is uploaded; the listings will not show its branch and source directory",
+    },
     # -- schema.py ----------------------------------------------------------------
     "schema.kind-attribute": {"ru": "реквизит", "en": "attribute"},
     "schema.kind-dimension": {"ru": "измерение", "en": "dimension"},
@@ -1235,8 +1242,10 @@ MESSAGES = {
         "en": "brief cards: id, name, status, uri, applied version",
     },
     "cli.help.apps-get": {
-        "ru": "карточка приложения",
-        "en": "application details",
+        "ru": "карточка приложения; в applied-build – ветка и коммит применённой сборки (из "
+              "карточки сборки или из локального реестра загрузок)",
+        "en": "application details; applied-build carries the branch and the commit of the "
+              "applied build (from the build card or from the local registry of uploads)",
     },
     "cli.help.apps-find": {
         "ru": "найти приложение по имени (точное совпадение без учёта регистра)",
@@ -1387,8 +1396,10 @@ MESSAGES = {
         "en": "how many assemblies to show (default 10; 0 – all)",
     },
     "cli.help.builds-list-brief": {
-        "ru": "краткие карточки: ид, версии, дата, ветка, коммит",
-        "en": "brief cards: id, versions, date, branch, commit",
+        "ru": "краткие карточки: ид, версии, дата, ветка, коммит; чего нет в карточке, берётся "
+              "из локального реестра загрузок, и источник назван",
+        "en": "brief cards: id, versions, date, branch, commit; what the card lacks comes from "
+              "the local registry of uploads, and the source is named",
     },
     "cli.help.builds-get": {
         "ru": "карточка сборки по версии либо ид",

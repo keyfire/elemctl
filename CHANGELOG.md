@@ -17,6 +17,12 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
 
 ## Unreleased
 
+### Added
+- **A build can be traced to the code it came from.** An upload into a project now sends its
+  commit the way the reference spells the parameter, and the server keeps it on the build card.
+  The branch, the state of the tree and the directory the platform does not keep, so a local
+  registry of uploads remembers them; `builds list --brief` and `apps get` name the source of each.
+
 ### Fixed
 - **A server that is still starting is called what it is.** While its console was coming up,
   every command answered with a bare 404, and `deploy` died on the list of builds. That answer

@@ -83,7 +83,7 @@ usage: elemctl apps [-h] action ...
 | Option | Description |
 |---|---|
 | `list` | list applications |
-| `get` | application details |
+| `get` | application details; applied-build carries the branch and the commit of the applied build (from the build card or from the local registry of uploads) |
 | `find` | find an application by name (exact, case-insensitive match) |
 | `create` | create an application |
 | `ensure` | create the application if it does not exist yet (idempotent) |
@@ -444,7 +444,7 @@ usage: elemctl builds list [-h] [--project-id PROJECT_ID] [--limit LIMIT] [--bri
 | `-h, --help` | show this help message and exit |
 | `--project-id PROJECT_ID` | the project id (default: ELEMENT_PROJECT_ID) |
 | `--limit LIMIT` | how many assemblies to show (default 10; 0 – all) |
-| `--brief` | brief cards: id, versions, date, branch, commit |
+| `--brief` | brief cards: id, versions, date, branch, commit; what the card lacks comes from the local registry of uploads, and the source is named |
 
 ### `elemctl builds get`
 

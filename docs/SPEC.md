@@ -89,7 +89,7 @@ Application statuses: stable `Running`, `Stopped`, `Error`; transitional `Starti
 - Uploading a build file – a binary POST (Content-Type `application/octet-stream`, body – the file bytes):
   - `POST /projects/{id}/assemblies` – add a build to an existing project;
   - `POST /projects` – create a new project from a build.
-  The only query parameter, and an optional one at that, is `SpaceId`; note that its name is in PascalCase. The method has no `BranchName`, `CommitId` or `CommitMessage` parameters: the Console API reference does not list them, and the server ignores them when sent. A direct POST with a real hash answers `commit-id: null`. The commit on a build card only comes from the project's link to its repository, and the client does not send those parameters. The response carries the id of the created build in one of the fields `image-id`, `assembly-id` or `id`, checked in that order. Next to it sits an `artifact` object describing the project the build landed in: `artifact-id` is the project id and opens as a project card, `configuration-id` is the `Ид` of `Проект.yaml`, and `name` is the project presentation. The console shows a project under the name of the last uploaded build, meaning the manifest `Name`. So a build uploaded into a project under a different name renames that project and its group, and deleting the build does not undo it. The client refuses such an upload and names the price; uploading a foreign build on purpose takes `--force-rename`. The check is best effort: when the names cannot be compared, because the manifest is unreadable or the project card is unreachable, the upload proceeds as before. Not being able to compare is no proof of danger.
+  The space goes as the optional `SpaceId` query parameter; note that its name is in PascalCase. The commit the build was made from goes as `commit-id`, a query parameter the reference documents for `POST /projects/{id}/assemblies`, and the server puts it on the build card: that is the commit the schema guard of the next deploy compares against (section 7). The reference lists `branch-name`, `commit-message` and `modified` for the same method too, and the client sends none of them. A live check found the server taking them and showing none on the card: its `branch-name` names a branch of group development, not of git, and `modified=1` is refused with a 500. The PascalCase `CommitId`, `BranchName` and `CommitMessage` are not parameters of the method at all, and the server ignores them. `POST /projects` documents no commit parameter, so a build that creates its project carries no commit. What the platform does not keep – the branch, whether the tree had uncommitted changes, the directory of the sources – the client keeps in a local registry of uploads (section 7). The response carries the id of the created build in one of the fields `image-id`, `assembly-id` or `id`, checked in that order. Next to it sits an `artifact` object describing the project the build landed in: `artifact-id` is the project id and opens as a project card, `configuration-id` is the `Ид` of `Проект.yaml`, and `name` is the project presentation. The console shows a project under the name of the last uploaded build, meaning the manifest `Name`. So a build uploaded into a project under a different name renames that project and its group, and deleting the build does not undo it. The client refuses such an upload and names the price; uploading a foreign build on purpose takes `--force-rename`. The check is best effort: when the names cannot be compared, because the manifest is unreadable or the project card is unreachable, the upload proceeds as before. Not being able to compare is no proof of danger.
 - **A project is identified by the pair `Vendor` + `Name` of the manifest** (section 6.8). `POST /projects` therefore does not always create a project: when a project with that pair already exists, the build is added to it and its `artifact-id` comes back in the response. There are two ways to hit a 409 `ALREADY_EXISTS`. The first is uploading a version that is already there, answered with "Версия сборки ... уже присутствует в группе проекта". The second is registering the same vendor and name under another project, answered with "Сборка с именем поставщика ... уже зарегистрирована в другом проекте"; that one happens even with a freshly generated `Ид` in `Проект.yaml`.
 - `GET /projects/{id}/assemblies` – list of builds. Each element contains `assembly-version`, a string like `1.0-42`, and an id in `id` or `image-id`. The response is either an array or an object with the list in the `items` or `assemblies` field. **The method has no pages and reports no total.** `limit`, `size`, `pageSize`, `count`, `top`, `maxResults`, `page`, `pageNumber`, `offset`, `skip`, `from` and `start` are all ignored: the answers to every one of them match byte for byte, and neither the headers nor the body carry a counter or a cursor. Verified by live calls on two installations. **The platform deletes builds nobody uses,** and age has nothing to do with it: the vendor's help calls this automatic deletion of unused builds. A build an application runs is kept, and so are a library build another project uses, a release build, the project's default build and the build the project's repository was created from. Everything else goes when the collector gets to it. Seen live: seventeen builds of one day's series were made and one survived, the one the application runs, while a build from two months earlier is still listed because it is the project's first. So a listing is not the project's history and not a page of it. It is what survived, and the client must say so.
 - `GET /projects/{id}/assemblies/{version}` – build card, `DELETE .../{version}` – delete. The last segment is what the method calls it: the version, which is `assembly-version` or `project-version`, a string like `1.0-42`. It is not the id of the card: a UUID there is answered with a 404 "Assembly with version <uuid> not found". Checked live on two installations of different ages, both behave this way. The pages used to claim the opposite, that only a UUID works and a version gets a 400 "Version is not a valid UUID"; anyone following that claim was left with an unreachable card whichever form they gave. An id is still an address a caller holds: the build list prints it, and an upload answers with one. So the client accepts both forms and looks the value up in the build list to get the version the method takes. A value in no card is named as missing instead of becoming a 404 out of the depths of the platform. When the address is refused with a 400 or a 404, the client tries the id as the segment too: no reachable installation wants it, but the 400 the pages described had to come from somewhere, and the second spelling costs one request. Note that the platform renumbers the manifest version on upload. Deleting a build is rejected with a 500 while an application created from it still exists (section 6.9); once that application is really gone, the same request succeeds. A 500 is an answer, not a misunderstood address: it is raised as it is and never retried with another spelling.
@@ -223,6 +223,7 @@ Commands, with the significant flags in parentheses:
   `apps delete APP_ID`, `apps start [APP_ID]`, `apps stop [APP_ID]`.
   - `apps list --name` filters by a case-insensitive name substring, and it does so on the client because the platform ignores the query parameter (section 4.1). `--status` selects by the whole status word, several of them separated by commas. `--brief` prints brief cards instead of full ones: id, name, status, uri, applied version.
   - `apps list` hides the deleted applications. They stay in the platform list under the `Deleted` status, and a stand a few months old answers with hundreds of cards of which a handful are alive. `--include-deleted` brings them back, and so does `--status deleted`: a filter that would answer with nothing is worse than no filter. A cut nobody is told about is a trap of its own, so the command ends with a count line on stderr, "7 live of 324", plus the number shown when a filter narrowed the answer further. Whatever is cut, stdout stays the same JSON array.
+  - `apps get` adds `applied-build` to the card: the brief card of the build the application runs, with its branch and commit from the build card or from the local registry of uploads, in the shape `builds list --brief` prints. It is null when the card names no applied build.
   - `APP_ID` of `apps get`, `delete`, `start`, `stop` and `debug` is the application id (UUID) or its exact name. A value that is not a UUID is resolved through the list by an exact case-insensitive match, and deleted applications do not count. No match is an error, and several matches are an error listing the ids: destructive commands must not guess.
   - `apps find` searches for an exact, case-insensitive name match among the fields `name`, `display-name` and `publication-context`. Output is `{"id": ..., "found": true|false}` with return code 0 in both cases: the absence of an application is an answer, not an error. A non-zero return code means the request failed and comes with JSON carrying an `error` field on stderr. In scripts, check the `found` field, not the return code.
   - Deleted applications remain in the platform list with the `Deleted` status and their former `id`. `apps find` skips them: the found id must be usable, otherwise the caller gets an id on which `apps get` and `deploy` return 404. The `--include-deleted` flag restores the former behaviour, searching among all applications including deleted ones.
@@ -250,9 +251,10 @@ Commands, with the significant flags in parentheses:
 - `projects list [--name --include-deleted]`, `projects get [PROJECT_ID]`, `projects delete PROJECT_ID`.
   - `projects list --name` filters by a case-insensitive name substring, and it does so on the client because the platform answers the full list (section 4.3). Projects marked deleted are hidden unless `--include-deleted` is given: a stand a few months old keeps hundreds of them in the list against a handful of live ones, and a check for a project name must not cost the full listing.
 - `builds list [--project-id --limit --brief]`, `builds get VERSION [--project-id]`,
-  `builds upload FILE [--project-id --new-project --force-rename --space-id
-  --branch --commit --commit-message]`, `builds delete VERSION [--project-id]`.
-  `builds upload` reports the chosen target in the output through `project-id` and
+  `builds upload FILE [--project-id --new-project --force-rename --space-id]`,
+  `builds delete VERSION [--project-id]`.
+  `builds upload` sends the commit the manifest of the archive names as `commit-id`
+  (section 4.4) and reports the chosen target in the output through `project-id` and
   `project-id-source` (`flag`, `env` or none) and notes on stderr when the target comes
   from `ELEMENT_PROJECT_ID`. `--new-project` ignores the environment binding and always
   creates a new project; it is mutually exclusive with `--project-id`. `--force-rename`
@@ -265,6 +267,24 @@ Commands, with the significant flags in parentheses:
   listing: the platform hands out the numbers of a base version one after another, so a
   number the listing has not got is a build already taken away, and the line says how many
   are missing.
+  `--brief` prints the id, the versions, the date, the branch and the commit of a build.
+  The branch and the commit come from the card when the platform filled them, otherwise
+  from the local registry of uploads, and `branch-name-source` and `commit-id-source`
+  say which answered: `platform`, `registry`, or null when neither knows. The registry
+  alone knows `dirty`, whether the tree had uncommitted changes, and `project-dir`, the
+  directory the build was made from.
+- The local registry of uploads. Every upload elemctl makes – `deploy`, `builds upload`,
+  `probe` – appends a JSON line to `uploads.jsonl` in the data directory of the user:
+  `ELEMCTL_DATA_DIR` when it is set, otherwise `%LOCALAPPDATA%\elemctl` on Windows and
+  `$XDG_STATE_HOME/elemctl` (`~/.local/state/elemctl`) elsewhere. A line holds the build
+  id, the project id, the version, the branch, the commit, the `dirty` flag, the directory
+  of the sources, the archive, the stand, the command and the time. The platform keeps the
+  commit alone, and with several sessions deploying from one machine a build on an
+  application could not be traced to the working tree it came from. The registry is
+  local: a build uploaded from another machine, from CI or by an elemctl that had no
+  registry yet is not in it. A registry that cannot be written is a warning on stderr,
+  never a failure – the build is on the server by then – and one that cannot be read
+  reads as empty.
 - `build [--project-dir --output --build-version --last-build --commit
   --branch --kind {application,library} --require-clean]` – build the archive locally.
   Output: `file`, `name`, `vendor`, `version`, `version-source`
@@ -357,7 +377,8 @@ Server name `elemctl`, stdio transport, credentials from the same environment va
 (section 7): `name` by a case-insensitive substring on the client (section 4.1), `status`
 by the whole status word, and the deleted applications hidden unless asked for. The answer
 is an object with `total`, `live`, `shown`, a `summary` line and `applications`, so that
-what was hidden is stated rather than guessed at; `get_app(app_id)`, `find_app(name)`,
+what was hidden is stated rather than guessed at; `get_app(app_id)` – the card with
+`applied-build`, as `apps get` prints it (section 7), `find_app(name)`,
 `create_app(name, project_id="", version_id="", space_id="",
 development_mode=True, verify=False)` – when only project_id is given, the project's latest
 build is automatically used as the source (section 6.2); `verify=True` waits for the
@@ -380,7 +401,8 @@ id (UUID) or the exact application name (resolved like the CLI does),
 `list_projects(name="", include_deleted=False)` – the filters of `projects list` (section 7),
 `list_builds(project_id, limit=10, brief=True)` – an object `{total, shown, summary, builds}`:
 the listing has to say whether it is the whole store, judged by the gaps in the build
-numbering (section 4.4),
+numbering (section 4.4), and a brief card names the source of its branch and commit, the
+card or the local registry of uploads, the way `builds list --brief` does (section 7),
 `get_build(project_id, version)` – the whole card of one build, addressed by the build
 version (section 4.4; an id is accepted and resolved through the listing),
 `build_assembly(project_dir="", output_dir="", version="")`,

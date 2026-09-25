@@ -110,7 +110,7 @@ PITCH_ITEMS = (
 #: long as the command it broke. The third is the exit code of a plugin command. It is told by
 #: the specification, the MCP page, the READMEs and the docstring of `Command`, and a place
 #: that kept the earlier sentence - `"ok": false` gives 1 - would pass half of the rule off as
-#: all of it.
+#: all of it. The fourth is the commit of an upload, which every place used to deny.
 CLAIMS = (
     Claim(
         name="the platform deletes the builds nobody uses, whatever their age",
@@ -155,6 +155,27 @@ CLAIMS = (
             "gives exit code 1 in the CLI",
             "gives CLI exit code 1",
             "даёт в CLI код возврата 1",
+        ),
+    ),
+    # The upload was believed to take no commit at all: the PascalCase names tried once were
+    # ignored, and the pages, the docstrings and the message of the schema guard all said a
+    # commit comes from a repository link alone. The reference spells the parameter in
+    # kebab-case, and the server keeps it.
+    Claim(
+        name="an upload into a project names its commit in the commit-id parameter",
+        told_in=(
+            "docs/SPEC.md", "docs/SPEC.ru.md",
+            "docs/platform.md", "docs/platform.ru.md",
+            "src/elemctl/client.py",
+        ),
+        wording=("`commit-id`",),
+        retired=(
+            "has no `BranchName`, `CommitId` or `CommitMessage` parameters",
+            "Параметров `BranchName`, `CommitId` и `CommitMessage` у метода",
+            "only comes from the project's link to its repository",
+            "comes from the project's repository link",
+            "проставляет только связь проекта с репозиторием",
+            "проставляется только связью проекта с репозиторием",
         ),
     ),
 )

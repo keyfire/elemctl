@@ -37,6 +37,7 @@ from .build import (
 )
 from .client import extract_assembly_id, extract_project_id
 from .errors import ApiError, ElemctlError
+from .registry import remember_build
 
 # The prefix of the throwaway application name; the same token goes into the
 # build version, so that leftovers of an interrupted run can be matched up.
@@ -315,6 +316,18 @@ def probe_project(
         assembly=report.assembly_id,
         project=report.project_id or i18n.t("probe.unknown"),
     ))
+    # An upload like any other: kept with --keep, it is a build an application runs, and the
+    # registry is what says which tree it came from - the creation of a project documents no
+    # commit parameter, so the card carries none.
+    warning = remember_build(
+        result,
+        response=response,
+        project_id=report.project_id,
+        stand=str(getattr(getattr(client, "config", None), "base_url", "") or ""),
+        command="probe",
+    )
+    if warning:
+        log(warning)
 
     try:
         log(i18n.t("probe.creating", name=report.app_name))

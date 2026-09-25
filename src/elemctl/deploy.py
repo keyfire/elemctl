@@ -26,6 +26,7 @@ from .client import (
 )
 from .errors import ApiError, ElemctlError, ServerStartingError
 from .probe import server_log_hint
+from .registry import remember_build
 from .schema import review_tree
 
 __all__ = ["FAILED_TASK_STATUSES"]  # the name stays where importers already expect it
@@ -260,12 +261,20 @@ def _deploy_from_sources(
             files=_shorten_list(result.clients_without_description),
         ))
 
-    # The branch and the commit travel INSIDE the archive (the build wrote the manifest);
-    # the upload method has no such parameters and the server ignores them when sent -
-    # the commit of an assembly card comes from the project's repository link.
-    response = client.upload_assembly(result.file.read_bytes(), project_id=project_id)
+    # The commit goes along as `commit-id`, and the server puts it on the assembly card:
+    # that is what the schema guard of the next deploy compares against. The branch, the
+    # state of the tree and the directory the platform does not keep, so the local registry
+    # of uploads does - written right after the upload, whatever the apply does next.
+    response = client.upload_assembly(
+        result.file.read_bytes(), project_id=project_id, commit_id=result.commit or None
+    )
     assembly_id = extract_assembly_id(response) or ""
     log(i18n.t("deploy.uploaded", id=assembly_id or i18n.t("deploy.unknown")))
+    warning = remember_build(
+        result, response=response, project_id=project_id, stand=_stand(client), command="deploy"
+    )
+    if warning:
+        log(warning)
 
     if assembly_id:
         client.apply_build(app_id, image_id=assembly_id, log=log)
@@ -453,6 +462,11 @@ def _add_server_log_hint(error):
         error.hint = hint
         error.message += " – " + hint
         error.args = (error.message,)
+
+
+def _stand(client):
+    """The base address of the stand the client talks to ("" for a stand-in without one)."""
+    return str(getattr(getattr(client, "config", None), "base_url", "") or "")
 
 
 def _source_label(source):
