@@ -52,6 +52,20 @@ def _no_ci_build_number(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _private_data_dir(monkeypatch, tmp_path_factory):
+    """Point the local registry of uploads at a directory of its own BEFORE EVERY test.
+
+    A deploy, a probe and an upload write down what they uploaded, and the listings read it
+    back. Without this the suite would write into the developer's own registry and read
+    whatever the developer had uploaded - green on one machine and red on the next. The
+    registry tests set the variable themselves where they need to.
+    """
+    from elemctl.registry import DATA_DIR_ENV
+
+    monkeypatch.setenv(DATA_DIR_ENV, str(tmp_path_factory.mktemp("elemctl-data")))
+
+
+@pytest.fixture(autouse=True)
 def _no_plugins(monkeypatch):
     """Turn plugin discovery off BEFORE EVERY test.
 

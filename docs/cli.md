@@ -83,7 +83,7 @@ usage: elemctl apps [-h] action ...
 | Option | Description |
 |---|---|
 | `list` | list applications |
-| `get` | application details |
+| `get` | application details; applied-build carries the branch and the commit of the applied build (from the build card or from the local registry of uploads) |
 | `find` | find an application by name (exact, case-insensitive match) |
 | `create` | create an application |
 | `ensure` | create the application if it does not exist yet (idempotent) |
@@ -444,7 +444,7 @@ usage: elemctl builds list [-h] [--project-id PROJECT_ID] [--limit LIMIT] [--bri
 | `-h, --help` | show this help message and exit |
 | `--project-id PROJECT_ID` | the project id (default: ELEMENT_PROJECT_ID) |
 | `--limit LIMIT` | how many assemblies to show (default 10; 0 – all) |
-| `--brief` | brief cards: id, versions, date, branch, commit |
+| `--brief` | brief cards: id, versions, date, branch, commit; what the card lacks comes from the local registry of uploads, and the source is named |
 
 ### `elemctl builds get`
 
@@ -554,6 +554,7 @@ usage: elemctl inspect [-h] FILE
 usage: elemctl deploy [-h] [--app-id APP_ID] [--project-id PROJECT_ID] [--project-dir PROJECT_DIR]
                       [--output OUTPUT] [--build-version BUILD_VERSION] [--branch BRANCH]
                       [--commit COMMIT] [--dry-run] [--require-clean] [--allow-data-loss]
+                      [--server-start-timeout SERVER_START_TIMEOUT]
 ```
 
 **Options**
@@ -570,7 +571,8 @@ usage: elemctl deploy [-h] [--app-id APP_ID] [--project-id PROJECT_ID] [--projec
 | `--commit COMMIT` | commit hash for the metadata (default: from git) |
 | `--dry-run` | build only, no upload |
 | `--require-clean` | abort the deploy if the project directory has uncommitted changes |
-| `--allow-data-loss` | allow an apply that recreates the data of the objects (a narrowed length, a changed attribute type); without the flag such a deploy is refused before the build |
+| `--allow-data-loss` | allow an apply that recreates the data of the objects (a narrowed length, a changed attribute type, a tabular part included); without the flag such a deploy is refused before the build. A removed attribute or tabular part needs no flag: the deploy names it and goes on |
+| `--server-start-timeout SERVER_START_TIMEOUT` | how many seconds to wait for the 1C:Element server while it is starting and its console answers 404 "Application "console" not found" (default 900; 0 – do not wait) |
 
 ## `elemctl user-lists`
 

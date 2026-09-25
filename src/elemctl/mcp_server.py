@@ -46,11 +46,13 @@ except ImportError:
 from . import __version__, i18n, plugins
 from .build import build_assembly, inspect_assembly
 from .client import (
+    SERVER_START_TIMEOUT,
     ElementClient,
+    applied_build,
     apps_summary,
     assembly_label,
     brief_app,
-    brief_assembly,
+    brief_assemblies,
     builds_summary,
     extract_assembly_id,
     sign_in_hint,
@@ -342,9 +344,20 @@ def create_server(config=None, *, overrides=None, env_file=None):
 
     @server.tool()
     def get_app(app_id: str, env_file: str = "") -> dict:
-        """Карточка приложения: статус, uri, фактическая версия проекта (source.project-version). app_id - ид (UUID) либо точное имя приложения."""
+        """Карточка приложения: статус, uri, фактическая версия проекта (source.project-version). app_id - ид (UUID) либо точное имя приложения.
+
+        Поле applied-build - краткая карточка применённой сборки: ветка и коммит (из
+        карточки сборки, а если платформа их не заполнила - из локального реестра
+        загрузок этой машины; источник назван полями branch-name-source и
+        commit-id-source), а из реестра ещё dirty (были ли незакоммиченные правки) и
+        project-dir (каталог исходников). Сборки, загруженные с другой машины или из
+        CI, реестру не известны.
+        """
         target = client(env_file)
-        return target.get_app(target.resolve_app_id(app_id))
+        card = target.get_app(target.resolve_app_id(app_id))
+        if isinstance(card, dict):
+            card = {**card, "applied-build": applied_build(target, card)}
+        return card
 
     @server.tool()
     def find_app(name: str, include_deleted: bool = False, env_file: str = "") -> dict:
@@ -623,12 +636,17 @@ def create_server(config=None, *, overrides=None, env_file=None):
         которую уборка уже сняла.
 
         limit - сколько показать (по умолчанию 10, 0 - все). brief (по умолчанию)
-        оставляет от карточки ид, версии, дату, ветку и коммит; brief=false отдаёт
-        карточки целиком. env_file - путь к .env другого окружения.
+        оставляет от карточки ид, версии, дату, ветку и коммит; ветку и коммит, которые
+        платформа не заполнила, берёт из локального реестра загрузок этой машины и
+        называет источник (branch-name-source, commit-id-source: platform, registry или
+        null), а из реестра добавляет dirty и project-dir - были ли незакоммиченные
+        правки и из какого каталога собрано. Сборки, загруженные с другой машины или из
+        CI, реестру не известны. brief=false отдаёт карточки целиком. env_file - путь к
+        .env другого окружения.
         """
         assemblies = newest_first(client(env_file).list_assemblies(project_id))
         shown = assemblies[:limit] if limit > 0 else assemblies
-        cards = [brief_assembly(assembly) for assembly in shown] if brief else shown
+        cards = brief_assemblies(shown) if brief else shown
         return {
             "total": len(assemblies),
             "shown": len(cards),
@@ -677,9 +695,15 @@ def create_server(config=None, *, overrides=None, env_file=None):
         project_dir: str = "",
         version: str = "",
         branch: str = "",
+        server_start_timeout: int = int(SERVER_START_TIMEOUT),
         env_file: str = "",
     ) -> dict:
-        """Полный цикл деплоя из исходников с честной проверкой применения; итог - поле ok, детали - problems и log."""
+        """Полный цикл деплоя из исходников с честной проверкой применения; итог - поле ok, детали - problems и log.
+
+        Сервер 1С:Элемент, который ещё стартует (его консоль отвечает 404 "Application
+        "console" not found"), деплой пережидает сам - до server_start_timeout секунд
+        (по умолчанию 900; 0 - не ждать).
+        """
         lines: list[str] = []
         report = deploy_from_sources(
             client(env_file),
@@ -691,6 +715,7 @@ def create_server(config=None, *, overrides=None, env_file=None):
             # Both ids are required parameters of the tool, so they are always explicit.
             app_id_source="flag",
             project_id_source="flag",
+            server_start_timeout=server_start_timeout,
             log=lines.append,
         )
         payload = report.to_dict()

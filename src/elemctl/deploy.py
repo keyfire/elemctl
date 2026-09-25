@@ -9,6 +9,7 @@ version actually applied and an informational HTTP request to the application ur
 
 from __future__ import annotations
 
+import contextlib
 import subprocess
 import tempfile
 from dataclasses import dataclass, field
@@ -16,10 +17,17 @@ from datetime import datetime, timezone
 
 from . import i18n
 from .build import PROJECT_FILES, build_assembly, find_project_dir, read_project_meta
-from .client import FAILED_TASK_STATUSES, extract_assembly_id
-from .errors import ApiError, ElemctlError
+from .client import (
+    ASSEMBLY_ID_KEYS,
+    FAILED_TASK_STATUSES,
+    SERVER_START_TIMEOUT,
+    assembly_label,
+    extract_assembly_id,
+)
+from .errors import ApiError, ElemctlError, ServerStartingError
 from .probe import server_log_hint
-from .schema import narrowing_in_tree
+from .registry import remember_build
+from .schema import review_tree
 
 __all__ = ["FAILED_TASK_STATUSES"]  # the name stays where importers already expect it
 
@@ -64,12 +72,16 @@ class DeployReport:
     problems: list = field(default_factory=list)
     ok: bool = False
     dirty_files: list | None = None
-    # The schema guard's verdict: "clean" - ran and found nothing, "allowed" - narrowings
-    # overridden by --allow-data-loss, "skipped:<reason>" - there was nothing to compare
-    # against ("skipped:no-commit-id" means the project has no repository link, so the
-    # check can never run for it). "" - the guard was not involved (verify without deploy).
-    # Named in the report on purpose: a skipped check must not read as a passed one.
+    # The schema guard's verdict: "clean" - ran and found nothing, "warned" - found only
+    # removals, which are named in schema_warnings and do not stop a deploy, "allowed" -
+    # narrowings overridden by --allow-data-loss, "skipped:<reason>" - there was nothing to
+    # compare against (the reasons are listed at review_schema). "" - the guard was not
+    # involved (verify without deploy). Named in the report on purpose: a skipped check
+    # must not read as a passed one.
     schema_check: str = ""
+    # What the apply took away: the attributes, resources and tabular parts the sources no
+    # longer have, one line each. Their data went with them; the server does not ask.
+    schema_warnings: list = field(default_factory=list)
     # Where to look when a task was refused without a compilation error in its text: the
     # log of the server (probe.server_log_hint). "" when the report itself names the cause.
     hint: str = ""
@@ -96,6 +108,7 @@ class DeployReport:
             "dirty": None if self.dirty_files is None else bool(self.dirty_files),
             "dirty-files": None if self.dirty_files is None else list(self.dirty_files),
             "schema-check": self.schema_check or None,
+            "schema-warnings": list(self.schema_warnings),
             "hint": self.hint or None,
         }
 
@@ -113,6 +126,7 @@ def deploy_from_sources(
     app_id_source="",
     project_id_source="",
     allow_data_loss=False,
+    server_start_timeout=SERVER_START_TIMEOUT,
     log=None,
 ):
     """The full deploy cycle from sources, verifying that the build really applied.
@@ -121,9 +135,55 @@ def deploy_from_sources(
     prints nothing. app_id_source / project_id_source are carried through to the
     report and named in the very first progress line: the target is announced
     BEFORE the build, while there is still time to interrupt a deploy aimed at the
-    wrong application.
+    wrong application. server_start_timeout - how many seconds a server whose console
+    is still starting is waited out, at any step of the cycle; 0 fails at once.
     """
     log = log or (lambda message: None)
+    with server_wait(client, server_start_timeout, log):
+        return _deploy_from_sources(
+            client,
+            app_id,
+            project_id,
+            project_dir=project_dir,
+            output_dir=output_dir,
+            version=version,
+            branch=branch,
+            commit=commit,
+            app_id_source=app_id_source,
+            project_id_source=project_id_source,
+            allow_data_loss=allow_data_loss,
+            log=log,
+        )
+
+
+def server_wait(client, timeout, log=None):
+    """The block inside which the client waits out a starting server.
+
+    A client without waiting_for_server - a stand-in of the tests or of a caller that
+    brings its own - gets an empty block rather than a failure: the wait is a courtesy
+    of the real client, not a requirement of the deploy.
+    """
+    waiting = getattr(client, "waiting_for_server", None)
+    if waiting is None:
+        return contextlib.nullcontext()
+    return waiting(timeout, log=log)
+
+
+def _deploy_from_sources(
+    client,
+    app_id,
+    project_id,
+    *,
+    project_dir,
+    output_dir,
+    version,
+    branch,
+    commit,
+    app_id_source,
+    project_id_source,
+    allow_data_loss,
+    log,
+):
     started_at = datetime.now(timezone.utc)
 
     log(i18n.t(
@@ -135,31 +195,26 @@ def deploy_from_sources(
     ))
 
     # The schema guard runs BEFORE the build: a narrowing recreates the data of the
-    # object, and refusing here means nothing was built and nothing uploaded.
-    changes, blocked_reason = check_destructive_changes(
-        client, app_id, project_id, project_dir, log=log
-    )
-    if changes and not allow_data_loss:
+    # object, and refusing here means nothing was built and nothing uploaded. A removal
+    # is named here too, while the deploy can still be interrupted.
+    verdict = review_schema(client, app_id, project_id, project_dir)
+    for removal in verdict.removals:
+        log(i18n.t("deploy.schema-removal", change=removal))
+    if verdict.changes and not allow_data_loss:
         raise ElemctlError(i18n.t(
             "deploy.destructive-changes",
-            count=len(changes),
-            changes="; ".join(changes),
+            count=len(verdict.changes),
+            changes="; ".join(verdict.changes),
         ))
-    if changes:
-        log(i18n.t("deploy.destructive-allowed", count=len(changes),
-                   changes="; ".join(changes)))
+    if verdict.changes:
+        log(i18n.t("deploy.destructive-allowed", count=len(verdict.changes),
+                   changes="; ".join(verdict.changes)))
         schema_check = "allowed"
-    elif blocked_reason:
-        # "no-commit-id" is not a version quirk: an assembly gets a commit only from the
-        # project's link to its repository, so without the link the guard can NEVER run -
-        # that has to be said plainly instead of looking like a passed check.
-        key = (
-            "deploy.schema-check-no-repo-link"
-            if blocked_reason == "no-commit-id"
-            else "deploy.schema-check-skipped"
-        )
-        log(i18n.t(key, reason=blocked_reason))
-        schema_check = f"skipped:{blocked_reason}"
+    elif verdict.skipped:
+        log(_skip_message(verdict, project_id))
+        schema_check = f"skipped:{verdict.skipped}"
+    elif verdict.removals:
+        schema_check = "warned"
     else:
         schema_check = "clean"
 
@@ -206,12 +261,20 @@ def deploy_from_sources(
             files=_shorten_list(result.clients_without_description),
         ))
 
-    # The branch and the commit travel INSIDE the archive (the build wrote the manifest);
-    # the upload method has no such parameters and the server ignores them when sent -
-    # the commit of an assembly card comes from the project's repository link.
-    response = client.upload_assembly(result.file.read_bytes(), project_id=project_id)
+    # The commit goes along as `commit-id`, and the server puts it on the assembly card:
+    # that is what the schema guard of the next deploy compares against. The branch, the
+    # state of the tree and the directory the platform does not keep, so the local registry
+    # of uploads does - written right after the upload, whatever the apply does next.
+    response = client.upload_assembly(
+        result.file.read_bytes(), project_id=project_id, commit_id=result.commit or None
+    )
     assembly_id = extract_assembly_id(response) or ""
     log(i18n.t("deploy.uploaded", id=assembly_id or i18n.t("deploy.unknown")))
+    warning = remember_build(
+        result, response=response, project_id=project_id, stand=_stand(client), command="deploy"
+    )
+    if warning:
+        log(warning)
 
     if assembly_id:
         client.apply_build(app_id, image_id=assembly_id, log=log)
@@ -240,6 +303,7 @@ def deploy_from_sources(
     report.assembly_id = assembly_id
     report.dirty_files = result.dirty_files
     report.schema_check = schema_check
+    report.schema_warnings = list(verdict.removals)
     report.app_id_source = app_id_source or ""
     report.project_id = str(project_id or "")
     report.project_id_source = project_id_source or ""
@@ -270,26 +334,59 @@ def verify_deploy(client, app_id, *, expected_version="", expected_assembly_id="
 # -- internals ----------------------------------------------------------------
 
 
-def _applied_commit(client, app_id, project_id):
-    """The commit the currently applied build was made from ("" when unknown).
+@dataclass
+class SchemaVerdict:
+    """What the schema guard found, or why it could not look.
 
-    The Console API does NOT hand out the contents of an assembly - there is no
-    download method - so an archive-to-archive comparison is impossible. What the
-    assembly card does carry is commit-id, which makes the sources of that commit
-    the thing to compare against.
+    changes - the narrowings a deploy refuses without --allow-data-loss; removals - what
+    the apply takes away, named without stopping it; skipped - why nothing was compared
+    ("" when it was), with detail naming what could not be read or found.
+    """
+
+    changes: list = field(default_factory=list)
+    removals: list = field(default_factory=list)
+    skipped: str = ""
+    detail: str = ""
+
+
+def _applied_commit(client, app_id, project_id):
+    """The commit the applied build was made from, or why it is not known.
+
+    Returns (commit, reason, detail). The Console API does NOT hand out the contents
+    of an assembly - there is no download method - so an archive-to-archive comparison
+    is impossible. What the assembly card does carry is commit-id, which makes the
+    sources of that commit the thing to compare against. Every way of not having it
+    is a reason of its own: a card that could not be read used to be reported as a
+    build without a commit, and the report then explained a cause that was not there.
     """
     try:
         card = client.get_app(app_id) or {}
-        applied_id = str((card.get("source") or {}).get("project-version-id") or "")
-        if not applied_id:
-            return ""
-        for assembly in client.list_assemblies(project_id):
-            if isinstance(assembly, dict) and str(assembly.get("id") or "") == applied_id:
-                return str(assembly.get("commit-id") or "")
-    except Exception:
+    except ServerStartingError:
+        # Not a failure of the guard: the server refuses everything for now, and the deploy
+        # waits it out or stops on it - swallowed here, it read as a build without a commit.
+        raise
+    except Exception as error:
         # The guard is auxiliary: no failure of it may get in the way of a deploy.
-        return ""
-    return ""
+        return "", "read-failed", str(error)
+    applied_id = str((card.get("source") or {}).get("project-version-id") or "")
+    if not applied_id:
+        return "", "no-applied-build", ""
+    try:
+        assemblies = client.list_assemblies(project_id)
+    except ServerStartingError:
+        raise
+    except Exception as error:
+        return "", "read-failed", str(error)
+    for assembly in assemblies:
+        if not isinstance(assembly, dict):
+            continue
+        if applied_id in {str(assembly.get(key) or "") for key in ASSEMBLY_ID_KEYS}:
+            commit = str(assembly.get("commit-id") or "")
+            if commit:
+                return commit, "", ""
+            version = assembly.get("assembly-version") or assembly.get("project-version")
+            return "", "no-commit-id", assembly_label(applied_id, version)
+    return "", "applied-build-not-listed", applied_id
 
 
 def _git_show(project_dir, commit, relative_path):
@@ -311,27 +408,42 @@ def _git_show(project_dir, commit, relative_path):
     return completed.stdout if completed.returncode == 0 else None
 
 
-def check_destructive_changes(client, app_id, project_id, project_dir, log=None):
-    """The narrowings between the sources on disk and the applied build's commit.
+def review_schema(client, app_id, project_id, project_dir):
+    """The schema guard: the sources on disk against the commit of the applied build.
 
-    Returns (changes, blocked_reason). blocked_reason is filled when there is
-    nothing to compare against - no commit-id on the card, or the commit is not in
-    the local repository. That case must NOT block a deploy: the guard says it
-    cannot judge and steps aside, because being unable to compare is not evidence
-    of danger.
+    Returns a SchemaVerdict. When there is nothing to compare against, skipped names
+    why, and that must NOT block a deploy: the guard says it cannot judge and steps
+    aside, because being unable to compare is not evidence of danger. The reasons:
+    "no-project-dir" - no project directory to read; "read-failed" - the application
+    card or the build list did not come; "no-applied-build" - the card names no build;
+    "applied-build-not-listed" - the applied build is not among the project's builds;
+    "no-commit-id" - the applied build carries no commit; "commit-unavailable" - the
+    local repository does not have that commit.
+
+    The project directory is found the way the build finds it: a deploy without an
+    explicit one used to skip the guard as "no-project-dir" and then build that very
+    directory.
     """
-    log = log or (lambda message: None)
-    if not project_dir:
-        return [], "no-project-dir"
-    commit = _applied_commit(client, app_id, project_id)
-    if not commit:
-        return [], "no-commit-id"
-    if all(_git_show(project_dir, commit, name) is None for name in PROJECT_FILES):
-        return [], "commit-unavailable"
-    changes = narrowing_in_tree(
-        project_dir, lambda relative: _git_show(project_dir, commit, relative)
-    )
-    return changes, ""
+    try:
+        directory = find_project_dir(project_dir) if project_dir else find_project_dir()
+    except ElemctlError:
+        return SchemaVerdict(skipped="no-project-dir")
+    commit, reason, detail = _applied_commit(client, app_id, project_id)
+    if reason:
+        return SchemaVerdict(skipped=reason, detail=detail)
+    if all(_git_show(directory, commit, name) is None for name in PROJECT_FILES):
+        return SchemaVerdict(skipped="commit-unavailable", detail=commit)
+    review = review_tree(directory, lambda relative: _git_show(directory, commit, relative))
+    return SchemaVerdict(changes=review.changes, removals=review.removals)
+
+
+def _skip_message(verdict, project_id):
+    """The progress line saying why the schema was not compared."""
+    key = f"deploy.schema-skipped-{verdict.skipped}"
+    message = i18n.t(key, detail=verdict.detail, project=project_id)
+    if message == key:  # a reason without a wording of its own
+        message = i18n.t("deploy.schema-check-skipped", reason=verdict.skipped)
+    return message
 
 
 def _add_server_log_hint(error):
@@ -350,6 +462,11 @@ def _add_server_log_hint(error):
         error.hint = hint
         error.message += " – " + hint
         error.args = (error.message,)
+
+
+def _stand(client):
+    """The base address of the stand the client talks to ("" for a stand-in without one)."""
+    return str(getattr(getattr(client, "config", None), "base_url", "") or "")
 
 
 def _source_label(source):
@@ -462,6 +579,14 @@ def problem_lines(problems):
 def _log_outcome(report, log):
     if report.ok:
         log(i18n.t("deploy.verify-passed"))
+        # The last lines are the ones read. A passed verification says the build is in
+        # place, and on its own it read as if the schema had been checked as well.
+        if report.schema_check.startswith("skipped:"):
+            log(i18n.t(
+                "deploy.schema-not-checked", reason=report.schema_check.split(":", 1)[1]
+            ))
+        if report.schema_warnings:
+            log(i18n.t("deploy.schema-removed-summary", count=len(report.schema_warnings)))
     else:
         # The first line of a problem is marked, the rest are indented under it:
         # a refusal several lines long has to stay one readable block.

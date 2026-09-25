@@ -120,15 +120,31 @@ for the cache to watch and stays pinned for the life of the process instead.
 
 ### Behaviour of the tool
 
-`ELEMCTL_LANG` and `ELEMCTL_NO_PLUGINS` are set through the environment only – a
-connection `.env` is not their place. `ELEMCTL_NO_PROXY` is the exception,
-explained above: it reads the same file the connection does.
+`ELEMCTL_LANG`, `ELEMCTL_NO_PLUGINS` and `ELEMCTL_DATA_DIR` are set through the
+environment only – a connection `.env` is not their place. `ELEMCTL_NO_PROXY` is the
+exception, explained above: it reads the same file the connection does.
 
 | Variable | Purpose |
 |---|---|
 | `ELEMCTL_LANG` | language of the messages and the help (`ru`, `en`); the `--lang` flag wins over it |
 | `ELEMCTL_NO_PROXY` | set it to bypass the environment's proxy for every call (loopback and private addresses are bypassed anyway); also readable from the stand's `.env` |
 | `ELEMCTL_NO_PLUGINS` | do not look for plugins: work with the core capabilities only |
+| `ELEMCTL_DATA_DIR` | the directory of the local registry of uploads; by default `%LOCALAPPDATA%\elemctl` on Windows and `$XDG_STATE_HOME/elemctl` (`~/.local/state/elemctl`) elsewhere |
+
+### The local registry of uploads
+
+The platform keeps the commit of a build uploaded into an existing project and nothing else
+of where the build came from. So every upload elemctl makes – `deploy`, `builds upload`,
+`probe` – also appends a line to `uploads.jsonl` in the data directory above: the build id,
+the project, the version, the branch, the commit, whether the tree had uncommitted changes,
+the directory of the sources, the stand, the command and the time. `builds list --brief`
+and `apps get` fill the branch and the commit the card left empty from it and name the
+source of each value.
+
+The registry is local. A build uploaded from another machine, from CI or by an elemctl that
+had no registry yet is not in it, and there the listings show what the platform knows. A
+registry that cannot be written is a warning and never a failed upload; the file can be
+deleted at any time, and only the history of this machine goes with it.
 
 ### The CI environment
 

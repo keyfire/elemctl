@@ -6,6 +6,7 @@ out through the log callback the caller passes in.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import re
 import time
@@ -13,7 +14,8 @@ from urllib.parse import urlencode
 
 from . import i18n
 from .auth import TokenManager
-from .errors import ApiError, ConfigError, TransportError
+from .errors import ApiError, ConfigError, ServerStartingError, TransportError
+from .registry import remembered_uploads
 from .transport import UrllibTransport
 from .versions import missing_counters, newest_first, pick_latest
 
@@ -46,6 +48,18 @@ READ_RETRY_PAUSE = 5.0
 # apart, and retrying on the status alone would spend the whole timeout on an
 # application that really is not there. Both spellings, like everywhere else.
 BUSY_MARKERS = ("is busy", "занято", "занят")
+
+# A server that is still starting answers every console request with a 404 whose text
+# names the console application: `Application "console" not found`. The status is the one
+# a missing object gets, so the text is again what tells the two apart. The quotes are
+# spelled differently depending on whether the body is plain text or a JSON string, so the
+# words are matched and the punctuation between them is not.
+_CONSOLE_STARTING = re.compile(r"application\W+console\W+not\s+found", re.IGNORECASE)
+
+# How long a deploy waits for a starting server, and how often it asks again. The console
+# of a freshly updated server was seen answering that 404 for thirteen minutes in a row.
+SERVER_START_TIMEOUT = 900.0
+SERVER_START_POLL = 10.0
 
 # Application task statuses that mean a failure (compared case-insensitively).
 FAILED_TASK_STATUSES = {"error", "failed"}
@@ -136,6 +150,27 @@ def _is_stale_token(response):
         return False
     description = str(body.get("error_description") or "").lower()
     return any(marker in description for marker in _STALE_TOKEN_MARKERS)
+
+
+def server_starting(status, body):
+    """Is this the answer of a server whose console is not up yet?
+
+    The one place that recognizes a starting server: every request of the client and the
+    token request behind it are judged here. body is what the answer carried - the parsed
+    JSON or the text.
+    """
+    if status != 404 or body is None:
+        return False
+    text = body if isinstance(body, str) else json.dumps(body, ensure_ascii=False)
+    return bool(_CONSOLE_STARTING.search(text))
+
+
+def _response_body(response):
+    """The body of an answer: the parsed JSON, or the text when it is not JSON."""
+    try:
+        return response.json()
+    except ValueError:
+        return response.text()
 
 
 def _is_busy(error):
@@ -295,22 +330,92 @@ def apps_summary(listing):
     return i18n.t(key, live=live, total=total, shown=shown)
 
 
-def brief_assembly(assembly):
+def brief_assembly(assembly, remembered=None):
     """A brief assembly card: what a build is recognized and picked by.
 
     The question a listing answers is "which commit is that build from": the
     versions, the date, the branch and the commit, plus the id an assembly is
     addressed by. The rest of the full card names the project over again or
     serves the platform itself.
+
+    The branch and the commit come from the card when the platform filled them,
+    otherwise from what this machine remembers of the upload - remembered is the
+    build's entry of the local registry (registry.remembered_uploads). Which of the
+    two answered is said beside each value: `branch-name-source` and
+    `commit-id-source` are "platform", "registry", or null when neither knows. The
+    registry alone knows `dirty` - whether the tree had uncommitted changes - and
+    `project-dir`, the directory the build was made from.
     """
-    return {
+    remembered = remembered or {}
+    brief = {
         "id": assembly.get("id"),
         "assembly-version": assembly.get("assembly-version"),
         "project-version": assembly.get("project-version"),
         "created": assembly.get("created"),
-        "branch-name": assembly.get("branch-name"),
-        "commit-id": assembly.get("commit-id"),
     }
+    for card_field, registry_field in (("branch-name", "branch"), ("commit-id", "commit")):
+        value, source = assembly.get(card_field), None
+        if value:
+            source = "platform"
+        elif remembered.get(registry_field):
+            value, source = remembered[registry_field], "registry"
+        brief[card_field] = value
+        brief[f"{card_field}-source"] = source
+    brief["dirty"] = remembered.get("dirty")
+    brief["project-dir"] = remembered.get("project-dir")
+    return brief
+
+
+def assembly_id_of(assembly):
+    """The id of an assembly card, whichever of the id fields carries it ("" when none)."""
+    if not isinstance(assembly, dict):
+        return ""
+    for key in ASSEMBLY_ID_KEYS:
+        if assembly.get(key):
+            return str(assembly[key])
+    return ""
+
+
+def brief_assemblies(assemblies):
+    """Brief cards of a listing, each with what the local registry remembers of its upload."""
+    remembered = remembered_uploads([assembly_id_of(item) for item in assemblies])
+    return [
+        brief_assembly(item, remembered.get(assembly_id_of(item)))
+        for item in assemblies
+        if isinstance(item, dict)
+    ]
+
+
+def applied_build(client, card):
+    """The build an application runs, as a brief card with its origin; None when none is named.
+
+    The branch and the commit of a build are on the build card, not on the card of the
+    application, so the build is looked up in the list of its project; what the platform
+    did not fill, the local registry of uploads may know. A list that cannot be read
+    leaves the registry alone to answer: the card of the application was read, and this is
+    an addition to it, not a reason to fail.
+    """
+    card = card if isinstance(card, dict) else {}
+    source = card.get("source") if isinstance(card.get("source"), dict) else {}
+    applied_id = str(source.get("project-version-id") or "")
+    if not applied_id:
+        return None
+    project = card.get("project") if isinstance(card.get("project"), dict) else {}
+    project_id = str(project.get("id") or source.get("image-id") or "")
+    assembly = {"id": applied_id}
+    if project_id:
+        try:
+            for item in client.list_assemblies(project_id):
+                if isinstance(item, dict) and applied_id in {
+                    str(item.get(key) or "") for key in ASSEMBLY_ID_KEYS
+                }:
+                    assembly = item
+                    break
+        except Exception:
+            # Any failure of the list - the network, the rights, a stand-in without the
+            # method - leaves the answer to the registry.
+            pass
+    return brief_assembly(assembly, remembered_uploads([applied_id]).get(applied_id))
 
 
 def assembly_label(assembly_id, version=None):
@@ -397,8 +502,13 @@ class ElementClient:
             no_proxy=config.no_proxy or None,
         )
         self._tokens = TokenManager(config, self._transport, cache_dir=token_cache_dir)
-        # The override point for the tests: waits must not really sleep.
+        # The override points for the tests: waits must not really sleep, and the time a
+        # wait measures must be the time the test says has passed.
         self._sleep = time.sleep
+        self._clock = time.monotonic
+        # Set by waiting_for_server for the duration of its block: how long a starting
+        # server is waited out, and when the current wait for it runs out.
+        self._server_wait = None
 
     # -- low level -------------------------------------------------------
 
@@ -406,8 +516,35 @@ class ElementClient:
         """Obtain a valid Bearer token."""
         return self._tokens.get_token()
 
+    @contextlib.contextmanager
+    def waiting_for_server(self, timeout=SERVER_START_TIMEOUT, *, poll=SERVER_START_POLL, log=None):
+        """Inside the block a starting server is waited out instead of failing the request.
+
+        Outside such a block a request to a server whose console is not up yet fails at once
+        with ServerStartingError, which names the cause. Inside, the request is repeated
+        every poll seconds until the console answers, for no longer than timeout seconds per
+        outage; the start of the wait and its end are announced through log, as the wait for
+        a busy application does. A console that refused a request never processed it, so
+        repeating it is safe whatever the method. timeout=0 turns the wait off.
+        """
+        previous = self._server_wait
+        self._server_wait = {
+            "timeout": max(0.0, float(timeout or 0)),
+            "poll": float(poll),
+            "log": log,
+            "deadline": None,
+        }
+        try:
+            yield self
+        finally:
+            self._server_wait = previous
+
     def _request(self, method, path, *, query=None, json_body=None, data=None, content_type=None):
-        """Perform a request with the Bearer token; on a 401 refresh the token and retry once."""
+        """Perform a request with the Bearer token; on a 401 refresh the token and retry once.
+
+        A server whose console is still starting fails the request with ServerStartingError,
+        unless the call runs inside waiting_for_server - then the request waits for it.
+        """
         config = self.config.require()
         url = config.base_url + path
         if query:
@@ -423,17 +560,14 @@ class ElementClient:
         elif content_type:
             headers["Content-Type"] = content_type
 
-        token = self._tokens.get_token()
-        response = None
-        for attempt in (1, 2):
-            headers["Authorization"] = f"Bearer {token}"
-            response = self._transport.request(
-                method, url, headers=headers, data=body, timeout=config.timeout
-            )
-            if attempt == 1 and (response.status == 401 or _is_stale_token(response)):
-                self._tokens.invalidate()
-                token = self._tokens.get_token(force=True)
-                continue
+        while True:
+            try:
+                response = self._exchange(method, url, headers, body, config.timeout)
+            except ServerStartingError as error:
+                if self._wait_out_start(error):
+                    continue
+                raise
+            self._server_answered()
             break
 
         if 200 <= response.status < 300:
@@ -444,6 +578,97 @@ class ElementClient:
             except ValueError:
                 return response.text()
         raise self._api_error(method, url, response)
+
+    def _exchange(self, method, url, headers, body, timeout):
+        """One exchange under the Bearer token; a 401 or a stale token renews it once."""
+        token = self._token_for(url)
+        response = None
+        for attempt in (1, 2):
+            headers["Authorization"] = f"Bearer {token}"
+            response = self._transport.request(
+                method, url, headers=headers, data=body, timeout=timeout
+            )
+            if attempt == 1 and (response.status == 401 or _is_stale_token(response)):
+                self._tokens.invalidate()
+                token = self._token_for(url, force=True)
+                continue
+            break
+        answer = _response_body(response) if response.status == 404 else None
+        if server_starting(response.status, answer):
+            raise self._starting_error(method, url, response.status, answer)
+        return response
+
+    def _token_for(self, url, force=False):
+        """A token for the request; a token request refused by a starting server says so.
+
+        Without a cached token the very first thing a starting server refuses is the token
+        request, and its refusal used to read as a failed sign-in.
+        """
+        try:
+            return self._tokens.get_token(force=force)
+        except ServerStartingError:
+            raise
+        except ApiError as error:
+            if server_starting(error.status, error.body):
+                raise self._starting_error(
+                    error.method or "POST", error.url or url, error.status, error.body
+                ) from error
+            raise
+
+    def _starting_error(self, method, url, status, body):
+        """The refusal of a starting server, naming the address that tells when it is up."""
+        return ServerStartingError(
+            i18n.t(
+                "client.server-starting",
+                method=method,
+                url=url,
+                console=self.config.base_url + "/console",
+            ),
+            status=status,
+            method=method,
+            url=url,
+            body=body,
+        )
+
+    def _wait_out_start(self, error):
+        """Whether the refused request is to be sent again: a wait is on and time is left.
+
+        The clock of a wait starts at the first refusal of an outage, not at the start of
+        the block: a long deploy must not spend its budget before the server goes down. When
+        the time runs out, the refusal is raised with the time it was waited out for.
+        """
+        wait = self._server_wait
+        if not wait or wait["timeout"] <= 0:
+            return False
+        now = self._clock()
+        if wait["deadline"] is None:
+            wait["deadline"] = now + wait["timeout"]
+            if wait["log"]:
+                wait["log"](i18n.t(
+                    "client.server-starting-wait",
+                    seconds=int(wait["timeout"]),
+                    poll=int(wait["poll"]),
+                ))
+        elif now >= wait["deadline"]:
+            error.message = i18n.t(
+                "client.server-start-timeout",
+                seconds=int(wait["timeout"]),
+                method=error.method,
+                url=error.url,
+                console=self.config.base_url + "/console",
+            )
+            error.args = (error.message,)
+            return False
+        self._sleep(wait["poll"])
+        return True
+
+    def _server_answered(self):
+        """A request got through: an outage being waited out is over, and that is said."""
+        wait = self._server_wait
+        if wait and wait["deadline"] is not None:
+            wait["deadline"] = None
+            if wait["log"]:
+                wait["log"](i18n.t("client.server-started"))
 
     def _api(self, method, path, **kwargs):
         """A Console API v2 request (the shared /console/api/v2 prefix)."""
@@ -967,24 +1192,32 @@ class ElementClient:
         *,
         project_id=None,
         space_id=None,
+        commit_id=None,
     ):
         """Upload an assembly file (.xasm/.xlib) to the platform.
 
         With project_id the assembly is added to an existing project, without
-        it a new project is created. The platform spells its query parameter
-        names in PascalCase.
+        it a new project is created. The space goes as SpaceId, the spelling of
+        the reference it was taken from.
 
-        No commit or branch parameters: the documented method does not take
-        them, and the server ignores them when sent - proven by a direct POST
-        with a real commit hash answered by `commit-id: null`. The commit on an
-        assembly card comes from the project's link to its repository, not from
-        the upload.
+        commit_id is the commit the build was made from, sent as the `commit-id`
+        query parameter of an upload into an existing project: the reference
+        documents it there, and the server puts it on the assembly card, which is
+        what the schema guard of a deploy compares against. The same method also
+        documents `branch-name`, `commit-message` and `modified`, and none of them
+        is sent. The server takes them and shows none on the card: its
+        `branch-name` is a branch of group development, not of git, and `modified=1`
+        is refused with a 500. Creating a project documents no commit parameter
+        at all, so a build that creates one carries no commit.
         """
         path = f"/projects/{project_id}/assemblies" if project_id else "/projects"
+        query = {"SpaceId": space_id}
+        if project_id and commit_id:
+            query["commit-id"] = commit_id
         return self._api(
             "POST",
             path,
-            query={"SpaceId": space_id},
+            query=query,
             data=bytes(data),
             content_type="application/octet-stream",
         )

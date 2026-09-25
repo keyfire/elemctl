@@ -185,6 +185,7 @@ def test_list_builds_says_whether_the_listing_is_all_there_is(monkeypatch):
     assert len(payload["builds"]) == 10
     assert set(payload["builds"][0]) == {
         "id", "assembly-version", "project-version", "created", "branch-name", "commit-id",
+        "branch-name-source", "commit-id-source", "dirty", "project-dir",
     }
 
 
@@ -258,7 +259,11 @@ def test_brief_assembly_keeps_only_the_identifying_fields():
         "project-version": "1.0-3",
         "created": "2026-01-01T10:00:00.000Z",
         "branch-name": "main",
+        "branch-name-source": "platform",
         "commit-id": "abc123",
+        "commit-id-source": "platform",
+        "dirty": None,
+        "project-dir": None,
     }
 
 
@@ -793,7 +798,7 @@ EXPECTED_TOOL_PARAMETERS = {
     "debug_info": ("app_id env_file", "app_id"),
     "delete_app": ("app_id env_file", "app_id"),
     "deploy": (
-        "app_id branch env_file project_dir project_id version",
+        "app_id branch env_file project_dir project_id server_start_timeout version",
         "app_id project_id",
     ),
     "ensure_app": (

@@ -195,7 +195,7 @@ def test_no_russian_string_literals_outside_the_catalog():
         # The kind of a SOAP service client element.
         "КлиентSoapСервиса",
         # The keys of a description block, read by the schema guard.
-        "Реквизиты", "Измерения", "Ид", "Тип", "Длина", "МаксимальнаяДлина",
+        "Реквизиты", "Измерения", "Ид", "Тип", "Длина", "МаксимальнаяДлина", "ТабличныеЧасти",
         # The primitive type names the guard canonicalizes across the spellings.
         "Строка", "Число", "Булево", "Дата", "ДатаВремя", "Время",
         # The language keys of a descriptor and the value of the language enumeration:

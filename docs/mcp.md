@@ -24,7 +24,7 @@ The server reads connection credentials from the same `ELEMENT_*` variables / `.
 |---|---|
 | `list_apps` | list of applications; the deleted ones are hidden unless `include_deleted` asks for them, `name` filters by a substring of the name on the client and `status` by the status word; the answer carries the counters and a `summary` line next to `applications`, `brief` (the default) keeps id, name, status, uri and the applied version |
 | `find_app` | find an application by its exact name: the id and a `found` flag; deleted ones are skipped unless `include_deleted` is set |
-| `get_app` | application card: status, uri, the actual project version |
+| `get_app` | application card: status, uri, the actual project version; `applied-build` carries the branch and the commit of the build it runs, from the build card or from the local registry of uploads |
 | `create_app` | create an application; with only a `project_id` the source is the project's latest build. The answer carries `sign-in` – the way in; `verify` waits for the application and checks the build it really runs |
 | `ensure_app` | create an application by name only if it does not exist yet; an existing one is not recreated (`created: false`); `verify` checks the build the application really runs |
 | `start_app` | start the application |
@@ -34,11 +34,11 @@ The server reads connection credentials from the same `ELEMENT_*` variables / `.
 | `debug_info` | debug-session data: `debug-token` and `debug-address` (debugging must be enabled on the server) |
 | `list_spaces` | list of spaces |
 | `list_projects` | list of projects; `name` filters by a substring of the name on the client, the deleted ones are hidden unless `include_deleted` is set; `brief` (the default) – id, name, project kind, space, application count, deletion flag |
-| `list_builds` | a project's builds, newest first; the answer is an object `{total, shown, summary, builds}`; `limit` (default 10, 0 – all), `brief` (the default) keeps id, versions, date, branch and commit |
+| `list_builds` | a project's builds, newest first; the answer is an object `{total, shown, summary, builds}`; `limit` (default 10, 0 – all), `brief` (the default) keeps id, versions, date, branch and commit, and names where the branch and the commit came from: the card or the local registry of uploads |
 | `get_build` | the whole card of one build; `version` is the build's version (`1.0-42`), an id is accepted too and resolved through the listing |
 | `build_assembly` | build a `.xasm`/`.xlib` archive from the sources locally (does not talk to the platform) |
 | `inspect_assembly` | parse a built archive: manifest, project properties, subsystems and global types with qualified names (local) |
-| `deploy` | the whole cycle from sources, with a check that the build was applied; the verdict is `ok`, the details are `problems` and `log` |
+| `deploy` | the whole cycle from sources, with a check that the build was applied; the verdict is `ok`, the details are `problems` and `log`; a server that is still starting is waited out for up to `server_start_timeout` seconds (900 by default) |
 | `probe` | check the compilation with the server compiler without touching the working application; errors with file, line and column, cleans up after itself |
 | `apply_build` | apply an uploaded build to the application by its id |
 | `verify_deploy` | verify the apply actually took effect: failed tasks, the applied build, the availability of the uri |

@@ -344,6 +344,7 @@ def test_report_to_dict_kebab_case(project_factory, tmp_path):
         "dirty",
         "dirty-files",
         "schema-check",
+        "schema-warnings",
         "hint",
     }
     assert payload["ok"] is True
@@ -598,9 +599,10 @@ def test_the_guard_reads_an_english_project_at_the_commit(tmp_path, monkeypatch)
 def test_without_a_commit_id_the_guard_steps_aside(project_factory, tmp_path):
     """Being unable to compare is not evidence of danger - the deploy goes on, saying so.
 
-    A missing commit is not a server quirk: an assembly gets its commit only from the
-    project's repository link, so the message names that mechanism, and the report
-    records the skip - a skipped check must not read as a passed one.
+    The message names the build without a commit and where a commit comes from, and the
+    report records the skip - a skipped check must not read as a passed one. The last
+    lines say it once more: they are the ones read, and a passed verification alone read
+    as if the schema had been checked too.
     """
     log_lines = []
     report = deploy_from_sources(
@@ -609,9 +611,160 @@ def test_without_a_commit_id_the_guard_steps_aside(project_factory, tmp_path):
         log=log_lines.append,
     )
     assert report.ok is True
-    assert any("репозитори" in line for line in log_lines)
+    skip = next(line for line in log_lines if "сверка схемы не выполнена" in line)
+    assert "asm-applied" in skip and "не записан коммит" in skip
     assert report.schema_check == "skipped:no-commit-id"
     assert report.to_dict()["schema-check"] == "skipped:no-commit-id"
+    assert "не проводилась (no-commit-id)" in log_lines[-1]
+
+
+def _guard_catalog(project_dir, text):
+    (project_dir / "Задачи.yaml").write_text(text, encoding="utf-8")
+
+
+CATALOG_BEFORE = (
+    "ВидЭлемента: Справочник\nИмя: Задачи\n"
+    "ТабличныеЧасти:\n"
+    "    -\n        Ид: t1\n        Имя: Шаги\n        Реквизиты:\n"
+    "            -\n                Ид: a1\n                Имя: Шаг\n"
+    "                Тип: Строка\n                МаксимальнаяДлина: 100\n"
+    "    -\n        Ид: t2\n        Имя: Исполнители\n        Реквизиты:\n"
+    "            -\n                Ид: a2\n                Имя: Исполнитель\n"
+    "                Тип: Строка\n"
+)
+
+
+def _earlier(monkeypatch, files):
+    from elemctl import deploy as deploy_module
+
+    monkeypatch.setattr(
+        deploy_module, "_git_show",
+        lambda project_dir, commit, relative: files.get(relative, ""),
+    )
+
+
+def test_a_removed_tabular_part_is_named_and_the_deploy_goes_on(
+    project_factory, tmp_path, monkeypatch
+):
+    """A removal is a deliberate edit, like a removed attribute: named, never refused.
+
+    The server applies it without a question and takes the rows along, which is why the
+    line is said before the build, while the deploy can still be interrupted.
+    """
+    project_dir = project_factory()
+    _guard_catalog(project_dir, CATALOG_BEFORE[: CATALOG_BEFORE.index("    -\n        Ид: t2")])
+    _earlier(monkeypatch, {"Задачи.yaml": CATALOG_BEFORE})
+    log_lines = []
+
+    report = deploy_from_sources(
+        SchemaGuardClient(), "app-1", "proj-1", project_dir=project_dir,
+        output_dir=tmp_path / "d", version="1.0-1", log=log_lines.append,
+    )
+
+    assert report.ok is True
+    assert report.schema_check == "warned"
+    assert report.to_dict()["schema-warnings"] == [
+        "Задачи.yaml: снимается табличная часть Исполнители объекта Задачи – строки будут удалены"
+    ]
+    removal = [line for line in log_lines if "снимается табличная часть" in line]
+    built = [index for index, line in enumerate(log_lines) if "собран архив" in line]
+    assert removal and log_lines.index(removal[0]) < built[0]  # said before the build
+    assert "сняло элементы с данными: 1" in log_lines[-1]
+
+
+def test_a_narrowed_attribute_of_a_tabular_part_refuses_the_deploy(
+    project_factory, tmp_path, monkeypatch
+):
+    project_dir = project_factory()
+    _guard_catalog(project_dir, CATALOG_BEFORE.replace("МаксимальнаяДлина: 100", "МаксимальнаяДлина: 20"))
+    _earlier(monkeypatch, {"Задачи.yaml": CATALOG_BEFORE})
+    client = SchemaGuardClient()
+
+    with pytest.raises(ElemctlError) as error:
+        deploy_from_sources(
+            client, "app-1", "proj-1", project_dir=project_dir, output_dir=tmp_path / "d",
+        )
+
+    assert "Шаги.Шаг" in str(error.value) and "--allow-data-loss" in str(error.value)
+    assert client.upload_kwargs is None
+
+
+def test_the_guard_finds_the_project_directory_the_way_the_build_does(
+    project_factory, tmp_path, monkeypatch
+):
+    """Without --project-dir the guard used to skip as "no-project-dir" and then the build
+    found that very directory by itself."""
+    project_dir = project_factory()
+    _guard_catalog(project_dir, CATALOG_BEFORE)
+    _earlier(monkeypatch, {"Задачи.yaml": CATALOG_BEFORE})
+    monkeypatch.chdir(project_dir)
+
+    report = deploy_from_sources(
+        SchemaGuardClient(), "app-1", "proj-1", output_dir=tmp_path / "d", version="1.0-1",
+    )
+
+    assert report.schema_check == "clean"
+
+
+class _UnreadableListClient(SchemaGuardClient):
+    def list_assemblies(self, project_id):
+        raise ApiError("Console API ответил 500", status=500)
+
+
+def test_a_list_that_could_not_be_read_is_not_a_build_without_a_commit(project_factory, tmp_path):
+    """Every failure of the guard used to be reported as a missing commit - with the cause
+    of a missing commit explained beside it."""
+    log_lines = []
+    report = deploy_from_sources(
+        _UnreadableListClient(), "app-1", "proj-1", project_dir=project_factory(),
+        output_dir=tmp_path / "d", version="1.0-1", log=log_lines.append,
+    )
+    assert report.schema_check == "skipped:read-failed"
+    skip = next(line for line in log_lines if "сверка схемы не выполнена" in line)
+    assert "не удалось прочитать" in skip and "500" in skip
+    assert not any("не записан коммит" in line for line in log_lines)
+
+
+class _ForeignBuildClient(SchemaGuardClient):
+    def list_assemblies(self, project_id):
+        return [{"id": "asm-other", "commit-id": "c0ffee"}]
+
+
+def test_a_build_the_project_does_not_list_is_named_as_such(project_factory, tmp_path):
+    log_lines = []
+    report = deploy_from_sources(
+        _ForeignBuildClient(), "app-1", "proj-1", project_dir=project_factory(),
+        output_dir=tmp_path / "d", version="1.0-1", log=log_lines.append,
+    )
+    assert report.schema_check == "skipped:applied-build-not-listed"
+    assert any("asm-applied" in line and "proj-1" in line for line in log_lines)
+
+
+def test_a_card_without_an_applied_build_is_named_as_such(project_factory, tmp_path):
+    report = deploy_from_sources(
+        FakeDeployClient(applied_version="1.0-1"), "app-1", "proj-1",
+        project_dir=project_factory(), output_dir=tmp_path / "d", version="1.0-1",
+    )
+    assert report.schema_check == "skipped:no-applied-build"
+
+
+class _ImageIdClient(SchemaGuardClient):
+    def list_assemblies(self, project_id):
+        return [{"image-id": "asm-applied", "commit-id": "c0ffee"}]
+
+
+def test_the_applied_build_is_found_under_any_id_field(project_factory, tmp_path, monkeypatch):
+    """A listing may carry the id in image-id: the guard used to look at id alone."""
+    project_dir = project_factory()
+    _guard_catalog(project_dir, CATALOG_BEFORE)
+    _earlier(monkeypatch, {"Задачи.yaml": CATALOG_BEFORE})
+
+    report = deploy_from_sources(
+        _ImageIdClient(), "app-1", "proj-1", project_dir=project_dir,
+        output_dir=tmp_path / "d", version="1.0-1",
+    )
+
+    assert report.schema_check == "clean"
 
 
 # --- a refusal several lines long ---------------------------------------------

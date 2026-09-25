@@ -56,3 +56,13 @@ class ApiError(ElemctlError):
             if value not in (None, ""):
                 payload[key] = value
         return payload
+
+
+class ServerStartingError(ApiError):
+    """The server answered, but its console is not up yet: the server is still starting.
+
+    Every console request of such a server gets a 404 naming the console application, the
+    same status a missing application or build gets. Raised on its own, it read as "the
+    object is gone" and sent the reader to `docker ps` and the server log for the cause. The
+    status and the body are kept, so a caller catching ApiError still sees what came back.
+    """

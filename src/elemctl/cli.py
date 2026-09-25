@@ -32,19 +32,23 @@ from .build import (
 from .client import (
     CALCULATION_RULE_FIELDS,
     OIDC_SERVICE,
+    SERVER_START_TIMEOUT,
     ElementClient,
+    applied_build,
     apps_summary,
     assembly_label,
     brief_app,
-    brief_assembly,
+    brief_assemblies,
     builds_summary,
     extract_assembly_id,
+    extract_project_id,
     sign_in_hint,
 )
 from .config import Config, ensure_env_file_exists
-from .deploy import deploy_from_sources, verify_deploy
+from .deploy import deploy_from_sources, server_wait, verify_deploy
 from .errors import ApiError, ConfigError, ElemctlError, PluginError
 from .probe import probe_project
+from .registry import remember_upload
 from .versions import newest_first
 
 
@@ -250,10 +254,19 @@ def cmd_apps_list(args):
 
 
 def cmd_apps_get(args):
+    """The card of an application, plus the branch and the commit of the build it runs.
+
+    The card names the applied build by id alone, and with several sessions deploying to
+    one stand the question was whose build that is: `applied-build` answers it from the
+    build card or from the local registry of uploads.
+    """
     config = _config(args)
     client = make_client(config)
     app_id = _require(_app_ref(args), config.app_id, i18n.t("cli.require.app-id-arg"))
-    _emit(client.get_app(client.resolve_app_id(app_id)))
+    card = client.get_app(client.resolve_app_id(app_id))
+    if isinstance(card, dict):
+        card = {**card, "applied-build": applied_build(client, card)}
+    _emit(card)
     return 0
 
 
@@ -712,7 +725,9 @@ def cmd_builds_list(args):
     # return, and the count of a card does not change when its fields do.
     shown_count = len(shown)
     if args.brief:
-        shown = [brief_assembly(assembly) for assembly in shown]
+        # The branch and the commit from the card, or from the local registry of uploads
+        # where the platform left them empty - with the source named beside each.
+        shown = brief_assemblies(shown)
     _emit(shown)
     if truncated:
         _progress(i18n.t("cli.builds-list-truncated"))
@@ -777,6 +792,18 @@ def _upload_name_mismatch(client, project_id, file_path):
     return {"assembly": assembly_name, "project": project_name, "project_id": project_id}
 
 
+def _archive_manifest(file_path):
+    """The manifest of an archive about to be uploaded, {} when it cannot be read.
+
+    The upload does not depend on it: an archive the server refuses is refused by the
+    server, with its own words.
+    """
+    try:
+        return read_assembly_manifest(file_path)
+    except (ElemctlError, OSError):
+        return {}
+
+
 def cmd_builds_upload(args):
     config = _config(args)
     client = make_client(config)
@@ -797,15 +824,32 @@ def cmd_builds_upload(args):
         if mismatch:
             _progress(i18n.t("cli.upload-name-mismatch-forced", **mismatch))
     # The branch and the commit live in the MANIFEST inside the archive - the build wrote
-    # them there. They are not sent alongside: the documented upload method has no such
-    # parameters, and the server ignores them when sent (a direct POST with a real hash
-    # answered commit-id: null) - the commit of an assembly card comes from the project's
-    # link to its repository.
+    # them there. The commit also goes along as `commit-id`, which the server puts on the
+    # card of an assembly uploaded into an existing project; the branch the platform does
+    # not keep, and the local registry remembers it with the rest of the upload.
+    manifest = _archive_manifest(file_path)
     response = client.upload_assembly(
         file_path.read_bytes(),
         project_id=project_id,
         space_id=args.space_id or config.space_id or None,
+        commit_id=(manifest.get("CommitId") or "").strip() or None,
     )
+    answer = response if isinstance(response, dict) else {}
+    warning = remember_upload(
+        assembly_id=extract_assembly_id(answer),
+        project_id=project_id or extract_project_id(answer),
+        version=answer.get("assembly-version") or manifest.get("Version"),
+        branch=manifest.get("BranchName"),
+        commit=manifest.get("CommitId"),
+        # An archive says nothing about the tree it was built from.
+        dirty=None,
+        project_dir=None,
+        file=file_path.resolve(),
+        stand=config.base_url,
+        command="builds upload",
+    )
+    if warning:
+        _progress(warning)
     _emit(
         {
             "assembly-id": extract_assembly_id(response),
@@ -921,27 +965,31 @@ def cmd_deploy(args):
     app_id, app_id_source = _require_with_source(
         args.app_id, config.app_id, i18n.t("cli.require.app-id-flag")
     )
-    # An application is addressed by its id or by its exact name, the way apps get/start/stop do:
-    # the name is what a person has in front of them, the id is what the API wants. A UUID passes
-    # through without a request.
-    app_id = client.resolve_app_id(app_id)
     project_id, project_id_source = _require_with_source(
         args.project_id, config.project_id, i18n.t("cli.require.project-id-flag")
     )
-    report = deploy_from_sources(
-        client,
-        app_id,
-        project_id,
-        project_dir=args.project_dir,
-        output_dir=args.output,
-        version=args.build_version or "",
-        branch=args.branch,
-        commit=args.commit,
-        app_id_source=app_id_source,
-        project_id_source=project_id_source,
-        allow_data_loss=args.allow_data_loss,
-        log=_progress,
-    )
+    # The name is resolved inside the same wait as the deploy itself: a server that is still
+    # starting refuses the listing behind the name just as it refuses the upload.
+    with server_wait(client, args.server_start_timeout, log=_progress):
+        # An application is addressed by its id or by its exact name, the way apps
+        # get/start/stop do: the name is what a person has in front of them, the id is what
+        # the API wants. A UUID passes through without a request.
+        app_id = client.resolve_app_id(app_id)
+        report = deploy_from_sources(
+            client,
+            app_id,
+            project_id,
+            project_dir=args.project_dir,
+            output_dir=args.output,
+            version=args.build_version or "",
+            branch=args.branch,
+            commit=args.commit,
+            app_id_source=app_id_source,
+            project_id_source=project_id_source,
+            allow_data_loss=args.allow_data_loss,
+            server_start_timeout=args.server_start_timeout,
+            log=_progress,
+        )
     _emit(report.to_dict())
     return 0 if report.ok else 1
 
@@ -1790,6 +1838,12 @@ def build_parser():
         "--allow-data-loss",
         action="store_true",
         help=i18n.t("cli.help.deploy-allow-data-loss"),
+    )
+    p.add_argument(
+        "--server-start-timeout",
+        type=float,
+        default=SERVER_START_TIMEOUT,
+        help=i18n.t("cli.help.deploy-server-start-timeout"),
     )
     p.set_defaults(handler=cmd_deploy)
 

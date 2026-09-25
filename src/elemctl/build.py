@@ -127,6 +127,9 @@ class BuildResult:
     # fails on that and the platform silently rolls the application back, so the
     # build says so while the failure is still cheap.
     clients_without_description: list = field(default_factory=list)
+    # The directory the build was made from: the local registry of uploads remembers it,
+    # so that a build on an application can be traced to the working tree it came from.
+    project_dir: Path | None = None
 
 
 def parse_flat_yaml(text):
@@ -589,6 +592,7 @@ def build_assembly(
         dirty_files=git_dirty_files(meta.project_dir),
         skipped_files=skipped_names,
         clients_without_description=clients_without_description,
+        project_dir=meta.project_dir,
     )
 
 
