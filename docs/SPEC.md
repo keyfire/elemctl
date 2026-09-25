@@ -449,9 +449,11 @@ card or the local registry of uploads, the way `builds list --brief` does (secti
 version (section 4.4; an id is accepted and resolved through the listing),
 `build_assembly(project_dir="", output_dir="", version="")`,
 `inspect_assembly(file)` – parsing of a built archive (section 5.1; a local operation),
-`deploy(app_id, project_id, project_dir="", version="", branch="",
+`deploy(app_id, project_id, project_dir="", version="", branch="", allow_data_loss=False,
 server_start_timeout=900)` – returns the deploy report plus a `log` field with progress
-lines, and waits out a server that is still starting (section 6.12); `probe(project_dir="", space_id="", keep=False)` – an isolated
+lines, and waits out a server that is still starting (section 6.12); `allow_data_loss=True`
+lets through what the schema guard refuses, the way `--allow-data-loss` does in the CLI
+(section 7), and without it the refusal comes back as an error before anything is built; `probe(project_dir="", space_id="", keep=False)` – an isolated
 compilation check that does not touch the working application (section 7),
 the report plus a `log` field; `probe_cleanup(app_id)` – `probe --cleanup` (section 7),
 the removal of a probe left on the stand, the report plus a `log` field; `apply_build(app_id, version_id)`, `verify_deploy(app_id,

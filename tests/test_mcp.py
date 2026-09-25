@@ -467,6 +467,46 @@ def test_create_app_adds_the_way_in_to_the_card(monkeypatch):
     assert payload["sign-in"]["url"] == "https://host/apps/new"
 
 
+def _stub_mcp_deploy(monkeypatch):
+    """Stub the deploy of the server and keep the keywords it was called with."""
+    from elemctl import mcp_server
+
+    calls = []
+
+    class Report:
+        def to_dict(self):
+            return {"ok": True}
+
+    def fake(client, app_id, project_id, **kwargs):
+        calls.append(kwargs)
+        return Report()
+
+    monkeypatch.setattr(mcp_server, "deploy_from_sources", fake)
+    return calls
+
+
+def test_the_deploy_tool_can_let_a_loss_of_data_through(monkeypatch):
+    """A narrowing refused by the guard used to leave the MCP client nothing to answer with:
+    the flag that lets it through existed in the CLI alone."""
+    server = _server_on(monkeypatch, object())
+    calls = _stub_mcp_deploy(monkeypatch)
+
+    asyncio.run(server.call_tool("deploy", {"app_id": "app-1", "project_id": "proj-1"}))
+    asyncio.run(server.call_tool(
+        "deploy", {"app_id": "app-1", "project_id": "proj-1", "allow_data_loss": True}
+    ))
+
+    assert [call["allow_data_loss"] for call in calls] == [False, True]
+
+
+def test_the_refusal_names_the_parameter_of_the_tool_too():
+    from elemctl import i18n
+
+    refusal = i18n.t("deploy.destructive-changes", count=1, changes="Задачи.yaml: ...")
+
+    assert "--allow-data-loss" in refusal and "allow_data_loss=true" in refusal
+
+
 def _stub_mcp_verify(monkeypatch, ok=True):
     """Stub the verification of the server and keep what it was called with."""
     from elemctl import mcp_server
@@ -800,7 +840,8 @@ EXPECTED_TOOL_PARAMETERS = {
     "debug_info": ("app_id env_file", "app_id"),
     "delete_app": ("app_id env_file", "app_id"),
     "deploy": (
-        "app_id branch env_file project_dir project_id server_start_timeout version",
+        "allow_data_loss app_id branch env_file project_dir project_id server_start_timeout "
+        "version",
         "app_id project_id",
     ),
     "ensure_app": (

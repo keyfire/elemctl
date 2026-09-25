@@ -815,11 +815,12 @@ MESSAGES = {
     "deploy.destructive-changes": {
         "ru": "ОТКАЗ: применение уничтожит данные – находок {count}: {changes}. Расширение длин "
               "данные сохраняет, а сужение, смена типа и снятие целиком элемента со своими "
-              "данными – нет. Если потеря данных допустима, повторите с флагом --allow-data-loss",
+              "данными – нет. Если потеря данных допустима, повторите с флагом --allow-data-loss "
+              "(у инструмента MCP deploy – allow_data_loss=true)",
         "en": "REFUSED: the apply would destroy data – {count} finding(s): {changes}. Widening "
               "keeps the data; a narrowing, a type change and an element with data of its own "
               "removed whole do not. If losing the data is acceptable, repeat with "
-              "--allow-data-loss",
+              "--allow-data-loss (allow_data_loss=true for the MCP tool deploy)",
     },
     "deploy.destructive-allowed": {
         "ru": "внимание: находок {count}, данные будут пересозданы или удалены "

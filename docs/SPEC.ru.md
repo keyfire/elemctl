@@ -946,9 +946,11 @@ development_mode=True, verify=False)` - при задании только proje
 сборки (п. 4.4; ид принимается и разрешается через перечень),
 `build_assembly(project_dir="", output_dir="", version="")`,
 `inspect_assembly(file)` - разбор готового архива (п. 5.1; локальная операция),
-`deploy(app_id, project_id, project_dir="", version="", branch="",
+`deploy(app_id, project_id, project_dir="", version="", branch="", allow_data_loss=False,
 server_start_timeout=900)` - возвращает отчёт о развёртывании плюс поле `log` со строками
-прогресса и пережидает сервер, который ещё стартует (п. 6.12); `probe(project_dir="", space_id="", keep=False)` – изолированная
+прогресса и пережидает сервер, который ещё стартует (п. 6.12); `allow_data_loss=True`
+пропускает то, что отклоняет сторож схемы, как ключ `--allow-data-loss` в CLI (п. 7), а
+без него отказ приходит ошибкой до сборки; `probe(project_dir="", space_id="", keep=False)` – изолированная
 проверка компиляции, не трогающая рабочее приложение (п. 7): отчёт плюс поле
 `log`; `probe_cleanup(app_id)` – `probe --cleanup` (п. 7), уборка пробника, оставленного
 на стенде: отчёт плюс поле `log`; `apply_build(app_id, version_id)`, `verify_deploy(app_id,

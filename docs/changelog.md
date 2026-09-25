@@ -28,6 +28,9 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
   the files on disk, so a catalog, a document or a register removed from the sources took its
   whole table away unnoticed. Now it lists the files of the applied commit and refuses such a
   removal like a narrowing, unless `--allow-data-loss` is given.
+- **The MCP tool `deploy` takes `allow_data_loss`.** A narrowing the schema guard refused could
+  only be let through from the CLI, and a client of the MCP server had no way to say that the
+  loss of data is acceptable. The refusal now names the parameter as well as the flag.
 
 ### Changed
 - **The schema guard of `deploy` takes a missing commit from the registry of uploads.** A build
