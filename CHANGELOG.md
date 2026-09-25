@@ -22,16 +22,19 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
   commit the way the reference spells the parameter, and the server keeps it on the build card.
   The branch, the state of the tree and the directory the platform does not keep, so a local
   registry of uploads remembers them; `builds list --brief` and `apps get` name the source of each.
+  ([#42](https://github.com/keyfire/elemctl/pull/42))
 
 ### Fixed
 - **A server that is still starting is called what it is.** While its console was coming up,
   every command answered with a bare 404, and `deploy` died on the list of builds. That answer
   now says the server is starting and to repeat once `/console` answers 302, and `deploy` waits
   for the console by itself, for up to `--server-start-timeout` seconds.
+  ([#42](https://github.com/keyfire/elemctl/pull/42))
 - **The schema guard of `deploy` sees tabular parts.** A build without a tabular part took its
   rows along while the guard said nothing. A removed tabular part, attribute or resource is now
   named before the build without stopping it, a narrowing inside a tabular part is refused like
   any other, and a skipped check gives its real reason instead of always blaming a missing commit.
+  ([#42](https://github.com/keyfire/elemctl/pull/42))
 
 ## 2026-09-24 – 0.44.0
 
