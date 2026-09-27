@@ -23,7 +23,9 @@ A probe kept with `keep` (or one whose cleanup broke off) is finished by
 `cleanup_probe`, which starts from the application alone: its card names the
 project and the build, so nothing has to be remembered between the two runs, and
 the build is looked for in the probe's own project rather than in the project of
-the environment.
+the environment. A probe given a name and a version of its own carries no mark of
+a probe, and the local registry of uploads, which remembers the application every
+probe creates, is what knows it.
 """
 
 from __future__ import annotations
@@ -755,13 +757,16 @@ def cleanup_probe(client, app, *, log=None):
     names the rest - the project the build landed in and the build it was created from -
     so the build is looked for in that project and not in the project of the environment.
 
-    Only a probe's application is touched: one whose name carries the probe prefix, or one
-    that runs a probe build (a probe named with --name). Anything else is refused with the
-    reason, and so is the application the environment names as the working one. The order is
-    the platform's: the application, a wait until it is really gone, the builds of the probe,
-    and the project last - only when nothing is left in it (_project_kept_reason). The
-    builds other runs uploaded into the probe's application are not the probe's; the
-    platform deletes the builds nobody uses by itself.
+    Only a probe's application is touched: one whose name carries the probe prefix, one
+    that runs a probe build (a probe named with --name), or one the local registry of
+    uploads remembers a probe of this machine creating (a probe given --build-version too, or
+    one deployed into since). Anything else is refused with the reason, and so is the
+    application the environment names as the working one. The order is the platform's: the
+    application, a wait until it is really gone, the builds of the probe together with every
+    build the registry remembers uploading for this application, and the project last - only
+    when nothing is left in it (_project_kept_reason). A build another live application runs
+    by now stays. The builds uploaded into the probe's application from another machine are
+    not known here; the platform deletes the builds nobody uses by itself.
 
     A failure is a problem in the report, not an exception: what was removed stays removed,
     and the next run finishes the rest.
