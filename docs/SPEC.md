@@ -75,7 +75,7 @@ Common prefix: `{base}/console/api/v2`. Request and response bodies are JSON, ap
 - `PUT /applications/{id}/users/change-token-access` – switch that access. Body: `{"user-list-id", "user-id", "enable-access"}`, all three required; the answer is the connection as it became. A user who is not connected to the application is refused with a 500 "Can't change user token access" and no word about the cause, so the client finds the connection first and names the user when there is none. The reference documents the method under v2 and v2.1 with the same body, and a live check got the same answer from both; the client takes the v2 prefix, like every other request.
 - `GET /me` – the user the credentials belong to: `id`, `login`, `presentation`, `user-list-id`.
 
-Application statuses: stable `Running`, `Stopped`, `Error`; transitional `Starting`, `Stopping`, `Initializing`, `Updating`, `Frozen`, `Creating`. During transitions the `status` field may also be empty.
+Application statuses: stable `Running`, `Stopped`, `Error`; transitional `Starting`, `Stopping`, `Initializing`, `Updating`, `Frozen`, `Creating`, `Deleting`. During transitions the `status` field may also be empty. The reference describes `status` as a plain string and lists no values, so this list is what live checks have met. `Deleting` lasts while the `DeleteApplication` task runs, and then the application stays in the list under `Deleted` (section 6.9). `UNKNOWN`, in capitals, was met on an application whose database files were gone: it could be neither started nor deleted, because a deletion begins with an export of the data. The client does not count it as a stable status, so a wait for one runs out its timeout on such an application and names the status.
 
 ### 4.2. Technology version
 
@@ -85,7 +85,7 @@ Application statuses: stable `Running`, `Stopped`, `Error`; transitional `Starti
 ### 4.3. Spaces and projects
 
 - `GET /spaces` – list of spaces.
-- `GET /projects` – list of projects; `GET /projects/{id}` – card; `DELETE /projects/{id}` – delete. The list is answered in full whatever the query, and deleted projects stay in it under the `deleted` flag with their former id. Filtering by name and hiding the deleted ones is the client's work, as with applications (section 4.1).
+- `GET /projects` – list of projects; `GET /projects/{id}` – card; `DELETE /projects/{id}` – delete. The list is answered in full whatever the query, and deleted projects stay in it under the `deleted` flag with their former id. Filtering by name and hiding the deleted ones is the client's work, as with applications (section 4.1). A project card carries no status at all: the `deleted` flag is the only mark of its state.
 
 ### 4.4. Project builds (assemblies)
 

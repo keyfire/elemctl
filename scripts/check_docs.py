@@ -113,7 +113,8 @@ PITCH_ITEMS = (
 #: all of it. The fourth is the commit of an upload, which every place used to deny. The fifth
 #: is the number the server gives a build uploaded into a project, which the tool hints and the
 #: code comments put down to something else. The sixth is the space of an upload, which the
-#: pages and the client spelled the way the server does not read.
+#: pages and the client spelled the way the server does not read. The seventh is the list of
+#: application statuses, which lacked two that live checks kept meeting.
 CLAIMS = (
     Claim(
         name="the platform deletes the builds nobody uses, whatever their age",
@@ -221,6 +222,21 @@ CLAIMS = (
             "note that its name is in PascalCase",
             "параметром `SpaceId`, имя пишется в",
             "The space goes as SpaceId",
+        ),
+    ),
+    # The reference gives the status of an application as a plain string, so the list of values
+    # is what live checks met, and two of them were missing from it: the list ended at Creating.
+    Claim(
+        name="the application statuses met live include Deleting and UNKNOWN",
+        told_in=(
+            "docs/SPEC.md", "docs/SPEC.ru.md",
+            "docs/platform.md", "docs/platform.ru.md",
+            "src/elemctl/client.py",
+        ),
+        wording=("`Deleting`",),
+        retired=(
+            "`Frozen`, `Creating`. During",
+            "`Frozen`, `Creating`.\nВо время",
         ),
     ),
 )

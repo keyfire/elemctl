@@ -740,6 +740,23 @@ def test_ensure_running_stops_immediately_on_error_status(api):
     assert transport.calls_to("PUT", f"{API}/applications/app-1/status/start") == []
 
 
+def test_a_wait_for_a_stable_status_does_not_take_unknown_for_one(api):
+    """`UNKNOWN` was met live on an application whose database files were gone.
+
+    Such an application could be neither started nor deleted, so nothing is known to follow
+    from the status: it is not stable, a wait runs out its timeout on it, and the timeout names
+    the status rather than a vague "transitional" one.
+    """
+    client, transport = api
+    transport.add("GET", f"{API}/applications/app-1", {"id": "app-1", "status": "UNKNOWN"})
+
+    with pytest.raises(ApiError) as excinfo:
+        client.wait_app_stable("app-1", timeout=0)
+
+    assert "UNKNOWN" in str(excinfo.value)
+    assert transport.calls_to("PUT", f"{API}/applications/app-1/status/stop") == []
+
+
 def test_wait_app_status_error_carries_task_details(api):
     client, transport = api
     transport.add("GET", f"{API}/applications/app-1", _error_card())

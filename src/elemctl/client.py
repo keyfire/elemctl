@@ -22,6 +22,10 @@ from .versions import missing_counters, newest_first, pick_latest
 API_PREFIX = "/console/api/v2"
 
 # Stable application statuses; everything else (an empty string included) is transitional.
+# The reference lists no values of the status, and two met live were in no list of ours:
+# `Deleting`, while an application is being deleted, and `UNKNOWN`, on an application whose
+# database files were gone. `UNKNOWN` is not counted as stable: nothing is known to follow from
+# it, so a wait for a stable status runs out its timeout on it and names the status.
 STABLE_STATUSES = {"Running", "Stopped", "Error"}
 
 # Wait timeouts (seconds) as per section 6 of the specification.

@@ -39,7 +39,7 @@ Common prefix: `{base}/console/api/v2`. Request and response bodies are JSON, ap
 - `PUT /applications/{id}/users/change-token-access` – switch that access. Body: `{"user-list-id", "user-id", "enable-access"}`, all three required; the answer is the connection as it became. A user who is not connected to the application gets a 500 "Can't change user token access" that does not say why. The method is documented under v2 and v2.1 alike. `elemctl apps token-access` finds the connection first and reads the flag back after a switch.
 - `GET /me` – the user the credentials belong to: `id`, `login`, `presentation`, `user-list-id`.
 
-Application statuses: stable `Running`, `Stopped`, `Error`; transitional `Starting`, `Stopping`, `Initializing`, `Updating`, `Frozen`, `Creating`. During transitions the `status` field may also be empty.
+Application statuses: stable `Running`, `Stopped`, `Error`; transitional `Starting`, `Stopping`, `Initializing`, `Updating`, `Frozen`, `Creating`, `Deleting`. During transitions the `status` field may also be empty. The reference describes `status` as a plain string and lists no values, so this list is what live checks have met. `Deleting` lasts while the `DeleteApplication` task runs, and then the application stays in the list under `Deleted`. `UNKNOWN`, in capitals, was met on an application whose database files were gone: it could be neither started nor deleted, because a deletion begins with an export of the data. The client does not count it as a stable status, so a wait for one runs out its timeout on such an application and names the status.
 
 ### Technology version
 

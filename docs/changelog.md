@@ -49,6 +49,11 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
   upload for as long as the machine deployed. Once it grows past the limit by a tenth, the next
   upload cuts it back; `ELEMCTL_REGISTRY_LIMIT` sets another number, and `0` keeps every one.
   ([#45](https://github.com/keyfire/elemctl/pull/45))
+- **The specification lists the statuses `Deleting` and `UNKNOWN`.** The reference gives the
+  status of an application as a plain string, and the list of the specification lacked two
+  statuses met live: `Deleting` while an application is being deleted, and `UNKNOWN` on an
+  application whose database was gone. A wait for a stable status does not take `UNKNOWN`
+  for one.
 
 ### Fixed
 - **An upload takes the build into the space it was given.** The client sent the space as
