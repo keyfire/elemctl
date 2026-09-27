@@ -1023,6 +1023,25 @@ MESSAGES = {
         "ru": "сборка загружена (id: {id})",
         "en": "build uploaded (id: {id})",
     },
+    "deploy.version-not-kept": {
+        "ru": "внимание: версию {version} сервер не сохранит – сборку, загруженную в проект, он "
+              "нумерует сам: база – Версия проекта ({base}), номер – наибольший номер этой базы "
+              "плюс один. Суффикс архива до сервера не дойдёт; сборку с запуском CI свяжут имя "
+              "архива и коммит",
+        "en": "warning: the server will not keep the version {version} – it numbers a build "
+              "uploaded into a project itself: the base is the version of the project ({base}), "
+              "the number is the highest number of that base plus one. The suffix of the "
+              "archive does not reach the server; the name of the archive and the commit tie "
+              "the build to its CI run",
+    },
+    "deploy.renumbered": {
+        "ru": "внимание: сервер записал сборку как {given}, а не {built} из архива – сборку, "
+              "загруженную в проект, он нумерует сам: база – Версия проекта, номер – наибольший "
+              "номер этой базы плюс один",
+        "en": "warning: the server recorded the build as {given}, not as {built} from the "
+              "archive – it numbers a build uploaded into a project itself: the base is the "
+              "version of the project, the number is the highest number of that base plus one",
+    },
     "deploy.unknown": {
         "ru": "не определён",
         "en": "unknown",
@@ -1662,9 +1681,9 @@ MESSAGES = {
     },
     "cli.help.verify-version-id": {
         "ru": "ид загруженной сборки, которую ждём применённой – надёжная сверка "
-              "(строка версии у нового приложения нумеруется заново)",
+              "(строку версии сборки, загруженной в проект, сервер назначает сам)",
         "en": "id of the uploaded build expected to be applied – the reliable comparison "
-              "(a new application renumbers the version string from scratch)",
+              "(the server assigns the version string of a build uploaded into a project)",
     },
     "cli.help.verify-expected-version": {
         "ru": "строка версии вместо ид сборки – запасная сверка",

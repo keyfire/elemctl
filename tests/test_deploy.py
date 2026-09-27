@@ -121,9 +121,9 @@ def test_deploy_detects_silent_rollback(project_factory, tmp_path):
 
 
 def test_deploy_trusts_assembly_id_over_renumbered_version(project_factory, tmp_path):
-    # A freshly created application numbers versions from scratch (archive 1.0-1139 is
-    # applied as 1.0-3) - matching by the version string reported a false rollback. What
-    # confirms the apply is the id of the applied assembly matching the uploaded one.
+    # The server numbers a build uploaded into a project itself (archive 1.0-1139 is listed
+    # as 1.0-3) - matching by the version string reported a false rollback. What confirms the
+    # apply is the id of the applied assembly matching the uploaded one.
     client = FakeDeployClient(
         latest={"assembly-version": "1.0-1138", "id": "asm-old"},
         applied_version="1.0-3",
@@ -334,6 +334,8 @@ def test_report_to_dict_kebab_case(project_factory, tmp_path):
         "status",
         "version",
         "assembly-id",
+        "assembly-version",
+        "renumbered",
         "applied-version",
         "applied-version-id",
         "applied",
@@ -972,6 +974,94 @@ def test_the_files_of_the_applied_commit_come_from_git(project_factory, tmp_path
         )
 
     assert "Основное/Задачи.yaml: снимается справочник Задачи целиком" in str(error.value)
+
+
+# --- the server numbers a build uploaded into a project itself ------------------
+#
+# Seen live: the archive of `1.0.0-i1` became `1.0.0-1`,
+# `1.0.0-10001` became `1.0.0-2`, a number already taken moved on to the next one, and
+# `1.0.1-7` became `1.0.0-502` - the base is the Версия of the descriptor, not the archive's.
+# The answer of the upload is the card of the build, with the number the server handed out.
+
+
+def _card_of_upload(version):
+    return {"id": "asm-777", "assembly-version": version, "project-version": version}
+
+
+def test_a_renumbered_build_is_named_and_reported(project_factory, tmp_path):
+    """The report answered ok: true, and only version against applied-version told of it."""
+    client = FakeDeployClient(
+        applied_version="1.0-6", applied_version_id="asm-777",
+        upload_response=_card_of_upload("1.0-6"),
+    )
+    log_lines = []
+
+    report = deploy_from_sources(
+        client, "app-1", "proj-1", project_dir=project_factory(), output_dir=tmp_path / "d",
+        version="1.0-i1", log=log_lines.append,
+    )
+    payload = report.to_dict()
+
+    assert report.ok is True
+    assert (payload["version"], payload["assembly-version"], payload["renumbered"]) == (
+        "1.0-i1", "1.0-6", True,
+    )
+    said = next(line for line in log_lines if "записал сборку как 1.0-6" in line)
+    assert "1.0-i1" in said and "плюс один" in said
+    uploaded = next(index for index, line in enumerate(log_lines) if "сборка загружена" in line)
+    assert log_lines.index(said) == uploaded + 1  # said right after the upload
+
+
+def test_a_version_the_server_cannot_keep_is_named_before_the_build(project_factory, tmp_path):
+    """A suffix that is not a number, a version without one and another base never survive."""
+    for version in ("1.0-i1", "1.0", "2.0-7"):
+        log_lines = []
+        deploy_from_sources(
+            FakeDeployClient(applied_version="1.0-1", upload_response=_card_of_upload("1.0-1")),
+            "app-1", "proj-1", project_dir=project_factory(repo_name=f"repo-{version}"),
+            output_dir=tmp_path / version, version=version, log=log_lines.append,
+        )
+        said = [line for line in log_lines if "сервер не сохранит" in line]
+        built = next(index for index, line in enumerate(log_lines) if "собран архив" in line)
+        assert said and log_lines.index(said[0]) < built, version
+        assert "(1.0)" in said[0]  # the base the server takes: the Версия of the descriptor
+
+
+def test_a_number_of_the_project_base_is_not_warned_about(project_factory, tmp_path):
+    log_lines = []
+    report = deploy_from_sources(
+        FakeDeployClient(applied_version="1.0-5", upload_response=_card_of_upload("1.0-5")),
+        "app-1", "proj-1", project_dir=project_factory(), output_dir=tmp_path / "d",
+        version="1.0-5", log=log_lines.append,
+    )
+
+    assert not [line for line in log_lines if "не сохранит" in line or "записал" in line]
+    assert report.renumbered is False and report.assembly_version == "1.0-5"
+
+
+def test_an_upload_answering_without_a_version_leaves_the_question_open(
+    project_factory, tmp_path
+):
+    report = deploy_from_sources(
+        FakeDeployClient(applied_version="1.0-5"), "app-1", "proj-1",
+        project_dir=project_factory(), output_dir=tmp_path / "d", version="1.0-5",
+    )
+
+    assert report.renumbered is None and report.to_dict()["assembly-version"] is None
+
+
+def test_the_version_fallback_compares_with_the_server_version(project_factory, tmp_path):
+    """Without an id to compare, the archive's version is on no card: the server's one is."""
+    client = FakeDeployClient(applied_version="1.0-6", upload_response={"assembly-version": "1.0-6"})
+
+    report = deploy_from_sources(
+        client, "app-1", "proj-1", project_dir=project_factory(), output_dir=tmp_path / "d",
+        version="1.0-i1",
+    )
+
+    assert report.applied is True and report.ok is True
+    # Applied by project and version, as the server knows the build.
+    assert client.apply_calls[0][1]["assembly_version"] == "1.0-6"
 
 
 # --- a refusal several lines long ---------------------------------------------

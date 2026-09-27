@@ -45,7 +45,7 @@ from .client import (
     sign_in_hint,
 )
 from .config import Config, ensure_env_file_exists
-from .deploy import deploy_from_sources, server_wait, verify_deploy
+from .deploy import deploy_from_sources, server_wait, uploaded_version, verify_deploy
 from .errors import ApiError, ConfigError, ElemctlError, PluginError
 from .probe import cleanup_probe, probe_project
 from .registry import remember_upload
@@ -857,6 +857,11 @@ def cmd_builds_upload(args):
         commit_id=(manifest.get("CommitId") or "").strip() or None,
     )
     answer = response if isinstance(response, dict) else {}
+    given = uploaded_version(answer)
+    built = str(manifest.get("Version") or "")
+    if given and built and given != built:
+        # An upload into a project is numbered by the server, whatever the archive says.
+        _progress(i18n.t("deploy.renumbered", built=built, given=given))
     warning = remember_upload(
         assembly_id=extract_assembly_id(answer),
         project_id=project_id or extract_project_id(answer),

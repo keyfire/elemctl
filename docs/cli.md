@@ -767,7 +767,7 @@ usage: elemctl verify-deploy [-h] [--app-id APP_ID] [--version-id VERSION_ID]
 |---|---|
 | `-h, --help` | show this help message and exit |
 | `--app-id APP_ID` | the same application as an option: deploy and apps ensure take this form only |
-| `--version-id VERSION_ID` | id of the uploaded build expected to be applied – the reliable comparison (a new application renumbers the version string from scratch) |
+| `--version-id VERSION_ID` | id of the uploaded build expected to be applied – the reliable comparison (the server assigns the version string of a build uploaded into a project) |
 | `--expected-version EXPECTED_VERSION` | the version string instead of the build id – the fallback comparison |
 | `--since-minutes SINCE_MINUTES` | how many last minutes of task failures count as ours (default 30) |
 

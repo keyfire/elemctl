@@ -1488,8 +1488,8 @@ class ElementClient:
             "app": chosen.get("name") or chosen.get("display-name"),
             "app-id": chosen.get("id"),
             "version-id": applied,
-            # The version out of the build list: a fresh application numbers the versions on
-            # its card from scratch, so the card would name another number for the same build.
+            # The version out of the build list, the one a build is addressed by: the server
+            # numbers a build uploaded into a project itself, so it is the number to take.
             "version": versions.get(applied) or None,
         }
 

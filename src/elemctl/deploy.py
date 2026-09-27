@@ -28,6 +28,7 @@ from .errors import ApiError, ElemctlError, ServerStartingError
 from .probe import server_log_hint
 from .registry import remember_build, remembered_uploads
 from .schema import review_tree
+from .versions import server_may_keep
 
 __all__ = ["FAILED_TASK_STATUSES"]  # the name stays where importers already expect it
 
@@ -65,6 +66,12 @@ class DeployReport:
     status: str = ""
     version: str = ""
     assembly_id: str = ""
+    # The version the server gave the uploaded build, and whether it differs from the version
+    # of the archive (None - the upload answered without one). A build uploaded into a project
+    # is numbered by the server: the Версия of the project descriptor and the highest number
+    # of that base plus one, whatever the archive said - `1.0.0-i1` lands as `1.0.0-6`.
+    assembly_version: str = ""
+    renumbered: bool | None = None
     applied_version: str = ""
     applied_version_id: str = ""
     applied: bool | None = None
@@ -104,6 +111,8 @@ class DeployReport:
             "status": self.status,
             "version": self.version,
             "assembly-id": self.assembly_id,
+            "assembly-version": self.assembly_version or None,
+            "renumbered": self.renumbered,
             "applied-version": self.applied_version,
             "applied-version-id": self.applied_version_id,
             "applied": self.applied,
@@ -237,12 +246,17 @@ def _deploy_from_sources(
         schema_check = "clean"
 
     # The build version: either explicit or auto-incremented from the project's last build
-    # OF THE SAME BASE VERSION - a bumped project starts counting from 1 again.
+    # OF THE SAME BASE VERSION - a bumped project starts counting from 1 again. The server
+    # numbers the upload by the same rule, so an explicit version it cannot keep is said
+    # now, before anything is built, rather than discovered on the card afterwards.
+    base_version = read_project_meta(
+        find_project_dir(project_dir) if project_dir else find_project_dir()
+    ).base_version
     last_version = ""
-    if not version:
-        base_version = read_project_meta(
-            find_project_dir(project_dir) if project_dir else find_project_dir()
-        ).base_version
+    if version and version.strip():
+        if not server_may_keep(version, base_version):
+            log(i18n.t("deploy.version-not-kept", version=version.strip(), base=base_version))
+    else:
         latest = client.latest_assembly(project_id, base_version=base_version)
         if latest:
             last_version = str(latest.get("assembly-version") or "")
@@ -288,6 +302,9 @@ def _deploy_from_sources(
     )
     assembly_id = extract_assembly_id(response) or ""
     log(i18n.t("deploy.uploaded", id=assembly_id or i18n.t("deploy.unknown")))
+    assembly_version = uploaded_version(response)
+    if assembly_version and assembly_version != result.version:
+        log(i18n.t("deploy.renumbered", built=result.version, given=assembly_version))
     warning = remember_build(
         result, response=response, project_id=project_id, stand=_stand(client), command="deploy"
     )
@@ -297,9 +314,11 @@ def _deploy_from_sources(
     if assembly_id:
         client.apply_build(app_id, image_id=assembly_id, log=log)
     else:
-        # The response carries no assembly id: apply by project and version.
+        # The response carries no assembly id: apply by project and version - the version
+        # the server gave the build, when it said which.
         client.apply_build(
-            app_id, project_id=project_id, assembly_version=result.version, log=log
+            app_id, project_id=project_id,
+            assembly_version=assembly_version or result.version, log=log,
         )
     log(i18n.t("deploy.apply-started"))
 
@@ -317,8 +336,11 @@ def _deploy_from_sources(
         expected_version=result.version,
         expected_assembly_id=assembly_id,
         since=started_at,
+        uploaded_version=assembly_version,
     )
     report.assembly_id = assembly_id
+    report.assembly_version = assembly_version
+    report.renumbered = (assembly_version != result.version) if assembly_version else None
     report.dirty_files = result.dirty_files
     report.schema_check = schema_check
     report.schema_warnings = list(verdict.removals)
@@ -562,6 +584,17 @@ def _add_server_log_hint(error):
         error.args = (error.message,)
 
 
+def uploaded_version(response):
+    """The version the server gave an uploaded build, "" when its answer does not say.
+
+    An upload into a project answers with the card of the build, and its assembly-version is
+    the number the server handed out. An upload that creates or finds its project by the
+    vendor and the name answers without one: that upload keeps the version of the archive.
+    """
+    answer = response if isinstance(response, dict) else {}
+    return str(answer.get("assembly-version") or answer.get("project-version") or "")
+
+
 def _stand(client):
     """The base address of the stand the client talks to ("" for a stand-in without one)."""
     return str(getattr(getattr(client, "config", None), "base_url", "") or "")
@@ -585,7 +618,15 @@ def _shorten_list(items, limit=5):
     return shown
 
 
-def _verify(client, app_id, *, card, expected_version, since, expected_assembly_id=""):
+def _verify(
+    client, app_id, *, card, expected_version, since, expected_assembly_id="", uploaded_version=""
+):
+    """The verdict on an apply; uploaded_version - the version the server gave the build.
+
+    expected_version is what the report calls the build by. The fallback comparison by the
+    version string takes uploaded_version when it is known: the server numbers a build
+    uploaded into a project itself, and the version of the archive may be on no card at all.
+    """
     problems = []
     refusals = []
 
@@ -608,10 +649,11 @@ def _verify(client, app_id, *, card, expected_version, since, expected_assembly_
 
     # 2. Compare the build actually applied with the uploaded one. The reliable
     # signal is source.project-version-id being equal to the id of the uploaded
-    # build: the version string will not do, because a freshly created application
-    # numbers its versions from scratch (archive 1.0-1139 is applied as 1.0-3) and
+    # build: the version string will not do, because the server numbers a build
+    # uploaded into a project itself (archive 1.0-1139 is listed as 1.0-3) and
     # comparing the strings used to report a false rollback. The version string
-    # stays as a fallback check for when the build id is unknown.
+    # stays as a fallback check for when the build id is unknown, and it is the
+    # server's version of the build whenever the upload said which.
     if card is None:
         card = client.get_app(app_id) or {}
     source = card.get("source") or {}
@@ -626,13 +668,13 @@ def _verify(client, app_id, *, card, expected_version, since, expected_assembly_
                 applied=applied_version_id,
                 expected=expected_assembly_id,
             ))
-    elif expected_version and applied_version:
-        applied = applied_version == expected_version
+    elif (uploaded_version or expected_version) and applied_version:
+        applied = applied_version == (uploaded_version or expected_version)
         if not applied:
             problems.append(i18n.t(
                 "deploy.version-mismatch",
                 applied=applied_version,
-                expected=expected_version,
+                expected=uploaded_version or expected_version,
             ))
 
     # 3. An informational GET to the application uri (401/403 are fine).

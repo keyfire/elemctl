@@ -110,7 +110,9 @@ PITCH_ITEMS = (
 #: long as the command it broke. The third is the exit code of a plugin command. It is told by
 #: the specification, the MCP page, the READMEs and the docstring of `Command`, and a place
 #: that kept the earlier sentence - `"ok": false` gives 1 - would pass half of the rule off as
-#: all of it. The fourth is the commit of an upload, which every place used to deny.
+#: all of it. The fourth is the commit of an upload, which every place used to deny. The fifth
+#: is the number the server gives a build uploaded into a project, which the tool hints and the
+#: code comments put down to something else.
 CLAIMS = (
     Claim(
         name="the platform deletes the builds nobody uses, whatever their age",
@@ -176,6 +178,29 @@ CLAIMS = (
             "comes from the project's repository link",
             "проставляет только связь проекта с репозиторием",
             "проставляется только связью проекта с репозиторием",
+        ),
+    ),
+    # The server numbers a build uploaded into a project by itself. The pages said only that
+    # the platform renumbers the version of the manifest, and the tool hints and the comments
+    # of the code explained a version on a card by a freshly created application counting
+    # from scratch - while the deploy report went on saying ok with the two versions apart.
+    Claim(
+        name="the server numbers a build uploaded into a project: the base of the project "
+             "descriptor and the highest number of that base plus one",
+        told_in=(
+            "docs/SPEC.md", "docs/SPEC.ru.md",
+            "docs/platform.md", "docs/platform.ru.md",
+            "src/elemctl/versions.py", "src/elemctl/deploy.py",
+            "src/elemctl/mcp_server.py", "src/elemctl/i18n.py",
+        ),
+        wording=("plus one", "плюс один"),
+        retired=(
+            "renumbers the manifest version on upload",
+            "перенумеровывает по-своему",
+            "numbers its versions from scratch",
+            "numbers the versions on its card from scratch",
+            "renumbers the version string from scratch",
+            "у нового приложения нумеруется заново",
         ),
     ),
 )

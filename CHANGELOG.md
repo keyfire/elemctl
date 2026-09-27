@@ -25,6 +25,11 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
 - **The MCP tool `deploy` takes `allow_data_loss`.** A narrowing the schema guard refused could
   only be let through from the CLI, and a client of the MCP server had no way to say that the
   loss of data is acceptable. The refusal now names the parameter as well as the flag.
+- **`deploy` says when the server numbers the build its own way.** An upload into a project gets
+  the next number of the project's base from the server, whatever version the archive carries,
+  and the report said `ok` with only `version` and `applied-version` apart. A version the server
+  will not keep is now named before the build, a renumbered build right after the upload, and
+  the report carries `assembly-version` and `renumbered`.
 
 ### Changed
 - **The schema guard of `deploy` takes a missing commit from the registry of uploads.** A build
