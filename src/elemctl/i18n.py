@@ -309,6 +309,10 @@ MESSAGES = {
         "ru": "живых {live} из {total}, показано {shown}",
         "en": "{live} live of {total}, {shown} shown",
     },
+    "client.app-users-summary": {
+        "ru": "подключено {total}: администраторов {admins}, с доступом по токену {tokens}",
+        "en": "{total} connected: {admins} administrators, {tokens} with token access",
+    },
     "client.builds-summary-full": {
         "ru": "показано {shown} из {total} – нумерация сборок сплошная, пропавших по ней "
               "не видно: это все сборки проекта на платформе",
@@ -1527,6 +1531,14 @@ MESSAGES = {
     "cli.help.apps-debug": {
         "ru": "данные для сессии отладки (debug-token, debug-address)",
         "en": "data for a debug session (debug-token, debug-address)",
+    },
+    "cli.help.apps-users": {
+        "ru": "пользователи, подключённые к приложению: список, ид, представление, "
+              "администратор ли и есть ли доступ по токену (логина платформа здесь не "
+              "отдаёт)",
+        "en": "the users connected to the application: the user list, the id, the "
+              "presentation, whether an administrator and whether token access is on (the "
+              "platform gives no login here)",
     },
     "cli.help.apps-token-access": {
         "ru": "доступ пользователя к HTTP-сервисам приложения по токену: показать или "

@@ -33,6 +33,9 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
   will not keep is now named before the build, a renumbered build right after the upload, and
   the report carries `assembly-version` and `renumbered`.
   ([#45](https://github.com/keyfire/elemctl/pull/45))
+- **`apps users` shows who is connected to an application.** The list was seen only inside
+  a refusal of `apps token-access`. The command and the MCP tool `list_app_users` print it the
+  way the platform gives it and count the administrators and the users with token access.
 
 ### Changed
 - **The schema guard of `deploy` takes a missing commit from the registry of uploads.** A build

@@ -34,6 +34,7 @@ from .client import (
     OIDC_SERVICE,
     SERVER_START_TIMEOUT,
     ElementClient,
+    app_users_summary,
     applied_build,
     apps_summary,
     assembly_label,
@@ -662,6 +663,23 @@ def cmd_apps_stop(args):
     app_id = client.resolve_app_id(app_id)
     response = client.stop_app(app_id)
     _emit(response if response is not None else {"ok": True, "app-id": app_id})
+    return 0
+
+
+def cmd_apps_users(args):
+    """Who is connected to an application: the users GET /applications/{id}/users lists.
+
+    Until this command the list was seen only inside a refusal of `apps token-access`, which
+    names the connected users when the one asked for is not among them. The command only
+    reads, so the application defaults to ELEMENT_APP_ID the way `apps get` does. The count
+    line goes to stderr after the answer, like the count lines of the other listings.
+    """
+    config = _config(args)
+    client = make_client(config)
+    app_id = _require(_app_ref(args), config.app_id, i18n.t("cli.require.app-id-arg"))
+    users = client.list_app_users(client.resolve_app_id(app_id))
+    _emit(users)
+    _progress(app_users_summary(users))
     return 0
 
 
@@ -1784,6 +1802,10 @@ def build_parser():
     p = apps_sub.add_parser("debug", help=i18n.t("cli.help.apps-debug"))
     _add_app_ref(p)
     p.set_defaults(handler=cmd_apps_debug)
+
+    p = apps_sub.add_parser("users", help=i18n.t("cli.help.apps-users"))
+    _add_app_ref(p)
+    p.set_defaults(handler=cmd_apps_users)
 
     p = apps_sub.add_parser("token-access", help=i18n.t("cli.help.apps-token-access"))
     _add_app_ref(p, required=True)

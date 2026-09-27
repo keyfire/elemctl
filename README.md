@@ -320,6 +320,7 @@ The server reads connection credentials from the same `ELEMENT_*` variables / `.
 | `verify_deploy` | verify the apply actually took effect: failed tasks, the applied build, the availability of the uri |
 | `list_user_lists` | user lists; `name` filters by a substring of the presentation |
 | `configure_user_list` | self-registration and password sign-in; without the flags it only reports the current state |
+| `list_app_users` | who is connected to an application: the user list, the id, the presentation, whether an administrator and whether token access is on, with a count line; the platform gives no login here |
 | `token_access` | a user's access to the HTTP services of an application by a token, the flag behind a 500 "Token access is denied"; shows it, and with `enabled` switches it and reads it back; an empty `user` means the account elemctl signs in with |
 | `list_branches` | list of development-environment branches; the `project_id` and `name` filters are optional |
 | `merge_branch` | accept the changes of a development-environment branch |

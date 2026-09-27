@@ -92,6 +92,7 @@ usage: elemctl apps [-h] action ...
 | `start` | start an application |
 | `stop` | stop an application |
 | `debug` | data for a debug session (debug-token, debug-address) |
+| `users` | the users connected to the application: the user list, the id, the presentation, whether an administrator and whether token access is on (the platform gives no login here) |
 | `token-access` | a user's access to the HTTP services of the application by a token: show or switch it (without it a call of a service with a token gets a 500 "Token access is denied") |
 
 **Options**
@@ -296,6 +297,25 @@ usage: elemctl apps stop [-h] [--app-id APP_ID] [APP_ID]
 
 ```bash
 usage: elemctl apps debug [-h] [--app-id APP_ID] [APP_ID]
+```
+
+**Arguments**
+
+| Option | Description |
+|---|---|
+| `APP_ID` | the application id (UUID) or its exact name (default: ELEMENT_APP_ID) |
+
+**Options**
+
+| Option | Description |
+|---|---|
+| `-h, --help` | show this help message and exit |
+| `--app-id APP_ID` | the same application as an option: deploy and apps ensure take this form only |
+
+### `elemctl apps users`
+
+```bash
+usage: elemctl apps users [-h] [--app-id APP_ID] [APP_ID]
 ```
 
 **Arguments**

@@ -48,6 +48,7 @@ from .build import build_assembly, inspect_assembly
 from .client import (
     SERVER_START_TIMEOUT,
     ElementClient,
+    app_users_summary,
     applied_build,
     apps_summary,
     assembly_label,
@@ -880,6 +881,28 @@ def create_server(config=None, *, overrides=None, env_file=None):
             ),
             "password-login-enabled": None if local is None else bool(local.get("enabled")),
             "changed": changed,
+        }
+
+    @server.tool()
+    def list_app_users(app_id: str, env_file: str = "") -> dict:
+        """Кто подключён к приложению; ответ - объект {app-id, total, summary, users}.
+
+        Каждый пользователь - так, как его отдаёт платформа: user-list-id, user-id,
+        presentation, is-admin, token-access-enabled. Логина в ответе нет: пользователя
+        панели управления платформа называет логином в presentation, остальных -
+        представлением. summary - строка со счётчиками: сколько подключено, сколько из них
+        администраторов и у скольких есть доступ по токену. Сам доступ по токену показывает
+        и переключает token_access. app_id - ид (UUID) либо точное имя приложения; env_file -
+        путь к .env другого окружения.
+        """
+        target = client(env_file)
+        resolved = target.resolve_app_id(app_id)
+        users = target.list_app_users(resolved)
+        return {
+            "app-id": resolved,
+            "total": len(users),
+            "summary": app_users_summary(users),
+            "users": users,
         }
 
     @server.tool()

@@ -334,6 +334,24 @@ def apps_summary(listing):
     return i18n.t(key, live=live, total=total, shown=shown)
 
 
+def app_users_summary(users):
+    """The count line of the users connected to an application.
+
+    Each entry of GET /applications/{id}/users says two things about its user besides who it
+    is: whether they administer the application and whether they reach its HTTP services by a
+    token. The line counts both, so that whether anyone can call a service with a token at
+    all is read off one line rather than off every entry. The CLI prints it, the MCP tool
+    carries it in the answer.
+    """
+    entries = [user for user in users or [] if isinstance(user, dict)]
+    return i18n.t(
+        "client.app-users-summary",
+        total=len(entries),
+        admins=sum(1 for user in entries if user.get("is-admin")),
+        tokens=sum(1 for user in entries if user.get("token-access-enabled")),
+    )
+
+
 def brief_assembly(assembly, remembered=None):
     """A brief assembly card: what a build is recognized and picked by.
 
@@ -885,6 +903,9 @@ class ElementClient:
 
         An entry is {user-list-id, user-id, presentation, is-admin, token-access-enabled}.
         The users of the control panel are among them, connected by the platform itself.
+        There is no login in an entry: the platform names a user of the panel by the login in
+        `presentation` and any other user by its presentation, and the login itself is a field
+        of the user in its list.
         """
         payload = self._api("GET", f"/applications/{app_id}/users")
         return [user for user in _as_list(payload, "items", "users") if isinstance(user, dict)]
