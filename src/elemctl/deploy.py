@@ -382,12 +382,11 @@ class SchemaVerdict:
 
     changes - what a deploy refuses without --allow-data-loss: the narrowings and the
     elements with data of their own removed whole; removals - what the apply takes away,
-    named without stopping it; skipped - why nothing was compared
-    ("" when it was), with detail naming what could not be read or found. commit - what the
-    sources were compared against, commit_source - where it came from ("platform" or
-    "registry"), commit_dirty - the registry's word on whether that build was made from a
-    tree with uncommitted changes (None when it does not know), build - the applied build
-    as a person reads it.
+    named without stopping it; skipped - why nothing was compared ("" when it was), with
+    detail naming what could not be read or found. commit - what the sources were compared
+    against, commit_source - where it came from ("platform" or "registry"), commit_dirty -
+    the registry's word on whether that build was made from a tree with uncommitted changes
+    (None when it does not know), build - the applied build as a person reads it.
     """
 
     changes: list = field(default_factory=list)

@@ -975,8 +975,8 @@ MESSAGES = {
     "schema.element-removed": {
         "ru": "{where}: снимается {kind} {name} целиком – вся его таблица будет удалена вместе "
               "со строками",
-        "en": "{where}: the {kind} {name} is removed whole – its whole table will be deleted "
-              "with every row",
+        "en": "{where}: the {kind} {name} is removed whole – its table will be deleted with "
+              "every row",
     },
     "schema.element-catalog": {"ru": "справочник", "en": "catalog"},
     "schema.element-document": {"ru": "документ", "en": "document"},
