@@ -976,6 +976,37 @@ def test_the_files_of_the_applied_commit_come_from_git(project_factory, tmp_path
     assert "Основное/Задачи.yaml: снимается справочник Задачи целиком" in str(error.value)
 
 
+def test_a_catalog_described_anew_in_its_file_refuses_the_deploy(project_factory, tmp_path):
+    """Checked live: a catalog described anew under its old path and name - a new Ид for the
+    element and for its fields - was applied without a question and came out empty. The
+    guard used to name only the fields as removed and let the deploy through."""
+    import shutil
+
+    if shutil.which("git") is None:
+        pytest.skip("git недоступен")
+    project_dir = project_factory()
+    (project_dir / "Основное").mkdir()
+    catalog = project_dir / "Основное" / "Задачи.yaml"
+    catalog.write_text(CATALOG_WITH_ID, encoding="utf-8")
+    commit = _commit_all(project_dir.parents[1], "catalog")
+    catalog.write_text(
+        CATALOG_WITH_ID.replace(
+            "3c5d7e9f-2a4b-4c6d-8e0f-1a3b5c7d9e2f", "4d6e8f0a-3b5c-4d7e-9f1a-2b4c6d8e0f3a"
+        ),
+        encoding="utf-8",
+    )
+    client = SchemaGuardClient(commit_id=commit)
+
+    with pytest.raises(ElemctlError) as error:
+        deploy_from_sources(
+            client, "app-1", "proj-1", project_dir=project_dir, output_dir=tmp_path / "d",
+        )
+
+    assert "Основное/Задачи.yaml: новый Ид у элемента Задачи (справочник)" in str(error.value)
+    assert "3c5d7e9f-2a4b-4c6d-8e0f-1a3b5c7d9e2f" in str(error.value)
+    assert client.upload_kwargs is None
+
+
 # --- the server numbers a build uploaded into a project itself ------------------
 #
 # Seen live: the archive of `1.0.0-i1` became `1.0.0-1`,

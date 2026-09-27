@@ -36,6 +36,10 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
 - **`apps users` shows who is connected to an application.** The list was seen only inside
   a refusal of `apps token-access`. The command and the MCP tool `list_app_users` print it the
   way the platform gives it and count the administrators and the users with token access.
+- **`deploy` refuses a catalog described anew under a new `Ид`.** A description made again
+  in its own file is a new element for the platform: checked live, the catalog came out of
+  the apply empty, while the guard named only its fields. Now it is refused as a removal, and
+  the refusal names the former `Ид` to give back.
 
 ### Changed
 - **The schema guard of `deploy` takes a missing commit from the registry of uploads.** A build

@@ -982,6 +982,14 @@ MESSAGES = {
         "en": "{where}: the {kind} {name} is removed whole – its table will be deleted with "
               "every row",
     },
+    "schema.element-recreated": {
+        "ru": "{where}: новый Ид у элемента {name} ({kind}) – платформа снимет прежний вместе "
+              "со всей таблицей и заведёт пустой; если элемент тот же, верните ему прежний "
+              "Ид {before}",
+        "en": "{where}: the {kind} {name} has a new Id – the platform drops the old one with "
+              "its whole table and creates an empty one; if it is the same {kind}, give it "
+              "back its former Id {before}",
+    },
     "schema.element-catalog": {"ru": "справочник", "en": "catalog"},
     "schema.element-document": {"ru": "документ", "en": "document"},
     "schema.element-information-register": {
@@ -1788,12 +1796,14 @@ MESSAGES = {
     "cli.help.deploy-allow-data-loss": {
         "ru": "разрешить применение, которое пересоздаёт или удаляет данные (сужение длины, "
               "смена типа реквизита, в том числе в табличной части, снятие целиком справочника, "
-              "документа или регистра); без флага такое развёртывание отклоняется до сборки. "
+              "документа или регистра, в том числе описанного заново с новым Ид); без флага "
+              "такое развёртывание отклоняется до сборки. "
               "Снятие реквизита или табличной части флага не требует: деплой называет его и "
               "идёт дальше",
         "en": "allow an apply that recreates or deletes data (a narrowed length, a changed "
               "attribute type, a tabular part included, a catalog, a document or a register "
-              "removed whole); without the flag such a deploy is refused before the build. A "
+              "removed whole, described anew under a new Id included); without the flag such a "
+              "deploy is refused before the build. A "
               "removed attribute or tabular part needs no flag: the deploy names it and goes on",
     },
     "cli.help.deploy-server-start-timeout": {

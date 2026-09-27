@@ -639,3 +639,85 @@ def test_without_the_earlier_list_a_gone_description_is_not_judged(tmp_path):
     review = review_tree(tmp_path, {"Основное/Склады.yaml": WAREHOUSES}.get)
 
     assert review.changes == []
+
+
+# --- an element described anew in the same file ---------------------------------
+
+# The same catalog deleted and created again: the same path, the same name, new Ид for the
+# element and for its attribute.
+WAREHOUSES_ANEW = (
+    WAREHOUSES.replace("5d1f0c2e-0a64-4a53-9c41-1f2e3d4c5b6a", "9b5d4a6c-4ea8-4e97-b085-5d6c7b8a9f0e")
+    .replace("6e2a1d3f-1b75-4b64-8d52-2a3f4e5d6c7b", "0c6e5b7d-5fb9-4fa8-8196-6e7d8c9b0a1f")
+)
+
+WAREHOUSES_RECREATED = (
+    "Основное/Склады.yaml: новый Ид у элемента Склады (справочник) – платформа снимет прежний "
+    "вместе со всей таблицей и заведёт пустой; если элемент тот же, верните ему прежний Ид "
+    "5d1f0c2e-0a64-4a53-9c41-1f2e3d4c5b6a"
+)
+
+
+def test_a_catalog_described_anew_in_its_file_refuses_like_a_removal(tmp_path):
+    """Checked live: a catalog described anew under its old path and name came out empty.
+
+    The fields of the two descriptions belong to different elements, so they are not
+    compared: the loss is the element's whole table, not an attribute of it.
+    """
+    _write(tmp_path, "Основное/Склады.yaml", WAREHOUSES_ANEW)
+
+    review = _review(tmp_path, {"Основное/Склады.yaml": WAREHOUSES})
+
+    assert review.changes == [WAREHOUSES_RECREATED]
+    assert review.removals == []
+
+
+def test_an_element_described_anew_is_caught_without_the_earlier_list(tmp_path):
+    """The file is still where it was, so its earlier text is read by the path alone."""
+    _write(tmp_path, "Основное/Склады.yaml", WAREHOUSES_ANEW)
+
+    review = review_tree(tmp_path, {"Основное/Склады.yaml": WAREHOUSES}.get)
+
+    assert review.changes == [WAREHOUSES_RECREATED]
+
+
+def test_an_element_moved_away_from_a_file_another_one_took_keeps_its_data(tmp_path):
+    """The old element lives on elsewhere under its Ид: that is a move, and the file it left
+    describes a new element. The moved one is compared where it lies now."""
+    _write(tmp_path, "Основное/Склады.yaml", WAREHOUSES_ANEW.replace("Имя: Склады", "Имя: Полки"))
+    _write(
+        tmp_path, "Склад/Склады.yaml",
+        WAREHOUSES.replace("МаксимальнаяДлина: 200", "МаксимальнаяДлина: 50"),
+    )
+
+    review = _review(tmp_path, {"Основное/Склады.yaml": WAREHOUSES})
+
+    assert review.changes == ["Склад/Склады.yaml: реквизит Адрес – длина сужена с 200 до 50"]
+    assert review.removals == []
+
+
+def test_an_element_without_data_described_anew_goes_without_a_word(tmp_path):
+    _write(
+        tmp_path, "Основное/КарточкаСклада.yaml",
+        WAREHOUSE_FORM.replace("7f3b2e4a-2c86-4c75-9e63-3b4a5f6e7d8c",
+                               "1d7f6c8e-6a0c-4b19-92a7-7f8e9d0c1b2a"),
+    )
+
+    review = _review(tmp_path, {"Основное/КарточкаСклада.yaml": WAREHOUSE_FORM})
+
+    assert review.changes == [] and review.removals == []
+
+
+def test_a_description_without_an_id_is_compared_by_its_path_as_before(tmp_path):
+    """No Ид on either side is no evidence of a new element: the fields are compared."""
+    without_id = "".join(
+        line for line in WAREHOUSES.splitlines(keepends=True) if not line.startswith("Ид:")
+    )
+    _write(tmp_path, "Основное/Склады.yaml", WAREHOUSES_ANEW)
+
+    review = _review(tmp_path, {"Основное/Склады.yaml": without_id})
+
+    assert review.changes == []
+    assert review.removals == [
+        "Основное/Склады.yaml: снимается реквизит Адрес объекта Склады – его значения будут "
+        "удалены"
+    ]
