@@ -1367,8 +1367,10 @@ MESSAGES = {
         "en": "the .xasm/.xlib assembly file",
     },
     "cli.help.arg.space-id": {
-        "ru": "пространство, в котором завести проект – нужно, когда --project-id не задан",
-        "en": "the space to create the project in – needed when --project-id is omitted",
+        "ru": "пространство, в котором завести проект, когда --project-id не задан "
+              "(по умолчанию ELEMENT_SPACE_ID)",
+        "en": "the space to create the project in when --project-id is omitted "
+              "(default: ELEMENT_SPACE_ID)",
     },
     "cli.help.arg.branch-id": {
         "ru": "ид ветки",

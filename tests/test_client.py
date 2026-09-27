@@ -304,7 +304,7 @@ def test_upload_assembly_names_the_commit_the_way_the_reference_spells_it(api):
 
     assert response == {"image-id": "asm-1"}
     call = transport.calls_to("POST", f"{API}/projects/p1/assemblies")[0]
-    assert "SpaceId=s1" in call["query"]
+    assert "space-id=s1" in call["query"]
     assert "commit-id=0123abcd" in call["query"]
     for absent in ("branch", "Branch", "message", "modified", "CommitId"):
         assert absent not in call["query"]
@@ -320,6 +320,55 @@ def test_an_upload_that_creates_a_project_sends_no_commit(api):
     client.upload_assembly(b"PK-data", commit_id="0123abcd")
 
     assert "commit" not in transport.calls_to("POST", f"{API}/projects")[0]["query"]
+
+
+def test_an_upload_into_a_project_names_the_space_the_way_the_server_reads_it(api):
+    """`space-id`, as the reference spells it, and not the PascalCase SpaceId.
+
+    Checked live on an upload into a project: `space-id=<not a uuid>` is refused with a
+    400 and an unknown space with a 404, so the server reads that spelling, while
+    `SpaceId=<not a uuid>` went through with a 201 - it is not read at all.
+    """
+    client, transport = api
+    transport.add("POST", f"{API}/projects/p1/assemblies", {"image-id": "asm-1"})
+
+    client.upload_assembly(b"PK-data", project_id="p1", space_id="s1")
+
+    query = transport.calls_to("POST", f"{API}/projects/p1/assemblies")[0]["query"]
+    assert "space-id=s1" in query
+    assert "SpaceId" not in query
+
+
+def test_a_new_project_goes_into_its_space_by_the_path(api):
+    """POST /projects reads a space in neither spelling, so the space goes into the path.
+
+    A new project uploaded with `space-id=<not a uuid>` was created all the same, while
+    POST /spaces/{space-id}/projects, the method the reference documents for a project in a
+    space, answers an unknown space with a 404. The answer has the shape POST /projects
+    gives: the build in `image-id`, the project in `artifact`.
+    """
+    client, transport = api
+    transport.add(
+        "POST", f"{API}/spaces/s1/projects",
+        {"name": "1.0-1", "image-id": "asm-1", "artifact": {"artifact-id": "p9"}},
+    )
+
+    response = client.upload_assembly(b"PK-data", space_id="s1", commit_id="0123abcd")
+
+    assert extract_assembly_id(response) == "asm-1"
+    call = transport.calls_to("POST", f"{API}/spaces/s1/projects")[0]
+    assert call["query"] == ""
+    assert call["data"] == b"PK-data"
+    assert not transport.calls_to("POST", f"{API}/projects")
+
+
+def test_an_upload_with_neither_a_project_nor_a_space_goes_to_projects(api):
+    client, transport = api
+    transport.add("POST", f"{API}/projects", {"image-id": "asm-1"})
+
+    client.upload_assembly(b"PK-data")
+
+    assert transport.calls_to("POST", f"{API}/projects")[0]["query"] == ""
 
 
 def test_an_upload_without_a_commit_sends_no_empty_parameter(api):

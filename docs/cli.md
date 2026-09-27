@@ -511,7 +511,7 @@ usage: elemctl builds upload [-h] [--project-id PROJECT_ID] [--new-project] [--f
 | `--project-id PROJECT_ID` | project; without it the platform creates a new project, which is the only way to create a project through the Console API |
 | `--new-project` | upload the build as a new project, ignoring ELEMENT_PROJECT_ID from the environment and the .env file |
 | `--force-rename` | allow uploading an assembly whose name differs: the console renames the target project and its group after the assembly |
-| `--space-id SPACE_ID` | the space to create the project in – needed when `--project-id` is omitted |
+| `--space-id SPACE_ID` | the space to create the project in when `--project-id` is omitted (default: ELEMENT_SPACE_ID) |
 
 ### `elemctl builds delete`
 

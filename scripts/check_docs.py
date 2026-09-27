@@ -112,7 +112,8 @@ PITCH_ITEMS = (
 #: that kept the earlier sentence - `"ok": false` gives 1 - would pass half of the rule off as
 #: all of it. The fourth is the commit of an upload, which every place used to deny. The fifth
 #: is the number the server gives a build uploaded into a project, which the tool hints and the
-#: code comments put down to something else.
+#: code comments put down to something else. The sixth is the space of an upload, which the
+#: pages and the client spelled the way the server does not read.
 CLAIMS = (
     Claim(
         name="the platform deletes the builds nobody uses, whatever their age",
@@ -201,6 +202,25 @@ CLAIMS = (
             "numbers the versions on its card from scratch",
             "renumbers the version string from scratch",
             "у нового приложения нумеруется заново",
+        ),
+    ),
+    # The space went as the PascalCase SpaceId, the spelling of an older reference, and the pages
+    # said so. The server reads `space-id` on an upload into a project and no space parameter at
+    # all on POST /projects, so a new project goes into its space by the path.
+    Claim(
+        name="an upload into a project names its space in space-id, and a new project goes "
+             "into a space by the path /spaces/{space-id}/projects",
+        told_in=(
+            "docs/SPEC.md", "docs/SPEC.ru.md",
+            "docs/platform.md", "docs/platform.ru.md",
+            "src/elemctl/client.py",
+        ),
+        wording=("/spaces/{space-id}/projects",),
+        retired=(
+            "optional `SpaceId` query parameter",
+            "note that its name is in PascalCase",
+            "параметром `SpaceId`, имя пишется в",
+            "The space goes as SpaceId",
         ),
     ),
 )

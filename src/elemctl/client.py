@@ -1317,8 +1317,18 @@ class ElementClient:
         """Upload an assembly file (.xasm/.xlib) to the platform.
 
         With project_id the assembly is added to an existing project, without
-        it a new project is created. The space goes as SpaceId, the spelling of
-        the reference it was taken from.
+        it the platform finds the project by the vendor and the name of the
+        manifest and creates one when there is none.
+
+        The space of an upload into a project goes as the `space-id` query
+        parameter, spelled the way the reference spells it: the server reads that
+        one, refusing a malformed id with a 400 and an unknown space with a 404,
+        and ignores the PascalCase `SpaceId` the client used to send. An upload by
+        the vendor and the name documents no space parameter at all, and the server
+        reads neither spelling there, so a space given for such an upload goes into
+        the path instead: POST /spaces/{space-id}/projects is the method the
+        reference documents for creating a project in a space. Without a space the
+        upload goes to POST /projects.
 
         commit_id is the commit the build was made from, sent as the `commit-id`
         query parameter of an upload into an existing project: the reference
@@ -1330,10 +1340,13 @@ class ElementClient:
         is refused with a 500. Creating a project documents no commit parameter
         at all, so a build that creates one carries no commit.
         """
-        path = f"/projects/{project_id}/assemblies" if project_id else "/projects"
-        query = {"SpaceId": space_id}
-        if project_id and commit_id:
-            query["commit-id"] = commit_id
+        if project_id:
+            path = f"/projects/{project_id}/assemblies"
+            query = {"space-id": space_id, "commit-id": commit_id}
+        elif space_id:
+            path, query = f"/spaces/{space_id}/projects", {}
+        else:
+            path, query = "/projects", {}
         return self._api(
             "POST",
             path,

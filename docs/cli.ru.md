@@ -511,7 +511,7 @@ usage: elemctl builds upload [-h] [--project-id PROJECT_ID] [--new-project] [--f
 | `--project-id PROJECT_ID` | проект; без него платформа заводит новый проект, и это единственный способ создать проект через Console API |
 | `--new-project` | загрузить сборку новым проектом, игнорируя ELEMENT_PROJECT_ID из окружения и .env-файла |
 | `--force-rename` | разрешить загрузку сборки с чужим именем: панель переименует проект-цель и его группу именем сборки |
-| `--space-id SPACE_ID` | пространство, в котором завести проект – нужно, когда `--project-id` не задан |
+| `--space-id SPACE_ID` | пространство, в котором завести проект, когда `--project-id` не задан (по умолчанию ELEMENT_SPACE_ID) |
 
 ### `elemctl builds delete`
 

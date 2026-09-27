@@ -44,6 +44,12 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
   upload cuts it back; `ELEMCTL_REGISTRY_LIMIT` sets another number, and `0` keeps every one.
   ([#45](https://github.com/keyfire/elemctl/pull/45))
 
+### Fixed
+- **An upload takes the build into the space it was given.** The client sent the space as
+  `SpaceId`, a spelling the server does not read, so the space of a new project never reached
+  it and a wrong one went unnoticed. An upload into a project now sends `space-id`, and a new
+  project goes into its space through `POST /spaces/{space-id}/projects`.
+
 ## 2026-09-25 – 0.45.0
 
 ### Added
