@@ -21,7 +21,7 @@ entry either – say what the behaviour was, not which id or response field was 
 The link is written by `python scripts/changelog-link.py <number>`, which rebuilds the generated
 pages of the site in the same run – writing it by hand is how the mirrors get left behind.
 
-## Unreleased
+## 2026-09-27 – 0.46.0
 
 ### Added
 - **`deploy` refuses to drop a catalog whose description is gone.** The schema guard read only
