@@ -232,6 +232,115 @@ def test_a_failed_deletion_of_the_build_keeps_the_project_and_the_verdict_says_s
     assert "delete_project" not in client.names()
 
 
+# --- a probe the local registry of uploads remembers ------------------------------------
+#
+# `probe --name crm-check --build-version 1.0-500 --keep` leaves an application whose name and
+# build carry no mark of a probe, and `probe --cleanup` refused it: the application, the builds
+# and the project had to be removed by hand, in the platform's order. The registry remembers
+# what a probe of this machine uploaded and the application it created.
+
+
+def _remember(assembly, command, *, app_id=None, version="1.0-500", project=PROJECT):
+    from elemctl.registry import remember_upload
+
+    assert remember_upload(
+        assembly_id=assembly, project_id=project, version=version, branch="", commit="",
+        dirty=None, project_dir=None, file=None, stand="https://stand.test", command=command,
+        app_id=app_id,
+    ) == ""
+
+
+def test_a_probe_with_a_name_and_a_version_of_its_own_is_known_by_the_registry():
+    _remember("asm-500", "probe", app_id=APP)
+    client = _stand(
+        cards=[_card(name="crm-check", version="1.0-500", build="asm-500")],
+        builds={PROJECT: [("asm-500", "1.0-500")]},
+    )
+    lines = []
+
+    report = cleanup_probe(client, APP, log=lines.append)
+
+    assert report.ok is True
+    assert [call for call in client.calls if call[0] != "list_assemblies"] == [
+        ("delete_app", APP),
+        ("wait_app_deleted", APP),
+        ("delete_assembly", PROJECT, "1.0-500"),
+        ("delete_project", PROJECT),
+    ]
+    assert any("реестр загрузок помнит" in line for line in lines)
+
+
+def test_a_probe_that_got_deploys_takes_what_was_deployed_into_it_along():
+    """A probe kept for a look by hand gets deploys, and the build it runs is not the probe's
+    any more: the application is what the registry knows it by, and every upload made for it
+    goes with it."""
+    _remember("asm-500", "probe", app_id=APP)
+    _remember("asm-501", "deploy", app_id=APP, version="1.0-501")
+    client = _stand(
+        cards=[_card(name="crm-check", version="1.0-501", build="asm-501")],
+        builds={PROJECT: [("asm-500", "1.0-500"), ("asm-501", "1.0-501")]},
+    )
+
+    report = cleanup_probe(client, APP)
+
+    assert report.ok is True
+    deleted = sorted(call[2] for call in client.calls if call[0] == "delete_assembly")
+    assert deleted == ["1.0-500", "1.0-501"]
+    assert ("delete_project", PROJECT) in client.calls
+
+
+def test_deploys_alone_do_not_make_an_application_a_probe():
+    """The registry remembers the deploys into every application; only a line of `probe` says
+    that a probe created it."""
+    _remember("asm-42", "deploy", app_id=APP, version="1.0-42")
+    client = _stand(cards=[_card(name="crm-dev", version="1.0-42", build="asm-42")])
+
+    with pytest.raises(ElemctlError, match="реестр загрузок"):
+        cleanup_probe(client, APP)
+    assert client.calls == []
+
+
+def test_an_older_probe_line_is_matched_by_the_build_the_application_runs():
+    """A line written before the registry kept the application names the build alone."""
+    _remember("asm-500", "probe")
+    client = _stand(
+        cards=[_card(name="crm-check", version="1.0-500", build="asm-500")],
+        builds={PROJECT: [("asm-500", "1.0-500")]},
+    )
+
+    report = cleanup_probe(client, APP)
+
+    assert report.ok is True and ("delete_assembly", PROJECT, "1.0-500") in client.calls
+
+
+def test_a_probe_line_of_another_application_proves_nothing_about_this_one():
+    _remember("asm-500", "probe", app_id="app-other")
+    client = _stand(cards=[_card(name="crm-check", version="1.0-500", build="asm-500")])
+
+    with pytest.raises(ElemctlError, match="оставил не пробник"):
+        cleanup_probe(client, APP)
+
+
+def test_a_build_deployed_into_the_probe_that_another_application_runs_now_stays():
+    """Applied elsewhere by hand since, the build is somebody's: the platform would refuse to
+    delete it anyway, and the report says who runs it instead of failing on a 500."""
+    _remember("asm-500", "probe", app_id=APP)
+    _remember("asm-501", "deploy", app_id=APP, version="1.0-501")
+    other = _card(name="crm-dev", app_id="app-crm", version="1.0-501", build="asm-501")
+    client = _stand(
+        cards=[_card(name="crm-check", version="1.0-500", build="asm-500"), other],
+        builds={PROJECT: [("asm-500", "1.0-500"), ("asm-501", "1.0-501")]},
+    )
+
+    report = cleanup_probe(client, APP)
+
+    assert report.ok is True
+    assert [call[2] for call in client.calls if call[0] == "delete_assembly"] == ["1.0-500"]
+    kept = next(entry for entry in report.builds if entry["id"] == "asm-501")
+    assert kept["deleted"] is False and kept["kept"] == "crm-dev"
+    assert "delete_project" not in client.names()
+
+
 # --- the CLI and the MCP tool -----------------------------------------------------------
 
 def test_cli_cleanup_prints_the_report(monkeypatch, capsys):

@@ -39,6 +39,15 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
   will not keep is now named before the build, a renumbered build right after the upload, and
   the report carries `assembly-version` and `renumbered`.
   ([#45](https://github.com/keyfire/elemctl/pull/45))
+- **`apps users` shows who is connected to an application.** The list was seen only inside
+  a refusal of `apps token-access`. The command and the MCP tool `list_app_users` print it the
+  way the platform gives it and count the administrators and the users with token access.
+  ([#46](https://github.com/keyfire/elemctl/pull/46))
+- **`deploy` refuses a catalog described anew under a new `Ид`.** A description made again
+  in its own file is a new element for the platform: checked live, the catalog came out of
+  the apply empty, while the guard named only its fields. Now it is refused as a removal, and
+  the refusal names the former `Ид` to give back.
+  ([#46](https://github.com/keyfire/elemctl/pull/46))
 
 ### Changed
 - **The schema guard of `deploy` takes a missing commit from the registry of uploads.** A build
@@ -49,6 +58,28 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
   upload for as long as the machine deployed. Once it grows past the limit by a tenth, the next
   upload cuts it back; `ELEMCTL_REGISTRY_LIMIT` sets another number, and `0` keeps every one.
   ([#45](https://github.com/keyfire/elemctl/pull/45))
+- **The specification lists the statuses `Deleting` and `UNKNOWN`.** The reference gives the
+  status of an application as a plain string, and the list of the specification lacked two
+  statuses met live: `Deleting` while an application is being deleted, and `UNKNOWN` on an
+  application whose database was gone. A wait for a stable status does not take `UNKNOWN`
+  for one. ([#46](https://github.com/keyfire/elemctl/pull/46))
+
+### Fixed
+- **`probe --cleanup` removes a probe that was given its own name and version.** Neither
+  mark of a probe was there, the cleanup refused, and the application, the builds and the
+  project had to go by hand. The registry of uploads now remembers the application a probe
+  creates, so the cleanup knows it and takes the builds deployed into it along.
+  ([#46](https://github.com/keyfire/elemctl/pull/46))
+- **An upload takes the build into the space it was given.** The client sent the space as
+  `SpaceId`, a spelling the server does not read, so the space of a new project never reached
+  it and a wrong one went unnoticed. An upload into a project now sends `space-id`, and a new
+  project goes into its space through `POST /spaces/{space-id}/projects`.
+  ([#46](https://github.com/keyfire/elemctl/pull/46))
+- **`builds list` tells a jump in the numbering from the housekeeping.** A build uploaded by
+  the vendor and the name keeps the number of its archive, and the count of the project goes
+  on from it, while the count line put the hole below it down to deleted builds. The registry
+  of uploads now remembers which way each build went, and such a hole is named as a jump.
+  ([#46](https://github.com/keyfire/elemctl/pull/46))
 
 ## 2026-09-25 – 0.45.0
 

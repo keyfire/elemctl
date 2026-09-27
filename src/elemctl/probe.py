@@ -23,7 +23,9 @@ A probe kept with `keep` (or one whose cleanup broke off) is finished by
 `cleanup_probe`, which starts from the application alone: its card names the
 project and the build, so nothing has to be remembered between the two runs, and
 the build is looked for in the probe's own project rather than in the project of
-the environment.
+the environment. A probe given a name and a version of its own carries no mark of
+a probe, and the local registry of uploads, which remembers the application every
+probe creates, is what knows it.
 """
 
 from __future__ import annotations
@@ -48,7 +50,7 @@ from .client import (
     extract_project_id,
 )
 from .errors import ApiError, ConfigError, ElemctlError
-from .registry import remember_build
+from .registry import ROUTE_NAME, remember_build, remembered_uploads
 
 # The prefix of the throwaway application name; the same token goes into the
 # build version, so that leftovers of an interrupted run can be matched up.
@@ -337,27 +339,25 @@ def probe_project(
         assembly=report.assembly_id,
         project=report.project_id or i18n.t("probe.unknown"),
     ))
-    # An upload like any other: kept with --keep, it is a build an application runs, and the
-    # registry is what says which tree it came from - the creation of a project documents no
-    # commit parameter, so the card carries none.
-    warning = remember_build(
-        result,
-        response=response,
-        project_id=report.project_id,
-        stand=str(getattr(getattr(client, "config", None), "base_url", "") or ""),
-        command="probe",
-    )
-    if warning:
-        log(warning)
 
     try:
         log(i18n.t("probe.creating", name=report.app_name))
-        card = client.create_app(
-            report.app_name,
-            project_version_id=report.assembly_id,
-            development_mode=False,
-            space_id=space_id or None,
-        ) or {}
+        card = {}
+        try:
+            card = client.create_app(
+                report.app_name,
+                project_version_id=report.assembly_id,
+                development_mode=False,
+                space_id=space_id or None,
+            ) or {}
+        finally:
+            # Written down whatever the creation answered, since the build is on the server
+            # by now. Kept with --keep, it is a build an application runs, and the registry
+            # says which tree it came from: the creation of a project documents no commit
+            # parameter, so the card carries none. The application goes along, when there is
+            # one: it is what `cleanup_probe` recognizes a probe by once its name and the
+            # version of its build say nothing.
+            _remember_probe(client, result, response, report, str(card.get("id") or ""), log)
         report.app_id = str(card.get("id") or "")
         if not report.app_id:
             raise ElemctlError(i18n.t("probe.no-app-id"))
@@ -404,6 +404,21 @@ def probe_project(
 
 
 # -- internals ----------------------------------------------------------------
+
+
+def _remember_probe(client, result, response, report, app_id, log):
+    """Write the upload of the probe down, with the application made out of it when known."""
+    warning = remember_build(
+        result,
+        response=response,
+        project_id=report.project_id,
+        stand=str(getattr(getattr(client, "config", None), "base_url", "") or ""),
+        command="probe",
+        app_id=app_id or None,
+        route=ROUTE_NAME,
+    )
+    if warning:
+        log(warning)
 
 
 def _project_ids(client):
@@ -675,6 +690,45 @@ def _users_of_project(client, project_id, app_id):
     return names
 
 
+def _remembered_for(app_id, applied_id):
+    """What the local registry says of this application: (the probe's line or None, the builds).
+
+    A probe named with --name and built with --build-version carries neither mark a probe is
+    known by, and a probe kept for a look by hand tends to get deploys of its own, so the
+    build it runs stops being the probe's. The registry remembers what this machine uploaded
+    and the application each upload was made for. A line of `probe` with this application
+    says a probe created it; a line of `probe` written before the registry kept applications is
+    matched by the build the application runs. The builds are every upload the registry
+    remembers for this application - the probe's own and those deployed into it later: all
+    of them were made for a throwaway application and go with it.
+    """
+    probe_line, builds = None, set()
+    for entry in remembered_uploads().values():
+        assembly = str(entry.get("assembly-id") or "")
+        mine = bool(app_id) and str(entry.get("app-id") or "") == app_id
+        created_it = entry.get("command") == "probe" and (
+            mine or (bool(applied_id) and assembly == applied_id and not entry.get("app-id"))
+        )
+        if created_it and probe_line is None:
+            probe_line = entry
+        if mine or created_it:
+            builds.add(assembly)
+    return probe_line, builds - {""}
+
+
+def _builds_run_elsewhere(client, app_id):
+    """{build id: the name of the live application running it} for the other applications."""
+    running = {}
+    for card in client.list_apps():
+        if not isinstance(card, dict) or str(card.get("id") or "") == app_id:
+            continue
+        source = card.get("source") if isinstance(card.get("source"), dict) else {}
+        build = str(source.get("project-version-id") or "")
+        if build:
+            running[build] = str(card.get("name") or card.get("display-name") or card.get("id"))
+    return running
+
+
 def _project_kept_reason(client, project_id, app_id, working_project):
     """Why the project has to stay, or "" when it may go.
 
@@ -703,13 +757,16 @@ def cleanup_probe(client, app, *, log=None):
     names the rest - the project the build landed in and the build it was created from -
     so the build is looked for in that project and not in the project of the environment.
 
-    Only a probe's application is touched: one whose name carries the probe prefix, or one
-    that runs a probe build (a probe named with --name). Anything else is refused with the
-    reason, and so is the application the environment names as the working one. The order is
-    the platform's: the application, a wait until it is really gone, the builds of the probe,
-    and the project last - only when nothing is left in it (_project_kept_reason). The
-    builds other runs uploaded into the probe's application are not the probe's; the
-    platform deletes the builds nobody uses by itself.
+    Only a probe's application is touched: one whose name carries the probe prefix, one
+    that runs a probe build (a probe named with --name), or one the local registry of
+    uploads remembers a probe of this machine creating (a probe given --build-version too, or
+    one deployed into since). Anything else is refused with the reason, and so is the
+    application the environment names as the working one. The order is the platform's: the
+    application, a wait until it is really gone, the builds of the probe together with every
+    build the registry remembers uploading for this application, and the project last - only
+    when nothing is left in it (_project_kept_reason). A build another live application runs
+    by now stays. The builds uploaded into the probe's application from another machine are
+    not known here; the platform deletes the builds nobody uses by itself.
 
     A failure is a problem in the report, not an exception: what was removed stays removed,
     and the next run finishes the rest.
@@ -730,15 +787,18 @@ def cleanup_probe(client, app, *, log=None):
     applied_id = str(source.get("project-version-id") or "")
     applied_version = str(source.get("project-version") or "")
     token = probe_token(report.app_name)
+    probe_line, remembered_builds = _remembered_for(report.app_id, applied_id)
 
     if working_app and report.app_id == working_app:
         raise ElemctlError(i18n.t("probe.cleanup-working-app", app=report.app_id))
-    if not token and not is_probe_build(applied_version):
+    if not token and not is_probe_build(applied_version) and probe_line is None:
         raise ElemctlError(i18n.t(
             "probe.cleanup-not-a-probe",
             name=report.app_name or report.app_id, app=report.app_id, prefix=PROBE_PREFIX,
             version=applied_version or i18n.t("probe.unknown"),
         ))
+    if probe_line is not None and not token and not is_probe_build(applied_version):
+        log(i18n.t("probe.cleanup-from-registry", app=report.app_id))
 
     # The application first: while it exists the platform refuses to delete its build.
     if _is_deleted_card(card):
@@ -774,11 +834,23 @@ def cleanup_probe(client, app, *, log=None):
         item for item in listing
         if (token and is_probe_build(_version_of(item), token))
         or (assembly_id_of(item) == applied_id and is_probe_build(_version_of(item)))
+        or assembly_id_of(item) in remembered_builds
     ]
     if not ours:
         log(i18n.t("probe.cleanup-no-build", project=report.project_id))
+    # A build uploaded for the probe's application may have been applied elsewhere since, by
+    # hand. The platform would refuse to delete it, and the build is somebody's now: it stays.
+    running = _builds_run_elsewhere(client, report.app_id) if remembered_builds else {}
     for item in ours:
         entry = {"id": assembly_id_of(item), "version": _version_of(item), "deleted": False}
+        if entry["id"] in running:
+            entry["kept"] = running[entry["id"]]
+            log(i18n.t(
+                "probe.cleanup-build-in-use", version=entry["version"] or entry["id"],
+                app=running[entry["id"]],
+            ))
+            report.builds.append(entry)
+            continue
         try:
             client.delete_assembly(report.project_id, entry["version"] or entry["id"])
             entry["deleted"] = True

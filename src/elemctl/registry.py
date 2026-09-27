@@ -39,6 +39,11 @@ REGISTRY_FILE = "uploads.jsonl"
 LIMIT_ENV = "ELEMCTL_REGISTRY_LIMIT"
 #: A thousand lines are about half a megabyte, read whole by every listing that asks.
 DEFAULT_LIMIT = 1000
+#: The route of an upload into a project by its id: the server numbers the build itself.
+ROUTE_PROJECT = "project"
+#: The route of an upload by the vendor and the name of the manifest, POST /projects or
+#: POST /spaces/{space-id}/projects: the build keeps the version of its archive.
+ROUTE_NAME = "vendor-name"
 
 
 def data_dir(environ=None, *, platform=None):
@@ -78,6 +83,8 @@ def remember_upload(
     file,
     stand,
     command,
+    app_id=None,
+    route=None,
     environ=None,
     now=None,
 ):
@@ -85,6 +92,17 @@ def remember_upload(
 
     dirty is True, False, or None when nothing is known about the tree - an archive
     uploaded as a file says nothing about the tree it was built from.
+
+    app_id is the application the upload was made for: the one a deploy applies the build
+    to, the throwaway one a probe creates out of it. A probe kept for a look by hand tends
+    to get deploys of its own, so the build it runs stops being the probe's, while the
+    application stays the one the probe created - and the cleanup recognizes it by this.
+
+    route is the way the build went to the platform: ROUTE_PROJECT into a project by its id,
+    where the server numbers the build itself, or ROUTE_NAME by the vendor and the name,
+    where the build keeps the number of its archive and the count of the project goes on
+    from it. That is what tells a jump in the numbering from the builds the platform
+    deleted (`builds_summary`).
     """
     # Imported here: the package imports the client before it defines its version, and the
     # client imports this module.
@@ -101,6 +119,8 @@ def remember_upload(
         "file": str(file) if file else None,
         "stand": str(stand or ""),
         "command": command,
+        "app-id": str(app_id) if app_id else None,
+        "route": route,
         "uploaded-at": (now or datetime.now().astimezone()).isoformat(timespec="seconds"),
         "elemctl": __version__,
     }
@@ -191,7 +211,9 @@ def _carry_over(path, stream, offset):
     return path.stat().st_size == offset
 
 
-def remember_build(result, *, response, project_id, stand, command, environ=None):
+def remember_build(
+    result, *, response, project_id, stand, command, app_id=None, route=None, environ=None
+):
     """remember_upload for a build this very run made and uploaded.
 
     result is the BuildResult: the branch, the commit, the state of the tree and the
@@ -213,6 +235,8 @@ def remember_build(result, *, response, project_id, stand, command, environ=None
         file=result.file,
         stand=stand,
         command=command,
+        app_id=app_id,
+        route=route,
         environ=environ,
     )
 

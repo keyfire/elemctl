@@ -34,6 +34,7 @@ from .client import (
     OIDC_SERVICE,
     SERVER_START_TIMEOUT,
     ElementClient,
+    app_users_summary,
     applied_build,
     apps_summary,
     assembly_label,
@@ -48,7 +49,7 @@ from .config import Config, ensure_env_file_exists
 from .deploy import deploy_from_sources, server_wait, uploaded_version, verify_deploy
 from .errors import ApiError, ConfigError, ElemctlError, PluginError
 from .probe import cleanup_probe, probe_project
-from .registry import remember_upload
+from .registry import ROUTE_NAME, ROUTE_PROJECT, remember_upload
 from .versions import newest_first
 
 
@@ -665,6 +666,23 @@ def cmd_apps_stop(args):
     return 0
 
 
+def cmd_apps_users(args):
+    """Who is connected to an application: the users GET /applications/{id}/users lists.
+
+    Until this command the list was seen only inside a refusal of `apps token-access`, which
+    names the connected users when the one asked for is not among them. The command only
+    reads, so the application defaults to ELEMENT_APP_ID the way `apps get` does. The count
+    line goes to stderr after the answer, like the count lines of the other listings.
+    """
+    config = _config(args)
+    client = make_client(config)
+    app_id = _require(_app_ref(args), config.app_id, i18n.t("cli.require.app-id-arg"))
+    users = client.list_app_users(client.resolve_app_id(app_id))
+    _emit(users)
+    _progress(app_users_summary(users))
+    return 0
+
+
 def cmd_apps_token_access(args):
     """Access of a user to the HTTP services of an application by a token: read or switch.
 
@@ -874,6 +892,9 @@ def cmd_builds_upload(args):
         file=file_path.resolve(),
         stand=config.base_url,
         command="builds upload",
+        # Without a project the upload goes by the vendor and the name and keeps the
+        # number of its archive - the jump `builds list` tells from a deletion.
+        route=ROUTE_PROJECT if project_id else ROUTE_NAME,
     )
     if warning:
         _progress(warning)
@@ -1784,6 +1805,10 @@ def build_parser():
     p = apps_sub.add_parser("debug", help=i18n.t("cli.help.apps-debug"))
     _add_app_ref(p)
     p.set_defaults(handler=cmd_apps_debug)
+
+    p = apps_sub.add_parser("users", help=i18n.t("cli.help.apps-users"))
+    _add_app_ref(p)
+    p.set_defaults(handler=cmd_apps_users)
 
     p = apps_sub.add_parser("token-access", help=i18n.t("cli.help.apps-token-access"))
     _add_app_ref(p, required=True)

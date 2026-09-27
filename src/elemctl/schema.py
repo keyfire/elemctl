@@ -25,7 +25,9 @@ with every row, and that stops a deploy the way a narrowing does. The files on d
 cannot tell of it - the file is not there to be read - so the guard is handed the
 list of files the earlier state had, and it follows an element by its Ид: a
 description moved to another subsystem or renamed keeps the Ид, and the platform
-keeps its data.
+keeps its data. A description made anew in the same file gets a new Ид, and for the
+platform that is the same loss: the old element goes with its table, and the new one
+starts empty.
 
 There is no full YAML parser here on purpose - elemctl has no dependencies at all.
 What is read are the top-level blocks of an object description that carry
@@ -283,13 +285,22 @@ def review_tree(project_dir, read_before, list_before=None):
     does and the element keeps data of its own, its removal goes to changes: the whole
     table goes, and that stops a deploy the way a narrowing does. An element without an
     Ид cannot be told from a removed one and is left alone.
+
+    A file that is still where it was but carries another Ид describes another element:
+    the description was made anew, deleted and created again, and the platform knows an
+    element by its Ид alone. Checked live, a catalog described anew under its old path
+    and name came out of the apply empty. So the element the file used to describe is
+    followed the way a gone one is, and one that kept data of its own and lives nowhere
+    else goes to changes; the fields of the two descriptions are not compared with each
+    other, since they belong to different elements.
     """
     from pathlib import Path
 
     project_dir = Path(project_dir)
     review = SchemaReview()
     present = {}  # Ид -> (relative path, text) of every description on disk
-    added = set()  # the files on disk the earlier state did not have
+    added = set()  # the files on disk that describe no element this path described before
+    recreated = {}  # relative path -> the earlier text of a file that now carries another Ид
     for path in sorted(project_dir.rglob("*.yaml")):
         relative = path.relative_to(project_dir).as_posix()
         try:
@@ -303,13 +314,24 @@ def review_tree(project_dir, read_before, list_before=None):
         if before is None:
             added.add(relative)
             continue
+        earlier_id = element_id(before)
+        if identity and earlier_id and identity != earlier_id:
+            recreated[relative] = before
+            added.add(relative)
+            continue
         review.changes.extend(narrowing_changes(before, after, where=relative))
         review.removals.extend(removals(before, after, where=relative))
     earlier = list_before() if list_before is not None else None
-    for relative in sorted(earlier or ()):
-        if not relative.endswith(".yaml") or (project_dir / relative).is_file():
-            continue
-        before = read_before(relative)
+    gone = [
+        (relative, read_before(relative), "schema.element-removed")
+        for relative in sorted(earlier or ())
+        if relative.endswith(".yaml") and not (project_dir / relative).is_file()
+    ]
+    gone += [
+        (relative, before, "schema.element-recreated")
+        for relative, before in sorted(recreated.items())
+    ]
+    for relative, before, message in gone:
         identity = element_id(before) if before is not None else ""
         if not identity:
             continue
@@ -322,10 +344,11 @@ def review_tree(project_dir, read_before, list_before=None):
         kind = DATA_KINDS.get(element_kind(before))
         if kind:
             review.changes.append(i18n.t(
-                "schema.element-removed",
+                message,
                 where=relative,
                 kind=i18n.t(f"schema.element-{kind}"),
                 name=_object_name(before) or relative,
+                before=identity,
             ))
     return review
 

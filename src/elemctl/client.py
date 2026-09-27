@@ -15,13 +15,17 @@ from urllib.parse import urlencode
 from . import i18n
 from .auth import TokenManager
 from .errors import ApiError, ConfigError, ElemctlError, ServerStartingError, TransportError
-from .registry import remembered_uploads
+from .registry import ROUTE_NAME, remembered_uploads
 from .transport import UrllibTransport
-from .versions import missing_counters, newest_first, pick_latest
+from .versions import newest_first, numbering_holes, pick_latest
 
 API_PREFIX = "/console/api/v2"
 
 # Stable application statuses; everything else (an empty string included) is transitional.
+# The reference lists no values of the status, and two met live were in no list of ours:
+# `Deleting`, while an application is being deleted, and `UNKNOWN`, on an application whose
+# database files were gone. `UNKNOWN` is not counted as stable: nothing is known to follow from
+# it, so a wait for a stable status runs out its timeout on it and names the status.
 STABLE_STATUSES = {"Running", "Stopped", "Error"}
 
 # Wait timeouts (seconds) as per section 6 of the specification.
@@ -330,6 +334,24 @@ def apps_summary(listing):
     return i18n.t(key, live=live, total=total, shown=shown)
 
 
+def app_users_summary(users):
+    """The count line of the users connected to an application.
+
+    Each entry of GET /applications/{id}/users says two things about its user besides who it
+    is: whether they administer the application and whether they reach its HTTP services by a
+    token. The line counts both, so that whether anyone can call a service with a token at
+    all is read off one line rather than off every entry. The CLI prints it, the MCP tool
+    carries it in the answer.
+    """
+    entries = [user for user in users or [] if isinstance(user, dict)]
+    return i18n.t(
+        "client.app-users-summary",
+        total=len(entries),
+        admins=sum(1 for user in entries if user.get("is-admin")),
+        tokens=sum(1 for user in entries if user.get("token-access-enabled")),
+    )
+
+
 def brief_assembly(assembly, remembered=None):
     """A brief assembly card: what a build is recognized and picked by.
 
@@ -423,7 +445,7 @@ def assembly_label(assembly_id, version=None):
     return f"{assembly_id} ({version})" if version else str(assembly_id)
 
 
-def builds_summary(assemblies, shown):
+def builds_summary(assemblies, shown, remembered=None):
     """The count line of a build listing: how many are shown, and is that all there is.
 
     Two different truths can hide behind the same listing. It may be every build the
@@ -432,11 +454,21 @@ def builds_summary(assemblies, shown):
     only what survived.
 
     Which of the two it is comes from the ANSWER, not from its length: the platform
-    numbers the builds of a base version one after another, so a gap in those numbers is
-    a build it has already taken away (`missing_counters`). Until 0.40.0 the line was
+    numbers the builds of a base version one after another, so a hole in those numbers
+    (`numbering_holes`) is a build it has already taken away. Until 0.40.0 the line was
     picked by a threshold of thirty instead - a number measured on one installation, at a
     time when we believed the platform capped the store. It does not: there is no cap, a
     listing of any length can be what survived, and thirty said nothing about either.
+
+    A hole can also be a jump. An upload by the vendor and the name keeps the version of
+    its archive, a number far above the project's count included, and the next upload into
+    the project counts on from it: seen live, `1.0.0-3` was followed by `1.0.0-500` and then
+    `1.0.0-501`, and the numbers between had never existed. The numbers cannot tell the two
+    apart and neither can the created stamps, so the local registry of uploads does: a hole
+    under a build this machine uploaded by the vendor and the name is a jump. It is named as
+    one, and it is no evidence of the housekeeping. A build uploaded that way elsewhere is
+    not in the registry, and its hole still reads as a deletion. remembered - the registry
+    lines by build id, read here when not given.
 
     Only whether there are gaps is said, never how many numbers are missing: a live
     listing showed twenty thousand of them, because one build had once been numbered
@@ -445,9 +477,49 @@ def builds_summary(assemblies, shown):
 
     The CLI prints the line, the MCP tool carries it in the answer.
     """
-    key = ("client.builds-summary-trimmed" if missing_counters(assemblies)
-           else "client.builds-summary-full")
-    return i18n.t(key, shown=shown, total=len(assemblies))
+    holes = numbering_holes(assemblies)
+    if remembered is None:
+        remembered = remembered_uploads(
+            [assembly_id_of(above) for _, above in holes]
+        ) if holes else {}
+    jumps = [
+        (below, above) for below, above in holes
+        if _kept_its_number(remembered.get(assembly_id_of(above)))
+    ]
+    if len(jumps) < len(holes):
+        key = "client.builds-summary-trimmed"
+    else:
+        key = "client.builds-summary-jumped" if jumps else "client.builds-summary-full"
+    line = i18n.t(key, shown=shown, total=len(assemblies))
+    if jumps:
+        labels = ", ".join(
+            f"{_version_label(below)} -> {_version_label(above)}" if below
+            else _version_label(above)
+            for below, above in jumps
+        )
+        line += i18n.t(
+            "client.builds-summary-jump" if len(jumps) == 1 else "client.builds-summary-jumps",
+            jumps=labels,
+        )
+    return line
+
+
+def _kept_its_number(entry):
+    """Whether a registry line is an upload that kept the number of its archive.
+
+    A line written before the registry kept the route is judged by its command: a probe
+    always uploads by the vendor and the name, a deploy always into a project by its id.
+    """
+    if not isinstance(entry, dict):
+        return False
+    route = entry.get("route")
+    if route:
+        return route == ROUTE_NAME
+    return entry.get("command") == "probe"
+
+
+def _version_label(assembly):
+    return str(assembly.get("assembly-version") or assembly.get("project-version") or "")
 
 
 #: The account a freshly created application can be signed in with. It is a code,
@@ -881,6 +953,9 @@ class ElementClient:
 
         An entry is {user-list-id, user-id, presentation, is-admin, token-access-enabled}.
         The users of the control panel are among them, connected by the platform itself.
+        There is no login in an entry: the platform names a user of the panel by the login in
+        `presentation` and any other user by its presentation, and the login itself is a field
+        of the user in its list.
         """
         payload = self._api("GET", f"/applications/{app_id}/users")
         return [user for user in _as_list(payload, "items", "users") if isinstance(user, dict)]
@@ -1317,8 +1392,18 @@ class ElementClient:
         """Upload an assembly file (.xasm/.xlib) to the platform.
 
         With project_id the assembly is added to an existing project, without
-        it a new project is created. The space goes as SpaceId, the spelling of
-        the reference it was taken from.
+        it the platform finds the project by the vendor and the name of the
+        manifest and creates one when there is none.
+
+        The space of an upload into a project goes as the `space-id` query
+        parameter, spelled the way the reference spells it: the server reads that
+        one, refusing a malformed id with a 400 and an unknown space with a 404,
+        and ignores the PascalCase `SpaceId` the client used to send. An upload by
+        the vendor and the name documents no space parameter at all, and the server
+        reads neither spelling there, so a space given for such an upload goes into
+        the path instead: POST /spaces/{space-id}/projects is the method the
+        reference documents for creating a project in a space. Without a space the
+        upload goes to POST /projects.
 
         commit_id is the commit the build was made from, sent as the `commit-id`
         query parameter of an upload into an existing project: the reference
@@ -1330,10 +1415,13 @@ class ElementClient:
         is refused with a 500. Creating a project documents no commit parameter
         at all, so a build that creates one carries no commit.
         """
-        path = f"/projects/{project_id}/assemblies" if project_id else "/projects"
-        query = {"SpaceId": space_id}
-        if project_id and commit_id:
-            query["commit-id"] = commit_id
+        if project_id:
+            path = f"/projects/{project_id}/assemblies"
+            query = {"space-id": space_id, "commit-id": commit_id}
+        elif space_id:
+            path, query = f"/spaces/{space_id}/projects", {}
+        else:
+            path, query = "/projects", {}
         return self._api(
             "POST",
             path,

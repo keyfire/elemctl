@@ -92,6 +92,7 @@ usage: elemctl apps [-h] action ...
 | `start` | start an application |
 | `stop` | stop an application |
 | `debug` | data for a debug session (debug-token, debug-address) |
+| `users` | the users connected to the application: the user list, the id, the presentation, whether an administrator and whether token access is on (the platform gives no login here) |
 | `token-access` | a user's access to the HTTP services of the application by a token: show or switch it (without it a call of a service with a token gets a 500 "Token access is denied") |
 
 **Options**
@@ -311,6 +312,25 @@ usage: elemctl apps debug [-h] [--app-id APP_ID] [APP_ID]
 | `-h, --help` | show this help message and exit |
 | `--app-id APP_ID` | the same application as an option: deploy and apps ensure take this form only |
 
+### `elemctl apps users`
+
+```bash
+usage: elemctl apps users [-h] [--app-id APP_ID] [APP_ID]
+```
+
+**Arguments**
+
+| Option | Description |
+|---|---|
+| `APP_ID` | the application id (UUID) or its exact name (default: ELEMENT_APP_ID) |
+
+**Options**
+
+| Option | Description |
+|---|---|
+| `-h, --help` | show this help message and exit |
+| `--app-id APP_ID` | the same application as an option: deploy and apps ensure take this form only |
+
 ### `elemctl apps token-access`
 
 ```bash
@@ -511,7 +531,7 @@ usage: elemctl builds upload [-h] [--project-id PROJECT_ID] [--new-project] [--f
 | `--project-id PROJECT_ID` | project; without it the platform creates a new project, which is the only way to create a project through the Console API |
 | `--new-project` | upload the build as a new project, ignoring ELEMENT_PROJECT_ID from the environment and the .env file |
 | `--force-rename` | allow uploading an assembly whose name differs: the console renames the target project and its group after the assembly |
-| `--space-id SPACE_ID` | the space to create the project in – needed when `--project-id` is omitted |
+| `--space-id SPACE_ID` | the space to create the project in when `--project-id` is omitted (default: ELEMENT_SPACE_ID) |
 
 ### `elemctl builds delete`
 
@@ -595,7 +615,7 @@ usage: elemctl deploy [-h] [--app-id APP_ID] [--project-id PROJECT_ID] [--projec
 | `--commit COMMIT` | commit hash for the metadata (default: from git) |
 | `--dry-run` | build only, no upload |
 | `--require-clean` | abort the deploy if the project directory has uncommitted changes |
-| `--allow-data-loss` | allow an apply that recreates or deletes data (a narrowed length, a changed attribute type, a tabular part included, a catalog, a document or a register removed whole); without the flag such a deploy is refused before the build. A removed attribute or tabular part needs no flag: the deploy names it and goes on |
+| `--allow-data-loss` | allow an apply that recreates or deletes data (a narrowed length, a changed attribute type, a tabular part included, a catalog, a document or a register removed whole, described anew under a new Id included); without the flag such a deploy is refused before the build. A removed attribute or tabular part needs no flag: the deploy names it and goes on |
 | `--server-start-timeout SERVER_START_TIMEOUT` | how many seconds to wait for the 1C:Element server while it is starting and its console answers 404 "Application "console" not found" (default 900; 0 – do not wait) |
 
 ## `elemctl user-lists`
@@ -745,7 +765,7 @@ usage: elemctl probe [-h] [--project-dir PROJECT_DIR] [--output OUTPUT]
 | `--space-id SPACE_ID` | the space for the project and the application (ELEMENT_SPACE_ID) |
 | `--keep` | skip the cleanup: leave the application and the build for a hands-on look; the report names the command that removes them |
 | `--require-clean` | abort the check if the project directory has uncommitted changes |
-| `--cleanup APP_ID` | remove a probe left behind, starting from its application (id or name): the application, the probe build in its project and the project when nothing else is left in it; an application that is not a probe's is refused |
+| `--cleanup APP_ID` | remove a probe left behind, starting from its application (id or name): the application, the probe build in its project and the project when nothing else is left in it; a probe with a name and a version of its own is known by the local registry of uploads; an application that is not a probe's is refused |
 
 ## `elemctl verify-deploy`
 

@@ -309,11 +309,35 @@ MESSAGES = {
         "ru": "живых {live} из {total}, показано {shown}",
         "en": "{live} live of {total}, {shown} shown",
     },
+    "client.app-users-summary": {
+        "ru": "подключено {total}: администраторов {admins}, с доступом по токену {tokens}",
+        "en": "{total} connected: {admins} administrators, {tokens} with token access",
+    },
     "client.builds-summary-full": {
         "ru": "показано {shown} из {total} – нумерация сборок сплошная, пропавших по ней "
               "не видно: это все сборки проекта на платформе",
         "en": "{shown} of {total} shown – the build numbering runs unbroken and nothing is "
               "missing from it: every build the project has on the platform",
+    },
+    "client.builds-summary-jumped": {
+        "ru": "показано {shown} из {total} – пропавших по нумерации сборок не видно: это все "
+              "сборки проекта на платформе",
+        "en": "{shown} of {total} shown – nothing is missing from the build numbering: every "
+              "build the project has on the platform",
+    },
+    "client.builds-summary-jump": {
+        "ru": ". Скачок {jumps} – не удаление: эту сборку машина загрузила по поставщику и "
+              "имени, номер она принесла из архива, и счёт проекта пошёл от него",
+        "en": ". The jump {jumps} is no deletion: this machine uploaded that build by the vendor "
+              "and the name, it brought its number from the archive, and the count of the "
+              "project went on from it",
+    },
+    "client.builds-summary-jumps": {
+        "ru": ". Скачки {jumps} – не удаления: эти сборки машина загрузила по поставщику и "
+              "имени, номера они принесли из архива, и счёт проекта пошёл от них",
+        "en": ". The jumps {jumps} are no deletions: this machine uploaded those builds by the "
+              "vendor and the name, they brought their numbers from the archive, and the count "
+              "of the project went on from them",
     },
     "client.builds-summary-trimmed": {
         "ru": "показано {shown} из {total} – в нумерации сборок есть пропуски: платформа "
@@ -978,6 +1002,14 @@ MESSAGES = {
         "en": "{where}: the {kind} {name} is removed whole – its table will be deleted with "
               "every row",
     },
+    "schema.element-recreated": {
+        "ru": "{where}: новый Ид у элемента {name} ({kind}) – платформа снимет прежний вместе "
+              "со всей таблицей и заведёт пустой; если элемент тот же, верните ему прежний "
+              "Ид {before}",
+        "en": "{where}: the {kind} {name} has a new Id – the platform drops the old one with "
+              "its whole table and creates an empty one; if it is the same {kind}, give it "
+              "back its former Id {before}",
+    },
     "schema.element-catalog": {"ru": "справочник", "en": "catalog"},
     "schema.element-document": {"ru": "документ", "en": "document"},
     "schema.element-information-register": {
@@ -1170,13 +1202,25 @@ MESSAGES = {
     },
     "probe.cleanup-not-a-probe": {
         "ru": "приложение '{name}' ({app}) оставил не пробник: имя не начинается с {prefix}, "
-              "а сборка, на которой оно работает ({version}), не сборка пробника – в версии "
-              "нет -probe-. --cleanup убирает только то, что оставил probe; прочие приложения "
+              "сборка, на которой оно работает ({version}), не сборка пробника – в версии "
+              "нет -probe-, и локальный реестр загрузок не помнит, чтобы его создал probe этой "
+              "машины. --cleanup убирает только то, что оставил probe; прочие приложения "
               "удаляет apps delete",
         "en": "the application '{name}' ({app}) was not left by a probe: its name does not "
-              "start with {prefix}, and the build it runs ({version}) is not a probe build – "
-              "the version carries no -probe-. --cleanup removes only what probe left; other "
-              "applications are deleted with apps delete",
+              "start with {prefix}, the build it runs ({version}) is not a probe build – the "
+              "version carries no -probe-, and the local registry of uploads remembers no "
+              "probe of this machine creating it. --cleanup removes only what probe left; "
+              "other applications are deleted with apps delete",
+    },
+    "probe.cleanup-from-registry": {
+        "ru": "ни имя, ни сборка приложения {app} пробника не выдают, но локальный реестр "
+              "загрузок помнит, что его создал probe этой машины",
+        "en": "neither the name nor the build of the application {app} says probe, but the "
+              "local registry of uploads remembers a probe of this machine creating it",
+    },
+    "probe.cleanup-build-in-use": {
+        "ru": "сборка {version} оставлена: на ней теперь работает приложение {app}",
+        "en": "the build {version} is kept: the application {app} runs it now",
     },
     "probe.cleanup-app-already-deleted": {
         "ru": "приложение {app} уже удалено: платформа держит его в перечне со статусом Deleted",
@@ -1367,8 +1411,10 @@ MESSAGES = {
         "en": "the .xasm/.xlib assembly file",
     },
     "cli.help.arg.space-id": {
-        "ru": "пространство, в котором завести проект – нужно, когда --project-id не задан",
-        "en": "the space to create the project in – needed when --project-id is omitted",
+        "ru": "пространство, в котором завести проект, когда --project-id не задан "
+              "(по умолчанию ELEMENT_SPACE_ID)",
+        "en": "the space to create the project in when --project-id is omitted "
+              "(default: ELEMENT_SPACE_ID)",
     },
     "cli.help.arg.branch-id": {
         "ru": "ид ветки",
@@ -1525,6 +1571,14 @@ MESSAGES = {
     "cli.help.apps-debug": {
         "ru": "данные для сессии отладки (debug-token, debug-address)",
         "en": "data for a debug session (debug-token, debug-address)",
+    },
+    "cli.help.apps-users": {
+        "ru": "пользователи, подключённые к приложению: список, ид, представление, "
+              "администратор ли и есть ли доступ по токену (логина платформа здесь не "
+              "отдаёт)",
+        "en": "the users connected to the application: the user list, the id, the "
+              "presentation, whether an administrator and whether token access is on (the "
+              "platform gives no login here)",
     },
     "cli.help.apps-token-access": {
         "ru": "доступ пользователя к HTTP-сервисам приложения по токену: показать или "
@@ -1774,12 +1828,14 @@ MESSAGES = {
     "cli.help.deploy-allow-data-loss": {
         "ru": "разрешить применение, которое пересоздаёт или удаляет данные (сужение длины, "
               "смена типа реквизита, в том числе в табличной части, снятие целиком справочника, "
-              "документа или регистра); без флага такое развёртывание отклоняется до сборки. "
+              "документа или регистра, в том числе описанного заново с новым Ид); без флага "
+              "такое развёртывание отклоняется до сборки. "
               "Снятие реквизита или табличной части флага не требует: деплой называет его и "
               "идёт дальше",
         "en": "allow an apply that recreates or deletes data (a narrowed length, a changed "
               "attribute type, a tabular part included, a catalog, a document or a register "
-              "removed whole); without the flag such a deploy is refused before the build. A "
+              "removed whole, described anew under a new Id included); without the flag such a "
+              "deploy is refused before the build. A "
               "removed attribute or tabular part needs no flag: the deploy names it and goes on",
     },
     "cli.help.deploy-server-start-timeout": {
@@ -1925,11 +1981,13 @@ MESSAGES = {
     },
     "cli.help.probe-cleanup": {
         "ru": "убрать оставленный пробник по его приложению (ид или имя): приложение, сборку "
-              "пробника в его проекте и проект, если в нём больше ничего нет; чужое приложение "
-              "команда не тронет",
+              "пробника в его проекте и проект, если в нём больше ничего нет; пробник со "
+              "своими именем и версией узнаётся по локальному реестру загрузок; чужое "
+              "приложение команда не тронет",
         "en": "remove a probe left behind, starting from its application (id or name): the "
               "application, the probe build in its project and the project when nothing else "
-              "is left in it; an application that is not a probe's is refused",
+              "is left in it; a probe with a name and a version of its own is known by the "
+              "local registry of uploads; an application that is not a probe's is refused",
     },
     "cli.help.probe-require-clean": {
         "ru": "прервать проверку, если в каталоге проекта есть незакоммиченные изменения",

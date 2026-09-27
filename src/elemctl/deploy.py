@@ -26,7 +26,7 @@ from .client import (
 )
 from .errors import ApiError, ElemctlError, ServerStartingError
 from .probe import server_log_hint
-from .registry import remember_build, remembered_uploads
+from .registry import ROUTE_PROJECT, remember_build, remembered_uploads
 from .schema import review_tree
 from .versions import server_may_keep
 
@@ -306,7 +306,8 @@ def _deploy_from_sources(
     if assembly_version and assembly_version != result.version:
         log(i18n.t("deploy.renumbered", built=result.version, given=assembly_version))
     warning = remember_build(
-        result, response=response, project_id=project_id, stand=_stand(client), command="deploy"
+        result, response=response, project_id=project_id, stand=_stand(client),
+        command="deploy", app_id=app_id, route=ROUTE_PROJECT,
     )
     if warning:
         log(warning)
