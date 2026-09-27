@@ -65,6 +65,10 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
   `SpaceId`, a spelling the server does not read, so the space of a new project never reached
   it and a wrong one went unnoticed. An upload into a project now sends `space-id`, and a new
   project goes into its space through `POST /spaces/{space-id}/projects`.
+- **`builds list` tells a jump in the numbering from the housekeeping.** A build uploaded by
+  the vendor and the name keeps the number of its archive, and the count of the project goes
+  on from it, while the count line put the hole below it down to deleted builds. The registry
+  of uploads now remembers which way each build went, and such a hole is named as a jump.
 
 ## 2026-09-25 – 0.45.0
 

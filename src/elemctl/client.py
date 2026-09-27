@@ -15,9 +15,9 @@ from urllib.parse import urlencode
 from . import i18n
 from .auth import TokenManager
 from .errors import ApiError, ConfigError, ElemctlError, ServerStartingError, TransportError
-from .registry import remembered_uploads
+from .registry import ROUTE_NAME, remembered_uploads
 from .transport import UrllibTransport
-from .versions import missing_counters, newest_first, pick_latest
+from .versions import newest_first, numbering_holes, pick_latest
 
 API_PREFIX = "/console/api/v2"
 
@@ -445,7 +445,7 @@ def assembly_label(assembly_id, version=None):
     return f"{assembly_id} ({version})" if version else str(assembly_id)
 
 
-def builds_summary(assemblies, shown):
+def builds_summary(assemblies, shown, remembered=None):
     """The count line of a build listing: how many are shown, and is that all there is.
 
     Two different truths can hide behind the same listing. It may be every build the
@@ -454,11 +454,21 @@ def builds_summary(assemblies, shown):
     only what survived.
 
     Which of the two it is comes from the ANSWER, not from its length: the platform
-    numbers the builds of a base version one after another, so a gap in those numbers is
-    a build it has already taken away (`missing_counters`). Until 0.40.0 the line was
+    numbers the builds of a base version one after another, so a hole in those numbers
+    (`numbering_holes`) is a build it has already taken away. Until 0.40.0 the line was
     picked by a threshold of thirty instead - a number measured on one installation, at a
     time when we believed the platform capped the store. It does not: there is no cap, a
     listing of any length can be what survived, and thirty said nothing about either.
+
+    A hole can also be a jump. An upload by the vendor and the name keeps the version of
+    its archive, a number far above the project's count included, and the next upload into
+    the project counts on from it: seen live, `1.0.0-3` was followed by `1.0.0-500` and then
+    `1.0.0-501`, and the numbers between had never existed. The numbers cannot tell the two
+    apart and neither can the created stamps, so the local registry of uploads does: a hole
+    under a build this machine uploaded by the vendor and the name is a jump. It is named as
+    one, and it is no evidence of the housekeeping. A build uploaded that way elsewhere is
+    not in the registry, and its hole still reads as a deletion. remembered - the registry
+    lines by build id, read here when not given.
 
     Only whether there are gaps is said, never how many numbers are missing: a live
     listing showed twenty thousand of them, because one build had once been numbered
@@ -467,9 +477,49 @@ def builds_summary(assemblies, shown):
 
     The CLI prints the line, the MCP tool carries it in the answer.
     """
-    key = ("client.builds-summary-trimmed" if missing_counters(assemblies)
-           else "client.builds-summary-full")
-    return i18n.t(key, shown=shown, total=len(assemblies))
+    holes = numbering_holes(assemblies)
+    if remembered is None:
+        remembered = remembered_uploads(
+            [assembly_id_of(above) for _, above in holes]
+        ) if holes else {}
+    jumps = [
+        (below, above) for below, above in holes
+        if _kept_its_number(remembered.get(assembly_id_of(above)))
+    ]
+    if len(jumps) < len(holes):
+        key = "client.builds-summary-trimmed"
+    else:
+        key = "client.builds-summary-jumped" if jumps else "client.builds-summary-full"
+    line = i18n.t(key, shown=shown, total=len(assemblies))
+    if jumps:
+        labels = ", ".join(
+            f"{_version_label(below)} -> {_version_label(above)}" if below
+            else _version_label(above)
+            for below, above in jumps
+        )
+        line += i18n.t(
+            "client.builds-summary-jump" if len(jumps) == 1 else "client.builds-summary-jumps",
+            jumps=labels,
+        )
+    return line
+
+
+def _kept_its_number(entry):
+    """Whether a registry line is an upload that kept the number of its archive.
+
+    A line written before the registry kept the route is judged by its command: a probe
+    always uploads by the vendor and the name, a deploy always into a project by its id.
+    """
+    if not isinstance(entry, dict):
+        return False
+    route = entry.get("route")
+    if route:
+        return route == ROUTE_NAME
+    return entry.get("command") == "probe"
+
+
+def _version_label(assembly):
+    return str(assembly.get("assembly-version") or assembly.get("project-version") or "")
 
 
 #: The account a freshly created application can be signed in with. It is a code,

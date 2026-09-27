@@ -319,6 +319,26 @@ MESSAGES = {
         "en": "{shown} of {total} shown – the build numbering runs unbroken and nothing is "
               "missing from it: every build the project has on the platform",
     },
+    "client.builds-summary-jumped": {
+        "ru": "показано {shown} из {total} – пропавших по нумерации сборок не видно: это все "
+              "сборки проекта на платформе",
+        "en": "{shown} of {total} shown – nothing is missing from the build numbering: every "
+              "build the project has on the platform",
+    },
+    "client.builds-summary-jump": {
+        "ru": ". Скачок {jumps} – не удаление: эту сборку машина загрузила по поставщику и "
+              "имени, номер она принесла из архива, и счёт проекта пошёл от него",
+        "en": ". The jump {jumps} is no deletion: this machine uploaded that build by the vendor "
+              "and the name, it brought its number from the archive, and the count of the "
+              "project went on from it",
+    },
+    "client.builds-summary-jumps": {
+        "ru": ". Скачки {jumps} – не удаления: эти сборки машина загрузила по поставщику и "
+              "имени, номера они принесли из архива, и счёт проекта пошёл от них",
+        "en": ". The jumps {jumps} are no deletions: this machine uploaded those builds by the "
+              "vendor and the name, they brought their numbers from the archive, and the count "
+              "of the project went on from them",
+    },
     "client.builds-summary-trimmed": {
         "ru": "показано {shown} из {total} – в нумерации сборок есть пропуски: платформа "
               "сама удаляет те, которыми никто не пользуется (сборка работающего "

@@ -49,7 +49,7 @@ from .config import Config, ensure_env_file_exists
 from .deploy import deploy_from_sources, server_wait, uploaded_version, verify_deploy
 from .errors import ApiError, ConfigError, ElemctlError, PluginError
 from .probe import cleanup_probe, probe_project
-from .registry import remember_upload
+from .registry import ROUTE_NAME, ROUTE_PROJECT, remember_upload
 from .versions import newest_first
 
 
@@ -892,6 +892,9 @@ def cmd_builds_upload(args):
         file=file_path.resolve(),
         stand=config.base_url,
         command="builds upload",
+        # Without a project the upload goes by the vendor and the name and keeps the
+        # number of its archive - the jump `builds list` tells from a deletion.
+        route=ROUTE_PROJECT if project_id else ROUTE_NAME,
     )
     if warning:
         _progress(warning)

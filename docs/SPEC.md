@@ -274,8 +274,16 @@ Commands, with the significant flags in parentheses:
   uses, whatever their age). "30 of 30" without that line was read as the project's whole
   history. The housekeeping is judged by the facts of the answer, not by the length of the
   listing: the platform hands out the numbers of a base version one after another, so a
-  number the listing has not got is a build already taken away, and the line says how many
-  are missing.
+  hole in the numbering is a build already taken away, and the line says there are holes
+  without counting them. A hole can also be a jump: an upload by the vendor and the name
+  keeps the number of its archive, and the next upload into the project counts on from
+  it. Seen live, `1.0.0-3` was followed by `1.0.0-500` and `1.0.0-501`, and the numbers
+  between had never existed. The created stamps of the neighbours cannot tell a jump
+  from a loss, since the server handed out four numbers in a third of a second, so the
+  local registry of uploads does: a hole under a build this machine uploaded by the
+  vendor and the name is named as a jump and is no evidence of the housekeeping. A build
+  uploaded that way from elsewhere is not in the registry, and its hole still reads as a
+  deletion.
   `--brief` prints the id, the versions, the date, the branch and the commit of a build.
   The branch and the commit come from the card when the platform filled them, otherwise
   from the local registry of uploads, and `branch-name-source` and `commit-id-source`
@@ -288,7 +296,9 @@ Commands, with the significant flags in parentheses:
   `$XDG_STATE_HOME/elemctl` (`~/.local/state/elemctl`) elsewhere. A line holds the build
   id, the project id, the version, the branch, the commit, the `dirty` flag, the directory
   of the sources, the archive, the stand, the command, the application the upload was made
-  for (the target of a deploy, the throwaway application of a probe) and the time. The
+  for (the target of a deploy, the throwaway application of a probe), the route of the
+  upload (`project` into a project by its id, `vendor-name` by the vendor and the name)
+  and the time. The
   platform keeps the
   commit alone, and with several sessions deploying from one machine a build on an
   application could not be traced to the working tree it came from. The registry is local:
@@ -453,7 +463,8 @@ id (UUID) or the exact application name (resolved like the CLI does),
 `list_projects(name="", include_deleted=False)` – the filters of `projects list` (section 7),
 `list_builds(project_id, limit=10, brief=True)` – an object `{total, shown, summary, builds}`:
 the listing has to say whether it is the whole store, judged by the gaps in the build
-numbering (section 4.4), and a brief card names the source of its branch and commit, the
+numbering (section 4.4) and naming a jump the local registry explains (section 7), and a
+brief card names the source of its branch and commit, the
 card or the local registry of uploads, the way `builds list --brief` does (section 7),
 `get_build(project_id, version)` – the whole card of one build, addressed by the build
 version (section 4.4; an id is accepted and resolved through the listing),

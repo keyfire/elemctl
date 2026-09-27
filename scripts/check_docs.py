@@ -114,7 +114,8 @@ PITCH_ITEMS = (
 #: is the number the server gives a build uploaded into a project, which the tool hints and the
 #: code comments put down to something else. The sixth is the space of an upload, which the
 #: pages and the client spelled the way the server does not read. The seventh is the list of
-#: application statuses, which lacked two that live checks kept meeting.
+#: application statuses, which lacked two that live checks kept meeting. The eighth is what a
+#: hole in the numbering of builds means, which every place put down to the housekeeping.
 CLAIMS = (
     Claim(
         name="the platform deletes the builds nobody uses, whatever their age",
@@ -237,6 +238,26 @@ CLAIMS = (
         retired=(
             "`Frozen`, `Creating`. During",
             "`Frozen`, `Creating`.\nВо время",
+        ),
+    ),
+    # A hole in the numbering of builds was a deletion, full stop. An upload by the vendor
+    # and the name keeps the number of its archive, and the count of the project goes on
+    # from it, so a hole can be a jump nobody deleted anything in.
+    Claim(
+        name="a hole in the numbering of builds is a deletion or a jump",
+        told_in=(
+            "docs/SPEC.md", "docs/SPEC.ru.md",
+            "docs/mcp.md", "docs/mcp.ru.md",
+            "src/elemctl/client.py", "src/elemctl/mcp_server.py",
+            "src/elemctl/versions.py",
+        ),
+        wording=("jump", "скач"),
+        retired=(
+            "is a build already taken away, and the line says how many",
+            "снятая сборка, и строка называет, скольких номеров не хватает",
+            "уже снятая уборкой.\n",
+            "которую уборка уже сняла.\n",
+            "is a build the platform has deleted, and that is a FACT OF THE ANSWER",
         ),
     ),
 )

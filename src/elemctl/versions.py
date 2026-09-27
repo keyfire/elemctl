@@ -97,8 +97,10 @@ def missing_counters(assemblies, version_key="assembly-version"):
 
     The platform hands out the numbers itself, one after another within a base version
     ("1.0.2-1", "1.0.2-2", ...), so the numbers of a base run unbroken while nothing is taken
-    away. A hole in them - or a base whose first numbers are simply not there - is a build the
-    platform has deleted, and that is a FACT OF THE ANSWER rather than a guess from its length.
+    away and nothing comes by the vendor and the name. A hole in them - or a base whose first
+    numbers are simply not there - is a build the platform has deleted, or a jump: a number
+    nobody had, because the build above it brought its own from the archive. The count cannot
+    tell the two apart; `numbering_holes` gives the holes themselves, for a caller that can.
 
     The proof only works one way, and only as a yes or no. Gaps say the listing is not
     everything the project ever numbered; an unbroken run says nothing beyond itself - the
@@ -121,6 +123,39 @@ def missing_counters(assemblies, version_key="assembly-version"):
     # Within a base the numbers run 1..max, so what is absent is the difference between the
     # highest number and how many of them the listing actually carries.
     return sum(max(counters) - len(counters) for counters in seen.values())
+
+
+def numbering_holes(assemblies, version_key="assembly-version"):
+    """Every hole in the numbering of a listing: [(the build below or None, the build above)].
+
+    The hole is what lies between two builds of one base whose numbers do not follow one
+    another, or below the lowest build of a base that does not start at 1 - and then there is
+    no build below it. What a hole means the numbers cannot say. It is a build the platform
+    deleted when the numbers were handed out one by one, and it is a number nobody ever had
+    when the build above it brought its number from the archive: an upload by the vendor and
+    the name keeps the version it is given, and the next upload into the project counts on
+    from it. The created stamps of the two builds cannot tell the two apart either - the
+    server hands numbers out as fast as uploads come, ten a second in a live check. Telling
+    them apart is the caller's, by what it knows of the build above.
+    """
+    by_base = {}
+    for item in assemblies or []:
+        if not isinstance(item, dict):
+            continue
+        version = item.get(version_key)
+        counter = version_counter(version)
+        if counter > 0:
+            by_base.setdefault(version_base(version), {}).setdefault(counter, item)
+    holes = []
+    for numbered in by_base.values():
+        counters = sorted(numbered)
+        below = None
+        for counter in counters:
+            expected = version_counter(below.get(version_key)) + 1 if below else 1
+            if counter > expected:
+                holes.append((below, numbered[counter]))
+            below = numbered[counter]
+    return holes
 
 
 def newest_first(assemblies):
