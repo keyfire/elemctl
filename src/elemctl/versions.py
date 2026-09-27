@@ -3,6 +3,12 @@
 A build version has the form "{base}-{counter}", for example "1.0-42". Versions
 have to be compared by the numeric counter after the last hyphen: "1.0-10" is
 newer than "1.0-9", although lexicographically the order is the opposite.
+
+The server hands those numbers out itself when a build is uploaded into a project:
+the base is the Версия of the project descriptor and the number the highest number
+of that base plus one, whatever version the archive was built with. The
+auto-increment below arrives at the same number from the build list, which is why
+a deploy without an explicit version keeps its version on the server.
 """
 
 from __future__ import annotations
@@ -28,6 +34,25 @@ def version_base(version):
     text = str(version or "")
     head, sep, _tail = text.rpartition("-")
     return head if sep else ""
+
+
+def server_may_keep(version, base_version):
+    """Whether an upload into a project can leave the build under the version it was built with.
+
+    The server numbers a build uploaded into a project itself and does not read the version of
+    the archive at all: the base is the Версия of the project descriptor, the number the
+    highest one of that base plus one. A version can come out of that rule only when its base
+    is the project's own and its tail is a number - and even then only when that number
+    happens to be the next one. False is certain, True is a maybe.
+    """
+    text = str(version or "").strip()
+    tail = text.rpartition("-")[2]
+    return (
+        bool(version_base(text))
+        and version_base(text) == str(base_version or "").strip()
+        and tail.isascii()
+        and tail.isdigit()
+    )
 
 
 def next_version(base_version, last_version=None):

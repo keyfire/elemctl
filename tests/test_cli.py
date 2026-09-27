@@ -1026,6 +1026,25 @@ def test_builds_upload_reports_env_project_id_source(
     assert "внимание" not in captured.err
 
 
+def test_builds_upload_names_the_version_the_server_gave(
+    monkeypatch, capsys, project_factory, tmp_path
+):
+    """An upload into a project is numbered by the server, whatever the archive said."""
+    archive = _built_archive(project_factory, tmp_path, capsys)
+
+    class _RenumberingClient(FakeUploadClient):
+        def upload_assembly(self, data, **kwargs):
+            self.upload_kwargs = kwargs
+            return {"id": "asm-1", "assembly-version": "1.0-6"}
+
+    monkeypatch.setattr(cli, "make_client", lambda config: _RenumberingClient())
+
+    assert cli.main(["builds", "upload", archive, "--project-id", "proj-1"]) == 0
+
+    err = capsys.readouterr().err
+    assert "записал сборку как 1.0-6, а не 1.0-1" in err
+
+
 def test_builds_upload_new_project_ignores_env(monkeypatch, capsys, project_factory, tmp_path):
     """--new-project turns off the env binding: the platform creates a new project."""
     archive = _built_archive(project_factory, tmp_path, capsys)

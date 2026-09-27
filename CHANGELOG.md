@@ -15,6 +15,35 @@ entry either – say what the behaviour was, not which id or response field was 
 The link is written by `python scripts/changelog-link.py <number>`, which rebuilds the generated
 pages of the site in the same run – writing it by hand is how the mirrors get left behind.
 
+## Unreleased
+
+### Added
+- **`deploy` refuses to drop a catalog whose description is gone.** The schema guard read only
+  the files on disk, so a catalog, a document or a register removed from the sources took its
+  whole table away unnoticed. Now it lists the files of the applied commit and refuses such a
+  removal like a narrowing, unless `--allow-data-loss` is given.
+  ([#45](https://github.com/keyfire/elemctl/pull/45))
+- **The MCP tool `deploy` takes `allow_data_loss`.** A narrowing the schema guard refused could
+  only be let through from the CLI, and a client of the MCP server had no way to say that the
+  loss of data is acceptable. The refusal now names the parameter as well as the flag.
+  ([#45](https://github.com/keyfire/elemctl/pull/45))
+- **`deploy` says when the server numbers the build its own way.** An upload into a project gets
+  the next number of the project's base from the server, whatever version the archive carries,
+  and the report said `ok` with only `version` and `applied-version` apart. A version the server
+  will not keep is now named before the build, a renumbered build right after the upload, and
+  the report carries `assembly-version` and `renumbered`.
+  ([#45](https://github.com/keyfire/elemctl/pull/45))
+
+### Changed
+- **The schema guard of `deploy` takes a missing commit from the registry of uploads.** A build
+  that created its project carries no commit on its card, so the guard stepped aside while this
+  machine remembered the commit. Now it compares against that commit and says where it came from.
+  ([#45](https://github.com/keyfire/elemctl/pull/45))
+- **The registry of uploads keeps the newest thousand uploads.** It grew by a line with every
+  upload for as long as the machine deployed. Once it grows past the limit by a tenth, the next
+  upload cuts it back; `ELEMCTL_REGISTRY_LIMIT` sets another number, and `0` keeps every one.
+  ([#45](https://github.com/keyfire/elemctl/pull/45))
+
 ## 2026-09-25 – 0.45.0
 
 ### Added

@@ -19,6 +19,14 @@ question: the data of the removed element goes with it, the rows of a tabular pa
 included. So a removal does not stop a deploy the way a narrowing does, but it is
 named - `removals` says what the apply takes away, before it is applied.
 
+An element that keeps data of its own - a catalog, a document, a register - is
+the exception: when its description is gone from the sources, its whole table goes
+with every row, and that stops a deploy the way a narrowing does. The files on disk
+cannot tell of it - the file is not there to be read - so the guard is handed the
+list of files the earlier state had, and it follows an element by its Ид: a
+description moved to another subsystem or renamed keeps the Ид, and the platform
+keeps its data.
+
 There is no full YAML parser here on purpose - elemctl has no dependencies at all.
 What is read are the top-level blocks of an object description that carry
 data-bearing fields, and the tabular parts with their own attributes; their layout
@@ -58,6 +66,29 @@ BLOCKS = (
 _ID_KEYS = ("Ид", "Id")
 _NAME_KEYS = ("Имя", "Name")
 _TYPE_KEYS = ("Тип", "Type")
+_KIND_KEYS = ("ВидЭлемента", "ElementKind")
+
+# The kinds of element that keep data of their own, in both spellings, and the word a
+# report calls each by. Removing the description of such an element removes its table
+# with every row in it. The other kinds - a form, a module, a structure, an
+# enumeration, a data journal that only shows the tables of others - keep no data of
+# their own, and a removal of theirs costs nothing the guard is here for.
+DATA_KINDS = {
+    "Справочник": "catalog",
+    "Catalog": "catalog",
+    "Документ": "document",
+    "Document": "document",
+    "РегистрСведений": "information-register",
+    "InformationRegister": "information-register",
+    "РегистрНакопления": "accumulation-register",
+    "AccumulationRegister": "accumulation-register",
+    "НаборКонстант": "constants-set",
+    "ConstantsSet": "constants-set",
+    "ПланОбмена": "exchange-plan",
+    "ExchangePlan": "exchange-plan",
+    "ХранилищеНастроек": "settings-storage",
+    "SettingsStorage": "settings-storage",
+}
 
 # The primitive type names in both spellings: a translated description names the
 # SAME type, not a change. Only the pairs the platform declares are listed;
@@ -80,9 +111,10 @@ _TRAILING_COMMENT = re.compile(r"\s+#.*$")
 class SchemaReview:
     """What an apply would do to the data, file by file.
 
-    changes - the narrowings that recreate data or break the apply; a deploy refuses
-    them unless told otherwise. removals - the data-bearing elements the sources no
-    longer have; their data goes with them, and a deploy names them without stopping.
+    changes - what a deploy refuses unless told otherwise: the narrowings that recreate
+    data or break the apply, and the elements with data of their own whose description
+    is gone. removals - the data-bearing fields and tabular parts the sources no longer
+    have; their data goes with them, and a deploy names them without stopping.
     """
 
     changes: list = field(default_factory=list)
@@ -233,32 +265,79 @@ def removals(before_text, after_text, *, where=""):
     return lines
 
 
-def review_tree(project_dir, read_before):
+def review_tree(project_dir, read_before, list_before=None):
     """Every narrowing and every removal between the sources on disk and their earlier state.
 
     read_before(relative_path) returns the earlier text of the file or None when
-    it is unknown (a new file, or the earlier state cannot be read). The caller
-    supplies it: for a deploy that is `git show <commit>:<path>` of the commit the
-    applied build was made from - the Console API does not hand out the contents
-    of an assembly, so the sources of that commit are the only thing there is to
-    compare against.
+    it is unknown (a new file, or the earlier state cannot be read). list_before()
+    returns the relative paths of the files the earlier state had, or None when that
+    is unknown - and then nothing is said about a description that is gone. The caller
+    supplies both: for a deploy that is `git show` and `git ls-tree` of the commit the
+    applied build was made from - the Console API does not hand out the contents of an
+    assembly, so the sources of that commit are the only thing there is to compare
+    against.
+
+    A description that is no longer where it was is followed by its Ид. When a file on
+    disk carries the same Ид, the element was moved or renamed and keeps its data, so
+    the new file is compared with the old text the way an unmoved one is. When none
+    does and the element keeps data of its own, its removal goes to changes: the whole
+    table goes, and that stops a deploy the way a narrowing does. An element without an
+    Ид cannot be told from a removed one and is left alone.
     """
     from pathlib import Path
 
     project_dir = Path(project_dir)
     review = SchemaReview()
+    present = {}  # Ид -> (relative path, text) of every description on disk
+    added = set()  # the files on disk the earlier state did not have
     for path in sorted(project_dir.rglob("*.yaml")):
         relative = path.relative_to(project_dir).as_posix()
-        before = read_before(relative)
-        if before is None:
-            continue
         try:
             after = path.read_text(encoding="utf-8")
         except OSError:
             continue
+        identity = element_id(after)
+        if identity:
+            present.setdefault(identity, (relative, after))
+        before = read_before(relative)
+        if before is None:
+            added.add(relative)
+            continue
         review.changes.extend(narrowing_changes(before, after, where=relative))
         review.removals.extend(removals(before, after, where=relative))
+    earlier = list_before() if list_before is not None else None
+    for relative in sorted(earlier or ()):
+        if not relative.endswith(".yaml") or (project_dir / relative).is_file():
+            continue
+        before = read_before(relative)
+        identity = element_id(before) if before is not None else ""
+        if not identity:
+            continue
+        if identity in present:
+            moved_to, after = present[identity]
+            if moved_to in added:
+                review.changes.extend(narrowing_changes(before, after, where=moved_to))
+                review.removals.extend(removals(before, after, where=moved_to))
+            continue
+        kind = DATA_KINDS.get(element_kind(before))
+        if kind:
+            review.changes.append(i18n.t(
+                "schema.element-removed",
+                where=relative,
+                kind=i18n.t(f"schema.element-{kind}"),
+                name=_object_name(before) or relative,
+            ))
     return review
+
+
+def element_id(text):
+    """The Ид of the element a description is about ("" when it has none)."""
+    return _top_level(text, _ID_KEYS)
+
+
+def element_kind(text):
+    """The ВидЭлемента of a description, as written ("" when it names none)."""
+    return _top_level(text, _KIND_KEYS)
 
 
 # -- internals ----------------------------------------------------------------
@@ -437,11 +516,16 @@ def _language(text):
 
 def _object_name(text):
     """The name of the object a description is about: its top-level Имя (Name)."""
+    return _top_level(text, _NAME_KEYS)
+
+
+def _top_level(text, keys):
+    """The value of the first top-level key of keys, unquoted ("" when there is none)."""
     for line in text.splitlines():
         if _indent(line):
             continue
-        key, colon, value = line.partition(":")
-        if colon and key.strip() in _NAME_KEYS and value.strip():
+        key, colon, value = _TRAILING_COMMENT.sub("", line.rstrip()).partition(":")
+        if colon and key.strip() in keys and value.strip():
             return _unquote(value.strip())
     return ""
 

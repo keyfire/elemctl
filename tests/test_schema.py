@@ -532,3 +532,110 @@ def test_review_tree_collects_both_kinds_across_the_files(tmp_path):
 
     assert len(review.changes) == 1 and "Шаги.Шаг" in review.changes[0]
     assert len(review.removals) == 1 and "Исполнители" in review.removals[0]
+
+
+# --- an element with data of its own removed whole ------------------------------
+
+WAREHOUSES = """\
+ВидЭлемента: Справочник
+Ид: 5d1f0c2e-0a64-4a53-9c41-1f2e3d4c5b6a
+Имя: Склады
+Реквизиты:
+    -
+        Ид: 6e2a1d3f-1b75-4b64-8d52-2a3f4e5d6c7b
+        Имя: Адрес
+        Тип: Строка
+        МаксимальнаяДлина: 200
+"""
+
+WAREHOUSE_FORM = """\
+ВидЭлемента: КомпонентИнтерфейса
+Ид: 7f3b2e4a-2c86-4c75-9e63-3b4a5f6e7d8c
+Имя: КарточкаСклада
+"""
+
+WAREHOUSES_REMOVED = (
+    "Основное/Склады.yaml: снимается справочник Склады целиком – вся его таблица будет удалена "
+    "вместе со строками"
+)
+
+
+def _review(tmp_path, earlier):
+    """review_tree over tmp_path, the earlier state being exactly the files of `earlier`."""
+    return review_tree(tmp_path, earlier.get, lambda: list(earlier))
+
+
+def _write(tmp_path, relative, text):
+    path = tmp_path / relative
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
+
+
+def test_a_catalog_removed_whole_refuses_like_a_narrowing(tmp_path):
+    """The files on disk cannot tell of it: the description is not there to be read."""
+    review = _review(tmp_path, {"Основное/Склады.yaml": WAREHOUSES})
+
+    assert review.changes == [WAREHOUSES_REMOVED]
+    assert review.removals == []
+
+
+def test_an_element_without_data_of_its_own_goes_without_a_word(tmp_path):
+    review = _review(tmp_path, {"Основное/КарточкаСклада.yaml": WAREHOUSE_FORM})
+
+    assert review.changes == [] and review.removals == []
+
+
+def test_a_description_still_on_disk_is_not_a_removal(tmp_path):
+    _write(tmp_path, "Основное/Склады.yaml", WAREHOUSES)
+
+    review = _review(tmp_path, {"Основное/Склады.yaml": WAREHOUSES})
+
+    assert review.changes == [] and review.removals == []
+
+
+def test_a_moved_description_is_compared_where_it_lies_now(tmp_path):
+    """The platform maps an element by its Ид: a move to another subsystem keeps the data,
+    and a narrowing made along with the move is still a narrowing."""
+    _write(
+        tmp_path, "Склад/Склады.yaml",
+        WAREHOUSES.replace("МаксимальнаяДлина: 200", "МаксимальнаяДлина: 50"),
+    )
+
+    review = _review(tmp_path, {"Основное/Склады.yaml": WAREHOUSES})
+
+    assert review.changes == ["Склад/Склады.yaml: реквизит Адрес – длина сужена с 200 до 50"]
+
+
+def test_a_renamed_element_keeps_its_data(tmp_path):
+    _write(tmp_path, "Основное/Хранилища.yaml", WAREHOUSES.replace("Имя: Склады", "Имя: Хранилища"))
+
+    review = _review(tmp_path, {"Основное/Склады.yaml": WAREHOUSES})
+
+    assert review.changes == [] and review.removals == []
+
+
+def test_an_element_without_an_id_cannot_be_told_from_a_moved_one(tmp_path):
+    without_id = "".join(
+        line for line in WAREHOUSES.splitlines(keepends=True) if not line.startswith("Ид:")
+    )
+
+    review = _review(tmp_path, {"Основное/Склады.yaml": without_id})
+
+    assert review.changes == []
+
+
+def test_the_english_kind_of_a_register_is_read_too(tmp_path):
+    prices = "ElementKind: InformationRegister\nId: 8a4c3f5b-3d97-4d86-af74-4c5b6a7f8e9d\nName: Prices\n"
+
+    review = _review(tmp_path, {"Main/Prices.yaml": prices})
+
+    assert review.changes == [
+        "Main/Prices.yaml: снимается регистр сведений Prices целиком – вся его таблица будет "
+        "удалена вместе со строками"
+    ]
+
+
+def test_without_the_earlier_list_a_gone_description_is_not_judged(tmp_path):
+    review = review_tree(tmp_path, {"Основное/Склады.yaml": WAREHOUSES}.get)
+
+    assert review.changes == []

@@ -813,17 +813,19 @@ MESSAGES = {
         "en": " and {count} more",
     },
     "deploy.destructive-changes": {
-        "ru": "ОТКАЗ: применение пересоздаст данные объектов – сужений найдено {count}: {changes}. "
-              "Расширение длин данные сохраняет, сужение и смена типа – нет. Если потеря данных "
-              "допустима, повторите с флагом --allow-data-loss",
-        "en": "REFUSED: the apply would recreate the data of the objects – {count} narrowing(s) "
-              "found: {changes}. Widening keeps the data, narrowing and a type change do not. If "
-              "losing the data is acceptable, repeat with --allow-data-loss",
+        "ru": "ОТКАЗ: применение уничтожит данные – находок {count}: {changes}. Расширение длин "
+              "данные сохраняет, а сужение, смена типа и снятие целиком элемента со своими "
+              "данными – нет. Если потеря данных допустима, повторите с флагом --allow-data-loss "
+              "(у инструмента MCP deploy – allow_data_loss=true)",
+        "en": "REFUSED: the apply would destroy data – {count} finding(s): {changes}. Widening "
+              "keeps the data; a narrowing, a type change and an element with data of its own "
+              "removed whole do not. If losing the data is acceptable, repeat with "
+              "--allow-data-loss (allow_data_loss=true for the MCP tool deploy)",
     },
     "deploy.destructive-allowed": {
-        "ru": "внимание: сужений найдено {count}, данные объектов будут пересозданы "
+        "ru": "внимание: находок {count}, данные будут пересозданы или удалены "
               "(--allow-data-loss): {changes}",
-        "en": "warning: {count} narrowing(s) found, the data of the objects will be recreated "
+        "en": "warning: {count} finding(s), the data will be recreated or deleted "
               "(--allow-data-loss): {changes}",
     },
     "deploy.schema-check-skipped": {
@@ -859,17 +861,34 @@ MESSAGES = {
               "project; this does NOT mean the apply is safe",
     },
     "deploy.schema-skipped-no-commit-id": {
-        "ru": "сверка схемы не выполнена: у применённой сборки {detail} не записан коммит – "
-              "сравнивать не с чем. Коммит в карточку записывает загрузка elemctl в "
-              "существующий проект; у сборок, загруженных иначе, прежними версиями или в новый "
-              "проект, его нет, а выкат из git-репозитория запишет свой, и следующей сверке "
+        "ru": "сверка схемы не выполнена: у применённой сборки {detail} не записан коммит, и "
+              "локальный реестр загрузок его не знает – сравнивать не с чем. Коммит в карточку "
+              "записывает загрузка elemctl в существующий проект, а загрузки этой машины помнит "
+              "реестр; сборки, загруженные иначе, с другой машины или прежними версиями, "
+              "коммита не несут, а выкат из git-репозитория запишет свой, и следующей сверке "
               "будет с чем сравнить. Это НЕ значит, что применение безопасно",
-        "en": "the schema check did not run: the applied build {detail} carries no commit – "
-              "there is nothing to compare against. The commit is written to the card by an "
-              "elemctl upload into an existing project; builds uploaded otherwise, by earlier "
-              "versions or into a new project carry none, and a deploy from a git repository "
-              "writes its own, so the next check has something to compare. This does NOT mean "
-              "the apply is safe",
+        "en": "the schema check did not run: the applied build {detail} carries no commit, and "
+              "the local registry of uploads does not know it – there is nothing to compare "
+              "against. The commit is written to the card by an elemctl upload into an existing "
+              "project, and the registry remembers the uploads of this machine; builds uploaded "
+              "otherwise, from another machine or by earlier versions carry none, and a deploy "
+              "from a git repository writes its own, so the next check has something to "
+              "compare. This does NOT mean the apply is safe",
+    },
+    "deploy.schema-commit-from-registry": {
+        "ru": "сверка схемы идёт с коммитом {commit} из локального реестра загрузок: в "
+              "карточке применённой сборки {build} коммита нет",
+        "en": "the schema is compared with the commit {commit} from the local registry of "
+              "uploads: the card of the applied build {build} carries no commit",
+    },
+    "deploy.schema-commit-from-registry-dirty": {
+        "ru": "сверка схемы идёт с коммитом {commit} из локального реестра загрузок: в "
+              "карточке применённой сборки {build} коммита нет. Реестр помнит, что эта сборка "
+              "собрана из дерева с незакоммиченными правками, и их сверка не увидит",
+        "en": "the schema is compared with the commit {commit} from the local registry of "
+              "uploads: the card of the applied build {build} carries no commit. The registry "
+              "remembers that this build was made from a tree with uncommitted changes, and "
+              "the check does not see them",
     },
     "deploy.schema-skipped-commit-unavailable": {
         "ru": "сверка схемы не выполнена: коммита {detail} применённой сборки нет в локальном "
@@ -900,6 +919,12 @@ MESSAGES = {
               "загружена; ветку и каталог исходников этой сборки листинги не покажут",
         "en": "warning: the upload was not written to the local registry ({path}): {error}. The "
               "build is uploaded; the listings will not show its branch and source directory",
+    },
+    "registry.limit-invalid": {
+        "ru": "внимание: {variable}={value} – не целое число; реестр загрузок хранит "
+              "последние {default} загрузок, как по умолчанию (0 – хранить все)",
+        "en": "warning: {variable}={value} is not a whole number; the registry of uploads keeps "
+              "the last {default} uploads, the default (0 keeps them all)",
     },
     # -- schema.py ----------------------------------------------------------------
     "schema.kind-attribute": {"ru": "реквизит", "en": "attribute"},
@@ -947,6 +972,25 @@ MESSAGES = {
         "en": "{where}: attribute {name} of the tabular part {part} of {object} is removed – "
               "its values in the rows will be deleted",
     },
+    "schema.element-removed": {
+        "ru": "{where}: снимается {kind} {name} целиком – вся его таблица будет удалена вместе "
+              "со строками",
+        "en": "{where}: the {kind} {name} is removed whole – its table will be deleted with "
+              "every row",
+    },
+    "schema.element-catalog": {"ru": "справочник", "en": "catalog"},
+    "schema.element-document": {"ru": "документ", "en": "document"},
+    "schema.element-information-register": {
+        "ru": "регистр сведений",
+        "en": "information register",
+    },
+    "schema.element-accumulation-register": {
+        "ru": "регистр накопления",
+        "en": "accumulation register",
+    },
+    "schema.element-constants-set": {"ru": "набор констант", "en": "constants set"},
+    "schema.element-exchange-plan": {"ru": "план обмена", "en": "exchange plan"},
+    "schema.element-settings-storage": {"ru": "хранилище настроек", "en": "settings storage"},
     "deploy.skipped-files": {
         "ru": "внимание: в архив НЕ вошли файлы ({count}): {files} – расширение вне списка "
               "разрешённых, а файл лежит не в каталоге Ресурсы; на применении это даёт "
@@ -978,6 +1022,25 @@ MESSAGES = {
     "deploy.uploaded": {
         "ru": "сборка загружена (id: {id})",
         "en": "build uploaded (id: {id})",
+    },
+    "deploy.version-not-kept": {
+        "ru": "внимание: версию {version} сервер не сохранит – сборку, загруженную в проект, он "
+              "нумерует сам: база – Версия проекта ({base}), номер – наибольший номер этой базы "
+              "плюс один. Суффикс архива до сервера не дойдёт; сборку с запуском CI свяжут имя "
+              "архива и коммит",
+        "en": "warning: the server will not keep the version {version} – it numbers a build "
+              "uploaded into a project itself: the base is the version of the project ({base}), "
+              "the number is the highest number of that base plus one. The suffix of the "
+              "archive does not reach the server; the name of the archive and the commit tie "
+              "the build to its CI run",
+    },
+    "deploy.renumbered": {
+        "ru": "внимание: сервер записал сборку как {given}, а не {built} из архива – сборку, "
+              "загруженную в проект, он нумерует сам: база – Версия проекта, номер – наибольший "
+              "номер этой базы плюс один",
+        "en": "warning: the server recorded the build as {given}, not as {built} from the "
+              "archive – it numbers a build uploaded into a project itself: the base is the "
+              "version of the project, the number is the highest number of that base plus one",
     },
     "deploy.unknown": {
         "ru": "не определён",
@@ -1618,9 +1681,9 @@ MESSAGES = {
     },
     "cli.help.verify-version-id": {
         "ru": "ид загруженной сборки, которую ждём применённой – надёжная сверка "
-              "(строка версии у нового приложения нумеруется заново)",
+              "(строку версии сборки, загруженной в проект, сервер назначает сам)",
         "en": "id of the uploaded build expected to be applied – the reliable comparison "
-              "(a new application renumbers the version string from scratch)",
+              "(the server assigns the version string of a build uploaded into a project)",
     },
     "cli.help.verify-expected-version": {
         "ru": "строка версии вместо ид сборки – запасная сверка",
@@ -1709,14 +1772,15 @@ MESSAGES = {
         "en": "abort the deploy if the project directory has uncommitted changes",
     },
     "cli.help.deploy-allow-data-loss": {
-        "ru": "разрешить применение, пересоздающее данные объектов (сужение длины, смена типа "
-              "реквизита, в том числе в табличной части); без флага такое развёртывание "
-              "отклоняется до сборки. Снятие реквизита или табличной части флага не требует: "
-              "деплой называет его и идёт дальше",
-        "en": "allow an apply that recreates the data of the objects (a narrowed length, a changed "
-              "attribute type, a tabular part included); without the flag such a deploy is "
-              "refused before the build. A removed attribute or tabular part needs no flag: the "
-              "deploy names it and goes on",
+        "ru": "разрешить применение, которое пересоздаёт или удаляет данные (сужение длины, "
+              "смена типа реквизита, в том числе в табличной части, снятие целиком справочника, "
+              "документа или регистра); без флага такое развёртывание отклоняется до сборки. "
+              "Снятие реквизита или табличной части флага не требует: деплой называет его и "
+              "идёт дальше",
+        "en": "allow an apply that recreates or deletes data (a narrowed length, a changed "
+              "attribute type, a tabular part included, a catalog, a document or a register "
+              "removed whole); without the flag such a deploy is refused before the build. A "
+              "removed attribute or tabular part needs no flag: the deploy names it and goes on",
     },
     "cli.help.deploy-server-start-timeout": {
         "ru": "сколько секунд ждать сервер 1С:Элемент, пока он стартует и его консоль отвечает "

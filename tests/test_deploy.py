@@ -121,9 +121,9 @@ def test_deploy_detects_silent_rollback(project_factory, tmp_path):
 
 
 def test_deploy_trusts_assembly_id_over_renumbered_version(project_factory, tmp_path):
-    # A freshly created application numbers versions from scratch (archive 1.0-1139 is
-    # applied as 1.0-3) - matching by the version string reported a false rollback. What
-    # confirms the apply is the id of the applied assembly matching the uploaded one.
+    # The server numbers a build uploaded into a project itself (archive 1.0-1139 is listed
+    # as 1.0-3) - matching by the version string reported a false rollback. What confirms the
+    # apply is the id of the applied assembly matching the uploaded one.
     client = FakeDeployClient(
         latest={"assembly-version": "1.0-1138", "id": "asm-old"},
         applied_version="1.0-3",
@@ -334,6 +334,8 @@ def test_report_to_dict_kebab_case(project_factory, tmp_path):
         "status",
         "version",
         "assembly-id",
+        "assembly-version",
+        "renumbered",
         "applied-version",
         "applied-version-id",
         "applied",
@@ -345,6 +347,8 @@ def test_report_to_dict_kebab_case(project_factory, tmp_path):
         "dirty-files",
         "schema-check",
         "schema-warnings",
+        "schema-commit",
+        "schema-commit-source",
         "hint",
     }
     assert payload["ok"] is True
@@ -635,12 +639,14 @@ CATALOG_BEFORE = (
 
 
 def _earlier(monkeypatch, files):
+    """The applied commit as the guard reads it: these files and nothing else."""
     from elemctl import deploy as deploy_module
 
     monkeypatch.setattr(
         deploy_module, "_git_show",
         lambda project_dir, commit, relative: files.get(relative, ""),
     )
+    monkeypatch.setattr(deploy_module, "_git_files", lambda project_dir, commit: list(files))
 
 
 def test_a_removed_tabular_part_is_named_and_the_deploy_goes_on(
@@ -765,6 +771,297 @@ def test_the_applied_build_is_found_under_any_id_field(project_factory, tmp_path
     )
 
     assert report.schema_check == "clean"
+
+
+# --- the commit of the applied build from the local registry -------------------
+
+
+def _remember_applied(**fields):
+    """The registry line of the applied build of SchemaGuardClient, as an upload wrote it."""
+    from elemctl.registry import remember_upload
+
+    values = {
+        "assembly_id": "asm-applied",
+        "project_id": "proj-1",
+        "version": "1.0-1",
+        "branch": "main",
+        "commit": "c0ffee",
+        "dirty": False,
+        "project_dir": None,
+        "file": None,
+        "stand": "",
+        "command": "probe",
+    }
+    values.update(fields)
+    assert remember_upload(**values) == ""
+
+
+def test_the_registry_gives_the_guard_the_commit_the_card_lacks(
+    project_factory, tmp_path, monkeypatch
+):
+    """A build that created its project carries no commit on its card, and the guard used to
+    step aside as "no-commit-id" while the registry of this machine knew the commit."""
+    project_dir = project_factory()
+    _guard_catalog(project_dir, CATALOG_BEFORE.replace("МаксимальнаяДлина: 100", "МаксимальнаяДлина: 20"))
+    _earlier(monkeypatch, {"Задачи.yaml": CATALOG_BEFORE})
+    _remember_applied()
+    client = SchemaGuardClient(commit_id="")
+    log_lines = []
+
+    with pytest.raises(ElemctlError) as error:
+        deploy_from_sources(
+            client, "app-1", "proj-1", project_dir=project_dir, output_dir=tmp_path / "d",
+            log=log_lines.append,
+        )
+
+    assert "Шаги.Шаг" in str(error.value)
+    assert client.upload_kwargs is None
+    said = next(line for line in log_lines if "из локального реестра загрузок" in line)
+    assert "c0ffee" in said and "asm-applied" in said
+
+
+def test_the_report_names_the_commit_it_compared_with_and_its_source(
+    project_factory, tmp_path, monkeypatch
+):
+    project_dir = project_factory()
+    _guard_catalog(project_dir, CATALOG_BEFORE)
+    _earlier(monkeypatch, {"Задачи.yaml": CATALOG_BEFORE})
+    _remember_applied(commit="beef42")
+
+    from_registry = deploy_from_sources(
+        SchemaGuardClient(commit_id=""), "app-1", "proj-1", project_dir=project_dir,
+        output_dir=tmp_path / "d", version="1.0-1",
+    ).to_dict()
+    from_card = deploy_from_sources(
+        SchemaGuardClient(), "app-1", "proj-1", project_dir=project_dir,
+        output_dir=tmp_path / "e", version="1.0-1",
+    ).to_dict()
+
+    assert from_registry["schema-check"] == "clean"
+    assert (from_registry["schema-commit"], from_registry["schema-commit-source"]) == (
+        "beef42", "registry",
+    )
+    # The card wins when it has a commit: the registry is this machine's memory, the card is
+    # the platform's record.
+    assert (from_card["schema-commit"], from_card["schema-commit-source"]) == (
+        "c0ffee", "platform",
+    )
+
+
+def test_a_skipped_check_names_no_commit(project_factory, tmp_path):
+    report = deploy_from_sources(
+        SchemaGuardClient(commit_id=""), "app-1", "proj-1", project_dir=project_factory(),
+        output_dir=tmp_path / "d", version="1.0-1",
+    ).to_dict()
+
+    assert report["schema-check"] == "skipped:no-commit-id"
+    assert report["schema-commit"] is None and report["schema-commit-source"] is None
+
+
+def test_a_registry_commit_of_a_dirty_tree_is_said_to_miss_the_changes(
+    project_factory, tmp_path, monkeypatch
+):
+    """The build was made from uncommitted changes, which its commit does not carry."""
+    project_dir = project_factory()
+    _guard_catalog(project_dir, CATALOG_BEFORE)
+    _earlier(monkeypatch, {"Задачи.yaml": CATALOG_BEFORE})
+    _remember_applied(dirty=True)
+    log_lines = []
+
+    deploy_from_sources(
+        SchemaGuardClient(commit_id=""), "app-1", "proj-1", project_dir=project_dir,
+        output_dir=tmp_path / "d", version="1.0-1", log=log_lines.append,
+    )
+
+    said = next(line for line in log_lines if "из локального реестра загрузок" in line)
+    assert "незакоммиченными правками" in said
+
+
+def test_a_registry_line_without_a_commit_leaves_the_check_skipped(project_factory, tmp_path):
+    """A build uploaded as a file outside a repository is remembered without a commit."""
+    _remember_applied(commit="", dirty=None)
+    log_lines = []
+
+    report = deploy_from_sources(
+        SchemaGuardClient(commit_id=""), "app-1", "proj-1", project_dir=project_factory(),
+        output_dir=tmp_path / "d", version="1.0-1", log=log_lines.append,
+    )
+
+    assert report.schema_check == "skipped:no-commit-id"
+    skip = next(line for line in log_lines if "сверка схемы не выполнена" in line)
+    assert "реестр загрузок его не знает" in skip
+
+
+# --- an element with data of its own removed whole -----------------------------
+
+# The catalog as the platform writes it: an element carries its Ид, and the guard follows
+# an element by it.
+CATALOG_WITH_ID = CATALOG_BEFORE.replace(
+    "Имя: Задачи\n", "Ид: 3c5d7e9f-2a4b-4c6d-8e0f-1a3b5c7d9e2f\nИмя: Задачи\n", 1
+)
+
+
+def test_a_catalog_removed_whole_refuses_the_deploy_before_the_build(
+    project_factory, tmp_path, monkeypatch
+):
+    """The guard read the files on disk, so a catalog whose file is gone went unnoticed and
+    its table went with every row. It weighs as much as a narrowing now."""
+    project_dir = project_factory()
+    _earlier(monkeypatch, {"Задачи.yaml": CATALOG_WITH_ID})
+    client = SchemaGuardClient()
+
+    with pytest.raises(ElemctlError) as error:
+        deploy_from_sources(
+            client, "app-1", "proj-1", project_dir=project_dir, output_dir=tmp_path / "d",
+        )
+
+    assert "снимается справочник Задачи целиком" in str(error.value)
+    assert "--allow-data-loss" in str(error.value)
+    assert client.upload_kwargs is None
+
+
+def test_allow_data_loss_lets_a_removed_catalog_through(project_factory, tmp_path, monkeypatch):
+    project_dir = project_factory()
+    _earlier(monkeypatch, {"Задачи.yaml": CATALOG_WITH_ID})
+    log_lines = []
+
+    report = deploy_from_sources(
+        SchemaGuardClient(), "app-1", "proj-1", project_dir=project_dir,
+        output_dir=tmp_path / "d", version="1.0-1", allow_data_loss=True,
+        log=log_lines.append,
+    )
+
+    assert report.ok is True and report.schema_check == "allowed"
+    allowed = next(line for line in log_lines if "--allow-data-loss" in line)
+    assert "снимается справочник Задачи целиком" in allowed
+
+
+def _commit_all(root, message):
+    import subprocess
+
+    def run(*args):
+        return subprocess.run(
+            ["git", "-C", str(root), *args], capture_output=True, text=True, check=True,
+            encoding="utf-8", errors="replace",
+        ).stdout.strip()
+
+    if not (root / ".git").exists():
+        run("init", "-q")
+        run("config", "user.email", "guard@example.test")
+        run("config", "user.name", "Guard")
+    run("add", "-A")
+    run("commit", "-q", "-m", message)
+    return run("rev-parse", "HEAD")
+
+
+def test_the_files_of_the_applied_commit_come_from_git(project_factory, tmp_path):
+    """The whole path on a real repository: the list of the commit, the Cyrillic names in it
+    and the text of the file that is gone from the disk."""
+    import shutil
+
+    if shutil.which("git") is None:
+        pytest.skip("git недоступен")
+    project_dir = project_factory()
+    (project_dir / "Основное").mkdir()
+    (project_dir / "Основное" / "Задачи.yaml").write_text(CATALOG_WITH_ID, encoding="utf-8")
+    commit = _commit_all(project_dir.parents[1], "catalog")
+    (project_dir / "Основное" / "Задачи.yaml").unlink()
+
+    with pytest.raises(ElemctlError) as error:
+        deploy_from_sources(
+            SchemaGuardClient(commit_id=commit), "app-1", "proj-1", project_dir=project_dir,
+            output_dir=tmp_path / "d",
+        )
+
+    assert "Основное/Задачи.yaml: снимается справочник Задачи целиком" in str(error.value)
+
+
+# --- the server numbers a build uploaded into a project itself ------------------
+#
+# Seen live: the archive of `1.0.0-i1` became `1.0.0-1`,
+# `1.0.0-10001` became `1.0.0-2`, a number already taken moved on to the next one, and
+# `1.0.1-7` became `1.0.0-502` - the base is the Версия of the descriptor, not the archive's.
+# The answer of the upload is the card of the build, with the number the server handed out.
+
+
+def _card_of_upload(version):
+    return {"id": "asm-777", "assembly-version": version, "project-version": version}
+
+
+def test_a_renumbered_build_is_named_and_reported(project_factory, tmp_path):
+    """The report answered ok: true, and only version against applied-version told of it."""
+    client = FakeDeployClient(
+        applied_version="1.0-6", applied_version_id="asm-777",
+        upload_response=_card_of_upload("1.0-6"),
+    )
+    log_lines = []
+
+    report = deploy_from_sources(
+        client, "app-1", "proj-1", project_dir=project_factory(), output_dir=tmp_path / "d",
+        version="1.0-i1", log=log_lines.append,
+    )
+    payload = report.to_dict()
+
+    assert report.ok is True
+    assert (payload["version"], payload["assembly-version"], payload["renumbered"]) == (
+        "1.0-i1", "1.0-6", True,
+    )
+    said = next(line for line in log_lines if "записал сборку как 1.0-6" in line)
+    assert "1.0-i1" in said and "плюс один" in said
+    uploaded = next(index for index, line in enumerate(log_lines) if "сборка загружена" in line)
+    assert log_lines.index(said) == uploaded + 1  # said right after the upload
+
+
+def test_a_version_the_server_cannot_keep_is_named_before_the_build(project_factory, tmp_path):
+    """A suffix that is not a number, a version without one and another base never survive."""
+    for version in ("1.0-i1", "1.0", "2.0-7"):
+        log_lines = []
+        deploy_from_sources(
+            FakeDeployClient(applied_version="1.0-1", upload_response=_card_of_upload("1.0-1")),
+            "app-1", "proj-1", project_dir=project_factory(repo_name=f"repo-{version}"),
+            output_dir=tmp_path / version, version=version, log=log_lines.append,
+        )
+        said = [line for line in log_lines if "сервер не сохранит" in line]
+        built = next(index for index, line in enumerate(log_lines) if "собран архив" in line)
+        assert said and log_lines.index(said[0]) < built, version
+        assert "(1.0)" in said[0]  # the base the server takes: the Версия of the descriptor
+
+
+def test_a_number_of_the_project_base_is_not_warned_about(project_factory, tmp_path):
+    log_lines = []
+    report = deploy_from_sources(
+        FakeDeployClient(applied_version="1.0-5", upload_response=_card_of_upload("1.0-5")),
+        "app-1", "proj-1", project_dir=project_factory(), output_dir=tmp_path / "d",
+        version="1.0-5", log=log_lines.append,
+    )
+
+    assert not [line for line in log_lines if "не сохранит" in line or "записал" in line]
+    assert report.renumbered is False and report.assembly_version == "1.0-5"
+
+
+def test_an_upload_answering_without_a_version_leaves_the_question_open(
+    project_factory, tmp_path
+):
+    report = deploy_from_sources(
+        FakeDeployClient(applied_version="1.0-5"), "app-1", "proj-1",
+        project_dir=project_factory(), output_dir=tmp_path / "d", version="1.0-5",
+    )
+
+    assert report.renumbered is None and report.to_dict()["assembly-version"] is None
+
+
+def test_the_version_fallback_compares_with_the_server_version(project_factory, tmp_path):
+    """Without an id to compare, the archive's version is on no card: the server's one is."""
+    client = FakeDeployClient(applied_version="1.0-6", upload_response={"assembly-version": "1.0-6"})
+
+    report = deploy_from_sources(
+        client, "app-1", "proj-1", project_dir=project_factory(), output_dir=tmp_path / "d",
+        version="1.0-i1",
+    )
+
+    assert report.applied is True and report.ok is True
+    # Applied by project and version, as the server knows the build.
+    assert client.apply_calls[0][1]["assembly_version"] == "1.0-6"
 
 
 # --- a refusal several lines long ---------------------------------------------

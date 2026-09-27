@@ -71,7 +71,10 @@ INSTRUCTIONS = (
     "Важно: при ошибке применения сборки платформа МОЛЧА откатывает приложение "
     "на предыдущую сборку и запускает его – статус Running не означает успех "
     "деплоя. Доверяйте только отчёту инструментов deploy/verify_deploy: поле ok, "
-    "список problems и сверка применённой сборки с загруженной (надёжно - по applied-version-id; строка версии у нового приложения нумеруется заново). "
+    "список problems и сверка применённой сборки с загруженной (надёжно - по applied-version-id: "
+    "сборку, загруженную в проект, сервер нумерует сам - Версия проекта и наибольший номер этой "
+    "базы плюс один, и версия из архива может на сервер не попасть: какую дал сервер, называют "
+    "поля assembly-version и renumbered отчёта deploy). "
     "Асинхронность: build_assembly, deploy, probe, probe_cleanup, apply_build, create_app, "
     "ensure_app, delete_app и merge_branch выполняются минутами и синхронно блокируют вызов "
     "до конца – в чате это выглядит зависанием без вывода. Такие операции "
@@ -695,10 +698,24 @@ def create_server(config=None, *, overrides=None, env_file=None):
         project_dir: str = "",
         version: str = "",
         branch: str = "",
+        allow_data_loss: bool = False,
         server_start_timeout: int = int(SERVER_START_TIMEOUT),
         env_file: str = "",
     ) -> dict:
         """Полный цикл деплоя из исходников с честной проверкой применения; итог - поле ok, детали - problems и log.
+
+        До сборки сторож схемы сверяет исходники с коммитом применённой сборки. Сужение
+        длины или смену типа реквизита, измерения или ресурса, снятое измерение и снятый
+        целиком справочник, документ или регистр деплой отклоняет ошибкой, ничего не
+        собрав: данные будут пересозданы или удалены. allow_data_loss=true пропускает
+        такие правки, как ключ --allow-data-loss в CLI, - только когда потеря данных
+        допустима. Снятие реквизита, ресурса или табличной части флага не требует:
+        деплой называет его в schema-warnings и идёт дальше.
+
+        Сборку, загруженную в проект, сервер нумерует сам: база - Версия проекта, номер -
+        наибольший номер этой базы плюс один, а суффикс из version (и из архива) не
+        сохраняется. Версию, которую сервер дал сборке, называет поле assembly-version,
+        а renumbered=true говорит, что она не совпала с version отчёта.
 
         Сервер 1С:Элемент, который ещё стартует (его консоль отвечает 404 "Application
         "console" not found"), деплой пережидает сам - до server_start_timeout секунд
@@ -715,6 +732,7 @@ def create_server(config=None, *, overrides=None, env_file=None):
             # Both ids are required parameters of the tool, so they are always explicit.
             app_id_source="flag",
             project_id_source="flag",
+            allow_data_loss=allow_data_loss,
             server_start_timeout=server_start_timeout,
             log=lines.append,
         )

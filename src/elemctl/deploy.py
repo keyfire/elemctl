@@ -26,8 +26,9 @@ from .client import (
 )
 from .errors import ApiError, ElemctlError, ServerStartingError
 from .probe import server_log_hint
-from .registry import remember_build
+from .registry import remember_build, remembered_uploads
 from .schema import review_tree
+from .versions import server_may_keep
 
 __all__ = ["FAILED_TASK_STATUSES"]  # the name stays where importers already expect it
 
@@ -65,6 +66,12 @@ class DeployReport:
     status: str = ""
     version: str = ""
     assembly_id: str = ""
+    # The version the server gave the uploaded build, and whether it differs from the version
+    # of the archive (None - the upload answered without one). A build uploaded into a project
+    # is numbered by the server: the Версия of the project descriptor and the highest number
+    # of that base plus one, whatever the archive said - `1.0.0-i1` lands as `1.0.0-6`.
+    assembly_version: str = ""
+    renumbered: bool | None = None
     applied_version: str = ""
     applied_version_id: str = ""
     applied: bool | None = None
@@ -74,7 +81,8 @@ class DeployReport:
     dirty_files: list | None = None
     # The schema guard's verdict: "clean" - ran and found nothing, "warned" - found only
     # removals, which are named in schema_warnings and do not stop a deploy, "allowed" -
-    # narrowings overridden by --allow-data-loss, "skipped:<reason>" - there was nothing to
+    # what the guard refuses (a narrowing, an element with data of its own removed whole)
+    # let through by --allow-data-loss, "skipped:<reason>" - there was nothing to
     # compare against (the reasons are listed at review_schema). "" - the guard was not
     # involved (verify without deploy). Named in the report on purpose: a skipped check
     # must not read as a passed one.
@@ -82,6 +90,11 @@ class DeployReport:
     # What the apply took away: the attributes, resources and tabular parts the sources no
     # longer have, one line each. Their data went with them; the server does not ask.
     schema_warnings: list = field(default_factory=list)
+    # The commit the guard compared the sources against, and where it came from: "platform" -
+    # the card of the applied build, "registry" - the local registry of uploads, which
+    # remembers the commit of a build whose card carries none. "" when nothing was compared.
+    schema_commit: str = ""
+    schema_commit_source: str = ""
     # Where to look when a task was refused without a compilation error in its text: the
     # log of the server (probe.server_log_hint). "" when the report itself names the cause.
     hint: str = ""
@@ -98,6 +111,8 @@ class DeployReport:
             "status": self.status,
             "version": self.version,
             "assembly-id": self.assembly_id,
+            "assembly-version": self.assembly_version or None,
+            "renumbered": self.renumbered,
             "applied-version": self.applied_version,
             "applied-version-id": self.applied_version_id,
             "applied": self.applied,
@@ -109,6 +124,8 @@ class DeployReport:
             "dirty-files": None if self.dirty_files is None else list(self.dirty_files),
             "schema-check": self.schema_check or None,
             "schema-warnings": list(self.schema_warnings),
+            "schema-commit": self.schema_commit or None,
+            "schema-commit-source": self.schema_commit_source or None,
             "hint": self.hint or None,
         }
 
@@ -195,9 +212,19 @@ def _deploy_from_sources(
     ))
 
     # The schema guard runs BEFORE the build: a narrowing recreates the data of the
-    # object, and refusing here means nothing was built and nothing uploaded. A removal
-    # is named here too, while the deploy can still be interrupted.
+    # object, a removed catalog takes its table away, and refusing here means nothing was
+    # built and nothing uploaded. A removal of a field is named here too, while the deploy
+    # can still be interrupted.
     verdict = review_schema(client, app_id, project_id, project_dir)
+    if verdict.commit_source == "registry":
+        # The commit is this machine's memory of the upload, not the platform's record, so
+        # the report says which one the sources were compared against.
+        log(i18n.t(
+            "deploy.schema-commit-from-registry-dirty" if verdict.commit_dirty
+            else "deploy.schema-commit-from-registry",
+            commit=verdict.commit,
+            build=verdict.build,
+        ))
     for removal in verdict.removals:
         log(i18n.t("deploy.schema-removal", change=removal))
     if verdict.changes and not allow_data_loss:
@@ -219,12 +246,17 @@ def _deploy_from_sources(
         schema_check = "clean"
 
     # The build version: either explicit or auto-incremented from the project's last build
-    # OF THE SAME BASE VERSION - a bumped project starts counting from 1 again.
+    # OF THE SAME BASE VERSION - a bumped project starts counting from 1 again. The server
+    # numbers the upload by the same rule, so an explicit version it cannot keep is said
+    # now, before anything is built, rather than discovered on the card afterwards.
+    base_version = read_project_meta(
+        find_project_dir(project_dir) if project_dir else find_project_dir()
+    ).base_version
     last_version = ""
-    if not version:
-        base_version = read_project_meta(
-            find_project_dir(project_dir) if project_dir else find_project_dir()
-        ).base_version
+    if version and version.strip():
+        if not server_may_keep(version, base_version):
+            log(i18n.t("deploy.version-not-kept", version=version.strip(), base=base_version))
+    else:
         latest = client.latest_assembly(project_id, base_version=base_version)
         if latest:
             last_version = str(latest.get("assembly-version") or "")
@@ -270,6 +302,9 @@ def _deploy_from_sources(
     )
     assembly_id = extract_assembly_id(response) or ""
     log(i18n.t("deploy.uploaded", id=assembly_id or i18n.t("deploy.unknown")))
+    assembly_version = uploaded_version(response)
+    if assembly_version and assembly_version != result.version:
+        log(i18n.t("deploy.renumbered", built=result.version, given=assembly_version))
     warning = remember_build(
         result, response=response, project_id=project_id, stand=_stand(client), command="deploy"
     )
@@ -279,9 +314,11 @@ def _deploy_from_sources(
     if assembly_id:
         client.apply_build(app_id, image_id=assembly_id, log=log)
     else:
-        # The response carries no assembly id: apply by project and version.
+        # The response carries no assembly id: apply by project and version - the version
+        # the server gave the build, when it said which.
         client.apply_build(
-            app_id, project_id=project_id, assembly_version=result.version, log=log
+            app_id, project_id=project_id,
+            assembly_version=assembly_version or result.version, log=log,
         )
     log(i18n.t("deploy.apply-started"))
 
@@ -299,11 +336,16 @@ def _deploy_from_sources(
         expected_version=result.version,
         expected_assembly_id=assembly_id,
         since=started_at,
+        uploaded_version=assembly_version,
     )
     report.assembly_id = assembly_id
+    report.assembly_version = assembly_version
+    report.renumbered = (assembly_version != result.version) if assembly_version else None
     report.dirty_files = result.dirty_files
     report.schema_check = schema_check
     report.schema_warnings = list(verdict.removals)
+    report.schema_commit = verdict.commit
+    report.schema_commit_source = verdict.commit_source
     report.app_id_source = app_id_source or ""
     report.project_id = str(project_id or "")
     report.project_id_source = project_id_source or ""
@@ -338,26 +380,54 @@ def verify_deploy(client, app_id, *, expected_version="", expected_assembly_id="
 class SchemaVerdict:
     """What the schema guard found, or why it could not look.
 
-    changes - the narrowings a deploy refuses without --allow-data-loss; removals - what
-    the apply takes away, named without stopping it; skipped - why nothing was compared
-    ("" when it was), with detail naming what could not be read or found.
+    changes - what a deploy refuses without --allow-data-loss: the narrowings and the
+    elements with data of their own removed whole; removals - what the apply takes away,
+    named without stopping it; skipped - why nothing was compared ("" when it was), with
+    detail naming what could not be read or found. commit - what the sources were compared
+    against, commit_source - where it came from ("platform" or "registry"), commit_dirty -
+    the registry's word on whether that build was made from a tree with uncommitted changes
+    (None when it does not know), build - the applied build as a person reads it.
     """
 
     changes: list = field(default_factory=list)
     removals: list = field(default_factory=list)
     skipped: str = ""
     detail: str = ""
+    commit: str = ""
+    commit_source: str = ""
+    commit_dirty: bool | None = None
+    build: str = ""
+
+
+@dataclass
+class _AppliedCommit:
+    """The commit of the applied build, where it came from, or why it is not known.
+
+    reason is "" when the commit is known; otherwise it names the way of not having it, and
+    detail says what could not be read or found. build names the applied build for a
+    person: its id with the version beside it.
+    """
+
+    commit: str = ""
+    source: str = ""
+    reason: str = ""
+    detail: str = ""
+    build: str = ""
+    dirty: bool | None = None
 
 
 def _applied_commit(client, app_id, project_id):
     """The commit the applied build was made from, or why it is not known.
 
-    Returns (commit, reason, detail). The Console API does NOT hand out the contents
-    of an assembly - there is no download method - so an archive-to-archive comparison
-    is impossible. What the assembly card does carry is commit-id, which makes the
-    sources of that commit the thing to compare against. Every way of not having it
-    is a reason of its own: a card that could not be read used to be reported as a
-    build without a commit, and the report then explained a cause that was not there.
+    Returns an _AppliedCommit. The Console API does NOT hand out the contents of an
+    assembly - there is no download method - so an archive-to-archive comparison is
+    impossible. What the assembly card does carry is commit-id, which makes the sources of
+    that commit the thing to compare against. A card without one - a build that created its
+    project, or one uploaded before elemctl sent the commit - is looked up in the local
+    registry of uploads: a build this machine uploaded is remembered with its commit. Every
+    way of not having a commit is a reason of its own: a card that could not be read used to
+    be reported as a build without a commit, and the report then explained a cause that was
+    not there.
     """
     try:
         card = client.get_app(app_id) or {}
@@ -367,26 +437,36 @@ def _applied_commit(client, app_id, project_id):
         raise
     except Exception as error:
         # The guard is auxiliary: no failure of it may get in the way of a deploy.
-        return "", "read-failed", str(error)
+        return _AppliedCommit(reason="read-failed", detail=str(error))
     applied_id = str((card.get("source") or {}).get("project-version-id") or "")
     if not applied_id:
-        return "", "no-applied-build", ""
+        return _AppliedCommit(reason="no-applied-build")
     try:
         assemblies = client.list_assemblies(project_id)
     except ServerStartingError:
         raise
     except Exception as error:
-        return "", "read-failed", str(error)
+        return _AppliedCommit(reason="read-failed", detail=str(error))
     for assembly in assemblies:
         if not isinstance(assembly, dict):
             continue
-        if applied_id in {str(assembly.get(key) or "") for key in ASSEMBLY_ID_KEYS}:
-            commit = str(assembly.get("commit-id") or "")
-            if commit:
-                return commit, "", ""
-            version = assembly.get("assembly-version") or assembly.get("project-version")
-            return "", "no-commit-id", assembly_label(applied_id, version)
-    return "", "applied-build-not-listed", applied_id
+        if applied_id not in {str(assembly.get(key) or "") for key in ASSEMBLY_ID_KEYS}:
+            continue
+        version = assembly.get("assembly-version") or assembly.get("project-version")
+        build = assembly_label(applied_id, version)
+        commit = str(assembly.get("commit-id") or "")
+        if commit:
+            return _AppliedCommit(commit=commit, source="platform", build=build)
+        remembered = remembered_uploads([applied_id]).get(applied_id) or {}
+        commit = str(remembered.get("commit") or "")
+        if commit:
+            dirty = remembered.get("dirty")
+            return _AppliedCommit(
+                commit=commit, source="registry", build=build,
+                dirty=None if dirty is None else bool(dirty),
+            )
+        return _AppliedCommit(reason="no-commit-id", detail=build, build=build)
+    return _AppliedCommit(reason="applied-build-not-listed", detail=applied_id)
 
 
 def _git_show(project_dir, commit, relative_path):
@@ -408,6 +488,30 @@ def _git_show(project_dir, commit, relative_path):
     return completed.stdout if completed.returncode == 0 else None
 
 
+def _git_files(project_dir, commit):
+    """The files of the project directory at a commit, relative to it; None when git cannot say.
+
+    `ls-tree` run inside the directory lists what lies under it, with the paths relative to
+    it - the same paths `_git_show` reads - and `-z` hands a Cyrillic name over as it is
+    rather than quoted.
+    """
+    try:
+        completed = subprocess.run(
+            ["git", "-C", str(project_dir), "ls-tree", "-r", "-z", "--name-only", commit],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            stdin=subprocess.DEVNULL,
+            timeout=15,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if completed.returncode != 0:
+        return None
+    return [name for name in completed.stdout.split("\0") if name]
+
+
 def review_schema(client, app_id, project_id, project_dir):
     """The schema guard: the sources on disk against the commit of the applied build.
 
@@ -417,8 +521,9 @@ def review_schema(client, app_id, project_id, project_dir):
     "no-project-dir" - no project directory to read; "read-failed" - the application
     card or the build list did not come; "no-applied-build" - the card names no build;
     "applied-build-not-listed" - the applied build is not among the project's builds;
-    "no-commit-id" - the applied build carries no commit; "commit-unavailable" - the
-    local repository does not have that commit.
+    "no-commit-id" - neither the card of the applied build nor the local registry of
+    uploads knows its commit; "commit-unavailable" - the local repository does not have
+    that commit.
 
     The project directory is found the way the build finds it: a deploy without an
     explicit one used to skip the guard as "no-project-dir" and then build that very
@@ -428,13 +533,27 @@ def review_schema(client, app_id, project_id, project_dir):
         directory = find_project_dir(project_dir) if project_dir else find_project_dir()
     except ElemctlError:
         return SchemaVerdict(skipped="no-project-dir")
-    commit, reason, detail = _applied_commit(client, app_id, project_id)
-    if reason:
-        return SchemaVerdict(skipped=reason, detail=detail)
+    applied = _applied_commit(client, app_id, project_id)
+    if applied.reason:
+        return SchemaVerdict(skipped=applied.reason, detail=applied.detail)
+    commit = applied.commit
     if all(_git_show(directory, commit, name) is None for name in PROJECT_FILES):
         return SchemaVerdict(skipped="commit-unavailable", detail=commit)
-    review = review_tree(directory, lambda relative: _git_show(directory, commit, relative))
-    return SchemaVerdict(changes=review.changes, removals=review.removals)
+    review = review_tree(
+        directory,
+        lambda relative: _git_show(directory, commit, relative),
+        # The files of the applied commit: what the disk no longer has cannot be read off
+        # the disk, and a catalog whose description is gone takes its table with it.
+        lambda: _git_files(directory, commit),
+    )
+    return SchemaVerdict(
+        changes=review.changes,
+        removals=review.removals,
+        commit=commit,
+        commit_source=applied.source,
+        commit_dirty=applied.dirty,
+        build=applied.build,
+    )
 
 
 def _skip_message(verdict, project_id):
@@ -464,6 +583,17 @@ def _add_server_log_hint(error):
         error.args = (error.message,)
 
 
+def uploaded_version(response):
+    """The version the server gave an uploaded build, "" when its answer does not say.
+
+    An upload into a project answers with the card of the build, and its assembly-version is
+    the number the server handed out. An upload that creates or finds its project by the
+    vendor and the name answers without one: that upload keeps the version of the archive.
+    """
+    answer = response if isinstance(response, dict) else {}
+    return str(answer.get("assembly-version") or answer.get("project-version") or "")
+
+
 def _stand(client):
     """The base address of the stand the client talks to ("" for a stand-in without one)."""
     return str(getattr(getattr(client, "config", None), "base_url", "") or "")
@@ -487,7 +617,15 @@ def _shorten_list(items, limit=5):
     return shown
 
 
-def _verify(client, app_id, *, card, expected_version, since, expected_assembly_id=""):
+def _verify(
+    client, app_id, *, card, expected_version, since, expected_assembly_id="", uploaded_version=""
+):
+    """The verdict on an apply; uploaded_version - the version the server gave the build.
+
+    expected_version is what the report calls the build by. The fallback comparison by the
+    version string takes uploaded_version when it is known: the server numbers a build
+    uploaded into a project itself, and the version of the archive may be on no card at all.
+    """
     problems = []
     refusals = []
 
@@ -510,10 +648,11 @@ def _verify(client, app_id, *, card, expected_version, since, expected_assembly_
 
     # 2. Compare the build actually applied with the uploaded one. The reliable
     # signal is source.project-version-id being equal to the id of the uploaded
-    # build: the version string will not do, because a freshly created application
-    # numbers its versions from scratch (archive 1.0-1139 is applied as 1.0-3) and
+    # build: the version string will not do, because the server numbers a build
+    # uploaded into a project itself (archive 1.0-1139 is listed as 1.0-3) and
     # comparing the strings used to report a false rollback. The version string
-    # stays as a fallback check for when the build id is unknown.
+    # stays as a fallback check for when the build id is unknown, and it is the
+    # server's version of the build whenever the upload said which.
     if card is None:
         card = client.get_app(app_id) or {}
     source = card.get("source") or {}
@@ -528,13 +667,13 @@ def _verify(client, app_id, *, card, expected_version, since, expected_assembly_
                 applied=applied_version_id,
                 expected=expected_assembly_id,
             ))
-    elif expected_version and applied_version:
-        applied = applied_version == expected_version
+    elif (uploaded_version or expected_version) and applied_version:
+        applied = applied_version == (uploaded_version or expected_version)
         if not applied:
             problems.append(i18n.t(
                 "deploy.version-mismatch",
                 applied=applied_version,
-                expected=expected_version,
+                expected=uploaded_version or expected_version,
             ))
 
     # 3. An informational GET to the application uri (401/403 are fine).

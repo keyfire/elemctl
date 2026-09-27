@@ -173,8 +173,8 @@ for the cache to watch and stays pinned for the life of the process instead.
 
 ### Behaviour of the tool
 
-`ELEMCTL_LANG`, `ELEMCTL_NO_PLUGINS` and `ELEMCTL_DATA_DIR` are set through the
-environment only – a connection `.env` is not their place. `ELEMCTL_NO_PROXY` is the
+`ELEMCTL_LANG`, `ELEMCTL_NO_PLUGINS`, `ELEMCTL_DATA_DIR` and `ELEMCTL_REGISTRY_LIMIT` are
+set through the environment only – a connection `.env` is not their place. `ELEMCTL_NO_PROXY` is the
 exception, explained above: it reads the same file the connection does.
 
 | Variable | Purpose |
@@ -183,6 +183,7 @@ exception, explained above: it reads the same file the connection does.
 | `ELEMCTL_NO_PROXY` | set it to bypass the environment's proxy for every call (loopback and private addresses are bypassed anyway); also readable from the stand's `.env` |
 | `ELEMCTL_NO_PLUGINS` | do not look for plugins: work with the core capabilities only |
 | `ELEMCTL_DATA_DIR` | the directory of the local registry of uploads; by default `%LOCALAPPDATA%\elemctl` on Windows and `$XDG_STATE_HOME/elemctl` (`~/.local/state/elemctl`) elsewhere |
+| `ELEMCTL_REGISTRY_LIMIT` | how many uploads the local registry of uploads keeps; 1000 by default, `0` keeps every one |
 
 ### The local registry of uploads
 
@@ -198,6 +199,12 @@ The registry is local. A build uploaded from another machine, from CI or by an e
 had no registry yet is not in it, and there the listings show what the platform knows. A
 registry that cannot be written is a warning and never a failed upload; the file can be
 deleted at any time, and only the history of this machine goes with it.
+
+The registry keeps the newest thousand uploads, `ELEMCTL_REGISTRY_LIMIT` sets another
+number, and `0` keeps every one. Once the file has grown past the limit by a tenth, the next
+upload cuts it back to the newest lines: the builds a project still lists and an application
+still runs are the recent ones, and a file nobody trimmed grew for as long as the machine
+deployed.
 
 ### The CI environment
 
@@ -306,7 +313,7 @@ The server reads connection credentials from the same `ELEMENT_*` variables / `.
 | `get_build` | the whole card of one build; `version` is the build's version (`1.0-42`), an id is accepted too and resolved through the listing |
 | `build_assembly` | build a `.xasm`/`.xlib` archive from the sources locally (does not talk to the platform) |
 | `inspect_assembly` | parse a built archive: manifest, project properties, subsystems and global types with qualified names (local) |
-| `deploy` | the whole cycle from sources, with a check that the build was applied; the verdict is `ok`, the details are `problems` and `log`; a server that is still starting is waited out for up to `server_start_timeout` seconds (900 by default) |
+| `deploy` | the whole cycle from sources, with a check that the build was applied; the verdict is `ok`, the details are `problems` and `log`; `allow_data_loss` lets through what the schema guard refuses (a narrowing, a type change, a catalog removed whole), like `--allow-data-loss`; a server that is still starting is waited out for up to `server_start_timeout` seconds (900 by default) |
 | `probe` | check the compilation with the server compiler without touching the working application; errors with file, line and column, cleans up after itself; with `keep` the report names the command that removes what was left |
 | `probe_cleanup` | remove a probe left on the stand, by `keep` or by a cleanup that broke off, starting from its application: the application, the probe build in the probe's own project and the project when nothing is left in it; an application that is not a probe's is refused |
 | `apply_build` | apply an uploaded build to the application by its id |

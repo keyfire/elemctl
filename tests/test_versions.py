@@ -7,9 +7,20 @@ from elemctl.versions import (
     newest_first,
     next_version,
     pick_latest,
+    server_may_keep,
     version_base,
     version_counter,
 )
+
+
+def test_the_server_keeps_only_a_number_of_the_project_base():
+    """False is certain: the server numbers the upload by the Версия of the descriptor."""
+    assert server_may_keep("1.0.0-7", "1.0.0")
+    assert not server_may_keep("1.0.0-i1", "1.0.0")
+    assert not server_may_keep("1.0.0", "1.0.0")
+    assert not server_may_keep("1.0.1-7", "1.0.0")
+    assert not server_may_keep("1.0.0-", "1.0.0")
+    assert not server_may_keep("1.0.0-٧", "1.0.0")  # a digit, but not one the server counts
 
 
 def test_version_counter():
