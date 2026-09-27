@@ -306,7 +306,8 @@ def _deploy_from_sources(
     if assembly_version and assembly_version != result.version:
         log(i18n.t("deploy.renumbered", built=result.version, given=assembly_version))
     warning = remember_build(
-        result, response=response, project_id=project_id, stand=_stand(client), command="deploy"
+        result, response=response, project_id=project_id, stand=_stand(client),
+        command="deploy", app_id=app_id,
     )
     if warning:
         log(warning)

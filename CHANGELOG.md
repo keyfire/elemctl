@@ -57,6 +57,10 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
   for one.
 
 ### Fixed
+- **`probe --cleanup` removes a probe that was given its own name and version.** Neither
+  mark of a probe was there, the cleanup refused, and the application, the builds and the
+  project had to go by hand. The registry of uploads now remembers the application a probe
+  creates, so the cleanup knows it and takes the builds deployed into it along.
 - **An upload takes the build into the space it was given.** The client sent the space as
   `SpaceId`, a spelling the server does not read, so the space of a new project never reached
   it and a wrong one went unnoticed. An upload into a project now sends `space-id`, and a new

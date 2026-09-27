@@ -1182,13 +1182,25 @@ MESSAGES = {
     },
     "probe.cleanup-not-a-probe": {
         "ru": "приложение '{name}' ({app}) оставил не пробник: имя не начинается с {prefix}, "
-              "а сборка, на которой оно работает ({version}), не сборка пробника – в версии "
-              "нет -probe-. --cleanup убирает только то, что оставил probe; прочие приложения "
+              "сборка, на которой оно работает ({version}), не сборка пробника – в версии "
+              "нет -probe-, и локальный реестр загрузок не помнит, чтобы его создал probe этой "
+              "машины. --cleanup убирает только то, что оставил probe; прочие приложения "
               "удаляет apps delete",
         "en": "the application '{name}' ({app}) was not left by a probe: its name does not "
-              "start with {prefix}, and the build it runs ({version}) is not a probe build – "
-              "the version carries no -probe-. --cleanup removes only what probe left; other "
-              "applications are deleted with apps delete",
+              "start with {prefix}, the build it runs ({version}) is not a probe build – the "
+              "version carries no -probe-, and the local registry of uploads remembers no "
+              "probe of this machine creating it. --cleanup removes only what probe left; "
+              "other applications are deleted with apps delete",
+    },
+    "probe.cleanup-from-registry": {
+        "ru": "ни имя, ни сборка приложения {app} пробника не выдают, но локальный реестр "
+              "загрузок помнит, что его создал probe этой машины",
+        "en": "neither the name nor the build of the application {app} says probe, but the "
+              "local registry of uploads remembers a probe of this machine creating it",
+    },
+    "probe.cleanup-build-in-use": {
+        "ru": "сборка {version} оставлена: на ней теперь работает приложение {app}",
+        "en": "the build {version} is kept: the application {app} runs it now",
     },
     "probe.cleanup-app-already-deleted": {
         "ru": "приложение {app} уже удалено: платформа держит его в перечне со статусом Deleted",
@@ -1949,11 +1961,13 @@ MESSAGES = {
     },
     "cli.help.probe-cleanup": {
         "ru": "убрать оставленный пробник по его приложению (ид или имя): приложение, сборку "
-              "пробника в его проекте и проект, если в нём больше ничего нет; чужое приложение "
-              "команда не тронет",
+              "пробника в его проекте и проект, если в нём больше ничего нет; пробник со "
+              "своими именем и версией узнаётся по локальному реестру загрузок; чужое "
+              "приложение команда не тронет",
         "en": "remove a probe left behind, starting from its application (id or name): the "
               "application, the probe build in its project and the project when nothing else "
-              "is left in it; an application that is not a probe's is refused",
+              "is left in it; a probe with a name and a version of its own is known by the "
+              "local registry of uploads; an application that is not a probe's is refused",
     },
     "cli.help.probe-require-clean": {
         "ru": "прервать проверку, если в каталоге проекта есть незакоммиченные изменения",

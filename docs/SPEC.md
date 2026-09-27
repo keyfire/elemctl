@@ -287,7 +287,9 @@ Commands, with the significant flags in parentheses:
   `ELEMCTL_DATA_DIR` when it is set, otherwise `%LOCALAPPDATA%\elemctl` on Windows and
   `$XDG_STATE_HOME/elemctl` (`~/.local/state/elemctl`) elsewhere. A line holds the build
   id, the project id, the version, the branch, the commit, the `dirty` flag, the directory
-  of the sources, the archive, the stand, the command and the time. The platform keeps the
+  of the sources, the archive, the stand, the command, the application the upload was made
+  for (the target of a deploy, the throwaway application of a probe) and the time. The
+  platform keeps the
   commit alone, and with several sessions deploying from one machine a build on an
   application could not be traced to the working tree it came from. The registry is local:
   a build uploaded from another machine, from CI or by an elemctl that had no registry yet
@@ -383,16 +385,21 @@ Commands, with the significant flags in parentheses:
   application, an id or a name. The application card names the project and the build
   it was created from, so nothing has to be remembered between the runs. Only a
   probe's application is touched: its name starts with `elemctl-probe-`, or the build
-  it runs carries `-probe-` in its version, which covers a probe named with `--name`.
-  Any other application is refused with the reason, and so is the one
-  `ELEMENT_APP_ID` names. The order is that of section 6.9: the application, a wait
-  until it is gone, the build of this very probe (its token in the version), and the
-  project last. The project goes only when no build is left in it and no live
+  it runs carries `-probe-` in its version, which covers a probe named with `--name`,
+  or the local registry of uploads remembers a probe of this machine creating it,
+  which covers a probe given both `--name` and `--build-version` and one that got
+  deploys of its own since. Any other application is refused with the reason, and so
+  is the one `ELEMENT_APP_ID` names. The order is that of section 6.9: the
+  application, a wait until it is gone, the build of this very probe (its token in
+  the version, or the build the registry remembers the probe uploading) together with
+  every build the registry remembers uploading for this application, and the project
+  last. A build uploaded for the application that another live application runs now
+  stays, and its entry in `builds` names that application in `kept`. The project goes only when no build is left in it and no live
   application runs it, and never when it is the project of `ELEMENT_PROJECT_ID`: a
   probe usually lands in the project that owns its sources, the working one, while a
   project the probe created ends up empty. The builds other runs uploaded into the
-  probe's application are left to the platform, which deletes the builds nobody
-  uses. A second run finishes what the first one left: an application that is
+  probe's application from another machine, which the registry does not know, are
+  left to the platform, which deletes the builds nobody uses. A second run finishes what the first one left: an application that is
   already a tombstone is not deleted twice, since the list keeps its card, and a
   project deleted already is not deleted again. The run builds nothing, so the flags
   of a probe run are refused beside `--cleanup`. Output: `ok`, `app-id`, `app-name`,

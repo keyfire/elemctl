@@ -399,6 +399,9 @@ def test_deploy_sends_the_commit_and_writes_the_upload_down(project_factory, tmp
     assert remembered["version"] == "1.0-12"
     assert remembered["project-id"] == "proj-1"
     assert remembered["command"] == "deploy"
+    # The application the build was uploaded for: a probe kept for a look by hand gets deploys,
+    # and its cleanup takes what was deployed into it along.
+    assert remembered["app-id"] == "app-1"
     assert Path(remembered["project-dir"]) == project_dir.resolve()
     # Outside a repository nothing is known about the tree - and that is what is written.
     assert remembered["dirty"] is None
@@ -470,3 +473,27 @@ def test_a_probe_writes_its_upload_down(project_factory, tmp_path):
     remembered = remembered_uploads(["asm-1"])["asm-1"]
     assert remembered["command"] == "probe"
     assert remembered["project-id"] == "proj-1"
+    # The throwaway application goes along: it is what the cleanup knows a probe by when
+    # neither its name nor the version of its build does.
+    assert remembered["app-id"] == "app-1"
+
+
+def test_a_probe_whose_application_was_refused_still_writes_its_upload_down(
+    project_factory, tmp_path
+):
+    """The build is on the server by then, whatever the creation of the application answered."""
+    from elemctl.errors import ApiError
+    from tests.test_probe import FakeProbeClient
+
+    class RefusingClient(FakeProbeClient):
+        def create_app(self, name, **kwargs):
+            raise ApiError("Console API ответил 400: Can't create application", status=400)
+
+    project_dir = project_factory(presentation="Пробник", language="Русский")
+    report = probe_project(
+        RefusingClient(), project_dir=project_dir, output_dir=tmp_path / "dist",
+    )
+
+    assert report.ok is False
+    remembered = remembered_uploads(["asm-1"])["asm-1"]
+    assert remembered["command"] == "probe" and remembered["app-id"] is None
