@@ -41,7 +41,7 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
   the extensions of the application first: the export answers a miss with a bare 500, so the
   refusal names the extensions the application has. A server older than the method answers 401
   "Handler of HTTP request ... not found", and elemctl says the server does not know the method
-  rather than reading it as a failed sign-in.
+  rather than reading it as a failed sign-in. ([#48](https://github.com/keyfire/elemctl/pull/48))
 
 ### Changed
 - **A wait gives `UNKNOWN` a minute, not the whole timeout.** `deploy` on an application whose
@@ -60,7 +60,7 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
   `--env-file` gave its MCP tool a second `env_file`, which kept the MCP server from starting.
   Such a declaration is now refused at discovery like any other flaw: the plugin is left out and
   named, and the core keeps working. The list is read from the CLI, so an option the core adds
-  is closed to plugins at once.
+  is closed to plugins at once. ([#48](https://github.com/keyfire/elemctl/pull/48))
 - **`deploy` keeps up with the server's count after the top build is deleted.** The server
   gives a build uploaded into a project the highest number it has ever given in the base plus
   one, deleted builds included, while the build list shows only what is left. With the top
@@ -69,10 +69,11 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
   count now also reads the local registry of uploads, which keeps the numbers the uploads of
   this machine got. A build uploaded from elsewhere and deleted since is still out of sight, and
   the line after the upload then says, without a warning, that the number is the server's.
+  ([#48](https://github.com/keyfire/elemctl/pull/48))
 
 ### Documentation
 - The specification counted `--version` among the flags accepted after a subcommand and left
-  `--lang` out; it is the other way round.
+  `--lang` out; it is the other way round. ([#48](https://github.com/keyfire/elemctl/pull/48))
 
 ## 2026-09-27 – 0.46.0
 
