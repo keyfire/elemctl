@@ -62,6 +62,12 @@ EXIT_CODE_FIELD = "exit-code"
 # as a stdio DAP over the classpath from the adapter directory.
 ADAPTER_MAIN_CLASS = "com.e1c.g5rt.debugger.adapter.App"
 
+# The surface a command is called from, as CommandContext.surface names it. A plugin that
+# also runs on an older core finds no such attribute there and reads it with
+# getattr(context, "surface", None).
+SURFACE_CLI = "cli"
+SURFACE_MCP = "mcp"
+
 _FALSY = {"", "0", "false", "no"}
 
 
@@ -323,10 +329,16 @@ class CommandContext:
     reaches the platform (a local check, work with files) must not demand
     connection credentials. log is a callback for progress lines - in the CLI it
     goes to stderr, in MCP it is collected into the log field of the answer.
+
+    surface says which of the two called the command: SURFACE_CLI for a subcommand,
+    SURFACE_MCP for a tool, None when the context was built by someone else (a test,
+    a library caller). A plugin used to tell them apart only by the shape of log,
+    and log is the core's to change. The value decides nothing in the core itself.
     """
 
-    def __init__(self, config, *, client=None, client_factory=None, log=None):
+    def __init__(self, config, *, client=None, client_factory=None, log=None, surface=None):
         self.config = config
+        self.surface = surface
         self._client = client
         self._client_factory = client_factory
         self._log = log or (lambda message: None)

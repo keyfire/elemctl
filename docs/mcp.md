@@ -93,6 +93,7 @@ from elemctl.plugins import Argument, Command
 
 def warm_up(context, stand="", force=False):
     context.log(f"warming up {stand}")          # progress: stderr in the CLI, the log field in MCP
+    # context.surface says which of them called: "cli" or "mcp"
     card = context.client.get_app(stand)        # the client is built on first use
     return {"ok": True, "status": card.get("status")}
 
@@ -106,6 +107,8 @@ def commands():
 ```
 
 The result of a handler has to be JSON-serializable: the CLI prints it, the MCP tool returns it. The exit code of the CLI comes from the result too. An integer from 0 to 255 in the `exit-code` field becomes the exit code as it is, so a command with three outcomes can hand a script "no differences", "differences" and "a step failed" as 0, 1 and 2. Without that field, a dict result with `"ok": false` ends with exit code 1, the same convention the `deploy` and `probe` reports follow. When the field disagrees with `ok`, the field decides. A string, `true` or 300 is not a code, and the CLI goes by `ok` instead. The MCP tool returns the field with the rest of the result. Do not call `sys.exit` in a handler to get a code: the same function runs inside the MCP server, where the call would never be answered and the server would stop. Argument types are `str`, `int`, `float` and `bool` for a flag. elemctl adds `env_file` to the MCP tool itself, so a plugin command reaches other environments exactly like the core tools do. A command may not take over a name the core already occupies: such a command is left out. So is a plugin that fails to load, one written for a newer core for instance. elemctl names them on stderr and in `elemctl plugins` and keeps working with the rest.
+
+`context.surface` says where the call came from: `"cli"` for a subcommand and `"mcp"` for a tool. A command that answers differently on the two, briefly in a tool and in full on a terminal say, reads it there instead of guessing from how `context.log` behaves. On an older core the attribute is missing, so read it with `getattr(context, "surface", None)`.
 
 A positional argument may add a CLI-only key synonym: `Argument("page", cli_alias="--page")` accepts both `elemctl wiki-get 123` and `elemctl wiki-get --page 123`. The MCP tool schema keeps the one `page` parameter it always had – `cli_alias` only changes what the CLI parser accepts, nothing about the declared arguments themselves. The two forms are mutually exclusive: the parser refuses both at once, and refuses neither when the argument is required. A plugin that declares no `cli_alias` behaves exactly as before.
 

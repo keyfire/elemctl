@@ -757,6 +757,93 @@ def test_a_wait_for_a_stable_status_does_not_take_unknown_for_one(api):
     assert transport.calls_to("PUT", f"{API}/applications/app-1/status/stop") == []
 
 
+class _Clock:
+    """A clock the waits read, moved forward by the sleeps they take."""
+
+    def __init__(self):
+        self.now = 0.0
+
+    def __call__(self):
+        return self.now
+
+    def sleep(self, seconds):
+        self.now += seconds
+
+
+def test_a_deploy_on_an_application_stuck_in_unknown_stops_after_a_minute(api):
+    """An application without its database stays UNKNOWN for good.
+
+    ensure_running used to wait the whole START_TIMEOUT, five minutes, for a stable status
+    before it named UNKNOWN. The status gets a minute in a row of its own now, and the error
+    says what it means rather than calling the status transitional.
+    """
+    client, transport = api
+    clock = _Clock()
+    client._clock = clock
+    client._sleep = clock.sleep
+    for _ in range(7):
+        transport.add("GET", f"{API}/applications/app-1", {"id": "app-1", "status": "UNKNOWN"})
+    # An eighth read is past the minute: the wait should have stopped by then.
+    transport.add(
+        "GET", f"{API}/applications/app-1", error=AssertionError("ожидание пережило минуту")
+    )
+
+    with pytest.raises(ApiError) as excinfo:
+        client.ensure_running("app-1")
+
+    message = str(excinfo.value)
+    assert "UNKNOWN" in message and "60 с подряд" in message and "база" in message
+    assert clock.now == client_module.UNKNOWN_TIMEOUT < client_module.START_TIMEOUT
+    # Read at 0, 10, ..., 60 seconds: seven reads rather than thirty-one.
+    assert len(transport.calls_to("GET", f"{API}/applications/app-1")) == 7
+    assert transport.calls_to("PUT", f"{API}/applications/app-1/status/stop") == []
+    assert transport.calls_to("PUT", f"{API}/applications/app-1/status/start") == []
+
+
+def test_unknown_that_moves_on_within_its_minute_lets_the_wait_go_on(api):
+    """No evidence says UNKNOWN is always final, so a passing one is waited through."""
+    client, transport = api
+    clock = _Clock()
+    client._clock = clock
+    client._sleep = clock.sleep
+    for _ in range(5):
+        transport.add("GET", f"{API}/applications/app-1", {"id": "app-1", "status": "UNKNOWN"})
+    transport.add("GET", f"{API}/applications/app-1", {"id": "app-1", "status": "Running"})
+
+    card = client.wait_app_stable("app-1")
+
+    assert card["status"] == "Running"
+    assert clock.now == 50
+
+
+def test_the_minute_of_unknown_counts_in_a_row(api):
+    """A status between two spells of UNKNOWN starts its minute afresh."""
+    client, transport = api
+    clock = _Clock()
+    client._clock = clock
+    client._sleep = clock.sleep
+    unknown = {"id": "app-1", "status": "UNKNOWN"}
+    for status in ["UNKNOWN"] * 5 + ["Updating"] + ["UNKNOWN"] * 5 + ["Stopped"]:
+        transport.add("GET", f"{API}/applications/app-1", {**unknown, "status": status})
+
+    card = client.wait_app_stable("app-1")
+
+    assert card["status"] == "Stopped"
+    assert clock.now == 110  # 50 + 50 s of UNKNOWN, neither spell reaching the minute
+
+
+def test_a_zero_minute_refuses_unknown_on_the_first_read(api):
+    client, transport = api
+    transport.add("GET", f"{API}/applications/app-1", {"id": "app-1", "status": "UNKNOWN"})
+    client._sleep = lambda seconds: pytest.fail("ожиданий быть не должно")
+
+    with pytest.raises(ApiError) as excinfo:
+        client.wait_app_status("app-1", {"Running"}, timeout=300, unknown_timeout=0)
+
+    assert "UNKNOWN" in str(excinfo.value)
+    assert len(transport.calls_to("GET", f"{API}/applications/app-1")) == 1
+
+
 def test_wait_app_status_error_carries_task_details(api):
     client, transport = api
     transport.add("GET", f"{API}/applications/app-1", _error_card())

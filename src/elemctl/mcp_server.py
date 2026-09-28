@@ -1003,7 +1003,9 @@ def _plugin_tool(command, client_for_env):
         env_file = values.pop("env_file", "")
         lines: list[str] = []
         target = client_for_env(env_file)
-        context = plugins.CommandContext(target.config, client=target, log=lines.append)
+        context = plugins.CommandContext(
+            target.config, client=target, log=lines.append, surface=plugins.SURFACE_MCP
+        )
         result = command.handler(context, **values)
         if isinstance(result, dict):
             return {**result, "log": lines}

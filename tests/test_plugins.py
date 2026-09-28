@@ -312,6 +312,22 @@ def test_cli_runs_a_plugin_command(monkeypatch, capsys):
     assert "греем стенд" in captured.err  # the progress goes to stderr, as everywhere
 
 
+def test_cli_tells_the_command_it_runs_as_a_subcommand(monkeypatch, capsys):
+    """A plugin used to guess the surface from the shape of context.log."""
+    _with_commands(monkeypatch, _command(
+        arguments=[], handler=lambda context: {"surface": context.surface}
+    ))
+
+    assert cli.main(["warm-up"]) == 0
+    assert json.loads(capsys.readouterr().out) == {"surface": "cli"}
+
+
+def test_the_surfaces_are_exported_under_their_documented_names():
+    # a plugin compares context.surface with these, and one on an older core finds no attribute
+    assert (plugins.SURFACE_CLI, plugins.SURFACE_MCP) == ("cli", "mcp")
+    assert plugins.CommandContext("конфигурация").surface is None  # built by hand: not said
+
+
 def test_cli_plugin_command_defaults_and_failure_code(monkeypatch, capsys):
     def handler(context, stand=""):
         return {"ok": False, "stand": stand}
