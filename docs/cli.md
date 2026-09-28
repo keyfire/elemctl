@@ -18,7 +18,8 @@ Manage 1C:Enterprise.Element platform applications (Console API v2)
 
 ```bash
 usage: elemctl [-h] [--base-url BASE_URL] [--client-id CLIENT_ID] [--client-secret CLIENT_SECRET]
-               [--env-file ENV_FILE] [--timeout TIMEOUT] [--lang {ru,en}] [--json] [--version]
+               [--env-file ENV_FILE] [--timeout TIMEOUT] [--lang {ru,en}] [--json] [--quiet]
+               [--version]
                command ...
 ```
 
@@ -34,6 +35,7 @@ usage: elemctl [-h] [--base-url BASE_URL] [--client-id CLIENT_ID] [--client-secr
 | `--timeout TIMEOUT` | request timeout in seconds (default 60) |
 | `--lang {ru,en}` | output language (default: env ELEMCTL_LANG / system locale / ru) |
 | `--json` | machine-readable output: stdout carries the JSON answer alone, everything else (progress, warnings, errors) goes to stderr |
+| `--quiet` | print no progress: neither progress lines nor warnings go to stderr, the answer and a failure stay; the form of the answer is the same |
 | `--version` | show the version and exit |
 
 **Commands**

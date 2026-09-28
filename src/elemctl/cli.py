@@ -98,7 +98,31 @@ def _json_only():
         _answer_stream = None
 
 
+#: True while --quiet holds the progress stream silent; see _silenced.
+_quiet = False
+
+
+@contextlib.contextmanager
+def _silenced(quiet):
+    """--quiet: no progress lines for the duration of the call.
+
+    What stays is what a caller cannot do without: the answer on stdout and a failure on
+    stderr with its exit code. The form of the answer does not change - --brief and --json
+    are the keys for that - so a caller who merges the two streams into one gets the answer
+    alone, in the form it would have had anyway. Warnings that go to the progress stream go
+    quiet with it: the flag is a request not to be told.
+    """
+    global _quiet
+    _quiet = bool(quiet)
+    try:
+        yield
+    finally:
+        _quiet = False
+
+
 def _progress(message):
+    if _quiet:
+        return
     # stderr is already line-buffered on every supported Python, so this changes nothing in
     # practice - it is here so the order _emit relies on is an explicit guarantee in the code,
     # not an assumption about the interpreter's default that the next reader has to go verify.
@@ -1427,7 +1451,9 @@ def _plugin_handler(command):
 
     def handle(args):
         config = _config(args)
-        context = plugins.CommandContext(config, client_factory=make_client, log=_progress)
+        context = plugins.CommandContext(
+            config, client_factory=make_client, log=_progress, surface=plugins.SURFACE_CLI
+        )
         values = {
             argument.dest: getattr(args, argument.dest, argument.value_default)
             for argument in command.arguments
@@ -1601,7 +1627,10 @@ _GLOBAL_OPTIONS = (
 )
 
 # The same, for the global options that take no value: they are hoisted as a single token.
-_GLOBAL_FLAGS = ("--json",)
+# --quiet is here for the same reason --json is: a plugin command with --quiet after it, the
+# way the plugin's own command line accepts the key, used to be refused as an unrecognized
+# argument before it did any work.
+_GLOBAL_FLAGS = ("--json", "--quiet")
 
 
 def _hoist_global_options(argv):
@@ -1731,6 +1760,7 @@ def build_parser():
         help=i18n.t("cli.help.lang"),
     )
     parser.add_argument("--json", action="store_true", help=i18n.t("cli.help.json"))
+    parser.add_argument("--quiet", action="store_true", help=i18n.t("cli.help.quiet"))
     parser.add_argument("--version", action="version", help=i18n.t("cli.help.version"),
                         version=f"elemctl {__version__}")
 
@@ -2150,17 +2180,19 @@ def main(argv=None):
     if handler is None:
         parser.print_help(sys.stderr)
         return 1
-    # Not a silent skip: every command names the plugins left out. `plugins` carries
-    # them in its answer, and the MCP server names them in its own log.
-    if handler not in (cmd_plugins, cmd_mcp):
-        for failure in failures:
-            _progress(i18n.t("cli.plugin-failed", source=failure.source, error=failure.error))
     # An error keeps going to stderr with --json as well, and stdout stays empty:
     # a failure that answered the machine channel with a document would be read by
     # a pipeline as an answer, and the exit code alone would be left to say otherwise.
     guard = _json_only() if getattr(args, "json", False) else contextlib.nullcontext()
     try:
-        with guard:
+        with _silenced(getattr(args, "quiet", False)), guard:
+            # Not a silent skip: every command names the plugins left out. `plugins`
+            # carries them in its answer, and the MCP server names them in its own log.
+            if handler not in (cmd_plugins, cmd_mcp):
+                for failure in failures:
+                    _progress(i18n.t(
+                        "cli.plugin-failed", source=failure.source, error=failure.error
+                    ))
             result = handler(args)
         return 0 if result is None else int(result)
     except ApiError as error:

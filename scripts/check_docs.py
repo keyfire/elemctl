@@ -240,6 +240,22 @@ CLAIMS = (
             "`Frozen`, `Creating`.\nВо время",
         ),
     ),
+    # UNKNOWN was waited on for the whole timeout, and a deploy on an application without its
+    # database spent five minutes before it named the status. The pages said the wait runs out
+    # its timeout on it; the wait now gives the status a minute in a row of its own.
+    Claim(
+        name="a wait for a status puts up with UNKNOWN for a minute in a row and then stops",
+        told_in=(
+            "docs/SPEC.md", "docs/SPEC.ru.md",
+            "docs/platform.md", "docs/platform.ru.md",
+            "src/elemctl/client.py",
+        ),
+        wording=("a minute in a row", "минуту подряд", "UNKNOWN_TIMEOUT"),
+        retired=(
+            "runs out its timeout on such an application",
+            "идёт до конца срока",
+        ),
+    ),
     # A hole in the numbering of builds was a deletion, full stop. An upload by the vendor
     # and the name keeps the number of its archive, and the count of the project goes on
     # from it, so a hole can be a jump nobody deleted anything in.

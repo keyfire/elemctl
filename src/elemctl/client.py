@@ -24,9 +24,13 @@ API_PREFIX = "/console/api/v2"
 # Stable application statuses; everything else (an empty string included) is transitional.
 # The reference lists no values of the status, and two met live were in no list of ours:
 # `Deleting`, while an application is being deleted, and `UNKNOWN`, on an application whose
-# database files were gone. `UNKNOWN` is not counted as stable: nothing is known to follow from
-# it, so a wait for a stable status runs out its timeout on it and names the status.
+# database files were gone. `UNKNOWN` is neither: the console gives it to a state of the server
+# it has no name for, a lost database as much as a passing step, so it is not counted as stable
+# and is not waited on for the whole timeout either - see UNKNOWN_TIMEOUT.
 STABLE_STATUSES = {"Running", "Stopped", "Error"}
+
+#: The status the console gives an application whose server state it cannot name.
+UNKNOWN_STATUS = "UNKNOWN"
 
 # Wait timeouts (seconds) as per section 6 of the specification.
 POLL_INTERVAL = 10.0
@@ -34,6 +38,13 @@ STOP_TIMEOUT = 180.0
 START_TIMEOUT = 300.0
 READY_TIMEOUT = 600.0
 DELETE_TIMEOUT = 180.0
+
+# How long a wait for a status puts up with UNKNOWN in a row before it stops. An application
+# without its database stays UNKNOWN for good, and a deploy on one used to wait the whole
+# five minutes of START_TIMEOUT before naming the status. No evidence says UNKNOWN is always
+# final, though, so it is given a minute of its own rather than being refused on sight: a
+# status that moves on within it lets the wait go on as usual.
+UNKNOWN_TIMEOUT = 60.0
 
 # How long an apply waits out an application that is still finishing a previous
 # operation, and how often it asks again. The wait is short on purpose: it covers
@@ -1715,17 +1726,17 @@ class ElementClient:
         The polls never end by themselves: the wait returns or raises once a card settles it
         or time_is_up comes true.
         """
-        deadline = time.monotonic() + timeout
+        deadline = self._clock() + timeout
         while True:
             try:
                 card = self.get_app(app_id) or {}
             except TransportError as error:
-                if time.monotonic() >= deadline:
+                if self._clock() >= deadline:
                     raise
                 if log:
                     log(i18n.t("client.waiting-read-broken", error=error))
             else:
-                yield card, time.monotonic() >= deadline
+                yield card, self._clock() >= deadline
             self._sleep(poll)
 
     def wait_app_status(
@@ -1737,14 +1748,19 @@ class ElementClient:
         poll=POLL_INTERVAL,
         log=None,
         error_is_fatal=True,
+        unknown_timeout=UNKNOWN_TIMEOUT,
     ):
         """Wait for one of the target application statuses; return the card.
 
         Error is a terminal status: with error_is_fatal (and when it is not a
         target one) the wait stops right away, carrying the error texts of the
-        tasks; running out of the timeout is an error as well. A read of the card
-        that breaks off is a missed poll (_poll_app).
+        tasks; running out of the timeout is an error as well. UNKNOWN that lasts
+        unknown_timeout seconds in a row ends the wait too, with an error of its
+        own: an application without its database never leaves it, and the whole
+        timeout used to be spent before the status was named. 0 refuses it on the
+        first read. A read of the card that breaks off is a missed poll (_poll_app).
         """
+        unknown_since = None
         for card, time_is_up in self._poll_app(app_id, timeout=timeout, poll=poll, log=log):
             status = (card.get("status") or "").strip()
             if status in target_statuses:
@@ -1758,6 +1774,18 @@ class ElementClient:
                     ),
                     body=card,
                 )
+            if status == UNKNOWN_STATUS:
+                now = self._clock()
+                unknown_since = now if unknown_since is None else unknown_since
+                if now - unknown_since >= unknown_timeout:
+                    raise ApiError(i18n.t(
+                        "client.wait-status-unknown",
+                        app=app_id,
+                        seconds=int(now - unknown_since),
+                        expected="/".join(sorted(target_statuses)),
+                    ), body=card)
+            else:
+                unknown_since = None
             if time_is_up:
                 expected = "/".join(sorted(target_statuses))
                 raise ApiError(i18n.t(
@@ -1845,8 +1873,10 @@ class ElementClient:
         stabilize. A stable Error is an immediate error carrying the error
         texts of the tasks: the apply has failed, a restart does not cure that,
         while waiting for Stopped out of Error used to simply eat the whole
-        timeout. When the outcome is not Running - we stop the application (if
-        needed), wait for Stopped, start it and wait for Running.
+        timeout. UNKNOWN held for UNKNOWN_TIMEOUT in a row ends every wait here
+        (wait_app_status) instead of the whole timeout. When the outcome is not
+        Running - we stop the application (if needed), wait for Stopped, start it
+        and wait for Running.
         """
         card = self.wait_app_stable(app_id, timeout=START_TIMEOUT, log=log)
         status = card.get("status")

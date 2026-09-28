@@ -18,7 +18,8 @@ sidebar:
 
 ```bash
 usage: elemctl [-h] [--base-url BASE_URL] [--client-id CLIENT_ID] [--client-secret CLIENT_SECRET]
-               [--env-file ENV_FILE] [--timeout TIMEOUT] [--lang {ru,en}] [--json] [--version]
+               [--env-file ENV_FILE] [--timeout TIMEOUT] [--lang {ru,en}] [--json] [--quiet]
+               [--version]
                команда ...
 ```
 
@@ -34,6 +35,7 @@ usage: elemctl [-h] [--base-url BASE_URL] [--client-id CLIENT_ID] [--client-secr
 | `--timeout TIMEOUT` | срок ожидания запроса в секундах (по умолчанию 60) |
 | `--lang {ru,en}` | язык вывода (по умолчанию: env ELEMCTL_LANG / локаль системы / ru) |
 | `--json` | машиночитаемый вывод: в stdout только JSON ответа, всё остальное (ход работы, предупреждения, ошибки) – в stderr |
+| `--quiet` | не печатать ход работы: в stderr не идут ни строки прогресса, ни предупреждения, остаются ответ и отказ; форма ответа та же |
 | `--version` | показать версию и выйти |
 
 **Команды**

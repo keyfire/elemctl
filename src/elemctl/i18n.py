@@ -368,6 +368,17 @@ MESSAGES = {
         "en": "did not reach status {expected} of application {app} within {timeout} s "
               "(current: {status})",
     },
+    "client.wait-status-unknown": {
+        "ru": "приложение {app} {seconds} с подряд в статусе UNKNOWN, статуса {expected} "
+              "дальше не ждем: так консоль называет состояние приложения на сервере, "
+              "которому у нее нет имени, и надолго оно бывает, например, у приложения, "
+              "у которого пропала база, – такое не запустить и не удалить",
+        "en": "application {app} has been in status UNKNOWN for {seconds} s in a row, so "
+              "status {expected} is not waited for any longer: the console gives that "
+              "status to a server state of the application it has no name for, and it "
+              "lasts, for one, on an application whose database is gone – such an "
+              "application can be neither started nor deleted",
+    },
     "client.wait-ready-timeout": {
         "ru": "приложение {app} не стало готовым за {timeout} с (статус: {status}, uri: {uri})",
         "en": "application {app} did not become ready within {timeout} s "
@@ -1461,6 +1472,12 @@ MESSAGES = {
               "(ход работы, предупреждения, ошибки) – в stderr",
         "en": "machine-readable output: stdout carries the JSON answer alone, "
               "everything else (progress, warnings, errors) goes to stderr",
+    },
+    "cli.help.quiet": {
+        "ru": "не печатать ход работы: в stderr не идут ни строки прогресса, ни "
+              "предупреждения, остаются ответ и отказ; форма ответа та же",
+        "en": "print no progress: neither progress lines nor warnings go to stderr, the "
+              "answer and a failure stay; the form of the answer is the same",
     },
     "cli.help.command-metavar": {
         "ru": "команда",

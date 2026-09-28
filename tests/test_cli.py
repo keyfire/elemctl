@@ -1917,6 +1917,96 @@ def test_json_survives_an_exception_and_restores_stdout(monkeypatch, capsys):
     assert capsys.readouterr().out.strip() == "back to stdout"
 
 
+# -- --quiet: the answer alone ---------------------------------------------------
+
+
+def test_quiet_is_accepted_anywhere_in_the_command():
+    """A plugin command with --quiet after it was refused before it did anything:
+    "unrecognized arguments: --quiet". The flag is hoisted like --json now."""
+    from elemctl.cli import _hoist_global_options
+
+    assert _hoist_global_options(["apps", "list", "--quiet", "--brief"]) == [
+        "--quiet", "apps", "list", "--brief",
+    ]
+    assert _hoist_global_options(["deploy", "--quiet", "--json", "--app-id", "a"]) == [
+        "--quiet", "--json", "deploy", "--app-id", "a",
+    ]
+    assert _hoist_global_options(["probe", "--", "--quiet"]) == ["probe", "--", "--quiet"]
+    assert cli.build_parser().parse_args(["--quiet", "apps", "list"]).quiet is True
+
+
+def _apps_list_client(monkeypatch):
+    cards = [{"id": "a1", "name": "crm-dev", "status": "Running"}]
+
+    class FakeClient:
+        def list_apps_counted(self, name="", status="", include_deleted=False):
+            return {"items": cards, "total": 2, "live": 1, "shown": 1}
+
+    monkeypatch.setattr(cli, "make_client", lambda config: FakeClient())
+    return cards
+
+
+def test_quiet_after_the_subcommand_silences_progress_and_keeps_the_answer(monkeypatch, capsys):
+    cards = _apps_list_client(monkeypatch)
+
+    assert cli.main(["apps", "list", "--quiet"]) == 0
+
+    captured = capsys.readouterr()
+    assert json.loads(captured.out) == cards  # the form is the one without the flag
+    assert captured.err == ""
+
+
+def test_without_quiet_the_progress_is_there(monkeypatch, capsys):
+    """The counter-check: the summary line exists, so the flag has something to silence."""
+    _apps_list_client(monkeypatch)
+
+    assert cli.main(["apps", "list"]) == 0
+    assert capsys.readouterr().err.strip()
+
+
+def test_quiet_silences_the_log_of_a_plugin_command(monkeypatch, capsys):
+    """The case the flag was asked for: a plugin subcommand with --quiet at its end."""
+    from elemctl import plugins
+
+    def handler(context, stand=""):
+        context.log("строка хода работы")
+        return {"ok": True, "stand": stand}
+
+    command = plugins.Command(
+        name="warm-up", help="прогреть стенд", handler=handler,
+        arguments=[plugins.Argument("--stand", default="")],
+    )
+    monkeypatch.delenv(plugins.ENV_DISABLE, raising=False)
+    monkeypatch.setattr(plugins, "discover_commands", lambda: ([command], []))
+
+    assert cli.main(["warm-up", "--stand", "dev", "--quiet"]) == 0
+
+    captured = capsys.readouterr()
+    assert json.loads(captured.out) == {"ok": True, "stand": "dev"}
+    assert "строка хода работы" not in captured.err
+
+
+def test_quiet_keeps_a_failure_and_its_exit_code(monkeypatch, capsys):
+    class FakeClient:
+        def list_spaces(self):
+            raise ApiError("Console API ответил 500", status=500)
+
+    monkeypatch.setattr(cli, "make_client", lambda config: FakeClient())
+    assert cli.main(["spaces", "list", "--quiet"]) == 1
+    assert json.loads(capsys.readouterr().err)["error"]
+
+
+def test_quiet_ends_with_the_call(monkeypatch, capsys):
+    """The silence is the call's own: the next call in the same process speaks again."""
+    _apps_list_client(monkeypatch)
+    cli.main(["--quiet", "apps", "list"])
+    capsys.readouterr()
+
+    assert cli._quiet is False
+    assert cli.main(["apps", "list"]) == 0
+    assert capsys.readouterr().err.strip()
+
+
 # -- the shape of a group call --------------------------------------------------
 
 
