@@ -27,11 +27,12 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
 - **A plugin command knows where it is called from.** `CommandContext.surface` is `"cli"` in a
   subcommand and `"mcp"` in a tool (`SURFACE_CLI`, `SURFACE_MCP`), `None` in a context built by
   hand. A plugin used to tell them apart by the shape of `context.log` alone.
+  ([#47](https://github.com/keyfire/elemctl/pull/47))
 - **`--quiet` is accepted anywhere in a command.** A plugin command with `--quiet` after it was
   refused as an unrecognized argument before it did any work. The flag is hoisted like `--json`
   and silences the progress stream: progress lines and warnings on stderr, a plugin's
   `context.log` among them. The answer, a failure and the exit code stay, and the form of the
-  answer does not change.
+  answer does not change. ([#47](https://github.com/keyfire/elemctl/pull/47))
 
 ### Changed
 - **A wait gives `UNKNOWN` a minute, not the whole timeout.** `deploy` on an application whose
@@ -39,6 +40,7 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
   `UNKNOWN`. The console gives that status to a server state it has no name for, passing steps
   included, so it is not refused on sight: a wait puts up with `UNKNOWN` for a minute in a row
   (`UNKNOWN_TIMEOUT`), then stops with an error that says what the status means.
+  ([#47](https://github.com/keyfire/elemctl/pull/47))
 
 ## 2026-09-27 – 0.46.0
 
