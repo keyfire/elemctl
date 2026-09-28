@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from elemctl.versions import (
+    highest_version,
     missing_counters,
     newest_first,
     next_version,
@@ -11,6 +12,16 @@ from elemctl.versions import (
     version_base,
     version_counter,
 )
+
+
+def test_the_highest_version_of_a_base_among_plain_strings():
+    """The strings the registry keeps: another base and a tail that is not a number stay out."""
+    versions = ["1.0-3", "1.0-10", "2.0-40", "1.0-probe-ab12cd34", "1.0", "", None, "1.0-9"]
+
+    assert highest_version(versions, "1.0") == "1.0-10"
+    assert highest_version(versions, "2.0") == "2.0-40"
+    assert highest_version(versions, "3.0") == ""
+    assert highest_version(None, "1.0") == ""
 
 
 def test_the_server_keeps_only_a_number_of_the_project_base():

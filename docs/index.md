@@ -19,7 +19,7 @@ Development notes and updates (in Russian): the [1C × AI: engineering workshop]
 ## Features
 
 
-- **Applications**: list, details, create, start, stop, delete, technology version, debug-session data (`apps debug`). The list filters by name on the client side and prints short cards with `--brief`. Commands that address one application take its id or its exact name.
+- **Applications**: list, details, create, start, stop, delete, technology version, debug-session data (`apps debug`), the build of an applied extension saved to a file (`apps export-extension`, Console API 2.1). The list filters by name on the client side and prints short cards with `--brief`. Commands that address one application take its id or its exact name.
 - **Projects and builds**: upload `.xasm`/`.xlib`, list builds, delete.
 - **Build from sources**: elemctl packs a project directory into a build archive with a manifest and git metadata. That directory holds `Проект.yaml` and the modules. The version comes from the flag, from the last build's counter or from the CI run number in the environment: `CI_PIPELINE_IID`, `GITHUB_RUN_NUMBER`, `BUILD_NUMBER`. The output carries it as a field. Descriptors written with English key spellings `Name`/`Vendor`/`Version` are read as well as Russian ones.
 - **One-command deploy**: build -> upload -> apply -> restart -> **verification that the apply actually took effect**. Uncommitted changes in the project directory show up in the report as `dirty`. Pass `--require-clean` to stop on a dirty tree.

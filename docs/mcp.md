@@ -47,6 +47,7 @@ The server reads connection credentials from the same `ELEMENT_*` variables / `.
 | `configure_user_list` | self-registration and password sign-in; without the flags it only reports the current state |
 | `list_app_users` | who is connected to an application: the user list, the id, the presentation, whether an administrator and whether token access is on, with a count line; the platform gives no login here |
 | `token_access` | a user's access to the HTTP services of an application by a token, the flag behind a 500 "Token access is denied"; shows it, and with `enabled` switches it and reads it back; an empty `user` means the account elemctl signs in with |
+| `export_extension` | save the build of an extension applied to an application to a file (Console API 2.1); `extension` is the extension id, the id of its project, the name or the presentation of the project, and a miss names the extensions the application has; an empty `output` is the current directory of the server and the name `{Name} {Version}.xasm`; a server without the method gets a plain refusal |
 | `list_branches` | list of development-environment branches; the `project_id` and `name` filters are optional |
 | `merge_branch` | accept the changes of a development-environment branch |
 | `debug_adapter` | the path to the platform debug adapter from a plugin; a missing plugin is an answer (`found: false`), not an error (local) |

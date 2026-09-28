@@ -112,10 +112,11 @@ PITCH_ITEMS = (
 #: that kept the earlier sentence - `"ok": false` gives 1 - would pass half of the rule off as
 #: all of it. The fourth is the commit of an upload, which every place used to deny. The fifth
 #: is the number the server gives a build uploaded into a project, which the tool hints and the
-#: code comments put down to something else. The sixth is the space of an upload, which the
-#: pages and the client spelled the way the server does not read. The seventh is the list of
-#: application statuses, which lacked two that live checks kept meeting. The eighth is what a
-#: hole in the numbering of builds means, which every place put down to the housekeeping.
+#: code comments put down to something else, and then every place counted from the build list
+#: alone. The sixth is the space of an upload, which the pages and the client spelled the way
+#: the server does not read. The seventh is the list of application statuses, which lacked two
+#: that live checks kept meeting. The eighth is what a hole in the numbering of builds means,
+#: which every place put down to the housekeeping.
 CLAIMS = (
     Claim(
         name="the platform deletes the builds nobody uses, whatever their age",
@@ -187,16 +188,20 @@ CLAIMS = (
     # the platform renumbers the version of the manifest, and the tool hints and the comments
     # of the code explained a version on a card by a freshly created application counting
     # from scratch - while the deploy report went on saying ok with the two versions apart.
+    # Then the rule itself fell short: every place gave the highest number of the base in the
+    # build list plus one, while the server counts on from the highest number it has ever
+    # given. A build deleted from the top of the list keeps its number, the next upload skips
+    # it, and a deploy that counted from the list alone warned about a renumbering of its own.
     Claim(
         name="the server numbers a build uploaded into a project: the base of the project "
-             "descriptor and the highest number of that base plus one",
+             "descriptor and the highest number it has ever given in that base plus one",
         told_in=(
             "docs/SPEC.md", "docs/SPEC.ru.md",
             "docs/platform.md", "docs/platform.ru.md",
             "src/elemctl/versions.py", "src/elemctl/deploy.py",
             "src/elemctl/mcp_server.py", "src/elemctl/i18n.py",
         ),
-        wording=("plus one", "плюс один"),
+        wording=("ever given", "когда-либо выдавал"),
         retired=(
             "renumbers the manifest version on upload",
             "перенумеровывает по-своему",
@@ -204,6 +209,9 @@ CLAIMS = (
             "numbers the versions on its card from scratch",
             "renumbers the version string from scratch",
             "у нового приложения нумеруется заново",
+            "highest number of that base plus one",
+            "highest one of that base plus one",
+            "наибольший номер этой базы плюс один",
         ),
     ),
     # The space went as the PascalCase SpaceId, the spelling of an older reference, and the pages

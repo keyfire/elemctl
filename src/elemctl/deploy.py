@@ -26,9 +26,9 @@ from .client import (
 )
 from .errors import ApiError, ElemctlError, ServerStartingError
 from .probe import server_log_hint
-from .registry import ROUTE_PROJECT, remember_build, remembered_uploads
+from .registry import ROUTE_PROJECT, remember_build, remembered_uploads, remembered_versions
 from .schema import review_tree
-from .versions import server_may_keep
+from .versions import highest_version, server_may_keep, version_counter
 
 __all__ = ["FAILED_TASK_STATUSES"]  # the name stays where importers already expect it
 
@@ -68,8 +68,9 @@ class DeployReport:
     assembly_id: str = ""
     # The version the server gave the uploaded build, and whether it differs from the version
     # of the archive (None - the upload answered without one). A build uploaded into a project
-    # is numbered by the server: the Версия of the project descriptor and the highest number
-    # of that base plus one, whatever the archive said - `1.0.0-i1` lands as `1.0.0-6`.
+    # is numbered by the server: the Версия of the project descriptor and the highest number it
+    # has ever given in that base plus one, deleted builds included, whatever the archive said -
+    # `1.0.0-i1` lands as `1.0.0-6`.
     assembly_version: str = ""
     renumbered: bool | None = None
     applied_version: str = ""
@@ -245,21 +246,31 @@ def _deploy_from_sources(
     else:
         schema_check = "clean"
 
-    # The build version: either explicit or auto-incremented from the project's last build
-    # OF THE SAME BASE VERSION - a bumped project starts counting from 1 again. The server
-    # numbers the upload by the same rule, so an explicit version it cannot keep is said
-    # now, before anything is built, rather than discovered on the card afterwards.
+    # The build version: either explicit or counted on from the project's last build OF THE
+    # SAME BASE VERSION - a bumped project starts counting from 1 again. The server numbers
+    # the upload itself, so an explicit version it cannot keep is said now, before anything
+    # is built, rather than discovered on the card afterwards. A counted version is a guess
+    # at the server's number, and the server counts on from the highest number it has ever
+    # given in the base: a deleted build keeps its number, and the list no longer shows it.
+    # The local registry of uploads remembers the numbers the uploads of this machine got,
+    # so the guess takes the higher of the two. A build uploaded from elsewhere and deleted
+    # since is out of sight of both.
     base_version = read_project_meta(
         find_project_dir(project_dir) if project_dir else find_project_dir()
     ).base_version
+    explicit = bool(version and version.strip())
     last_version = ""
-    if version and version.strip():
+    if explicit:
         if not server_may_keep(version, base_version):
             log(i18n.t("deploy.version-not-kept", version=version.strip(), base=base_version))
     else:
         latest = client.latest_assembly(project_id, base_version=base_version)
         if latest:
             last_version = str(latest.get("assembly-version") or "")
+        remembered = highest_version(remembered_versions(project_id), base_version)
+        if version_counter(remembered) > version_counter(last_version):
+            log(i18n.t("deploy.count-from-registry", version=remembered))
+            last_version = remembered
 
     result = build_assembly(
         project_dir,
@@ -304,7 +315,12 @@ def _deploy_from_sources(
     log(i18n.t("deploy.uploaded", id=assembly_id or i18n.t("deploy.unknown")))
     assembly_version = uploaded_version(response)
     if assembly_version and assembly_version != result.version:
-        log(i18n.t("deploy.renumbered", built=result.version, given=assembly_version))
+        # An explicit version is the caller's, and the server not keeping it is a warning. A
+        # counted one was elemctl's own guess, and the line says what the guess cannot see.
+        log(i18n.t(
+            "deploy.renumbered" if explicit else "deploy.renumbered-count",
+            built=result.version, given=assembly_version,
+        ))
     warning = remember_build(
         result, response=response, project_id=project_id, stand=_stand(client),
         command="deploy", app_id=app_id, route=ROUTE_PROJECT,

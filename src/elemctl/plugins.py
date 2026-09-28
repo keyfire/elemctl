@@ -201,6 +201,19 @@ class Argument:
         return self.default
 
 
+def _global_options() -> dict:
+    """The global options of the CLI by the value name each one fills: {dest: option}.
+
+    These are the options the CLI accepts anywhere on the command line, so the list is
+    read from cli rather than copied here: an option the core adds there is refused to a
+    plugin by the same change. Imported on the call, since cli imports this module at its
+    top.
+    """
+    from .cli import _GLOBAL_FLAGS, _GLOBAL_OPTIONS
+
+    return {Argument(option).dest: option for option in _GLOBAL_OPTIONS + _GLOBAL_FLAGS}
+
+
 @dataclass
 class Command:
     """A command of a plugin: a CLI subcommand and an MCP tool from one declaration.
@@ -240,6 +253,16 @@ class Command:
         The check is made at discovery time rather than at the moment of a call:
         a plugin that declares a command wrongly must be visible right away, not
         when somebody happens to run it.
+
+        An argument may not take a global option of the core (see _global_options):
+        not as an option, not as the value name of a positional argument and not as
+        a cli_alias. The CLI moves such an option in front of the subcommand and
+        parses it itself, and a subcommand writes its values into the namespace of
+        the root parser. `--timeout 5` of a plugin reached neither side: the core
+        took the value and the default of the plugin's own option overwrote it. A
+        positional argument named `timeout` handed its value to the core instead,
+        and an `--env-file` of its own gave the MCP tool a second `env_file`, which
+        stopped the server from starting.
         """
         if not self.name or not isinstance(self.name, str):
             raise PluginError(i18n.t("plugins.command-name-required", where=where))
@@ -247,6 +270,7 @@ class Command:
             raise PluginError(
                 i18n.t("plugins.command-handler-required", where=where, name=self.name)
             )
+        reserved = _global_options()
         seen = set()
         for argument in self.arguments:
             if not isinstance(argument, Argument):
@@ -281,6 +305,17 @@ class Command:
                     "plugins.alias-not-an-option",
                     where=where, name=self.name, argument=argument.name,
                     alias=argument.cli_alias,
+                ))
+            clash = reserved.get(argument.dest)
+            label = argument.name
+            if clash is None and argument.cli_alias in reserved.values():
+                clash = argument.cli_alias
+                label = f"{argument.name} (cli_alias {argument.cli_alias})"
+            if clash is not None:
+                raise PluginError(i18n.t(
+                    "plugins.global-option-taken",
+                    where=where, name=self.name, argument=label, option=clash,
+                    options=", ".join(reserved.values()),
                 ))
         # Collected in a second pass rather than checked against "seen" above: a plugin
         # is free to declare the alias before the option it happens to collide with, and

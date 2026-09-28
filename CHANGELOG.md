@@ -27,6 +27,15 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
   and silences the progress stream: progress lines and warnings on stderr, a plugin's
   `context.log` among them. The answer, a failure and the exit code stay, and the form of the
   answer does not change. ([#47](https://github.com/keyfire/elemctl/pull/47))
+- **`apps export-extension` saves the build of an extension applied to an application.**
+  `elemctl apps export-extension [APP_ID] EXTENSION [--output FILE]` and the MCP tool
+  `export_extension` write it to `{Name} {Version}.xasm` after the manifest of the archive. The
+  method lives in Console API 2.1 alone, and the rest of the client stays on 2.0. The extension is
+  named by its id, the id of its project, its name or its presentation, and it is looked up among
+  the extensions of the application first: the export answers a miss with a bare 500, so the
+  refusal names the extensions the application has. A server older than the method answers 401
+  "Handler of HTTP request ... not found", and elemctl says the server does not know the method
+  rather than reading it as a failed sign-in. ([#48](https://github.com/keyfire/elemctl/pull/48))
 
 ### Changed
 - **A wait gives `UNKNOWN` a minute, not the whole timeout.** `deploy` on an application whose
@@ -35,6 +44,30 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
   included, so it is not refused on sight: a wait puts up with `UNKNOWN` for a minute in a row
   (`UNKNOWN_TIMEOUT`), then stops with an error that says what the status means.
   ([#47](https://github.com/keyfire/elemctl/pull/47))
+
+### Fixed
+- **A plugin can no longer declare a global option of the core.** The core parses `--base-url`,
+  `--client-id`, `--client-secret`, `--env-file`, `--timeout`, `--lang`, `--json` and `--quiet`
+  itself, wherever they stand, so a plugin command with a `--timeout` of its own never saw the
+  value: the core took it, and the default of the plugin's option overwrote the core's copy. A
+  positional argument named `timeout` handed its value to the core instead, and a plugin's own
+  `--env-file` gave its MCP tool a second `env_file`, which kept the MCP server from starting.
+  Such a declaration is now refused at discovery like any other flaw: the plugin is left out and
+  named, and the core keeps working. The list is read from the CLI, so an option the core adds
+  is closed to plugins at once. ([#48](https://github.com/keyfire/elemctl/pull/48))
+- **`deploy` keeps up with the server's count after the top build is deleted.** The server
+  gives a build uploaded into a project the highest number it has ever given in the base plus
+  one, deleted builds included, while the build list shows only what is left. With the top
+  build deleted, `deploy` built `1.0.0-53` from a list that ended at `1.0.0-52`, the server
+  recorded `1.0.0-54`, and the warning explained it by a rule that was not the server's. The
+  count now also reads the local registry of uploads, which keeps the numbers the uploads of
+  this machine got. A build uploaded from elsewhere and deleted since is still out of sight, and
+  the line after the upload then says, without a warning, that the number is the server's.
+  ([#48](https://github.com/keyfire/elemctl/pull/48))
+
+### Documentation
+- The specification counted `--version` among the flags accepted after a subcommand and left
+  `--lang` out; it is the other way round. ([#48](https://github.com/keyfire/elemctl/pull/48))
 
 ## 2026-09-27 – 0.46.0
 

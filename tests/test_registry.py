@@ -27,6 +27,7 @@ from elemctl.registry import (
     registry_path,
     remember_upload,
     remembered_uploads,
+    remembered_versions,
 )
 
 
@@ -112,6 +113,18 @@ def test_a_broken_line_is_skipped_rather_than_breaking_the_listing():
 
 def test_a_missing_registry_remembers_nothing():
     assert remembered_uploads(["asm-7"]) == {}
+
+
+def test_the_versions_of_a_project_are_what_its_uploads_got_on_any_address_of_the_stand():
+    """The numbers a deploy counts from: the project decides, the address of the stand does not."""
+    _entry("asm-5", version="1.0-5")
+    _entry("asm-6", version="1.0-6", stand="https://stand.test:443")
+    _entry("asm-9", version="1.0-9", project_id="proj-2")
+    _entry("asm-x", version="")
+
+    assert sorted(remembered_versions("proj-1")) == ["1.0-5", "1.0-6"]
+    assert remembered_versions("proj-3") == []
+    assert remembered_versions("") == []
 
 
 def test_a_registry_that_cannot_be_written_is_a_warning_not_a_failure(monkeypatch, tmp_path):

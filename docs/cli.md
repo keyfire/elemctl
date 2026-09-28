@@ -96,6 +96,7 @@ usage: elemctl apps [-h] action ...
 | `debug` | data for a debug session (debug-token, debug-address) |
 | `users` | the users connected to the application: the user list, the id, the presentation, whether an administrator and whether token access is on (the platform gives no login here) |
 | `token-access` | a user's access to the HTTP services of the application by a token: show or switch it (without it a call of a service with a token gets a 500 "Token access is denied") |
+| `export-extension` | save the build of an extension applied to the application to a file (a method of Console API 2.1; a server without it gets a plain refusal) |
 
 **Options**
 
@@ -355,6 +356,27 @@ usage: elemctl apps token-access [-h] [--app-id APP_ID] [--user USER] [--enable]
 | `--user USER` | the login, the presentation or the id of the user (default: the account elemctl signs in with) |
 | `--enable` | allow the access by a token and read the flag back |
 | `--disable` | forbid the access by a token and read the flag back |
+
+### `elemctl apps export-extension`
+
+```bash
+usage: elemctl apps export-extension [-h] [--app-id APP_ID] [--output OUTPUT] [APP_ID] EXTENSION
+```
+
+**Arguments**
+
+| Option | Description |
+|---|---|
+| `APP_ID` | the application id (UUID) or its exact name (default: ELEMENT_APP_ID) |
+| `EXTENSION` | the extension: the extension id, the id of its project, the name or the presentation of the project |
+
+**Options**
+
+| Option | Description |
+|---|---|
+| `-h, --help` | show this help message and exit |
+| `--app-id APP_ID` | the same application as an option: deploy and apps ensure take this form only |
+| `--output OUTPUT` | the file or the directory for the build; by default the current directory and the name after the manifest of the archive, "&lt;Name&gt; &lt;Version&gt;.xasm" |
 
 ## `elemctl spaces`
 

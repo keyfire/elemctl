@@ -437,6 +437,45 @@ MESSAGES = {
         "ru": "Console API ответил {status} на {method} {url}",
         "en": "Console API responded {status} to {method} {url}",
     },
+    "client.method-unknown": {
+        "ru": "сервер не знает метода {method} {url}: консоль ответила 401 \"Handler of HTTP "
+              "request ... not found\", а так она отвечает на путь, для которого у нее нет "
+              "обработчика. Токен тут ни при чем: сервер старше этого метода Console API 2.1",
+        "en": "the server does not know the method {method} {url}: the console answered 401 "
+              "\"Handler of HTTP request ... not found\", which is how it answers a path it has "
+              "no handler for. The token is not at fault: the server is older than this method "
+              "of Console API 2.1",
+    },
+    "client.extension-not-found": {
+        "ru": "у приложения {app} нет расширения '{name}' (сравнивались ид расширения, ид его "
+              "проекта, имя и представление проекта). Примененные расширения: {extensions}",
+        "en": "the application {app} has no extension '{name}' (compared: the extension id, "
+              "the id of its project, the name and the presentation of the project). Applied "
+              "extensions: {extensions}",
+    },
+    "client.extensions-none": {
+        "ru": "ни одного",
+        "en": "none",
+    },
+    "client.extension-ambiguous": {
+        "ru": "под '{name}' в приложении {app} подходит несколько расширений: {extensions} – "
+              "укажите ид расширения",
+        "en": "several extensions of the application {app} match '{name}': {extensions} – "
+              "give the extension id",
+    },
+    "client.extension-without-id": {
+        "ru": "консоль не назвала ид расширения {extension} в приложении {app} (поле id пусто), "
+              "а без него сборку расширения не выгрузить",
+        "en": "the console named no id for the extension {extension} of the application {app} "
+              "(the id field is empty), and the build of an extension cannot be exported "
+              "without it",
+    },
+    "client.extension-export-not-archive": {
+        "ru": "выгрузка расширения {extension} из приложения {app} вернула не архив сборки "
+              "({size} байт, начало: {start}); файл не записан",
+        "en": "the export of the extension {extension} of the application {app} returned no "
+              "build archive ({size} bytes, beginning: {start}); no file was written",
+    },
     "client.delete-failed-precondition": {
         "ru": "в среде разработки приложения есть неопубликованные правки – "
               "платформа не удаляет такие приложения через API; опубликуйте "
@@ -679,6 +718,17 @@ MESSAGES = {
               "тот же ключ CLI: {flags}",
         "en": "several arguments of the command '{name}' of the plugin '{where}' claim the same "
               "CLI flag: {flags}",
+    },
+    "plugins.global-option-taken": {
+        "ru": "аргумент {argument} команды '{name}' плагина '{where}' занимает имя общего "
+              "ключа elemctl {option}. Общий ключ ядро разбирает само, где бы он ни стоял, и "
+              "значение не дошло бы до команды либо подменило бы значение ядра. Выберите "
+              "другое имя; общие ключи ядра: {options}",
+        "en": "the argument {argument} of the command '{name}' of the plugin '{where}' takes the "
+              "name of the global elemctl option {option}. The core parses a global option "
+              "itself wherever it stands, so the value would either never reach the command or "
+              "replace the value of the core. Pick another name; the global options of the core "
+              "are: {options}",
     },
     "cli.help.plugin-alias": {
         "ru": "то же, что позиционный аргумент {name}",
@@ -1068,22 +1118,40 @@ MESSAGES = {
     },
     "deploy.version-not-kept": {
         "ru": "внимание: версию {version} сервер не сохранит – сборку, загруженную в проект, он "
-              "нумерует сам: база – Версия проекта ({base}), номер – наибольший номер этой базы "
-              "плюс один. Суффикс архива до сервера не дойдёт; сборку с запуском CI свяжут имя "
-              "архива и коммит",
+              "нумерует сам: база – Версия проекта ({base}), номер – наибольший, какой он "
+              "когда-либо выдавал в этой базе, плюс один. Суффикс архива до сервера не дойдет; "
+              "сборку с запуском CI свяжут имя архива и коммит",
         "en": "warning: the server will not keep the version {version} – it numbers a build "
               "uploaded into a project itself: the base is the version of the project ({base}), "
-              "the number is the highest number of that base plus one. The suffix of the "
-              "archive does not reach the server; the name of the archive and the commit tie "
-              "the build to its CI run",
+              "the number is the highest it has ever given in that base plus one. The suffix of "
+              "the archive does not reach the server; the name of the archive and the commit "
+              "tie the build to its CI run",
     },
     "deploy.renumbered": {
         "ru": "внимание: сервер записал сборку как {given}, а не {built} из архива – сборку, "
-              "загруженную в проект, он нумерует сам: база – Версия проекта, номер – наибольший "
-              "номер этой базы плюс один",
+              "загруженную в проект, он нумерует сам: база – Версия проекта, номер – "
+              "наибольший, какой он когда-либо выдавал в этой базе, плюс один",
         "en": "warning: the server recorded the build as {given}, not as {built} from the "
               "archive – it numbers a build uploaded into a project itself: the base is the "
-              "version of the project, the number is the highest number of that base plus one",
+              "version of the project, the number is the highest it has ever given in that base "
+              "plus one",
+    },
+    "deploy.renumbered-count": {
+        "ru": "сервер записал сборку как {given}, а не {built} из архива: номер сборки, "
+              "загруженной в проект, назначает сервер – наибольший, какой он когда-либо выдавал "
+              "в этой базе, плюс один, а номер сборки, которую загружала не эта машина и "
+              "которой в перечне уже нет, elemctl узнать неоткуда",
+        "en": "the server recorded the build as {given}, not as {built} from the archive: the "
+              "number of a build uploaded into a project is the server's – the highest it has "
+              "ever given in that base plus one – and elemctl has no way to learn the number of "
+              "a build another machine uploaded that is no longer listed",
+    },
+    "deploy.count-from-registry": {
+        "ru": "номер сборки считается от {version} из локального реестра загрузок: в перечне "
+              "проекта этой сборки уже нет, а номер удаленной сборки сервер повторно не выдает",
+        "en": "the build number is counted on from {version} of the local registry of uploads: "
+              "the project no longer lists that build, and the server does not give the number "
+              "of a deleted build again",
     },
     "deploy.unknown": {
         "ru": "не определён",
@@ -1618,6 +1686,23 @@ MESSAGES = {
     "cli.help.apps-token-access-disable": {
         "ru": "запретить доступ по токену и перечитать признак",
         "en": "forbid the access by a token and read the flag back",
+    },
+    "cli.help.apps-export-extension": {
+        "ru": "выгрузить в файл сборку расширения, примененного в приложении (метод Console "
+              "API 2.1; сервер без него получает понятный отказ)",
+        "en": "save the build of an extension applied to the application to a file (a method "
+              "of Console API 2.1; a server without it gets a plain refusal)",
+    },
+    "cli.help.arg.extension": {
+        "ru": "расширение: ид расширения, ид его проекта, имя или представление проекта",
+        "en": "the extension: the extension id, the id of its project, the name or the "
+              "presentation of the project",
+    },
+    "cli.help.apps-export-extension-output": {
+        "ru": "файл или каталог для сборки; по умолчанию текущий каталог и имя из манифеста "
+              "архива, \"<Имя> <Версия>.xasm\"",
+        "en": "the file or the directory for the build; by default the current directory and "
+              "the name after the manifest of the archive, \"<Name> <Version>.xasm\"",
     },
     "cli.help.create-project-id": {
         "ru": "проект-источник; с --version-id по перечню его сборок команда проверяет, "

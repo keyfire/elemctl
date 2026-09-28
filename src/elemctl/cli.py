@@ -729,6 +729,24 @@ def cmd_apps_token_access(args):
     return 0
 
 
+def cmd_apps_export_extension(args):
+    """The build of an extension applied to an application, saved to a file.
+
+    The method lives in Console API 2.1 alone; a server older than it is refused with the
+    reason. The extension is looked up among those the application has before anything is
+    exported, so a miss is named together with the extensions that are there. The command
+    only reads the server, so the application defaults to ELEMENT_APP_ID the way `apps get`
+    does.
+    """
+    config = _config(args)
+    client = make_client(config)
+    app_id = _require(_app_ref(args), config.app_id, i18n.t("cli.require.app-id-arg"))
+    _emit(client.export_extension(
+        client.resolve_app_id(app_id), args.extension, output=args.output or ""
+    ))
+    return 0
+
+
 def cmd_spaces_list(args):
     client = make_client(_config(args))
     _emit(client.list_spaces())
@@ -1616,7 +1634,8 @@ def _add_create_flags(p):
 # The global options are declared on the root parser, so argparse only accepts them
 # BEFORE the subcommand: "elemctl deploy --env-file .env" used to die with
 # "unrecognized arguments". They are hoisted to the front of argv instead, which keeps
-# the order rule out of the checklists and out of the skills.
+# the order rule out of the checklists and out of the skills. plugins.Command.validate
+# reads this list and _GLOBAL_FLAGS below, and refuses a plugin argument of the same name.
 _GLOBAL_OPTIONS = (
     "--base-url",
     "--client-id",
@@ -1846,6 +1865,14 @@ def build_parser():
     p.add_argument("--enable", action="store_true", help=i18n.t("cli.help.apps-token-access-enable"))
     p.add_argument("--disable", action="store_true", help=i18n.t("cli.help.apps-token-access-disable"))
     p.set_defaults(handler=cmd_apps_token_access)
+
+    p = apps_sub.add_parser(
+        "export-extension", help=i18n.t("cli.help.apps-export-extension")
+    )
+    _add_app_ref(p)
+    p.add_argument("extension", metavar="EXTENSION", help=i18n.t("cli.help.arg.extension"))
+    p.add_argument("--output", help=i18n.t("cli.help.apps-export-extension-output"))
+    p.set_defaults(handler=cmd_apps_export_extension)
 
     # spaces ----------------------------------------------------------------
     spaces = sub.add_parser("spaces", help=i18n.t("cli.help.spaces"))
