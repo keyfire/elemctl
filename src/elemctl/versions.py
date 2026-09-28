@@ -5,10 +5,13 @@ have to be compared by the numeric counter after the last hyphen: "1.0-10" is
 newer than "1.0-9", although lexicographically the order is the opposite.
 
 The server hands those numbers out itself when a build is uploaded into a project:
-the base is the Версия of the project descriptor and the number the highest number
-of that base plus one, whatever version the archive was built with. The
-auto-increment below arrives at the same number from the build list, which is why
-a deploy without an explicit version keeps its version on the server.
+the base is the Версия of the project descriptor and the number the highest one it has
+ever given in that base plus one, whatever version the archive was built with. A
+deleted build keeps its number: the build list no longer shows it, and the server
+counts on from it all the same. So the auto-increment below is a guess at the server's
+number. A deploy makes it from the build list and from the local registry of uploads
+(`highest_version`), which remembers the numbers the uploads of this machine got; a build
+uploaded from elsewhere and deleted since is out of sight of both.
 """
 
 from __future__ import annotations
@@ -41,9 +44,9 @@ def server_may_keep(version, base_version):
 
     The server numbers a build uploaded into a project itself and does not read the version of
     the archive at all: the base is the Версия of the project descriptor, the number the
-    highest one of that base plus one. A version can come out of that rule only when its base
-    is the project's own and its tail is a number - and even then only when that number
-    happens to be the next one. False is certain, True is a maybe.
+    highest one it has ever given in that base plus one. A version can come out of that rule
+    only when its base is the project's own and its tail is a number - and even then only when
+    that number happens to be the next one. False is certain, True is a maybe.
     """
     text = str(version or "").strip()
     tail = text.rpartition("-")[2]
@@ -66,6 +69,25 @@ def next_version(base_version, last_version=None):
     if not last_version or version_base(last_version) != base:
         return f"{base}-1"
     return f"{base}-{version_counter(last_version) + 1}"
+
+
+def highest_version(versions, base_version):
+    """The version with the highest number among plain version strings of one base, or "".
+
+    The strings are what the local registry of uploads keeps. A version of another base, or
+    one whose tail is not a number - the throwaway version of a probe, say - takes no part:
+    the server counts every base on its own, and only a number moves its count.
+    """
+    base = str(base_version or "").strip()
+    best, best_counter = "", 0
+    for version in versions or []:
+        text = str(version or "").strip()
+        if version_base(text) != base:
+            continue
+        counter = version_counter(text)
+        if counter > best_counter:
+            best, best_counter = text, counter
+    return best
 
 
 def pick_latest(assemblies, version_key="assembly-version", base_version=None):

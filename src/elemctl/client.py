@@ -7,19 +7,42 @@ out through the log callback the caller passes in.
 from __future__ import annotations
 
 import contextlib
+import io
 import json
 import re
 import time
-from urllib.parse import urlencode
+import zipfile
+from pathlib import Path
+from urllib.parse import quote, urlencode
 
 from . import i18n
 from .auth import TokenManager
-from .errors import ApiError, ConfigError, ElemctlError, ServerStartingError, TransportError
+from .build import MANIFEST_FILE, parse_flat_yaml
+from .errors import (
+    ApiError,
+    ConfigError,
+    ElemctlError,
+    ServerStartingError,
+    TransportError,
+    UnknownMethodError,
+)
 from .registry import ROUTE_NAME, remembered_uploads
 from .transport import UrllibTransport
 from .versions import newest_first, numbering_holes, pick_latest
 
 API_PREFIX = "/console/api/v2"
+
+#: The prefix of Console API 2.1. The newer console reference documents 2.1 as the main
+#: version and keeps 2.0 beside it, working. The client stays on 2.0 (API_PREFIX) and
+#: asks 2.1 only for what 2.0 has not got: the extensions applied to an application and the
+#: export of their builds.
+API_2_1_PREFIX = "/console/api/v2.1"
+
+# A console that has no handler for a path answers 401, the status of a refused token, and
+# names the path in the text: `Handler of HTTP request "[GET] /v2.1/..." in application
+# "console" not found.` That is how a server older than a method refuses it, and only the text
+# tells it from a refused token.
+_NO_HANDLER = re.compile(r"handler\s+of\s+http\s+request", re.IGNORECASE)
 
 # Stable application statuses; everything else (an empty string included) is transitional.
 # The reference lists no values of the status, and two met live were in no list of ours:
@@ -178,6 +201,17 @@ def server_starting(status, body):
         return False
     text = body if isinstance(body, str) else json.dumps(body, ensure_ascii=False)
     return bool(_CONSOLE_STARTING.search(text))
+
+
+def missing_handler(status, body):
+    """Is this the answer of a console that has no handler for the requested path at all?
+
+    body is what the answer carried - the parsed JSON or the text.
+    """
+    if status != 401 or body is None:
+        return False
+    text = body if isinstance(body, str) else json.dumps(body, ensure_ascii=False)
+    return bool(_NO_HANDLER.search(text))
 
 
 def _response_body(response):
@@ -568,6 +602,77 @@ def sign_in_hint(app):
     }
 
 
+#: The fields an extension applied to an application is recognized by: the id of the
+#: extension, the id of its project, the name and the presentation of the project.
+EXTENSION_NAME_KEYS = ("id", "project-id", "project-name", "project-presentation")
+
+
+def _extension_names(extension):
+    return {
+        str(extension.get(key) or "").strip().lower() for key in EXTENSION_NAME_KEYS
+    } - {""}
+
+
+def extension_label(extension):
+    """An extension the way a reader tells it apart: vendor/name, version and id."""
+    name = extension.get("project-name") or extension.get("project-presentation") or "?"
+    vendor = extension.get("vendor-name")
+    label = f"{vendor}/{name}" if vendor else str(name)
+    version = extension.get("assembly-version") or extension.get("project-version")
+    if version:
+        label += f" {version}"
+    return f"{label} (id {extension.get('id') or '?'})"
+
+
+def archive_manifest(data):
+    """The manifest of a build archive held in memory, or None when the bytes are no archive."""
+    try:
+        with zipfile.ZipFile(io.BytesIO(bytes(data))) as archive:
+            if MANIFEST_FILE not in archive.namelist():
+                return None
+            return parse_flat_yaml(archive.read(MANIFEST_FILE).decode("utf-8-sig"))
+    except (zipfile.BadZipFile, ValueError):
+        return None
+
+
+# The characters no file name may carry on one system or another.
+_UNSAFE_NAME = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
+
+
+def export_file_name(manifest, extension):
+    """The name a build archive gets when the caller names no file: `{Name} {Version}.xasm`.
+
+    That is the name a build of elemctl gets. The manifest of the archive is what the
+    server sent, so it goes first, and the card of the extension covers what it lacks.
+    """
+    manifest = manifest or {}
+    name = (
+        manifest.get("Name") or extension.get("project-name") or extension.get("id")
+        or "extension"
+    )
+    version = (
+        manifest.get("Version") or extension.get("assembly-version")
+        or extension.get("project-version") or ""
+    )
+    stem = f"{name} {version}".strip()
+    return _UNSAFE_NAME.sub("_", stem) + ".xasm"
+
+
+def export_target(output, default_name):
+    """Where an export goes: a file named by output, or default_name in a directory.
+
+    An empty output is the current directory. An output that is an existing directory, or
+    that ends with a separator, is a directory; anything else names the file itself.
+    """
+    text = str(output or "")
+    if not text:
+        return Path.cwd() / default_name
+    path = Path(text)
+    if path.is_dir() or text.endswith(("/", "\\")):
+        return path / default_name
+    return path
+
+
 class ElementClient:
     """A programmatic Console API v2 client."""
 
@@ -622,11 +727,16 @@ class ElementClient:
         finally:
             self._server_wait = previous
 
-    def _request(self, method, path, *, query=None, json_body=None, data=None, content_type=None):
+    def _request(
+        self, method, path, *, query=None, json_body=None, data=None, content_type=None,
+        raw=False,
+    ):
         """Perform a request with the Bearer token; on a 401 refresh the token and retry once.
 
         A server whose console is still starting fails the request with ServerStartingError,
         unless the call runs inside waiting_for_server - then the request waits for it.
+        raw=True hands a successful answer back as it came, the HttpResponse with its bytes
+        and headers: a file the platform sends is neither JSON nor text.
         """
         config = self.config.require()
         url = config.base_url + path
@@ -654,6 +764,8 @@ class ElementClient:
             break
 
         if 200 <= response.status < 300:
+            if raw:
+                return response
             if not response.body:
                 return None
             try:
@@ -756,6 +868,27 @@ class ElementClient:
     def _api(self, method, path, **kwargs):
         """A Console API v2 request (the shared /console/api/v2 prefix)."""
         return self._request(method, API_PREFIX + path, **kwargs)
+
+    def _api_2_1(self, method, path, **kwargs):
+        """A Console API 2.1 request; a server that does not know the method says so.
+
+        Only the methods 2.0 lacks go here, the rest of the client stays on 2.0. A console
+        without a handler for the path answers a 401 naming it, and the token was renewed
+        and the request repeated before that answer came back, so a 401 here is not about
+        the token: it is raised as UnknownMethodError, naming the method and the reason.
+        """
+        try:
+            return self._request(method, API_2_1_PREFIX + path, **kwargs)
+        except ApiError as error:
+            if not missing_handler(error.status, error.body):
+                raise
+            raise UnknownMethodError(
+                i18n.t("client.method-unknown", method=method, url=error.url),
+                status=error.status,
+                method=error.method,
+                url=error.url,
+                body=error.body,
+            ) from error
 
     @staticmethod
     def _api_error(method, url, response):
@@ -1155,6 +1288,113 @@ class ElementClient:
     def get_dump(self, app_id, dump_id):
         """The status of an application dump."""
         return self._api("GET", f"/applications/{app_id}/dumps/{dump_id}")
+
+    # -- extensions of an application (Console API 2.1) ----------------------------
+
+    def list_app_extensions(self, app_id):
+        """The extensions applied to the application: GET /applications/{id}/project of 2.1.
+
+        The answer names the project of the application in `application-project` and the
+        applied extensions in `extension-projects`. An extension carries `id`, the id the
+        application server knows it by - the `Ид` of the extension's project descriptor, the
+        `configuration-id` of its upload - then `project-id`, `assembly-id`, `enabled`,
+        `order`, `vendor-name`, `project-name`, `project-presentation`, `project-version` and
+        `assembly-version`. The console fills `assembly-id` of an extension with the id of its
+        project, so the field names no build. The same path of 2.0 answers with the
+        application project alone, which is why this call goes to 2.1.
+        """
+        payload = self._api_2_1("GET", f"/applications/{app_id}/project")
+        items = payload.get("extension-projects") if isinstance(payload, dict) else None
+        return [item for item in _as_list(items) if isinstance(item, dict)]
+
+    def find_app_extension(self, app_id, reference):
+        """An extension applied to the application, by any name a caller may hold.
+
+        The id of the extension, the id of its project, the name or the presentation of the
+        project, compared exactly and without regard to case. The value is looked up in the
+        list rather than sent as it is: the export answers a value the application has no
+        extension for with a 500 that says nothing of the cause, so a miss is named here,
+        together with the extensions the application does have. Several matches are an
+        error listing them.
+        """
+        target = str(reference or "").strip().lower()
+        extensions = self.list_app_extensions(app_id)
+        matches = [item for item in extensions if target and target in _extension_names(item)]
+        if len(matches) == 1:
+            return matches[0]
+        if matches:
+            raise ConfigError(i18n.t(
+                "client.extension-ambiguous",
+                name=reference,
+                app=app_id,
+                extensions="; ".join(extension_label(item) for item in matches),
+            ))
+        raise ConfigError(i18n.t(
+            "client.extension-not-found",
+            name=reference,
+            app=app_id,
+            extensions="; ".join(extension_label(item) for item in extensions)
+            or i18n.t("client.extensions-none"),
+        ))
+
+    def export_extension_build(self, app_id, extension_id):
+        """The build of an extension applied to the application, as the bytes of its archive.
+
+        POST /applications/{id}/project/{ExtensionId}/export of Console API 2.1, a method 2.0
+        has not got. The request has no body, and the answer is the file itself, the archive
+        the build was uploaded as, as `application/octet-stream`. The segment is the `id` of
+        the extension in list_app_extensions, whatever the case of its letters: the console
+        hands it on to the application server as the id of the extension there. The reference
+        calls the parameter the id of the extension project, but the `project-id` of the
+        listing is answered with the same bare 500 an unknown value gets.
+        """
+        segment = quote(str(extension_id), safe="")
+        response = self._api_2_1(
+            "POST", f"/applications/{app_id}/project/{segment}/export", raw=True
+        )
+        return response.body
+
+    def export_extension(self, app_id, reference, output=""):
+        """Save the build of an extension applied to the application to a file.
+
+        reference names the extension the way find_app_extension takes it. output is the
+        file to write, or a directory for the default name `{Name} {Version}.xasm` taken
+        from the manifest of the archive; empty means the current directory. An answer that
+        is not a build archive is refused rather than saved under the name of one. Returns
+        the report: the application, the extension, the file with its size, and the
+        manifest of the archive.
+        """
+        extension = self.find_app_extension(app_id, reference)
+        extension_id = extension.get("id")
+        if not extension_id:
+            raise ElemctlError(i18n.t(
+                "client.extension-without-id", extension=extension_label(extension), app=app_id
+            ))
+        data = self.export_extension_build(app_id, extension_id)
+        manifest = archive_manifest(data)
+        if manifest is None:
+            raise ElemctlError(i18n.t(
+                "client.extension-export-not-archive",
+                extension=extension_label(extension),
+                app=app_id,
+                size=len(data),
+                start=bytes(data[:80]).decode("utf-8", errors="replace"),
+            ))
+        path = export_target(output, export_file_name(manifest, extension))
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(data)
+        return {
+            "app-id": app_id,
+            "extension-id": extension_id,
+            "project-id": extension.get("project-id"),
+            "vendor-name": extension.get("vendor-name"),
+            "project-name": extension.get("project-name"),
+            "assembly-version": extension.get("assembly-version"),
+            "enabled": extension.get("enabled"),
+            "file": str(path.resolve()),
+            "size": len(data),
+            "manifest": manifest,
+        }
 
     # -- technology version ------------------------------------------------
 

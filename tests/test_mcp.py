@@ -52,6 +52,7 @@ EXPECTED_TOOLS = {
     "configure_user_list",
     "list_app_users",
     "token_access",
+    "export_extension",
     "list_app_tasks",
     "list_branches",
     "merge_branch",
@@ -860,6 +861,7 @@ EXPECTED_TOOL_PARAMETERS = {
     "ensure_app": (
         "development_mode env_file name project_id space_id verify version_id", "name"
     ),
+    "export_extension": ("app_id env_file extension output", "app_id extension"),
     "find_app": ("env_file include_deleted name", "name"),
     "get_app": ("app_id env_file", "app_id"),
     "get_build": ("env_file project_id version", "project_id version"),

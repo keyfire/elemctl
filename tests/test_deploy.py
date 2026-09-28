@@ -1095,6 +1095,108 @@ def test_the_version_fallback_compares_with_the_server_version(project_factory, 
     assert client.apply_calls[0][1]["assembly_version"] == "1.0-6"
 
 
+# --- a deleted build keeps its number ---------------------------------------------
+#
+# Seen live: with `1.0.0-4` deleted from the top of the list, the next upload into the project
+# became `1.0.0-5`, and with `1.0.0-50` and `1.0.0-51` deleted it became `1.0.0-52` while the
+# list ended at `1.0.0-8`. The server counts on from the highest number it has ever given in
+# the base, and the list shows only what is left, so a count from the list alone fell short
+# and the deploy warned about a renumbering it had caused itself.
+
+
+def _remember(version, project_id="proj-1"):
+    from elemctl.registry import remember_upload
+
+    return remember_upload(
+        assembly_id=f"asm-{version}", project_id=project_id, version=version, branch="",
+        commit="", dirty=None, project_dir=None, file=None, stand="https://stand.test",
+        command="deploy",
+    )
+
+
+def test_the_count_goes_on_from_a_deleted_build_the_registry_remembers(project_factory, tmp_path):
+    _remember("1.0-6")  # uploaded from this machine, deleted since: the list ends at 1.0-4
+    client = FakeDeployClient(
+        latest={"assembly-version": "1.0-4", "id": "asm-4"},
+        applied_version="1.0-7", applied_version_id="asm-777",
+        upload_response=_card_of_upload("1.0-7"),
+    )
+    log_lines = []
+
+    report = deploy_from_sources(
+        client, "app-1", "proj-1", project_dir=project_factory(), output_dir=tmp_path / "d",
+        log=log_lines.append,
+    )
+
+    assert (report.version, report.assembly_version, report.renumbered) == (
+        "1.0-7", "1.0-7", False,
+    )
+    assert not [line for line in log_lines if "записал сборку" in line]
+    said = next(line for line in log_lines if "локального реестра загрузок" in line)
+    built = next(index for index, line in enumerate(log_lines) if "собран архив" in line)
+    assert "1.0-6" in said and log_lines.index(said) < built  # said before the build
+
+
+def test_the_registry_of_another_project_another_base_or_a_probe_leaves_the_count_alone(
+    project_factory, tmp_path
+):
+    _remember("1.0-9", project_id="proj-2")
+    _remember("2.0-8")
+    _remember("1.0-probe-ab12cd34")
+    _remember("1.0-3")  # below what the list shows: the list answers
+    log_lines = []
+
+    report = deploy_from_sources(
+        FakeDeployClient(
+            latest={"assembly-version": "1.0-4", "id": "asm-4"}, applied_version="1.0-5",
+            upload_response=_card_of_upload("1.0-5"),
+        ),
+        "app-1", "proj-1", project_dir=project_factory(), output_dir=tmp_path / "d",
+        log=log_lines.append,
+    )
+
+    assert report.version == "1.0-5" and report.renumbered is False
+    assert not [line for line in log_lines if "локального реестра загрузок" in line]
+
+
+def test_a_counted_version_the_server_renumbers_is_explained_rather_than_warned(
+    project_factory, tmp_path
+):
+    """A build uploaded from elsewhere and deleted since is out of sight of the count."""
+    client = FakeDeployClient(
+        latest={"assembly-version": "1.0-4", "id": "asm-4"},
+        applied_version="1.0-9", applied_version_id="asm-777",
+        upload_response=_card_of_upload("1.0-9"),
+    )
+    log_lines = []
+
+    report = deploy_from_sources(
+        client, "app-1", "proj-1", project_dir=project_factory(), output_dir=tmp_path / "d",
+        log=log_lines.append,
+    )
+
+    assert report.ok is True and report.renumbered is True
+    said = next(line for line in log_lines if "записал сборку как 1.0-9, а не 1.0-5" in line)
+    assert not said.startswith("внимание")  # the guess was elemctl's, not the caller's
+    assert "когда-либо выдавал" in said and "неоткуда" in said
+
+
+def test_the_rule_of_the_warning_counts_the_numbers_ever_given(project_factory, tmp_path):
+    """An explicit version keeps the warning, and the rule it quotes is the server's."""
+    log_lines = []
+    deploy_from_sources(
+        FakeDeployClient(
+            applied_version="1.0-6", applied_version_id="asm-777",
+            upload_response=_card_of_upload("1.0-6"),
+        ),
+        "app-1", "proj-1", project_dir=project_factory(), output_dir=tmp_path / "d",
+        version="1.0-2", log=log_lines.append,
+    )
+
+    said = next(line for line in log_lines if "записал сборку как 1.0-6" in line)
+    assert said.startswith("внимание") and "когда-либо выдавал в этой базе" in said
+
+
 # --- a refusal several lines long ---------------------------------------------
 
 

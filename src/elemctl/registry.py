@@ -8,6 +8,11 @@ could not be traced to the working tree it came from. So every upload elemctl ma
 written down here, one JSON line per upload, and the listings fill the gaps of a card from
 it, naming where each value came from.
 
+A deploy counts the number of its build from here as well. The server counts on from the
+highest number it has ever given in a base, and a deleted build keeps its number while the
+build list no longer shows it; the registry still has the number such a build got when this
+machine uploaded it (`remembered_versions`).
+
 The registry is LOCAL: a build uploaded from another machine, from CI or by an elemctl that
 had no registry yet is not in it. A registry that cannot be written costs a warning and
 never the upload - the build is on the server by then - and one that cannot be read reads
@@ -239,6 +244,26 @@ def remember_build(
         route=route,
         environ=environ,
     )
+
+
+def remembered_versions(project_id, environ=None):
+    """The versions the uploads of this machine got in a project, as the registry keeps them.
+
+    The server gives a build uploaded into a project the highest number it has ever given in
+    the base plus one, and a deleted build keeps its number, while the build list shows only
+    what is left. The registry still has a build this machine uploaded after it is deleted,
+    whoever deleted it, and that is what a deploy counts the next number from. The stand is
+    not compared: the project id is a UUID the server made, and one server reached by two
+    addresses would otherwise lose half of what it remembers.
+    """
+    wanted = str(project_id or "").strip()
+    if not wanted:
+        return []
+    return [
+        str(entry.get("version"))
+        for entry in remembered_uploads(environ=environ).values()
+        if str(entry.get("project-id") or "") == wanted and entry.get("version")
+    ]
 
 
 def remembered_uploads(assembly_ids=None, environ=None):

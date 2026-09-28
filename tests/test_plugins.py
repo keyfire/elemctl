@@ -217,6 +217,130 @@ def test_command_declaration_is_checked_at_discovery(monkeypatch):
             plugins.plugin_commands()
 
 
+# --- A plugin argument and the global options of the core ----------------------------
+
+# Read from cli, the same place the check reads them from, and never copied here.
+GLOBAL_OPTIONS = cli._GLOBAL_OPTIONS + cli._GLOBAL_FLAGS
+
+
+@pytest.mark.parametrize("option", GLOBAL_OPTIONS)
+def test_a_plugin_option_may_not_take_a_global_option(monkeypatch, option):
+    """The CLI moves a global option in front of the subcommand and parses it itself.
+
+    `warm-up --timeout 5` of a plugin that declared its own `--timeout` reached neither
+    side: the core took the value, and the default of the plugin's option overwrote it.
+    """
+    _with_commands(monkeypatch, _command(arguments=[plugins.Argument(option)]))
+
+    with pytest.raises(PluginError) as refusal:
+        plugins.plugin_commands()
+
+    message = str(refusal.value)
+    assert f"общего ключа elemctl {option}." in message
+    assert "warm-up" in message and "плагин" in message
+
+
+@pytest.mark.parametrize("argument", [
+    plugins.Argument("timeout"),
+    plugins.Argument("env-file", required=False),
+    plugins.Argument("--env_file"),
+], ids=["positional-timeout", "positional-env-file", "option-env_file"])
+def test_a_plugin_argument_may_not_share_the_value_name_of_a_global_option(
+    monkeypatch, argument
+):
+    """A subcommand writes its values into the namespace of the root parser.
+
+    A positional argument named `timeout` handed its value to the core as the timeout of
+    every request, and an `env_file` would be the second one of the MCP tool.
+    """
+    _with_commands(monkeypatch, _command(arguments=[argument]))
+
+    with pytest.raises(PluginError) as refusal:
+        plugins.plugin_commands()
+
+    assert f"аргумент {argument.name} " in str(refusal.value)
+
+
+def test_a_cli_alias_may_not_take_a_global_option(monkeypatch):
+    """`warm-up --quiet dev` switched the progress off and passed dev positionally."""
+    _with_commands(monkeypatch, _command(
+        arguments=[plugins.Argument("stand", required=False, cli_alias="--quiet")]
+    ))
+
+    with pytest.raises(PluginError) as refusal:
+        plugins.plugin_commands()
+
+    assert "stand (cli_alias --quiet)" in str(refusal.value)
+
+
+def test_the_global_options_are_read_from_the_cli(monkeypatch):
+    """An option the core adds is refused to a plugin at once: there is no copy to update."""
+    monkeypatch.setattr(cli, "_GLOBAL_OPTIONS", cli._GLOBAL_OPTIONS + ("--region",))
+    _with_commands(monkeypatch, _command(arguments=[plugins.Argument("--region")]))
+
+    with pytest.raises(PluginError, match="--region"):
+        plugins.plugin_commands()
+
+
+def test_names_near_a_global_option_stay_free(monkeypatch, capsys):
+    """Only a global option itself is taken: a prefix of one and a longer name are not.
+
+    `--base` is a prefix of `--base-url`, and a real plugin declares it.
+    """
+    _with_commands(monkeypatch, _command(
+        arguments=[
+            plugins.Argument("--base"),
+            plugins.Argument("--timeout-seconds", type=int),
+            plugins.Argument("--json-out"),
+            plugins.Argument("stand", required=False, cli_alias="--stand"),
+        ],
+        handler=lambda context, **values: values,
+    ))
+
+    assert cli.main([
+        "warm-up", "--base", "demo-app", "--timeout-seconds", "5", "--json-out", "a.json", "dev",
+    ]) == 0
+    assert json.loads(capsys.readouterr().out) == {
+        "base": "demo-app", "timeout_seconds": 5, "json_out": "a.json", "stand": "dev",
+    }
+
+
+def test_a_plugin_that_takes_a_global_option_is_named_and_the_core_keeps_working(
+    monkeypatch, capsys
+):
+    monkeypatch.setattr(plugins, "debug_adapter_paths", lambda: [])
+    _with_commands(monkeypatch, _command(), _command(
+        name="with-timeout", arguments=[plugins.Argument("--timeout", type=float)]
+    ))
+
+    assert cli.main(["plugins"]) == 0
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["commands"] == []  # all or nothing: the whole entry point is left out
+    assert [failure["source"] for failure in payload["failures"]] == ["плагин"]
+    assert "--timeout" in payload["failures"][0]["error"]
+
+
+def test_a_plugin_env_file_no_longer_stops_the_mcp_server(monkeypatch, capsys):
+    """The core adds env_file to every tool of a plugin, and a plugin's own made two of them.
+
+    The signature of the tool could not be built ("duplicate parameter name"), and the
+    ValueError took the whole server down with every tool of the core.
+    """
+    pytest.importorskip("mcp.server", reason="the elemctl[mcp] extra is not installed")
+    import asyncio
+
+    from elemctl import mcp_server
+
+    _with_commands(monkeypatch, _command(arguments=[plugins.Argument("--env-file")]))
+
+    server = mcp_server.create_server()
+
+    names = {tool.name for tool in asyncio.run(server.list_tools())}
+    assert "deploy" in names and "warm_up" not in names
+    assert "--env-file" in capsys.readouterr().err
+
+
 def test_entry_point_giving_something_else_is_an_error(monkeypatch):
     ep = _StubEP("плагин", plugins.COMMANDS_GROUP, 42)
     monkeypatch.setattr(plugins, "entry_points", _fake_entry_points(ep))

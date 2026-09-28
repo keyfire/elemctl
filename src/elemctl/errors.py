@@ -66,3 +66,12 @@ class ServerStartingError(ApiError):
     object is gone" and sent the reader to `docker ps` and the server log for the cause. The
     status and the body are kept, so a caller catching ApiError still sees what came back.
     """
+
+
+class UnknownMethodError(ApiError):
+    """The console has no handler for the method at all: the server is older than the method.
+
+    Such a console answers a 401 whose text names the path, the status a refused token gets.
+    Raised as a plain ApiError, it read as a failed sign-in and sent the reader to the keys.
+    The status and the body are kept, so a caller catching ApiError still sees what came back.
+    """
