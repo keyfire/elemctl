@@ -41,10 +41,15 @@ from .client import (
     assembly_label,
     brief_app,
     brief_assemblies,
+    build_owner,
     builds_summary,
     extract_assembly_id,
-    extract_project_id,
+    is_extension_project,
+    landed_project,
+    project_label,
+    project_names,
     sign_in_hint,
+    uploaded_project,
 )
 from .config import Config, ensure_env_file_exists
 from .deploy import (
@@ -355,7 +360,7 @@ def _create_app_from_args(client, config, args):
     version_id = args.version_id
 
     if version_id and project_id:
-        _refuse_deleted_source(
+        project_id = _source_project(
             client, project_id, version_id, project_from_env=not args.project_id
         )
 
@@ -415,18 +420,41 @@ def _error_payload(error):
     return error.to_dict() if isinstance(error, ApiError) else {"error": str(error)}
 
 
-def _refuse_deleted_source(client, project_id, version_id, *, project_from_env):
-    """Refuse to create from an assembly the project no longer lists, and name a way forward.
+def _source_project(client, project_id, version_id, *, project_from_env):
+    """The project the source assembly is checked against; refuse when no project has it.
 
     The platform deletes the builds nobody uses, and a create from such a build is answered
     with a bare 400 "Can't create application". That reads like a limit on the number of
-    applications, so the refusal names the real cause and the build that a running
-    application of the project runs. A project taken from ELEMENT_PROJECT_ID may not be the
-    project the assembly belongs to, and the refusal says where the project came from.
+    applications, so the build list of the project is read before anything is created.
+
+    The project may not be the one the assembly belongs to: a build uploaded without a
+    project id sits in the project the server picked for it, while ELEMENT_PROJECT_ID names
+    the project the stand works with. Such a build used to be refused as a deleted one. So an
+    assembly the project does not list is looked for in the other projects of the stand
+    (build_owner). A project from ELEMENT_PROJECT_ID is only a default, and it gives way to
+    the project of the assembly, with a line saying so. A project named by --project-id is
+    not replaced behind the caller's back: the refusal names the project the assembly is in.
+
+    When no project lists the assembly, the refusal names the real cause and the build that a
+    running application of the project runs. When the other projects could not be read, it
+    says where the project came from, so a build of another project is not taken for a
+    deleted one without a word.
     """
     instead = client.missing_source(project_id, version_id)
     if instead is None:
-        return
+        return project_id
+    owner, searched = build_owner(client, project_id, version_id)
+    if owner is not None:
+        if project_from_env:
+            _progress(i18n.t(
+                "cli.source-project-found", build=version_id, project=project_id,
+                owner=project_label(owner),
+            ))
+            return str(owner.get("id"))
+        raise ElemctlError(i18n.t(
+            "cli.source-other-project", build=version_id, project=project_id,
+            owner=project_label(owner), owner_id=owner.get("id"),
+        ))
     parts = [i18n.t("client.source-missing", assembly=version_id, project=project_id)]
     if instead.get("version-id"):
         parts.append(i18n.t(
@@ -435,7 +463,9 @@ def _refuse_deleted_source(client, project_id, version_id, *, project_from_env):
         ))
     else:
         parts.append(i18n.t("cli.source-latest"))
-    if project_from_env:
+    if searched:
+        parts.append(i18n.t("client.source-nowhere"))
+    elif project_from_env:
         parts.append(i18n.t("cli.source-project-from-env"))
     raise ElemctlError(". ".join(parts))
 
@@ -862,7 +892,9 @@ def cmd_builds_list(args):
     _emit(shown)
     if truncated:
         _progress(i18n.t("cli.builds-list-truncated"))
-    _progress(builds_summary(assemblies, shown_count))
+    # The housekeeping leaves an extension project alone, and the line says so for one.
+    extension = is_extension_project(client, project_id)
+    _progress(builds_summary(assemblies, shown_count, extension=extension))
     return 0
 
 
@@ -935,6 +967,67 @@ def _archive_manifest(file_path):
         return {}
 
 
+def _project_snapshot(client):
+    """The projects ahead of an upload without a project id, {id: name}; None when unreadable.
+
+    The snapshot tells what the upload did to the project the server picked: created it,
+    found it, or found it and renamed it. Not being able to read it costs that verdict and
+    never the upload.
+    """
+    try:
+        return project_names(client)
+    except ElemctlError:
+        return None
+
+
+def _landed_project(client, answer, before, file_path):
+    """The project an upload without a project id went into, for the answer and for stderr.
+
+    The answer of the server names it, and an answer that does not is followed by a search
+    of the build lists (uploaded_project). The build is on the server by then, so a search
+    that fails costs the name of the project and never the upload. The Ид it was found by is
+    the one of the archive when the answer does not repeat it.
+    """
+    try:
+        landed = uploaded_project(client, answer, before)
+    except ElemctlError:
+        landed = landed_project(answer, before)
+    if not landed["configuration-id"]:
+        # An archive that is no zip at all is a BuildError of the manifest reader.
+        try:
+            landed["configuration-id"] = read_assembly_project(file_path)["id"]
+        except (ElemctlError, OSError):
+            pass
+    return landed
+
+
+def _report_landed_project(landed, assembly_id):
+    """Say on stderr where the server put a build uploaded without a project id.
+
+    Such an upload went quiet about it: the answer printed `project-id: null`, while the
+    server had created a project for the build, or had found one by the Ид of Проект.yaml
+    and renamed it after the build - the group too, and for good, since deleting the build
+    does not bring the name back.
+    """
+    if not landed["id"]:
+        _progress(i18n.t("cli.upload-project-unknown", assembly=assembly_id or "-"))
+        return
+    if landed["found-by"] == "build-list":
+        _progress(i18n.t("cli.upload-project-by-build-list"))
+    project = project_label(landed)
+    if landed["renamed-from"]:
+        _progress(i18n.t(
+            "cli.upload-project-renamed", project_id=landed["id"],
+            former=landed["renamed-from"], name=landed["name"],
+        ))
+    elif landed["created"]:
+        _progress(i18n.t("cli.upload-project-created", project=project))
+    elif landed["created"] is False:
+        _progress(i18n.t("cli.upload-project-found", project=project))
+    else:
+        _progress(i18n.t("cli.upload-project-landed", project=project))
+
+
 def cmd_builds_upload(args):
     config = _config(args)
     client = make_client(config)
@@ -944,6 +1037,7 @@ def cmd_builds_upload(args):
     project_id, project_id_source = _upload_target(args, config)
     if project_id_source == "env":
         _progress(i18n.t("cli.upload-target-from-env", project_id=project_id))
+    before = None
     if project_id:
         # A name mismatch is far more often a slip than an intent: the target came from
         # ELEMENT_PROJECT_ID, and the assembly is someone else's. Until now the mismatch
@@ -954,6 +1048,11 @@ def cmd_builds_upload(args):
             raise ElemctlError(i18n.t("cli.upload-name-mismatch", **mismatch))
         if mismatch:
             _progress(i18n.t("cli.upload-name-mismatch-forced", **mismatch))
+    else:
+        # The server picks the project by the Ид of the descriptor, and no method finds a
+        # project by that Ид, so nothing can be compared before the upload. The projects as
+        # they are now tell afterwards what the upload did to the one it went into.
+        before = _project_snapshot(client)
     # The branch and the commit live in the MANIFEST inside the archive - the build wrote
     # them there. The commit also goes along as `commit-id`, which the server puts on the
     # card of an assembly uploaded into an existing project; the branch the platform does
@@ -971,9 +1070,13 @@ def cmd_builds_upload(args):
     if given and built and given != built:
         # An upload into a project is numbered by the server, whatever the archive says.
         _progress(i18n.t("deploy.renumbered", built=built, given=given))
+    landed = None
+    if not project_id:
+        landed = _landed_project(client, answer, before, file_path)
+        _report_landed_project(landed, extract_assembly_id(answer))
     warning = remember_upload(
         assembly_id=extract_assembly_id(answer),
-        project_id=project_id or extract_project_id(answer),
+        project_id=project_id or (landed or {}).get("id"),
         version=answer.get("assembly-version") or manifest.get("Version"),
         branch=manifest.get("BranchName"),
         commit=manifest.get("CommitId"),
@@ -989,14 +1092,19 @@ def cmd_builds_upload(args):
     )
     if warning:
         _progress(warning)
-    _emit(
-        {
-            "assembly-id": extract_assembly_id(response),
-            "project-id": project_id,
-            "project-id-source": project_id_source,
-            "response": response,
-        }
-    )
+    result = {
+        "assembly-id": extract_assembly_id(response),
+        "project-id": project_id,
+        "project-id-source": project_id_source,
+    }
+    if landed is not None:
+        # The project the server picked: an agent reads the id here, not in the raw answer,
+        # and `apps create --project-id` takes it as it is.
+        result["project-id"] = landed["id"] or None
+        result["project-id-source"] = "server" if landed["id"] else None
+        result["project"] = landed
+    result["response"] = response
+    _emit(result)
     return 0
 
 

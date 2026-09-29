@@ -47,6 +47,8 @@ from .client import (
     assembly_id_of,
     extract_assembly_id,
     extract_project_id,
+    landed_project,
+    project_names,
 )
 from .errors import ApiError, ConfigError, ElemctlError
 from .registry import ROUTE_NO_PROJECT_ID, remember_build, remembered_uploads
@@ -101,6 +103,9 @@ class ProbeReport:
     # Whether this very upload created the project: True, False, or None when the list of
     # projects could not be read before the upload.
     project_created: bool | None = None
+    # The former name of a project the upload renamed after the build: the server gives the
+    # project it found by the Ид the name of that build. "" when the name stayed or is unknown.
+    project_renamed_from: str = ""
     assembly_id: str = ""
     app_id: str = ""
     app_name: str = ""
@@ -128,6 +133,7 @@ class ProbeReport:
             "version": self.version,
             "project-id": self.project_id,
             "project-created": self.project_created,
+            "project-renamed-from": self.project_renamed_from or None,
             "assembly-id": self.assembly_id,
             "app-id": self.app_id,
             "app-name": self.app_name,
@@ -320,7 +326,7 @@ def probe_project(
     report.version = result.version
     log(i18n.t("probe.built", file=result.file, version=result.version))
 
-    known_projects = _project_ids(client)
+    known_projects = _project_names(client)
     response = client.upload_assembly(
         result.file.read_bytes(), project_id=None, space_id=space_id or None
     )
@@ -338,6 +344,15 @@ def probe_project(
         assembly=report.assembly_id,
         project=report.project_id or i18n.t("probe.unknown"),
     ))
+    # The upload goes into the live project that carries the Ид of the sources, and a
+    # presentation edited in them renames that project, the working one included.
+    landed = landed_project(response, known_projects)
+    report.project_renamed_from = landed["renamed-from"] or ""
+    if report.project_renamed_from:
+        log(i18n.t(
+            "probe.project-renamed", project=report.project_id,
+            former=report.project_renamed_from, name=landed["name"],
+        ))
 
     try:
         log(i18n.t("probe.creating", name=report.app_name))
@@ -420,21 +435,18 @@ def _remember_probe(client, result, response, report, app_id, log):
         log(warning)
 
 
-def _project_ids(client):
-    """The ids of the platform projects before the upload, or None when unknown.
+def _project_names(client):
+    """The platform projects before the upload, {id: name}, or None when unknown.
 
     It is the only way to tell whether the project was created by this very
     upload - and therefore whether it has to be removed afterwards. A failure of
     the request is not a reason to abort the probe: None means "do not touch the
     project". Deleted projects are asked for on purpose: an upload may land in
-    one of them, and an id the set does not know reads as "created here".
+    one of them, and an id the set does not know reads as "created here". The
+    names tell a project the upload renamed after the build from one it left alone.
     """
     try:
-        return {
-            str(project.get("id"))
-            for project in client.list_projects(include_deleted=True)
-            if isinstance(project, dict) and project.get("id")
-        }
+        return project_names(client)
     except ApiError:
         return None
 

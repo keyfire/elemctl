@@ -21,6 +21,30 @@ entry either – say what the behaviour was, not which id or response field was 
 The link is written by `python scripts/changelog-link.py <number>`, which rebuilds the generated
 pages of the site in the same run – writing it by hand is how the mirrors get left behind.
 
+## Unreleased
+
+### Added
+- **`builds upload` without a project id names the project the build went into.** The answer
+  printed `project-id: null` even though the server had named the project. Now `project-id` and
+  the `project` field carry it, and a line on stderr says whether the upload created the project
+  or found it by the `Ид` of `Проект.yaml`. ([#52](https://github.com/keyfire/elemctl/pull/52))
+
+### Changed
+- **`apps create --version-id` finds the project of the build itself.** When the project from
+  `ELEMENT_PROJECT_ID` does not list the build, the command looks it up in the other projects and
+  takes that one. With an explicit `--project-id` it refuses and names the right project. The MCP
+  tools `create_app` and `ensure_app` do the same. ([#52](https://github.com/keyfire/elemctl/pull/52))
+- **`builds list` of an extension project says that nothing cleans it up.** The builds of such a
+  project stay until someone deletes them, so a gap in its numbering is a deletion by hand. ([#52](https://github.com/keyfire/elemctl/pull/52))
+
+### Fixed
+- **An upload without a project id no longer renames a project silently.** When the server puts
+  the build into the project with the same `Ид` and another name, `builds upload` and `probe` warn
+  about it and give the former name in the answer. The name comes from the presentation in
+  `Проект.yaml`, not from the manifest `Name`, as the documentation said. ([#52](https://github.com/keyfire/elemctl/pull/52))
+- **`ROUTE_NAME` is back in `elemctl.registry`.** The previous release renamed it to
+  `ROUTE_NO_PROJECT_ID`, and code importing the old name broke. The old name is an alias now. ([#52](https://github.com/keyfire/elemctl/pull/52))
+
 ## 2026-09-29 – 0.47.0
 
 ### Added

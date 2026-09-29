@@ -648,23 +648,26 @@ def read_assembly_manifest(path):
 
 
 def read_assembly_project(path):
-    """What the archive says about its PROJECT: vendor, name and presentation.
+    """What the archive says about its PROJECT: vendor, name, presentation and Ид.
 
-    The manifest carries the technical pair the platform recognizes a project by
-    (vendor plus name), and the project descriptor inside the archive carries the
-    presentation - the name a console shows. The two are different things: a
-    project named `crm` is shown as "Acme CRM", and comparing one against
-    the other calls every correct upload a mismatch.
+    The manifest carries the technical pair of vendor and name, and the project
+    descriptor inside the archive carries the presentation - the name a console
+    shows. The two are different things: a project named `crm` is shown as
+    "Acme CRM", and comparing one against the other calls every correct upload a
+    mismatch. The descriptor also carries the `Ид` the platform identifies the
+    project by: an upload without a project id lands in the live project that
+    carries it.
 
     Light, like read_assembly_manifest: two entries are read, nothing is walked.
-    The presentation is "" when the archive carries no descriptor - then there is
-    nothing to compare and the caller must not invent one.
+    The presentation and the id are "" when the archive carries no descriptor -
+    then there is nothing to compare and the caller must not invent one.
     """
     archive_path = Path(path)
     manifest = read_assembly_manifest(archive_path)
     vendor = (manifest.get("Vendor") or "").strip()
     name = (manifest.get("Name") or "").strip()
     presentation = ""
+    project_id = ""
     with zipfile.ZipFile(archive_path) as archive:
         names = archive.namelist()
         prefix = f"{vendor}/{name}/"
@@ -674,7 +677,8 @@ def read_assembly_project(path):
             presentation = (
                 descriptor_value(descriptor, "Представление", "Presentation") or ""
             ).strip()
-    return {"vendor": vendor, "name": name, "presentation": presentation}
+            project_id = (descriptor_value(descriptor, "Ид", "Id") or "").strip()
+    return {"vendor": vendor, "name": name, "presentation": presentation, "id": project_id}
 
 
 def inspect_assembly(path):

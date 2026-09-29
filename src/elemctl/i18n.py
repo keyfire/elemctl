@@ -166,6 +166,43 @@ MESSAGES = {
               "project by the Ид of its Проект.yaml, so such an assembly lands in the "
               "existing project instead of starting a second one",
     },
+    "cli.upload-project-created": {
+        "ru": "сервер завел для сборки новый проект {project}",
+        "en": "the server created a new project {project} for the build",
+    },
+    "cli.upload-project-found": {
+        "ru": "сервер положил сборку в существующий проект {project}: у него тот же Ид из "
+              "Проект.yaml",
+        "en": "the server put the build into the existing project {project}, the one that "
+              "carries the Ид of its Проект.yaml",
+    },
+    "cli.upload-project-landed": {
+        "ru": "сборка легла в проект {project}; новый он или прежний, сказать нельзя: перечень "
+              "проектов перед загрузкой не прочитался",
+        "en": "the build went into project {project}; whether the project is new cannot be "
+              "told, since the project list could not be read before the upload",
+    },
+    "cli.upload-project-renamed": {
+        "ru": "внимание: сервер положил сборку в проект {project_id} с тем же Ид из "
+              "Проект.yaml и переименовал его вместе с группой: было '{former}', стало "
+              "'{name}'. Удалением сборки это не откатывается – прежнее имя возвращает только "
+              "загрузка сборки с этим именем",
+        "en": "warning: the server put the build into project {project_id}, the one that "
+              "carries the Ид of its Проект.yaml, and renamed the project and its group from "
+              "'{former}' to '{name}'. Deleting the build does not undo it: only an upload of "
+              "a build with the former name brings it back",
+    },
+    "cli.upload-project-unknown": {
+        "ru": "внимание: сервер не назвал проект сборки {assembly}, и ни один проект ее не "
+              "перечисляет: найдите его командой elemctl projects list",
+        "en": "warning: the server did not name the project of build {assembly}, and no project "
+              "lists it: look for it with elemctl projects list",
+    },
+    "cli.upload-project-by-build-list": {
+        "ru": "ответ загрузки проекта не назвал, проект найден по перечням сборок",
+        "en": "the answer of the upload named no project, so the project was found by the "
+              "build lists",
+    },
     "cli.upload-name-mismatch-forced": {
         "ru": "внимание: по флагу --force-rename имя проекта-цели '{project}' "
               "({project_id}) будет переписано именем сборки '{assembly}'; удалением "
@@ -230,6 +267,20 @@ MESSAGES = {
               "назовите его в --project-id",
         "en": "The project comes from ELEMENT_PROJECT_ID: if the build belongs to another "
               "project, name that one with --project-id",
+    },
+    "cli.source-project-found": {
+        "ru": "сборки {build} нет в проекте {project} из ELEMENT_PROJECT_ID: она лежит в "
+              "проекте {owner}, по нему и проверена",
+        "en": "build {build} is not in project {project} from ELEMENT_PROJECT_ID: it belongs "
+              "to project {owner}, and it is checked against that one",
+    },
+    "cli.source-other-project": {
+        "ru": "сборки {build} нет в проекте {project}, названном в --project-id: она лежит в "
+              "проекте {owner}. Передайте --project-id {owner_id} или уберите этот ключ – "
+              "проект сборки найдется сам",
+        "en": "build {build} is not in project {project} named by --project-id: it belongs to "
+              "project {owner}. Pass --project-id {owner_id}, or leave the flag out and the "
+              "project of the build is found by itself",
     },
     "cli.whole-project-source-warning": {
         "ru": "внимание: источник – проект целиком; на части конфигураций платформы "
@@ -296,6 +347,10 @@ MESSAGES = {
               "deletes the builds nobody uses, and no application can be created from a "
               "deleted one – it answers such a request with 400 \"Can't create application\"",
     },
+    "client.source-nowhere": {
+        "ru": "Другие проекты стенда эту сборку тоже не перечисляют",
+        "en": "No other project of the stand lists the build either",
+    },
     "client.app-source-exclusive": {
         "ru": "источник приложения – ровно один из параметров: project_version_id "
               "либо image_id",
@@ -359,6 +414,21 @@ MESSAGES = {
               "the builds nobody uses whenever an application of the project finishes "
               "applying a build (a build an application runs stays), and the listing has no "
               "pages. This is NOT the project's whole build history",
+    },
+    "client.builds-summary-trimmed-extension": {
+        "ru": "показано {shown} из {total} – в нумерации сборок есть пропуски: сборки "
+              "проекта-расширения платформа сама не удаляет, уборка его не трогает, значит, "
+              "пропавшие сборки удалены вручную. Это НЕ вся история сборок проекта",
+        "en": "{shown} of {total} shown – the build numbering has gaps: the platform never "
+              "deletes the builds of an extension project, its housekeeping leaves such a "
+              "project alone, so the missing builds were deleted by hand. This is NOT the "
+              "project's whole build history",
+    },
+    "client.builds-summary-extension": {
+        "ru": ". Уборки у проекта-расширения нет: сборки, которые больше не нужны, остаются, "
+              "пока их не удалят вручную командой elemctl builds delete",
+        "en": ". An extension project has no housekeeping: builds nobody needs any more stay "
+              "until they are deleted by hand with elemctl builds delete",
     },
     "client.builds-summary-gap-first": {
         "ru": "под {above}",
@@ -662,6 +732,14 @@ MESSAGES = {
               "назовите его в project_id",
         "en": "The project comes from the stand's ELEMENT_PROJECT_ID: if the build belongs "
               "to another project, name that one in project_id",
+    },
+    "mcp.source-other-project": {
+        "ru": "сборки {build} нет в проекте {project}, названном в project_id: она лежит в "
+              "проекте {owner}. Передайте project_id {owner_id} или не передавайте project_id "
+              "вовсе – проект сборки найдется сам",
+        "en": "build {build} is not in project {project} given as project_id: it belongs to "
+              "project {owner}. Pass project_id {owner_id}, or leave project_id out and the "
+              "project of the build is found by itself",
     },
     "mcp.extra-required": {
         "ru": 'для MCP-сервера нужен extra: pip install "elemctl[mcp]"',
@@ -1318,6 +1396,15 @@ MESSAGES = {
     "probe.uploaded": {
         "ru": "сборка загружена (id: {assembly}, проект: {project})",
         "en": "build uploaded (id: {assembly}, project: {project})",
+    },
+    "probe.project-renamed": {
+        "ru": "внимание: сборка пробника легла в проект {project} с тем же Ид из Проект.yaml и "
+              "переименовала его вместе с группой: было '{former}', стало '{name}'. Уборка "
+              "пробника имя не вернет – его возвращает только загрузка сборки с прежним именем",
+        "en": "warning: the probe build went into project {project}, the one that carries the "
+              "Ид of its Проект.yaml, and renamed the project and its group from '{former}' to "
+              "'{name}'. The cleanup of the probe does not bring the name back: only an upload "
+              "of a build with the former name does",
     },
     "probe.unknown": {
         "ru": "не определён",

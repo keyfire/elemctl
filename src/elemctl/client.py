@@ -158,6 +158,102 @@ def extract_project_id(payload):
     return None
 
 
+def landed_project(answer, before=None):
+    """What the answer of an upload without a project id says about the project it went into.
+
+    The server picks that project itself: the live project that carries the Ид of the
+    descriptor, or a new one when none does (section 4.4 of the specification). The answer
+    names it in `artifact`: `artifact-id` is the project, `name` the name the project carries
+    now, `configuration-id` the Ид it was found by.
+
+    before is {id: name} of the projects read ahead of the upload (project_names), or None
+    when they could not be read. A project it does not know was created by the upload. A
+    project it knows under another name was renamed by the upload: the server shows a project
+    under the presentation of the build uploaded last, and its answer does not mention it.
+
+    Returns {"id", "name", "configuration-id", "created", "renamed-from", "found-by"}. "id" is
+    "" when the answer names no project, "created" is None when before is None, "renamed-from"
+    is the former name or None, and "found-by" is "response", or None when there is no id.
+    """
+    artifact = answer.get("artifact") if isinstance(answer, dict) else None
+    artifact = artifact if isinstance(artifact, dict) else {}
+    return _project_verdict(
+        str(extract_project_id(answer) or ""),
+        str(artifact.get("name") or ""),
+        str(artifact.get("configuration-id") or ""),
+        before,
+        found_by="response",
+    )
+
+
+def uploaded_project(client, answer, before=None):
+    """The project a build uploaded without a project id went into, the way landed_project names it.
+
+    The answer names the project in `artifact`, and the answer of the CLI used to drop it:
+    `builds upload` printed `project-id: null`, and a project the server had created for the
+    build was found by hand in the project list. An answer without an artifact is not taken
+    for a build that went nowhere: the build is looked up in the build lists then
+    (find_build_project), and "found-by" says "build-list".
+    """
+    landed = landed_project(answer, before)
+    if landed["id"]:
+        return landed
+    found = client.find_build_project(extract_assembly_id(answer))
+    if found is None:
+        return landed
+    project, _ = found
+    return _project_verdict(
+        str(project.get("id") or ""),
+        str(project.get("name") or ""),
+        landed["configuration-id"],
+        before,
+        found_by="build-list",
+    )
+
+
+def _project_verdict(project_id, name, configuration_id, before, *, found_by):
+    """The fields of landed_project for a project known by its id and its present name."""
+    created = None
+    renamed_from = None
+    if project_id and before is not None:
+        created = project_id not in before
+        former = str(before.get(project_id) or "")
+        if not created and former and name and former != name:
+            renamed_from = former
+    return {
+        "id": project_id,
+        "name": name,
+        "configuration-id": configuration_id,
+        "created": created,
+        "renamed-from": renamed_from,
+        "found-by": found_by if project_id else None,
+    }
+
+
+def project_names(client):
+    """{id: name} of every project the platform lists, the deleted ones included.
+
+    Read ahead of an upload without a project id, it is what landed_project judges the
+    project of the upload against: an id it does not know is a project the upload created,
+    and an id it knows under another name is a project the upload renamed. The deleted
+    projects stay in, so that a project it merely missed does not look new. Any client with
+    `list_projects` will do.
+    """
+    return {
+        str(project.get("id")): str(project.get("name") or "")
+        for project in client.list_projects(include_deleted=True)
+        if isinstance(project, dict) and project.get("id")
+    }
+
+
+def project_label(project):
+    """A project the way a message names it: the name in quotes and the id beside it."""
+    project = project if isinstance(project, dict) else {}
+    name = str(project.get("name") or project.get("presentation") or "").strip()
+    project_id = str(project.get("id") or "")
+    return f"'{name}' ({project_id})" if name else project_id
+
+
 _UUID_RE = re.compile(
     r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
 )
@@ -497,7 +593,7 @@ def assembly_label(assembly_id, version=None):
     return f"{assembly_id} ({version})" if version else str(assembly_id)
 
 
-def builds_summary(assemblies, shown, remembered=None):
+def builds_summary(assemblies, shown, remembered=None, *, extension=False):
     """The count line of a build listing: how many are shown, and is that all there is.
 
     Two different truths can hide behind the same listing. It may be every build the
@@ -542,13 +638,21 @@ def builds_summary(assemblies, shown, remembered=None):
     1.0.1-19001 by an auto-increment that read the counters of another base. The verdict
     survives that; a count of "deleted builds" would have been a fabrication.
 
+    An extension project is outside the housekeeping altogether: the job that follows an
+    apply starts from the build of the application and goes over the application's own
+    project. So a gap there is no work of the platform, the builds were deleted by hand, and
+    the builds nobody needs stay until somebody deletes them. extension says the project is
+    such a one - the caller reads it off the project card - and the line then says so rather
+    than send the reader to wait for a housekeeping that never comes.
+
     The CLI prints the line, the MCP tool carries it in the answer.
     """
     cards = [item for item in assemblies or [] if isinstance(item, dict)]
     if not cards:
         return i18n.t("client.builds-summary-empty", shown=shown, total=len(assemblies or []))
+    tail = i18n.t("client.builds-summary-extension") if extension else ""
     if not any(version_counter(item.get("assembly-version")) > 0 for item in cards):
-        return i18n.t("client.builds-summary-unnumbered", shown=shown, total=len(assemblies))
+        return i18n.t("client.builds-summary-unnumbered", shown=shown, total=len(assemblies)) + tail
     holes = numbering_holes(assemblies)
     if remembered is None:
         # The whole registry, not only the builds above the holes: the uploads inside a hole
@@ -567,7 +671,10 @@ def builds_summary(assemblies, shown, remembered=None):
             jumps.append((below, above))
         elif top:
             mixed.append((below, above, top, [version for version, _ in inside]))
-    if len(jumps) < len(holes):
+    if len(jumps) < len(holes) and extension:
+        # The line itself says that nothing but a hand deletes a build of such a project.
+        key, tail = "client.builds-summary-trimmed-extension", ""
+    elif len(jumps) < len(holes):
         key = "client.builds-summary-trimmed"
     else:
         key = "client.builds-summary-jumped" if jumps else "client.builds-summary-full"
@@ -590,7 +697,7 @@ def builds_summary(assemblies, shown, remembered=None):
         line += i18n.t(
             "client.builds-summary-jump-and-loss", gap=gap, top=top, gone=_some(gone),
         )
-    return line
+    return line + tail
 
 
 #: How many versions a line names before it says how many more there are.
@@ -686,11 +793,41 @@ EXTENSION_NAME_KEYS = ("id", "project-id", "project-name", "project-presentation
 #: The kind of an extension project, as the `ProjectKind` of a manifest and the `project-kind`
 #: of a project card spell it.
 EXTENSION_KIND = "Extension"
+#: The `project-kind` of the group the project list carries beside its members, lower-cased.
+PROJECT_KIND_GROUP = "group"
 
 
 def is_extension_kind(kind):
     """Whether a project kind names an extension, in either spelling a descriptor may use."""
     return str(kind or "").strip().lower() in {"extension", "расширение"}
+
+
+def is_extension_project(client, project_id):
+    """Whether a project is an extension project, by its card; False when the card is unreadable.
+
+    The count line of a build listing says of such a project that no housekeeping takes its
+    builds (builds_summary). A card that cannot be read leaves the line the one any other
+    project gets: the listing is the answer, and the line must not cost it.
+    """
+    try:
+        card = client.get_project(project_id)
+    except ElemctlError:
+        return False
+    return isinstance(card, dict) and is_extension_kind(card.get("project-kind"))
+
+
+def build_owner(client, project_id, assembly_id):
+    """The project other than project_id that lists the assembly, and whether the search ran.
+
+    (project, True) when another project lists it, (None, True) when none does, and
+    (None, False) when the projects could not be read. Nothing is known either way then, and
+    a caller must not claim that the build is gone from the whole stand.
+    """
+    try:
+        found = client.find_build_project(assembly_id, skip=(project_id,))
+    except ElemctlError:
+        return None, False
+    return (found[0] if found else None), True
 
 
 def extension_entry(extensions, *, project_id="", vendor="", name=""):
@@ -1528,21 +1665,7 @@ class ElementClient:
         deleted projects do not count. Returns `(project, assembly)`, None when no extension
         project lists the build - it is then the build of an application or of a library.
         """
-        target = str(assembly_id or "")
-        if not target:
-            return None
-        for project in self.list_projects():
-            if not isinstance(project, dict) or not is_extension_kind(project.get("project-kind")):
-                continue
-            project_id = str(project.get("id") or "")
-            if not project_id:
-                continue
-            for assembly in self.list_assemblies(project_id):
-                if isinstance(assembly, dict) and target in {
-                    str(assembly.get(key) or "") for key in ASSEMBLY_ID_KEYS
-                }:
-                    return project, assembly
-        return None
+        return self.find_build_project(assembly_id, kind=is_extension_kind)
 
     def find_app_extension(self, app_id, reference):
         """An extension applied to the application, by any name a caller may hold.
@@ -1951,6 +2074,43 @@ class ElementClient:
         raise ConfigError(i18n.t(
             "client.assembly-not-found", version=version_or_id, project=project_id
         ))
+
+    def find_build_project(self, assembly_id, *, skip=(), kind=None):
+        """The project that lists a build and the card of the build: (project, assembly), or None.
+
+        No method answers a build by its id alone: a build is addressed inside its project,
+        so the project is found by the build lists, one request per project. The project the
+        local registry of uploads remembers for the build is asked first, then the others,
+        newest first: a build uploaded without a project id tends to sit in the project that
+        upload has just created. Deleted projects and groups do not count - a group lists no
+        builds of its own. skip holds the projects the caller has looked at already, and kind
+        is a predicate over `project-kind` that narrows the search (is_extension_kind for the
+        extension projects). Only the ids of the cards are compared: a version is no address
+        across projects, since every project has a `1.0-1` of its own.
+        """
+        target = str(assembly_id or "")
+        if not target:
+            return None
+        skipped = {str(item) for item in skip if item}
+        remembered = str(
+            (remembered_uploads([target]).get(target) or {}).get("project-id") or ""
+        )
+        projects = [
+            project for project in self.list_projects()
+            if isinstance(project, dict) and project.get("id")
+            and str(project["id"]) not in skipped
+            and str(project.get("project-kind") or "").strip().lower() != PROJECT_KIND_GROUP
+            and (kind is None or kind(project.get("project-kind")))
+        ]
+        projects.sort(key=lambda project: str(project.get("date-created") or ""), reverse=True)
+        projects.sort(key=lambda project: str(project["id"]) != remembered)
+        for project in projects:
+            for assembly in self.list_assemblies(str(project["id"])):
+                if isinstance(assembly, dict) and target in {
+                    str(assembly.get(key) or "") for key in ASSEMBLY_ID_KEYS
+                }:
+                    return project, assembly
+        return None
 
     def resolve_assembly_id(self, project_id, version_or_id):
         """The assembly id by its version or by the id itself."""
