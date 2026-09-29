@@ -159,6 +159,9 @@ def test_the_cli_prints_the_jump_after_the_answer(monkeypatch, capsys):
         def list_assemblies(self, project_id):
             return list(JUMPED)
 
+        def get_project(self, project_id):
+            return {"id": project_id, "project-kind": "Application"}
+
     monkeypatch.setattr(cli, "make_client", lambda config: Listing())
 
     assert cli.main(["builds", "list", "--project-id", "proj-1", "--limit", "0"]) == 0
@@ -252,6 +255,9 @@ def test_the_cli_says_so_for_an_empty_project(monkeypatch, capsys):
         def list_assemblies(self, project_id):
             return []
 
+        def get_project(self, project_id):
+            return {"id": project_id, "project-kind": "Application"}
+
     monkeypatch.setattr(cli, "make_client", lambda config: Listing())
 
     assert cli.main(["builds", "list", "--project-id", "proj-1"]) == 0
@@ -278,6 +284,9 @@ def test_builds_upload_writes_down_the_way_the_build_went(monkeypatch, project_f
     class Uploads:
         def get_project(self, project_id):
             return {"id": project_id}
+
+        def list_projects(self, name="", include_deleted=False):
+            return []
 
         def upload_assembly(self, data, **kwargs):
             return next(answers)

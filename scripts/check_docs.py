@@ -121,7 +121,9 @@ PITCH_ITEMS = (
 #: when the housekeeping runs and what it spares, which every place left to a collector that
 #: would get to a build some day. The eleventh is what identifies a project, which every place
 #: put down to the vendor and the name of the manifest. The twelfth is the name of an upload
-#: that names no project, which every place took from that same belief.
+#: that names no project, which every place took from that same belief. The thirteenth is the
+#: name a project is shown under, which every place took from the manifest. The fourteenth is
+#: what an upload without a project id is checked against, which every place said was nothing.
 CLAIMS = (
     Claim(
         name="the platform deletes the builds nobody uses, whatever their age",
@@ -387,6 +389,39 @@ CLAIMS = (
         retired=(
             "by the vendor and the name",
             "по поставщику и имени",
+        ),
+    ),
+    # The console was said to show a project under the `Name` of the manifest. Builds of one
+    # Ид uploaded with a new `Name` and a new presentation each left the project card named
+    # after the presentation of `Проект.yaml` every time.
+    Claim(
+        name="a project is shown under the presentation of the build uploaded last",
+        told_in=(
+            "docs/SPEC.md", "docs/SPEC.ru.md",
+            "docs/platform.md", "docs/platform.ru.md",
+        ),
+        wording=("presentation of the build uploaded last", "под представлением"),
+        retired=(
+            "meaning the manifest `Name`",
+            "то есть под `Name` из манифеста",
+        ),
+    ),
+    # An upload without a project id was said to leave the client nothing to compare, and the
+    # project it renamed went unmentioned. The server names the project in its answer, and the
+    # project list read before the upload tells a project the upload created from one it found
+    # and from one it renamed.
+    Claim(
+        name="an upload without a project id is judged against the project list read before it",
+        told_in=(
+            "docs/SPEC.md", "docs/SPEC.ru.md",
+            "docs/platform.md", "docs/platform.ru.md",
+        ),
+        wording=("project list before the upload", "перечень проектов до загрузки"),
+        retired=(
+            "there the client has nothing to compare",
+            "there is nothing to warn about beforehand",
+            "тут клиенту сравнивать нечего",
+            "предупредить тут не о",
         ),
     ),
 )

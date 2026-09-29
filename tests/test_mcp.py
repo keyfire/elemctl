@@ -179,6 +179,9 @@ def test_list_builds_says_whether_the_listing_is_all_there_is(monkeypatch):
             assert project_id == "proj-1"
             return cards
 
+        def get_project(self, project_id):
+            return {"id": project_id, "project-kind": "Application"}
+
     server = _server_on(monkeypatch, FakeClient())
 
     result = asyncio.run(server.call_tool("list_builds", {"project_id": "proj-1"}))
@@ -198,6 +201,9 @@ def test_list_builds_calls_a_short_listing_complete(monkeypatch):
     class FakeClient:
         def list_assemblies(self, project_id):
             return [{"id": "asm-1", "assembly-version": "1.0-1", "created": "2026-01-01"}]
+
+        def get_project(self, project_id):
+            return {"id": project_id, "project-kind": "Application"}
 
     server = _server_on(monkeypatch, FakeClient())
 
@@ -711,6 +717,10 @@ def test_ensure_app_names_a_source_assembly_the_platform_has_deleted(monkeypatch
             assert (project_id, assembly_id) == ("proj-1", "asm-3")
             return {"app": "crm-main", "app-id": "app-2", "version-id": "asm-7",
                     "version": "1.0-7"}
+
+        def find_build_project(self, assembly_id, *, skip=(), kind=None):
+            assert (assembly_id, tuple(skip)) == ("asm-3", ("proj-1",))
+            return None
 
         def create_app(self, display_name, **kwargs):
             self.created.append(display_name)

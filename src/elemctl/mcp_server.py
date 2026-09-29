@@ -54,8 +54,11 @@ from .client import (
     assembly_label,
     brief_app,
     brief_assemblies,
+    build_owner,
     builds_summary,
     extract_assembly_id,
+    is_extension_project,
+    project_label,
     sign_in_hint,
 )
 from .config import Config
@@ -401,10 +404,11 @@ def create_server(config=None, *, overrides=None, env_file=None):
         if version_id:
             # The same check the CLI makes: a build the platform has deleted is named as such
             # before the create answers a bare 400. The project falls back to the stand's own
-            # ELEMENT_PROJECT_ID, the way the CLI takes it from the environment.
+            # ELEMENT_PROJECT_ID, the way the CLI takes it from the environment, and that
+            # default gives way to the project the build is in.
             stand_project = getattr(getattr(target, "config", None), "project_id", "") or ""
             if project_id or stand_project:
-                _refuse_deleted_source(
+                _source_project(
                     target, project_id or stand_project, version_id,
                     project_from_env=not project_id,
                 )
@@ -452,6 +456,12 @@ def create_server(config=None, *, overrides=None, env_file=None):
         env_file: str = "",
     ) -> dict:
         """Создать приложение. При задании только project_id источником берётся последняя сборка проекта (создание из проекта целиком может дать пустой каркас).
+
+        version_id до создания ищется в перечне сборок проекта: project_id, а без него -
+        ELEMENT_PROJECT_ID стенда. Сборку, которой там нет, инструмент ищет в других
+        проектах стенда: проект стенда по умолчанию уступает проекту сборки, а явный
+        project_id - нет, отказ тогда называет проект, где сборка лежит. Сборка, которой
+        нет ни в одном проекте, удалена, и отказ говорит об этом до запроса на создание.
 
         verify=True дожидается готовности приложения и проверяет, что оно правда
         работает на сборке-источнике: при неудачном применении платформа МОЛЧА
@@ -653,7 +663,9 @@ def create_server(config=None, *, overrides=None, env_file=None):
         проекта, сохраняет номер архива, и счет проекта идет от него;
         пропуск под такой сборкой этой машины summary называет скачком, а не
         удалением. Пропуск, внутри которого есть загрузка этой машины в проект, - и
-        скачок, и удаление сразу, и summary называет и то и другое.
+        скачок, и удаление сразу, и summary называет и то и другое. Проект-расширение
+        уборка не трогает вовсе: его сборки остаются, пока их не удалят вручную, и
+        summary такого проекта так и говорит.
 
         limit - сколько показать (по умолчанию 10, 0 - все). brief (по умолчанию)
         оставляет от карточки ид, версии, дату, ветку и коммит; ветку и коммит, которые
@@ -664,15 +676,19 @@ def create_server(config=None, *, overrides=None, env_file=None):
         CI, реестру не известны. brief=false отдаёт карточки целиком. env_file - путь к
         .env другого окружения.
         """
-        assemblies = newest_first(client(env_file).list_assemblies(project_id))
+        target = client(env_file)
+        assemblies = newest_first(target.list_assemblies(project_id))
         shown = assemblies[:limit] if limit > 0 else assemblies
         cards = brief_assemblies(shown) if brief else shown
         return {
             "total": len(assemblies),
             "shown": len(cards),
             # The whole answer is what the verdict is read off - the numbering of every
-            # card the platform returned, not of the ones that survived the limit.
-            "summary": builds_summary(assemblies, len(cards)),
+            # card the platform returned, not of the ones that survived the limit. An
+            # extension project is outside the housekeeping, and the line says so for one.
+            "summary": builds_summary(
+                assemblies, len(cards), extension=is_extension_project(target, project_id)
+            ),
             "builds": cards,
         }
 
@@ -1020,11 +1036,23 @@ def _error_payload(error):
     return error.to_dict() if isinstance(error, ApiError) else {"error": str(error)}
 
 
-def _refuse_deleted_source(target, project_id, version_id, *, project_from_env):
-    """The tool twin of cli._refuse_deleted_source: the words name the tool parameters."""
+def _source_project(target, project_id, version_id, *, project_from_env):
+    """The tool twin of cli._source_project: the words name the tool parameters.
+
+    A default project gives way to the project of the build without a line: a tool has no
+    progress stream, and the card the create answers with names its project in `source`.
+    """
     instead = target.missing_source(project_id, version_id)
     if instead is None:
-        return
+        return project_id
+    owner, searched = build_owner(target, project_id, version_id)
+    if owner is not None:
+        if project_from_env:
+            return str(owner.get("id"))
+        raise ElemctlError(i18n.t(
+            "mcp.source-other-project", build=version_id, project=project_id,
+            owner=project_label(owner), owner_id=owner.get("id"),
+        ))
     parts = [i18n.t("client.source-missing", assembly=version_id, project=project_id)]
     if instead.get("version-id"):
         parts.append(i18n.t(
@@ -1033,7 +1061,9 @@ def _refuse_deleted_source(target, project_id, version_id, *, project_from_env):
         ))
     else:
         parts.append(i18n.t("mcp.source-latest"))
-    if project_from_env:
+    if searched:
+        parts.append(i18n.t("client.source-nowhere"))
+    elif project_from_env:
         parts.append(i18n.t("mcp.source-project-from-env"))
     raise ElemctlError(". ".join(parts))
 

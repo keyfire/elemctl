@@ -56,6 +56,11 @@ ROUTE_NO_PROJECT_ID = "no-project-id"
 #: the server finds the project by. A registry keeps a thousand uploads, so such lines stay for
 #: a long time, and they are read as the route they record.
 LEGACY_ROUTES = {"vendor-name": ROUTE_NO_PROJECT_ID}
+#: The name ROUTE_NO_PROJECT_ID was published under before the route got its present name.
+#: It stays for the code that imports it from a released elemctl. It names the same route
+#: and carries today's value: a line written with it is a line of today, and upload_route
+#: reads the older "vendor-name" lines as that route too.
+ROUTE_NAME = ROUTE_NO_PROJECT_ID
 
 
 def upload_route(entry):

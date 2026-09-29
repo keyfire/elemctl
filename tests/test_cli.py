@@ -724,12 +724,22 @@ def test_apps_ensure_request_failure_is_an_error(monkeypatch, capsys):
 API = "/console/api/v2"
 
 
-def _platform_with_builds(api, *, apps, assemblies, project="proj-1"):
+def _platform_with_builds(api, *, apps, assemblies, project="proj-1", projects=None,
+                          projects_status=200):
     """The platform on the stub transport: its applications, the build list of one project,
-    and a create answered the way the platform answers a deleted source, with a bare 400."""
+    and a create answered the way the platform answers a deleted source, with a bare 400.
+
+    The project list is where a build the project does not list is looked for; by default it
+    holds that one project alone, so no other project has the build."""
     client, transport = api
     transport.add("GET", f"{API}/applications", apps)
     transport.add("GET", f"{API}/projects/{project}/assemblies", assemblies)
+    transport.add(
+        "GET", f"{API}/projects",
+        projects if projects is not None
+        else [{"id": project, "name": "crm", "project-kind": "Application"}],
+        status=projects_status,
+    )
     transport.add(
         "POST", f"{API}/applications", {"message": "Can't create application"}, status=400
     )
@@ -781,11 +791,13 @@ def test_apps_create_says_where_the_project_to_check_against_came_from(
 ):
     """The project may come from ELEMENT_PROJECT_ID while the assembly is another project's.
 
-    The refusal then says where the project came from and how to name the right one, so a
-    build of another project is not taken for a deleted one without a word.
+    The other projects are where such a build is looked for. When they cannot be read, the
+    refusal says where the project came from and how to name the right one, so a build of
+    another project is not taken for a deleted one without a word.
     """
     client, transport = _platform_with_builds(
-        api, apps=[], assemblies=[{"id": "asm-7", "assembly-version": "1.0-7"}]
+        api, apps=[], assemblies=[{"id": "asm-7", "assembly-version": "1.0-7"}],
+        projects={"message": "internal error"}, projects_status=500,
     )
     monkeypatch.setattr(cli, "make_client", lambda config: client)
     monkeypatch.setenv("ELEMENT_PROJECT_ID", "proj-1")
@@ -797,6 +809,29 @@ def test_apps_create_says_where_the_project_to_check_against_came_from(
     assert "ELEMENT_PROJECT_ID" in error and "--project-id" in error
     # No application of the project runs a build of it, so the newest build is offered.
     assert "--latest-build" in error
+    assert transport.calls_to("POST", f"{API}/applications") == []
+
+
+def test_apps_create_says_no_project_of_the_stand_has_the_build(api, monkeypatch, capsys):
+    """Every project was looked at, and none lists the build: it is gone, wherever it was."""
+    client, transport = _platform_with_builds(
+        api, apps=[], assemblies=[{"id": "asm-7", "assembly-version": "1.0-7"}],
+        projects=[
+            {"id": "proj-1", "name": "crm", "project-kind": "Application"},
+            {"id": "proj-2", "name": "Globex Portal", "project-kind": "Application"},
+        ],
+    )
+    transport.add("GET", f"{API}/projects/proj-2/assemblies", [{"id": "asm-9"}])
+    monkeypatch.setattr(cli, "make_client", lambda config: client)
+    monkeypatch.setenv("ELEMENT_PROJECT_ID", "proj-1")
+
+    rc = cli.main(["apps", "create", "crm-dev", "--version-id", "asm-3"])
+
+    assert rc == 1
+    error = json.loads(capsys.readouterr().err)["error"]
+    assert "Другие проекты стенда эту сборку тоже не перечисляют" in error
+    # The hint to name another project would send the reader to look for what is not there.
+    assert "назовите его в --project-id" not in error
     assert transport.calls_to("POST", f"{API}/applications") == []
 
 
@@ -876,11 +911,15 @@ def _assembly_cards(count):
 
 
 class FakeAssembliesClient:
-    def __init__(self, cards):
+    def __init__(self, cards, kind="Application"):
         self._cards = cards
+        self._kind = kind
 
     def list_assemblies(self, project_id):
         return self._cards
+
+    def get_project(self, project_id):
+        return {"id": project_id, "project-kind": self._kind}
 
 
 def test_builds_list_shows_the_latest_ten_and_says_so(monkeypatch, capsys):
@@ -998,6 +1037,13 @@ class FakeUploadClient:
         if self._fail_get_project:
             raise ApiError("нет доступа", status=403)
         return {"id": project_id, "name": self._project_name}
+
+    def list_projects(self, name="", include_deleted=False):
+        return []
+
+    def find_build_project(self, assembly_id, *, skip=(), kind=None):
+        # An answer without an artifact sends the upload to the build lists; none lists it here.
+        return None
 
     def upload_assembly(self, data, **kwargs):
         self.upload_kwargs = kwargs
@@ -1866,6 +1912,9 @@ _BUILDS_LIST_PROBE_CLIENT = (
     "            {'id': str(n), 'assembly-version': f'1.0-{n}', 'project-version': f'1.0-{n}'}\n"
     "            for n in range(1, 4)\n"
     "        ]\n"
+    "\n"
+    "    def get_project(self, project_id):\n"
+    "        return {'id': project_id, 'project-kind': 'Application'}\n"
     "\n"
     "cli.make_client = lambda config: FakeClient()\n"
 )
