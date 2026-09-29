@@ -18,7 +18,7 @@ from .errors import (
     TransportError,
 )
 
-__version__ = "0.47.0"
+__version__ = "0.48.0"
 
 __all__ = [
     "ApiError",

@@ -15,33 +15,14 @@ entry either – say what the behaviour was, not which id or response field was 
 The link is written by `python scripts/changelog-link.py <number>`, which rebuilds the generated
 pages of the site in the same run – writing it by hand is how the mirrors get left behind.
 
-## Unreleased
+## 2026-09-29 – 0.47.0, 0.48.0
 
 ### Added
+
 - **`builds upload` without a project id names the project the build went into.** The answer
   printed `project-id: null` even though the server had named the project. Now `project-id` and
   the `project` field carry it, and a line on stderr says whether the upload created the project
   or found it by the `Ид` of `Проект.yaml`. ([#52](https://github.com/keyfire/elemctl/pull/52))
-
-### Changed
-- **`apps create --version-id` finds the project of the build itself.** When the project from
-  `ELEMENT_PROJECT_ID` does not list the build, the command looks it up in the other projects and
-  takes that one. With an explicit `--project-id` it refuses and names the right project. The MCP
-  tools `create_app` and `ensure_app` do the same. ([#52](https://github.com/keyfire/elemctl/pull/52))
-- **`builds list` of an extension project says that nothing cleans it up.** The builds of such a
-  project stay until someone deletes them, so a gap in its numbering is a deletion by hand. ([#52](https://github.com/keyfire/elemctl/pull/52))
-
-### Fixed
-- **An upload without a project id no longer renames a project silently.** When the server puts
-  the build into the project with the same `Ид` and another name, `builds upload` and `probe` warn
-  about it and give the former name in the answer. The name comes from the presentation in
-  `Проект.yaml`, not from the manifest `Name`, as the documentation said. ([#52](https://github.com/keyfire/elemctl/pull/52))
-- **`ROUTE_NAME` is back in `elemctl.registry`.** The previous release renamed it to
-  `ROUTE_NO_PROJECT_ID`, and code importing the old name broke. The old name is an alias now. ([#52](https://github.com/keyfire/elemctl/pull/52))
-
-## 2026-09-29 – 0.47.0
-
-### Added
 - **`CommandContext.surface` shows where a plugin command was called from.** It is `SURFACE_CLI` in
   a subcommand, `SURFACE_MCP` in an MCP tool and `None` in a context built by hand. Plugins used to
   guess from `context.log`. ([#47](https://github.com/keyfire/elemctl/pull/47))
@@ -56,12 +37,26 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
   applied extensions. ([#49](https://github.com/keyfire/elemctl/pull/49))
 
 ### Changed
+
+- **`apps create --version-id` finds the project of the build itself.** When the project from
+  `ELEMENT_PROJECT_ID` does not list the build, the command looks it up in the other projects and
+  takes that one. With an explicit `--project-id` it refuses and names the right project. The MCP
+  tools `create_app` and `ensure_app` do the same. ([#52](https://github.com/keyfire/elemctl/pull/52))
+- **`builds list` of an extension project says that nothing cleans it up.** The builds of such a
+  project stay until someone deletes them, so a gap in its numbering is a deletion by hand. ([#52](https://github.com/keyfire/elemctl/pull/52))
 - **A wait stops after a minute of the `UNKNOWN` status.** It used to run out the whole timeout,
   five minutes for `deploy` and ten for a new application. The console also reports `UNKNOWN` for
   passing states, so the wait gives it a minute and then stops with an error that explains it.
   ([#47](https://github.com/keyfire/elemctl/pull/47), [#49](https://github.com/keyfire/elemctl/pull/49))
 
 ### Fixed
+
+- **An upload without a project id no longer renames a project silently.** When the server puts
+  the build into the project with the same `Ид` and another name, `builds upload` and `probe` warn
+  about it and give the former name in the answer. The name comes from the presentation in
+  `Проект.yaml`, not from the manifest `Name`, as the documentation said. ([#52](https://github.com/keyfire/elemctl/pull/52))
+- **`ROUTE_NAME` is back in `elemctl.registry`.** The previous release renamed it to
+  `ROUTE_NO_PROJECT_ID`, and code importing the old name broke. The old name is an alias now. ([#52](https://github.com/keyfire/elemctl/pull/52))
 - **A plugin can no longer take a name the core uses.** A plugin's own `--timeout` never got its
   value, its `--env-file` kept the MCP server from starting, and an argument named `handler`,
   `--help` or `-h` broke the call or the whole CLI. Such a plugin is now left out and named.
@@ -92,6 +87,7 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
   extensions of the application, like `apps apply` and `verify-deploy`, and so does `ensure_app`. ([#51](https://github.com/keyfire/elemctl/pull/51))
 
 ### Documentation
+
 - **The specification lists the right flags accepted after a subcommand.** It had `--version`, which
   is not accepted there, and lacked `--lang`, which is.
   ([#48](https://github.com/keyfire/elemctl/pull/48))
