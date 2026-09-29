@@ -174,6 +174,20 @@ class Argument:
     a name to call it by, and Command.validate rejects the rest: an alias on an
     option, one that does not start with a dash, or one that collides with
     another argument's own flag.
+
+    multiple - the option may be given more than once, and the command gets the
+    list of what was given, in the order of the command line: "wiki-attach --file
+    a.png --file b.png" hands over ["a.png", "b.png"]. An absent option hands over
+    the declared default as a list, or [] without one. The CLI builds it with
+    action="append", and the MCP tool gets an array of the declared type. An option
+    without it keeps the last of its repetitions and drops the rest without a word,
+    which is how a command asked to upload seven files uploaded one. Only an option
+    with a value may be multiple: a positional argument has no key to repeat, and a
+    flag given twice says no more than a flag given once. The default is None, a
+    list or a tuple, never a bare value, and the command line replaces it rather
+    than adding to it. A plugin that also runs on an older core checks
+    hasattr(Argument, "multiple") before declaring one: the dataclass there
+    refuses the keyword, and the whole plugin is left out.
     """
 
     name: str
@@ -183,6 +197,7 @@ class Argument:
     required: bool = False
     choices: tuple = ()
     cli_alias: str = ""
+    multiple: bool = False
 
     @property
     def is_option(self) -> bool:
@@ -195,9 +210,16 @@ class Argument:
 
     @property
     def value_default(self):
-        """The default of the value: False for a flag, otherwise the declared one."""
+        """The default of the value: False for a flag, a new list for a multiple option,
+        otherwise the declared one.
+
+        The list is built on every call, so a handler that appends to what it got
+        cannot hand the items over to the next call.
+        """
         if self.type is bool:
             return bool(self.default)
+        if self.multiple:
+            return list(self.default or ())
         return self.default
 
 
@@ -309,6 +331,17 @@ class Command:
                 raise PluginError(i18n.t(
                     "plugins.flag-must-be-option",
                     where=where, name=self.name, argument=argument.name,
+                ))
+            if argument.multiple and (argument.type is bool or not argument.is_option):
+                raise PluginError(i18n.t(
+                    "plugins.multiple-needs-option",
+                    where=where, name=self.name, argument=argument.name,
+                ))
+            if argument.multiple and not isinstance(argument.default, (list, tuple, type(None))):
+                raise PluginError(i18n.t(
+                    "plugins.multiple-default",
+                    where=where, name=self.name, argument=argument.name,
+                    default=repr(argument.default),
                 ))
             if argument.dest in seen:
                 raise PluginError(i18n.t(

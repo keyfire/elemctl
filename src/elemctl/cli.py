@@ -279,7 +279,7 @@ def cmd_apps_list(args):
     client = make_client(_config(args))
     listing = client.list_apps_counted(
         name=args.name or "",
-        status=args.status or "",
+        status=",".join(args.status or ()),
         include_deleted=args.include_deleted,
     )
     apps = listing["items"]
@@ -1629,10 +1629,7 @@ def _plugin_handler(command):
         context = plugins.CommandContext(
             config, client_factory=make_client, log=_progress, surface=plugins.SURFACE_CLI
         )
-        values = {
-            argument.dest: getattr(args, argument.dest, argument.value_default)
-            for argument in command.arguments
-        }
+        values = {argument.dest: _plugin_value(args, argument) for argument in command.arguments}
         result = command.handler(context, **values)
         _emit(result)
         # The "exit-code" field of the result when it holds a code, otherwise the convention
@@ -1640,6 +1637,18 @@ def _plugin_handler(command):
         return plugins.exit_code(result)
 
     return handle
+
+
+def _plugin_value(args, argument):
+    """The value of a plugin argument in the parse, or its declared default.
+
+    A multiple option that was never given is None in the parse rather than its default
+    (see _argument_kwargs), so the default comes from the declaration, as a list of its own.
+    """
+    value = getattr(args, argument.dest, argument.value_default)
+    if argument.multiple and value is None:
+        return argument.value_default
+    return value
 
 
 def _argument_kwargs(argument):
@@ -1652,6 +1661,14 @@ def _argument_kwargs(argument):
     kwargs["default"] = argument.default
     if argument.choices:
         kwargs["choices"] = list(argument.choices)
+    if argument.multiple:
+        # Every occurrence is kept. The default stays out of the parser: argparse appends the
+        # values of the command line to a default list instead of replacing it.
+        kwargs["action"] = "append"
+        kwargs["default"] = None
+        kwargs["help"] = " ".join(
+            part for part in (argument.help, i18n.t("cli.help.plugin-multiple")) if part
+        )
     if argument.is_option:
         if argument.required:
             kwargs["required"] = True
@@ -1994,7 +2011,9 @@ def build_parser(discover=None):
 
     p = apps_sub.add_parser("list", help=i18n.t("cli.help.apps-list"))
     p.add_argument("--name", help=i18n.t("cli.help.apps-list-name"))
-    p.add_argument("--status", help=i18n.t("cli.help.apps-list-status"))
+    # Repeatable: the help says several statuses are welcome, and a second --status used to
+    # replace the first without a word.
+    p.add_argument("--status", action="append", help=i18n.t("cli.help.apps-list-status"))
     p.add_argument(
         "--include-deleted",
         action="store_true",

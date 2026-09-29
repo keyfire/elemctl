@@ -1076,13 +1076,14 @@ def _plugin_tool(command, client_for_env):
     out of the declared arguments (checked against a live server of either major
     version: the schema comes out with the types and the defaults in place).
     env_file is added by the core to every such tool, exactly like the tools of
-    the core have it.
+    the core have it. A multiple argument is an array of its declared type, the
+    same list the CLI hands over for a key given several times.
     """
     parameters = [
         inspect.Parameter(
             argument.dest,
             inspect.Parameter.KEYWORD_ONLY,
-            annotation=argument.type,
+            annotation=list[argument.type] if argument.multiple else argument.type,
             default=argument.value_default,
         )
         for argument in command.arguments

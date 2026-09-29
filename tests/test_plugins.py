@@ -687,6 +687,127 @@ def test_cli_plugin_alias_positional_says_it_is_absent_without_a_string(monkeypa
     assert not isinstance(positional.default, str)
 
 
+# --- A multiple option ---------------------------------------------------------------
+
+def _attach_command(*arguments, handler=None):
+    """A command that takes files: it reports the list it was given."""
+    return _command(
+        name="wiki-attach",
+        arguments=list(arguments) or [plugins.Argument("--file", multiple=True)],
+        handler=handler or (lambda context, **values: values),
+    )
+
+
+def test_cli_plugin_multiple_option_keeps_every_value(monkeypatch, capsys):
+    """A single option given seven times kept the seventh value and dropped six without a word.
+
+    A command asked to upload seven files uploaded one, and its report named that one alone.
+    """
+    _with_commands(monkeypatch, _attach_command())
+
+    assert cli.main(["wiki-attach", "--file", "a.png", "--file", "b.png", "--file", "a.png"]) == 0
+    # in the order of the command line and with the repeats kept: what to make of a repeat is
+    # the business of the command
+    assert json.loads(capsys.readouterr().out) == {"file": ["a.png", "b.png", "a.png"]}
+
+    assert cli.main(["wiki-attach"]) == 0
+    assert json.loads(capsys.readouterr().out) == {"file": []}
+
+
+def test_cli_plugin_multiple_option_replaces_its_default(monkeypatch, capsys):
+    """argparse appends to a default list: the default here is taken only when the key is absent."""
+    _with_commands(monkeypatch, _attach_command(
+        plugins.Argument("--file", multiple=True, default=("readme.md",)),
+    ))
+
+    assert cli.main(["wiki-attach"]) == 0
+    assert json.loads(capsys.readouterr().out) == {"file": ["readme.md"]}
+    assert cli.main(["wiki-attach", "--file", "a.png"]) == 0
+    assert json.loads(capsys.readouterr().out) == {"file": ["a.png"]}
+
+
+def test_cli_plugin_multiple_option_checks_every_value(monkeypatch, capsys):
+    """The type and the choices apply to each value, and required means at least one."""
+    _with_commands(monkeypatch, _attach_command(
+        plugins.Argument("--line", type=int, multiple=True, required=True),
+        plugins.Argument("--status", multiple=True, choices=("done", "open")),
+    ))
+
+    assert cli.main(["wiki-attach", "--line", "3", "--line", "12", "--status", "done"]) == 0
+    assert json.loads(capsys.readouterr().out) == {"line": [3, 12], "status": ["done"]}
+    for refused in (
+        ["wiki-attach"],
+        ["wiki-attach", "--line", "3", "--line", "x"],
+        ["wiki-attach", "--line", "3", "--status", "done", "--status", "lost"],
+    ):
+        with pytest.raises(SystemExit):
+            cli.main(refused)
+
+
+def test_cli_plugin_multiple_option_hands_every_call_a_list_of_its_own(monkeypatch, capsys):
+    """A handler that appends to the list it got must not pass the items to the next call."""
+
+    def handler(context, file):
+        file.append("added.png")
+        return {"file": file}
+
+    _with_commands(monkeypatch, _attach_command(
+        plugins.Argument("--file", multiple=True, default=["readme.md"]), handler=handler,
+    ))
+
+    for _ in range(2):
+        assert cli.main(["wiki-attach"]) == 0
+        assert json.loads(capsys.readouterr().out) == {"file": ["readme.md", "added.png"]}
+
+
+def test_cli_plugin_multiple_option_says_so_in_its_help(monkeypatch, capsys):
+    _with_commands(monkeypatch, _attach_command(
+        plugins.Argument("--file", help="файл к загрузке", multiple=True),
+        plugins.Argument("--mask", multiple=True),
+    ))
+
+    with pytest.raises(SystemExit):
+        cli.main(["wiki-attach", "--help"])
+
+    text = " ".join(capsys.readouterr().out.split())
+    assert "файл к загрузке (ключ можно повторить, по значению на каждый)" in text
+    assert "--mask MASK (ключ можно повторить" in text
+
+
+@pytest.mark.parametrize("argument", [
+    plugins.Argument("files", multiple=True),
+    plugins.Argument("files", multiple=True, required=False),
+    plugins.Argument("--force", type=bool, multiple=True),
+], ids=["positional", "optional-positional", "flag"])
+def test_only_an_option_with_a_value_may_be_multiple(monkeypatch, argument):
+    _with_commands(monkeypatch, _command(arguments=[argument]))
+
+    with pytest.raises(PluginError) as refusal:
+        plugins.plugin_commands()
+
+    message = str(refusal.value)
+    assert argument.name in message and "повторяемым (multiple)" in message
+
+
+@pytest.mark.parametrize("default", ["a.png", 3, {"a.png"}])
+def test_a_multiple_option_takes_a_list_for_its_default(monkeypatch, default):
+    """list("a.png") would hand the command five one-letter files."""
+    _with_commands(monkeypatch, _command(
+        arguments=[plugins.Argument("--file", multiple=True, default=default)],
+    ))
+
+    with pytest.raises(PluginError) as refusal:
+        plugins.plugin_commands()
+
+    assert "--file" in str(refusal.value) and repr(default) in str(refusal.value)
+
+
+def test_a_plugin_on_an_older_core_can_tell_multiple_is_there():
+    # the check the documentation tells a plugin to make before declaring a multiple option
+    assert hasattr(plugins.Argument, "multiple")
+    assert plugins.Argument("--file").multiple is False
+
+
 def test_cli_plugin_cannot_take_over_a_core_command(monkeypatch, capsys):
     """The core keeps its name, and the clash is named rather than fatal to the whole CLI."""
     monkeypatch.setattr(plugins, "debug_adapter_paths", lambda: [])

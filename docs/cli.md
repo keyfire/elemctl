@@ -117,7 +117,7 @@ usage: elemctl apps list [-h] [--name NAME] [--status STATUS] [--include-deleted
 |---|---|
 | `-h, --help` | show this help message and exit |
 | `--name NAME` | case-insensitive name substring filter (applied client-side) |
-| `--status STATUS` | filter by status (Running, Stopped, Error, Deleted); several of them separated by commas |
+| `--status STATUS` | filter by status (Running, Stopped, Error, Deleted); several of them separated by commas or by repeating the key |
 | `--include-deleted` | list deleted applications too (hidden by default) |
 | `--brief` | brief cards: id, name, status, uri, applied version |
 

@@ -809,6 +809,54 @@ def test_plugin_command_with_a_cli_alias_keeps_one_mcp_parameter(monkeypatch):
     assert payload == {"page": "123", "log": []}
 
 
+def test_plugin_multiple_option_becomes_an_array_parameter(monkeypatch):
+    """The CLI takes the key several times (test_plugins.py); the tool takes the list at once."""
+    from elemctl import plugins
+
+    server = _server_with(monkeypatch, _plugin_command(
+        name="wiki-attach",
+        arguments=[
+            plugins.Argument("--file", multiple=True),
+            plugins.Argument("--line", type=int, multiple=True, default=(1,)),
+        ],
+        handler=lambda context, **values: values,
+    ))
+    tool = next(t for t in asyncio.run(server.list_tools()) if t.name == "wiki_attach")
+
+    properties = tool_input_schema(tool).get("properties") or {}
+    assert properties["file"] == {
+        "default": [], "items": {"type": "string"}, "title": "File", "type": "array",
+    }
+    assert properties["line"]["items"] == {"type": "integer"}
+    assert properties["line"]["default"] == [1]
+
+    result = asyncio.run(server.call_tool("wiki_attach", {"file": ["a.png", "b.png"]}))
+    payload = json.loads(call_result_content(result)[0].text)
+    assert payload == {"file": ["a.png", "b.png"], "line": [1], "log": []}
+
+
+def test_plugin_multiple_option_hands_every_tool_call_a_list_of_its_own(monkeypatch):
+    """A handler that appends to the list it got must not pass the items on to the next call.
+
+    The default in the signature lives as long as the server. The server validates the call
+    into a list of its own today; this is the check that it still does.
+    """
+    from elemctl import plugins
+
+    def handler(context, file):
+        file.append("added.png")
+        return {"file": file}
+
+    server = _server_with(monkeypatch, _plugin_command(
+        name="wiki-attach", arguments=[plugins.Argument("--file", multiple=True)], handler=handler,
+    ))
+
+    for _ in range(2):
+        result = asyncio.run(server.call_tool("wiki_attach", {}))
+        payload = json.loads(call_result_content(result)[0].text)
+        assert payload == {"file": ["added.png"], "log": []}
+
+
 def test_plugin_tool_call_returns_the_result_and_the_log(monkeypatch):
     server = _server_with(monkeypatch, _plugin_command())
 
