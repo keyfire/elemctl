@@ -191,7 +191,7 @@ def test_no_russian_string_literals_outside_the_catalog():
         "ВПодсистеме", "Имя", "Поставщик", "Версия", "ВидПроекта", "Библиотека",
         "Библиотеки",
         "ВидЭлемента", "ОбластьВидимости", "РежимСовместимости", "Представление",
-        "библиотека", "приложение",
+        "библиотека", "приложение", "расширение",
         # The kind of a SOAP service client element.
         "КлиентSoapСервиса",
         # The keys of a description block, read by the schema guard.

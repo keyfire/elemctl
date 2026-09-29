@@ -263,6 +263,125 @@ def test_kind_override(project_factory, tmp_path):
     assert result.file.suffix == ".xlib"
 
 
+def _manifest_of(result):
+    with zipfile.ZipFile(result.file) as archive:
+        return archive.read("Assembly.yaml").decode("utf-8")
+
+
+@pytest.mark.parametrize("kind_value", ["Расширение", "Extension", "расширение"])
+def test_an_extension_is_written_with_manifest_version_1_1(project_factory, tmp_path, kind_value):
+    """The server reads a 1.0 manifest with a reader that knows no Extension.
+
+    An extension packed as `ManifestVersion: 1.0` is refused on apply with "Unknown project
+    kind", and one packed as an application is not an extension at all. The console writes
+    1.1 for an extension, and the build does the same.
+    """
+    project_dir = project_factory(name="crm-extras", kind=kind_value)
+
+    result = build_assembly(project_dir, output_dir=tmp_path / "dist", branch="", commit="")
+
+    assert result.kind == "Extension"
+    assert result.file.suffix == ".xasm"
+    lines = _manifest_of(result).splitlines()
+    assert lines[0] == "ManifestVersion: 1.1"
+    assert lines[1] == "ProjectKind: Extension"
+    assert "Release:" not in lines
+
+
+@pytest.mark.parametrize("kind_value, expected", [(None, "Application"), ("Библиотека", "Library")])
+def test_an_application_and_a_library_keep_manifest_version_1_0(
+    project_factory, tmp_path, kind_value, expected
+):
+    project_dir = project_factory(kind=kind_value)
+
+    result = build_assembly(project_dir, output_dir=tmp_path / "dist", branch="", commit="")
+
+    assert result.kind == expected
+    assert _manifest_of(result).splitlines()[0] == "ManifestVersion: 1.0"
+
+
+def test_the_manifest_of_an_extension_names_its_version_first():
+    manifest = build_manifest(
+        kind="Extension",
+        vendor="acme",
+        name="crm-extras",
+        version="1.0-3",
+        created=datetime(2026, 1, 2, 3, 4, 5, tzinfo=timezone.utc),
+    )
+    assert manifest.splitlines()[:2] == ["ManifestVersion: 1.1", "ProjectKind: Extension"]
+
+
+def test_the_english_descriptor_of_an_extension_is_read_as_one(tmp_path):
+    meta = read_project_meta(_english_project(tmp_path, kind_line="ProjectKind: Extension"))
+    assert meta.kind == "Extension"
+
+
+def test_kind_override_to_an_extension(project_factory, tmp_path):
+    project_dir = project_factory()
+
+    result = build_assembly(
+        project_dir, output_dir=tmp_path / "dist", kind="extension", branch="", commit=""
+    )
+
+    assert result.kind == "Extension"
+    assert _manifest_of(result).startswith("ManifestVersion: 1.1\nProjectKind: Extension\n")
+
+
+def test_an_unknown_kind_override_is_refused(project_factory, tmp_path):
+    with pytest.raises(BuildError, match="extension"):
+        build_assembly(project_factory(), output_dir=tmp_path / "dist", kind="plugin")
+
+
+def test_an_extension_packs_its_local_libraries_and_not_the_project_it_extends(
+    project_factory, tmp_path
+):
+    """The console gives an extension its libraries the way it gives them to an application.
+
+    The project the extension extends is named under РасширяемыеПроекты, not under
+    Библиотеки: it is the application the extension is applied to, and it stays out of the
+    archive even when it lies in the same repository.
+    """
+    project_factory(name="crm")
+    library = project_factory(name="standard-tools", kind="Библиотека")
+    (library / "Инструменты").mkdir()
+    (library / "Инструменты" / "Сервис.yaml").write_text(
+        "ВидЭлемента: ОбщийМодуль\nИмя: Сервис\n", encoding="utf-8"
+    )
+    extension = project_factory(name="crm-extras", kind="Расширение")
+    descriptor = extension / "Проект.yaml"
+    descriptor.write_text(
+        descriptor.read_text(encoding="utf-8")
+        + "Библиотеки:\n"
+        + "    -\n"
+        + "        Имя: standard-tools\n"
+        + "        Поставщик: acme\n"
+        + "РасширяемыеПроекты:\n"
+        + "    -\n"
+        + "        Поставщик: acme\n"
+        + "        Имя: crm\n",
+        encoding="utf-8",
+    )
+
+    result = build_assembly(extension, output_dir=tmp_path / "dist", branch="", commit="")
+
+    assert result.kind == "Extension"
+    with zipfile.ZipFile(result.file) as archive:
+        names = set(archive.namelist())
+    assert "acme/crm-extras/Проект.yaml" in names
+    assert "acme/standard-tools/Инструменты/Сервис.yaml" in names
+    assert not any(name.startswith("acme/crm/") for name in names)
+
+
+def test_inspect_names_the_kind_of_an_extension(project_factory, tmp_path):
+    project_dir = project_factory(name="crm-extras", kind="Расширение")
+    result = build_assembly(project_dir, output_dir=tmp_path / "dist", branch="", commit="")
+
+    report = inspect_assembly(result.file)
+
+    assert report["kind"] == "Extension"
+    assert report["manifest"]["ManifestVersion"] == "1.1"
+
+
 def test_created_is_utc_formatted(project_factory, tmp_path):
     project_dir = project_factory()
     moment = datetime(2026, 7, 9, 12, 34, 56, tzinfo=timezone.utc)

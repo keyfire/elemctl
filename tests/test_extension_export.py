@@ -179,7 +179,7 @@ def test_an_extension_the_console_named_no_id_for_is_not_sent_as_none(api):
 
 
 def test_a_server_without_console_api_2_1_is_named_as_such(api):
-    """The 401 of a missing handler survives a renewed token, and then it is not about it."""
+    """The 401 of a missing handler is not about the token, so no new token is asked for."""
     client, transport = api
     transport.add("GET", PROJECT_PATH, NO_HANDLER, status=401)
 
@@ -190,7 +190,8 @@ def test_a_server_without_console_api_2_1_is_named_as_such(api):
     assert isinstance(error, ApiError) and error.status == 401
     assert "не знает метода GET" in error.message and "Console API 2.1" in error.message
     assert error.body == NO_HANDLER
-    assert len(transport.calls_to("GET", PROJECT_PATH)) == 2  # the token was renewed once
+    assert len(transport.calls_to("GET", PROJECT_PATH)) == 1
+    assert len(transport.calls_to("POST", "/console/sys/token")) == 1
     assert not transport.calls_to("POST", EXPORT_PATH)
 
 

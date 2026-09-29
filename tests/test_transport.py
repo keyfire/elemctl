@@ -194,11 +194,28 @@ def test_verification_can_be_explicitly_disabled():
 def test_verification_switched_off_says_so_on_stderr(capsys):
     """The point of the entry: a .env written once keeps the check off for months, and nothing
     about a call that skips verification looks different from a call that passed it."""
-    UrllibTransport(tls_verify=False)
+    ElementClient(Config(base_url="https://stand.test", tls_verify=False))
     streams = capsys.readouterr()
-    assert "ELEMENT_TLS_VERIFY" in streams.err
+    assert "ELEMENT_TLS_VERIFY=false" in streams.err
     # stdout is the answer of the command - a warning there would end up inside piped JSON.
     assert streams.out == ""
+
+
+def test_the_caller_names_what_switched_verification_off(capsys):
+    """A plugin switches the check off with a flag of its own, and the warning named
+    ELEMENT_TLS_VERIFY, which the reader then looked for in a .env that did not have it."""
+    UrllibTransport(tls_verify=False, tls_off_reason="--insecure")
+    err = capsys.readouterr().err
+    assert "(--insecure)" in err
+    assert "ELEMENT_TLS_VERIFY" not in err
+
+
+def test_without_a_reason_the_warning_names_no_setting(capsys):
+    """A transport built by hand does not know where its False came from."""
+    UrllibTransport(tls_verify=False)
+    err = capsys.readouterr().err
+    assert err.startswith("внимание: проверка сертификата и имени сервера отключена – ")
+    assert "ELEMENT_TLS_VERIFY" not in err and "(" not in err
 
 
 def test_a_verifying_transport_keeps_quiet(capsys):

@@ -140,9 +140,17 @@ class UrllibTransport:
     into TransportError. An answer that breaks off halfway is a network failure too.
     """
 
-    def __init__(self, *, tls_verify=True, tls_strict=True, ca_file="", no_proxy=None):
+    def __init__(
+        self, *, tls_verify=True, tls_strict=True, ca_file="", no_proxy=None, tls_off_reason=None
+    ):
+        # tls_off_reason is what switched the verification off, spelled the way the caller's
+        # user set it: the client of a Config names ELEMENT_TLS_VERIFY=false, a plugin names
+        # its own flag. The transport has no idea where its False came from, so without a
+        # reason the warning names no setting at all - a variable nobody had set sent the
+        # reader to look for it in a .env that did not have it.
         self.ssl_context = self._ssl_context(
-            tls_verify=tls_verify, tls_strict=tls_strict, ca_file=ca_file
+            tls_verify=tls_verify, tls_strict=tls_strict, ca_file=ca_file,
+            tls_off_reason=tls_off_reason,
         )
         self._direct = None
         # None (no caller-resolved value, the direct-construction case most tests and every
@@ -153,7 +161,7 @@ class UrllibTransport:
         self._no_proxy = _no_proxy_requested() if no_proxy is None else bool(no_proxy)
 
     @staticmethod
-    def _ssl_context(*, tls_verify, tls_strict, ca_file):
+    def _ssl_context(*, tls_verify, tls_strict, ca_file, tls_off_reason=None):
         """Build this client's TLS policy without changing process-global defaults."""
         context = ssl.create_default_context()
         if ca_file:
@@ -168,7 +176,10 @@ class UrllibTransport:
             context.verify_mode = ssl.CERT_NONE
             # Switched off once in a .env, the setting is then silent for months - and a
             # connection nobody verifies looks exactly like a connection that is fine.
-            _warn(i18n.t("transport.tls-verify-off"))
+            _warn(
+                i18n.t("transport.tls-verify-off-by", reason=tls_off_reason) if tls_off_reason
+                else i18n.t("transport.tls-verify-off")
+            )
         elif hasattr(ssl, "VERIFY_X509_STRICT"):
             if tls_strict:
                 context.verify_flags |= ssl.VERIFY_X509_STRICT

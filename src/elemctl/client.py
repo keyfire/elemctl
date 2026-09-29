@@ -18,6 +18,7 @@ from urllib.parse import quote, urlencode
 from . import i18n
 from .auth import TokenManager
 from .build import MANIFEST_FILE, parse_flat_yaml
+from .config import BOOL_ENV_KEYS
 from .errors import (
     ApiError,
     ConfigError,
@@ -28,7 +29,13 @@ from .errors import (
 )
 from .registry import ROUTE_NAME, remembered_uploads
 from .transport import UrllibTransport
-from .versions import newest_first, numbering_holes, pick_latest
+from .versions import (
+    newest_first,
+    numbering_holes,
+    pick_latest,
+    version_base,
+    version_counter,
+)
 
 API_PREFIX = "/console/api/v2"
 
@@ -495,8 +502,8 @@ def builds_summary(assemblies, shown, remembered=None):
 
     Two different truths can hide behind the same listing. It may be every build the
     project has; it may be what the platform's housekeeping left of them - it deletes
-    the builds nobody uses - and then "30 of 30" reads as the whole history while it is
-    only what survived.
+    the builds nobody uses whenever an application of the project finishes applying a
+    build - and then "30 of 30" reads as the whole history while it is only what survived.
 
     Which of the two it is comes from the ANSWER, not from its length: the platform
     numbers the builds of a base version one after another, so a hole in those numbers
@@ -515,6 +522,21 @@ def builds_summary(assemblies, shown, remembered=None):
     not in the registry, and its hole still reads as a deletion. remembered - the registry
     lines by build id, read here when not given.
 
+    A hole can be a jump and a deletion at once, and the registry tells that too. Seen live:
+    `1.0.0-8` was followed by `1.0.0-50`, uploaded by the vendor and the name, and by
+    `1.0.0-51`, and after those two were deleted the listing went from `1.0.0-8` straight to
+    `1.0.0-52`. The build above that hole was numbered by the server, so the hole read as a
+    deletion alone, while most of it was a jump. And the other way round: a jump to
+    `1.0.0-10` sat over `1.0.0-4`, a build this machine had uploaded into the project and
+    the housekeeping had deleted, and the line called the whole hole a jump and no deletion.
+    So a hole under a jump of this machine is a jump only while the registry knows no upload
+    of the project inside it, and a hole with such an upload inside is named as both: the
+    build that brought its number from the archive and the builds of this machine the
+    listing no longer has. It counts as a loss, since a build that existed is gone.
+
+    An empty listing and a listing without a single numbered build have no numbering to judge
+    by, and the line says that instead of calling the numbering unbroken.
+
     Only whether there are gaps is said, never how many numbers are missing: a live
     listing showed twenty thousand of them, because one build had once been numbered
     1.0.1-19001 by an auto-increment that read the counters of another base. The verdict
@@ -522,15 +544,29 @@ def builds_summary(assemblies, shown, remembered=None):
 
     The CLI prints the line, the MCP tool carries it in the answer.
     """
+    cards = [item for item in assemblies or [] if isinstance(item, dict)]
+    if not cards:
+        return i18n.t("client.builds-summary-empty", shown=shown, total=len(assemblies or []))
+    if not any(version_counter(item.get("assembly-version")) > 0 for item in cards):
+        return i18n.t("client.builds-summary-unnumbered", shown=shown, total=len(assemblies))
     holes = numbering_holes(assemblies)
     if remembered is None:
-        remembered = remembered_uploads(
-            [assembly_id_of(above) for _, above in holes]
-        ) if holes else {}
-    jumps = [
-        (below, above) for below, above in holes
-        if _kept_its_number(remembered.get(assembly_id_of(above)))
-    ]
+        # The whole registry, not only the builds above the holes: the uploads inside a hole
+        # are the builds the listing no longer has.
+        remembered = remembered_uploads() if holes else {}
+    projects = {str(card.get("project-id") or "") for card in cards} - {""}
+    jumps, mixed = [], []
+    for below, above in holes:
+        inside = _uploads_inside(below, above, projects, remembered)
+        if _kept_its_number(remembered.get(assembly_id_of(above))):
+            top = _version_label(above)
+        else:
+            kept = [version for version, entry in inside if _kept_its_number(entry)]
+            top = kept[0] if kept else ""
+        if top and not inside:
+            jumps.append((below, above))
+        elif top:
+            mixed.append((below, above, top, [version for version, _ in inside]))
     if len(jumps) < len(holes):
         key = "client.builds-summary-trimmed"
     else:
@@ -546,7 +582,46 @@ def builds_summary(assemblies, shown, remembered=None):
             "client.builds-summary-jump" if len(jumps) == 1 else "client.builds-summary-jumps",
             jumps=labels,
         )
+    for below, above, top, gone in mixed:
+        gap = (
+            f"{_version_label(below)} -> {_version_label(above)}" if below
+            else i18n.t("client.builds-summary-gap-first", above=_version_label(above))
+        )
+        line += i18n.t(
+            "client.builds-summary-jump-and-loss", gap=gap, top=top, gone=_some(gone),
+        )
     return line
+
+
+#: How many versions a line names before it says how many more there are.
+_NAMED_VERSIONS = 3
+
+
+def _some(versions):
+    """Versions for a line: the first few, and how many more there are."""
+    named = ", ".join(versions[:_NAMED_VERSIONS])
+    more = len(versions) - _NAMED_VERSIONS
+    return i18n.t("client.builds-summary-and-more", names=named, more=more) if more > 0 else named
+
+
+def _uploads_inside(below, above, projects, remembered):
+    """The uploads of this machine into the project whose numbers lie inside a hole.
+
+    [(version, registry line)], lowest number first. A number inside a hole is not in the
+    listing, so each of them is a build this machine uploaded and the listing no longer has.
+    """
+    version = _version_label(above)
+    base = version_base(version)
+    low = version_counter(_version_label(below)) if below else 0
+    high = version_counter(version)
+    found = {}
+    for entry in (remembered or {}).values():
+        if not isinstance(entry, dict) or str(entry.get("project-id") or "") not in projects:
+            continue
+        given = str(entry.get("version") or "")
+        if version_base(given) == base and low < version_counter(given) < high:
+            found.setdefault(given, entry)
+    return sorted(found.items(), key=lambda item: version_counter(item[0]))
 
 
 def _kept_its_number(entry):
@@ -639,20 +714,20 @@ def archive_manifest(data):
 _UNSAFE_NAME = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 
 
-def export_file_name(manifest, extension):
+def export_file_name(manifest, card):
     """The name a build archive gets when the caller names no file: `{Name} {Version}.xasm`.
 
     That is the name a build of elemctl gets. The manifest of the archive is what the
-    server sent, so it goes first, and the card of the extension covers what it lacks.
+    server sent, so it goes first, and the card of the extension or of the application
+    covers what it lacks.
     """
     manifest = manifest or {}
     name = (
-        manifest.get("Name") or extension.get("project-name") or extension.get("id")
-        or "extension"
+        manifest.get("Name") or card.get("project-name") or card.get("id") or "build"
     )
     version = (
-        manifest.get("Version") or extension.get("assembly-version")
-        or extension.get("project-version") or ""
+        manifest.get("Version") or card.get("assembly-version")
+        or card.get("project-version") or ""
     )
     stem = f"{name} {version}".strip()
     return _UNSAFE_NAME.sub("_", stem) + ".xasm"
@@ -673,6 +748,38 @@ def export_target(output, default_name):
     return path
 
 
+class _UnknownStreak:
+    """How long a waited application has been UNKNOWN in a row (UNKNOWN_TIMEOUT).
+
+    Every wait on the status of an application keeps the same rule, so it lives in one
+    place: a status other than UNKNOWN starts the count afresh, and UNKNOWN held for limit
+    seconds in a row ends the wait with an error naming the status and what it means.
+    """
+
+    def __init__(self, app_id, expected, limit, clock):
+        self._app_id = app_id
+        self._expected = expected
+        self._limit = limit
+        self._clock = clock
+        self._since = None
+
+    def check(self, card, status):
+        """Count one read of the card; raise ApiError once UNKNOWN has lasted the limit."""
+        if status != UNKNOWN_STATUS:
+            self._since = None
+            return
+        now = self._clock()
+        if self._since is None:
+            self._since = now
+        if now - self._since >= self._limit:
+            raise ApiError(i18n.t(
+                "client.wait-status-unknown",
+                app=self._app_id,
+                seconds=int(now - self._since),
+                expected=self._expected,
+            ), body=card)
+
+
 class ElementClient:
     """A programmatic Console API v2 client."""
 
@@ -688,6 +795,9 @@ class ElementClient:
             # own fallback (the process variable), the same as constructing it without the
             # argument at all. A resolved True still means True, unconditionally.
             no_proxy=config.no_proxy or None,
+            # The configuration's own switch is the one to name: the check is off because
+            # ELEMENT_TLS_VERIFY said so, in the environment or in the stand's .env.
+            tls_off_reason=f"{BOOL_ENV_KEYS['tls_verify']}=false",
         )
         self._tokens = TokenManager(config, self._transport, cache_dir=token_cache_dir)
         # The override points for the tests: waits must not really sleep, and the time a
@@ -775,7 +885,12 @@ class ElementClient:
         raise self._api_error(method, url, response)
 
     def _exchange(self, method, url, headers, body, timeout):
-        """One exchange under the Bearer token; a 401 or a stale token renews it once."""
+        """One exchange under the Bearer token; a 401 or a stale token renews it once.
+
+        The 401 of a console that has no handler for the path is not about the token, and it
+        is recognized before a new token is asked for: a renewed token gets the same answer,
+        so renewing it only costs a sign-in and a second request.
+        """
         token = self._token_for(url)
         response = None
         for attempt in (1, 2):
@@ -783,7 +898,7 @@ class ElementClient:
             response = self._transport.request(
                 method, url, headers=headers, data=body, timeout=timeout
             )
-            if attempt == 1 and (response.status == 401 or _is_stale_token(response)):
+            if attempt == 1 and self._token_refused(response):
                 self._tokens.invalidate()
                 token = self._token_for(url, force=True)
                 continue
@@ -792,6 +907,13 @@ class ElementClient:
         if server_starting(response.status, answer):
             raise self._starting_error(method, url, response.status, answer)
         return response
+
+    @staticmethod
+    def _token_refused(response):
+        """Is the answer a refusal of the token held, one that a new token may cure?"""
+        if response.status == 401:
+            return not missing_handler(response.status, _response_body(response))
+        return _is_stale_token(response)
 
     def _token_for(self, url, force=False):
         """A token for the request; a token request refused by a starting server says so.
@@ -872,18 +994,25 @@ class ElementClient:
     def _api_2_1(self, method, path, **kwargs):
         """A Console API 2.1 request; a server that does not know the method says so.
 
-        Only the methods 2.0 lacks go here, the rest of the client stays on 2.0. A console
-        without a handler for the path answers a 401 naming it, and the token was renewed
-        and the request repeated before that answer came back, so a 401 here is not about
-        the token: it is raised as UnknownMethodError, naming the method and the reason.
+        Only the methods 2.0 lacks go here, the rest of the client stays on 2.0.
+        """
+        return self._known_method(API_2_1_PREFIX, "2.1", method, path, **kwargs)
+
+    def _known_method(self, prefix, version, method, path, **kwargs):
+        """A request to a method a server older than it has no handler for.
+
+        A console without a handler for the path answers a 401 naming it. The exchange tells
+        that answer from a refused token by its text and leaves the token alone, and here it
+        is raised as UnknownMethodError, naming the method, the version of Console API it
+        belongs to and the reason.
         """
         try:
-            return self._request(method, API_2_1_PREFIX + path, **kwargs)
+            return self._request(method, prefix + path, **kwargs)
         except ApiError as error:
             if not missing_handler(error.status, error.body):
                 raise
             raise UnknownMethodError(
-                i18n.t("client.method-unknown", method=method, url=error.url),
+                i18n.t("client.method-unknown", method=method, url=error.url, api=version),
                 status=error.status,
                 method=error.method,
                 url=error.url,
@@ -1288,6 +1417,54 @@ class ElementClient:
     def get_dump(self, app_id, dump_id):
         """The status of an application dump."""
         return self._api("GET", f"/applications/{app_id}/dumps/{dump_id}")
+
+    # -- the build an application runs --------------------------------------------
+
+    def export_app_build(self, app_id):
+        """The build the application runs, as the bytes of its archive.
+
+        POST /applications/{id}/project/export of Console API 2.0; the reference documents the
+        same method under 2.1. The request has no body, and the answer is the archive itself,
+        `application/octet-stream` with no `Content-Disposition`: the files of the build,
+        `Assembly.yaml` among them, packed anew. The manifest is the one the server keeps for
+        the build, so a build uploaded into a project carries the number the server gave it.
+        The console takes the archive from the application server, which gives the project it
+        runs; while an update is under way, or after it has failed, the console answers with
+        the build uploaded for it. The extensions applied to the application are not in the
+        archive. A server without the method is refused as one that does not know it.
+        """
+        response = self._known_method(
+            API_PREFIX, "2.0", "POST", f"/applications/{app_id}/project/export", raw=True
+        )
+        return response.body
+
+    def export_app(self, app_id, output=""):
+        """Save the build the application runs to a file.
+
+        output is the file to write, or a directory for the default name `{Name}
+        {Version}.xasm` taken from the manifest of the archive; empty means the current
+        directory. An answer that is not a build archive is refused rather than saved under
+        the name of one. Returns the report: the application, the file with its size, and the
+        manifest of the archive.
+        """
+        data = self.export_app_build(app_id)
+        manifest = archive_manifest(data)
+        if manifest is None:
+            raise ElemctlError(i18n.t(
+                "client.app-export-not-archive",
+                app=app_id,
+                size=len(data),
+                start=bytes(data[:80]).decode("utf-8", errors="replace"),
+            ))
+        path = export_target(output, export_file_name(manifest, {"id": app_id}))
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(data)
+        return {
+            "app-id": app_id,
+            "file": str(path.resolve()),
+            "size": len(data),
+            "manifest": manifest,
+        }
 
     # -- extensions of an application (Console API 2.1) ----------------------------
 
@@ -2000,7 +2177,8 @@ class ElementClient:
         timeout used to be spent before the status was named. 0 refuses it on the
         first read. A read of the card that breaks off is a missed poll (_poll_app).
         """
-        unknown_since = None
+        expected = "/".join(sorted(target_statuses))
+        unknown = _UnknownStreak(app_id, expected, unknown_timeout, self._clock)
         for card, time_is_up in self._poll_app(app_id, timeout=timeout, poll=poll, log=log):
             status = (card.get("status") or "").strip()
             if status in target_statuses:
@@ -2014,20 +2192,8 @@ class ElementClient:
                     ),
                     body=card,
                 )
-            if status == UNKNOWN_STATUS:
-                now = self._clock()
-                unknown_since = now if unknown_since is None else unknown_since
-                if now - unknown_since >= unknown_timeout:
-                    raise ApiError(i18n.t(
-                        "client.wait-status-unknown",
-                        app=app_id,
-                        seconds=int(now - unknown_since),
-                        expected="/".join(sorted(target_statuses)),
-                    ), body=card)
-            else:
-                unknown_since = None
+            unknown.check(card, status)
             if time_is_up:
-                expected = "/".join(sorted(target_statuses))
                 raise ApiError(i18n.t(
                     "client.wait-status-timeout",
                     expected=expected,
@@ -2044,13 +2210,26 @@ class ElementClient:
             app_id, STABLE_STATUSES, timeout=timeout, poll=poll, log=log, error_is_fatal=False
         )
 
-    def wait_app_ready(self, app_id, *, timeout=READY_TIMEOUT, poll=POLL_INTERVAL, log=None):
+    def wait_app_ready(
+        self,
+        app_id,
+        *,
+        timeout=READY_TIMEOUT,
+        poll=POLL_INTERVAL,
+        log=None,
+        unknown_timeout=UNKNOWN_TIMEOUT,
+    ):
         """Wait until a new application is ready: a stable status and a uri.
 
         The Error status during the wait is an immediate error. A read of the card that
         breaks off is a missed poll (_poll_app): the application is being created all the
-        same.
+        same. UNKNOWN that lasts unknown_timeout seconds in a row ends the wait with the
+        error wait_app_status gives it. While the task that creates the application runs,
+        the console reports Initializing whatever the server says, so UNKNOWN comes only
+        after that task, and the ten minutes of READY_TIMEOUT used to be spent on it
+        before the status was named.
         """
+        unknown = _UnknownStreak(app_id, "Running/Stopped", unknown_timeout, self._clock)
         for card, time_is_up in self._poll_app(app_id, timeout=timeout, poll=poll, log=log):
             status = (card.get("status") or "").strip()
             if status == "Error":
@@ -2064,6 +2243,7 @@ class ElementClient:
                 )
             if status in ("Running", "Stopped") and card.get("uri"):
                 return card
+            unknown.check(card, status)
             if time_is_up:
                 raise ApiError(i18n.t(
                     "client.wait-ready-timeout",

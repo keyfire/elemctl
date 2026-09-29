@@ -51,8 +51,8 @@ MESSAGES = {
         "en": "not found: {file}",
     },
     "build.unknown-kind": {
-        "ru": "неизвестный вид проекта: {kind} (ожидалось application или library)",
-        "en": "unknown project kind: {kind} (expected application or library)",
+        "ru": "неизвестный вид проекта: {kind} (ожидалось application, library или extension)",
+        "en": "unknown project kind: {kind} (expected application, library or extension)",
     },
     "build.not-archive": {
         "ru": "файл не является архивом сборки: {file}",
@@ -313,6 +313,16 @@ MESSAGES = {
         "ru": "подключено {total}: администраторов {admins}, с доступом по токену {tokens}",
         "en": "{total} connected: {admins} administrators, {tokens} with token access",
     },
+    "client.builds-summary-empty": {
+        "ru": "показано {shown} из {total} – у проекта на платформе нет ни одной сборки",
+        "en": "{shown} of {total} shown – the project has no builds on the platform",
+    },
+    "client.builds-summary-unnumbered": {
+        "ru": "показано {shown} из {total} – номера нет ни у одной сборки, и по нумерации не "
+              "видно, все ли это сборки проекта",
+        "en": "{shown} of {total} shown – no build carries a number, so the numbering cannot "
+              "tell whether these are all the builds of the project",
+    },
     "client.builds-summary-full": {
         "ru": "показано {shown} из {total} – нумерация сборок сплошная, пропавших по ней "
               "не видно: это все сборки проекта на платформе",
@@ -340,13 +350,31 @@ MESSAGES = {
               "of the project went on from them",
     },
     "client.builds-summary-trimmed": {
-        "ru": "показано {shown} из {total} – в нумерации сборок есть пропуски: платформа "
-              "сама удаляет те, которыми никто не пользуется (сборка работающего "
-              "приложения остаётся), страниц у перечня нет. Это НЕ вся история сборок "
-              "проекта",
+        "ru": "показано {shown} из {total} – в нумерации сборок есть пропуски: сборки, "
+              "которыми никто не пользуется, платформа удаляет сама, когда приложение проекта "
+              "заканчивает применение сборки (сборка работающего приложения остается), а "
+              "страниц у перечня нет. Это НЕ вся история сборок проекта",
         "en": "{shown} of {total} shown – the build numbering has gaps: the platform deletes "
-              "builds nobody uses (a build an application runs stays), and the listing has "
-              "no pages. This is NOT the project's whole build history",
+              "the builds nobody uses whenever an application of the project finishes "
+              "applying a build (a build an application runs stays), and the listing has no "
+              "pages. This is NOT the project's whole build history",
+    },
+    "client.builds-summary-gap-first": {
+        "ru": "под {above}",
+        "en": "below {above}",
+    },
+    "client.builds-summary-jump-and-loss": {
+        "ru": ". Пропуск {gap} – и скачок, и удаление: сборку {top} машина загрузила по "
+              "поставщику и имени, и номер она принесла из архива, а из загрузок этой машины "
+              "в проект в перечне уже нет {gone}",
+        "en": ". The gap {gap} is a jump and a deletion at once: this machine uploaded {top} "
+              "by the vendor and the name, and it brought its number from the archive, while "
+              "the listing no longer has these uploads of this machine into the project: "
+              "{gone}",
+    },
+    "client.builds-summary-and-more": {
+        "ru": "{names} и еще {more}",
+        "en": "{names} and {more} more",
     },
     "client.app-not-found": {
         "ru": "приложение '{name}' не найдено (ни по ид, ни по точному имени)",
@@ -440,11 +468,11 @@ MESSAGES = {
     "client.method-unknown": {
         "ru": "сервер не знает метода {method} {url}: консоль ответила 401 \"Handler of HTTP "
               "request ... not found\", а так она отвечает на путь, для которого у нее нет "
-              "обработчика. Токен тут ни при чем: сервер старше этого метода Console API 2.1",
+              "обработчика. Токен тут ни при чем: сервер старше этого метода Console API {api}",
         "en": "the server does not know the method {method} {url}: the console answered 401 "
               "\"Handler of HTTP request ... not found\", which is how it answers a path it has "
               "no handler for. The token is not at fault: the server is older than this method "
-              "of Console API 2.1",
+              "of Console API {api}",
     },
     "client.extension-not-found": {
         "ru": "у приложения {app} нет расширения '{name}' (сравнивались ид расширения, ид его "
@@ -475,6 +503,12 @@ MESSAGES = {
               "({size} байт, начало: {start}); файл не записан",
         "en": "the export of the extension {extension} of the application {app} returned no "
               "build archive ({size} bytes, beginning: {start}); no file was written",
+    },
+    "client.app-export-not-archive": {
+        "ru": "выгрузка проекта приложения {app} вернула не архив сборки ({size} байт, "
+              "начало: {start}); файл не записан",
+        "en": "the export of the project of the application {app} returned no build archive "
+              "({size} bytes, beginning: {start}); no file was written",
     },
     "client.delete-failed-precondition": {
         "ru": "в среде разработки приложения есть неопубликованные правки – "
@@ -730,6 +764,25 @@ MESSAGES = {
               "replace the value of the core. Pick another name; the global options of the core "
               "are: {options}",
     },
+    "plugins.value-name-taken": {
+        "ru": "аргумент {argument} команды '{name}' плагина '{where}' хранит значение под "
+              "именем {dest}, а это имя в разборе команды уже занимает сам CLI. Одно значение "
+              "затерло бы другое: позиционный handler, например, подменял обработчик команды "
+              "строкой. Выберите другое имя; занятые имена: {names}",
+        "en": "the argument {argument} of the command '{name}' of the plugin '{where}' keeps "
+              "its value under the name {dest}, and the CLI itself already keeps a value of "
+              "that name in the parse of a command. One value would overwrite the other: a "
+              "positional handler, for one, replaced the handler of the command with a string. "
+              "Pick another name; the names taken are: {names}",
+    },
+    "plugins.option-taken": {
+        "ru": "аргумент {argument} команды '{name}' плагина '{where}' объявляет ключ {option}, "
+              "а на этот ключ подкоманда отвечает сама, и разборщик всего CLI не собрался бы. "
+              "Выберите другое имя; занятые ключи: {options}",
+        "en": "the argument {argument} of the command '{name}' of the plugin '{where}' declares "
+              "the option {option}, which a subcommand answers itself, so the parser of the "
+              "whole CLI could not be built. Pick another name; the options taken are: {options}",
+    },
     "cli.help.plugin-alias": {
         "ru": "то же, что позиционный аргумент {name}",
         "en": "the same as the positional argument {name}",
@@ -857,11 +910,16 @@ MESSAGES = {
         "en": "invalid request address {method} {url}: {error}",
     },
     "transport.tls-verify-off": {
-        "ru": "внимание: проверка сертификата и имени сервера отключена "
-              "(ELEMENT_TLS_VERIFY=false) – соединение не защищено от подмены сервера",
-        "en": "warning: certificate and host name verification is off "
-              "(ELEMENT_TLS_VERIFY=false) – the connection is not protected from a spoofed "
-              "server",
+        "ru": "внимание: проверка сертификата и имени сервера отключена – соединение не "
+              "защищено от подмены сервера",
+        "en": "warning: certificate and host name verification is off – the connection is "
+              "not protected from a spoofed server",
+    },
+    "transport.tls-verify-off-by": {
+        "ru": "внимание: проверка сертификата и имени сервера отключена ({reason}) – "
+              "соединение не защищено от подмены сервера",
+        "en": "warning: certificate and host name verification is off ({reason}) – the "
+              "connection is not protected from a spoofed server",
     },
     "transport.proxy-hint": {
         "ru": "Запрос шёл через прокси {proxy} из окружения. Если стенд внутренний, "
@@ -1686,6 +1744,18 @@ MESSAGES = {
     "cli.help.apps-token-access-disable": {
         "ru": "запретить доступ по токену и перечитать признак",
         "en": "forbid the access by a token and read the flag back",
+    },
+    "cli.help.apps-export": {
+        "ru": "выгрузить в файл сборку, на которой работает приложение (расширения в нее не "
+              "входят; их выгружает export-extension)",
+        "en": "save the build the application runs to a file (the extensions are not in it; "
+              "export-extension saves them)",
+    },
+    "cli.help.apps-export-output": {
+        "ru": "файл или каталог для сборки; по умолчанию текущий каталог и имя из манифеста "
+              "архива, \"<Имя> <Версия>.xasm\"",
+        "en": "the file or the directory for the build; by default the current directory and "
+              "the name after the manifest of the archive, \"<Name> <Version>.xasm\"",
     },
     "cli.help.apps-export-extension": {
         "ru": "выгрузить в файл сборку расширения, примененного в приложении (метод Console "

@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import functools
 import json
 import sys
 from datetime import datetime, timedelta, timezone
@@ -729,6 +730,19 @@ def cmd_apps_token_access(args):
     return 0
 
 
+def cmd_apps_export(args):
+    """The build the application runs, saved to a file.
+
+    The command only reads the server, so the application defaults to ELEMENT_APP_ID the way
+    `apps get` does. A server without the method is refused with the reason.
+    """
+    config = _config(args)
+    client = make_client(config)
+    app_id = _require(_app_ref(args), config.app_id, i18n.t("cli.require.app-id-arg"))
+    _emit(client.export_app(client.resolve_app_id(app_id), output=args.output or ""))
+    return 0
+
+
 def cmd_apps_export_extension(args):
     """The build of an extension applied to an application, saved to a file.
 
@@ -785,7 +799,8 @@ def cmd_builds_list(args):
 
     Neither cut is silent, and there are two of them. The tool's own is the limit.
     The platform's is its housekeeping: it deletes the builds nobody uses, whatever
-    their age, so a listing is not the project's history - it is what survived. The
+    their age, whenever an application of the project finishes applying a build, so a
+    listing is not the project's history - it is what survived. The
     count line says which of the two the reader is looking at (builds_summary reads
     that off the gaps in the build numbering), and it is printed always - after the
     answer, the same order apps list uses: a listing without it was read as "the
@@ -1556,7 +1571,7 @@ def _add_aliased_positional(parser, argument):
     )
 
 
-def add_plugin_commands(sub):
+def add_plugin_commands(sub, discover=None):
     """Register the commands the plugins bring as subcommands; return (registered, failures).
 
     A name that the core already occupies is not taken over: a plugin must not be
@@ -1567,9 +1582,12 @@ def add_plugin_commands(sub):
     stop the parser from being built, and one broken plugin took every command
     down, the core ones included. Now such a command is left out and returned
     among the failures (plugins.PluginFailure), which main names on stderr.
+
+    discover stands in for plugins.discover_commands: plugin_namespace registers a
+    stand-in command through it to see what the CLI keeps beside a plugin command.
     """
     registered = []
-    commands, failures = plugins.discover_commands()
+    commands, failures = (discover or plugins.discover_commands)()
     for command in commands:
         if command.name in sub.choices:
             failures.append(plugins.PluginFailure(command.source, PluginError(i18n.t(
@@ -1585,6 +1603,39 @@ def add_plugin_commands(sub):
         parser.set_defaults(handler=_plugin_handler(command), plugin_command=command)
         registered.append(command)
     return registered, failures
+
+
+#: The stand-in command plugin_namespace registers in place of the plugins.
+_NAMESPACE_PROBE = "elemctl-namespace-probe"
+
+
+@functools.lru_cache(maxsize=None)
+def plugin_namespace():
+    """What the parse of a plugin command holds before its own arguments: (names, options).
+
+    names are the value names the CLI itself keeps in the namespace a plugin command is
+    parsed into: the options and the command word of the root, the handler main calls and
+    the bookkeeping of the plugins that set_defaults puts beside them. options are the option
+    strings the subparser of a command answers itself, -h and --help. A plugin argument that
+    takes one of the names overwrites the value of the CLI or is overwritten by it: a
+    positional `handler` replaced the function main calls with a string, and the call ended
+    in a TypeError. An option that takes one of the option strings stopped the parser of the
+    whole CLI from being built, every command of the core included, with a bare
+    argparse.ArgumentError. So plugins.Command.validate refuses both, and it reads them off a
+    parser built the way main builds it, with a stand-in command in place of the plugins: a
+    list copied by hand would miss the next name the core starts to keep.
+
+    Cached: the names depend on the code alone, not on the language or the environment.
+    """
+    probe = plugins.Command(name=_NAMESPACE_PROBE, help="", handler=lambda context: None)
+    parser = build_parser(discover=lambda: ([probe], []))
+    command = _choices_of(parser, "command")[_NAMESPACE_PROBE]
+    names = set(parser._defaults) | set(command._defaults)
+    for action in parser._actions + command._actions:
+        # -h, --help and --version exit instead of storing a value: their default is SUPPRESS.
+        if action.dest != argparse.SUPPRESS and action.default is not argparse.SUPPRESS:
+            names.add(action.dest)
+    return frozenset(names), tuple(command._option_string_actions)
 
 
 def _add_app_ref(p, *, required=False):
@@ -1763,7 +1814,7 @@ def _action_first_hint(parser, argv):
     return ""
 
 
-def build_parser():
+def build_parser(discover=None):
     parser = i18n.ArgumentParser(
         prog="elemctl",
         description=i18n.t("cli.help.description"),
@@ -1866,6 +1917,11 @@ def build_parser():
     p.add_argument("--disable", action="store_true", help=i18n.t("cli.help.apps-token-access-disable"))
     p.set_defaults(handler=cmd_apps_token_access)
 
+    p = apps_sub.add_parser("export", help=i18n.t("cli.help.apps-export"))
+    _add_app_ref(p)
+    p.add_argument("--output", help=i18n.t("cli.help.apps-export-output"))
+    p.set_defaults(handler=cmd_apps_export)
+
     p = apps_sub.add_parser(
         "export-extension", help=i18n.t("cli.help.apps-export-extension")
     )
@@ -1949,7 +2005,11 @@ def build_parser():
     p.add_argument("--last-build", help=i18n.t("cli.help.build-last-build"))
     p.add_argument("--commit", help=i18n.t("cli.help.build-commit"))
     p.add_argument("--branch", help=i18n.t("cli.help.build-branch"))
-    p.add_argument("--kind", choices=["application", "library"], help=i18n.t("cli.help.build-kind"))
+    p.add_argument(
+        "--kind",
+        choices=["application", "library", "extension"],
+        help=i18n.t("cli.help.build-kind"),
+    )
     p.add_argument(
         "--require-clean",
         action="store_true",
@@ -2161,7 +2221,7 @@ def build_parser():
     # Last of all: the commands of the core are already in place, and a name
     # clash with any of them is caught right here. What did not load travels on
     # the parser for main and in the defaults for the `plugins` diagnostics.
-    registered, failures = add_plugin_commands(sub)
+    registered, failures = add_plugin_commands(sub, discover)
     parser.plugin_failures = failures
     parser.set_defaults(plugin_commands=registered, plugin_failures=failures)
 
