@@ -73,7 +73,8 @@ The documentation comes in both languages, and the CLI output is plain JSON.*
   окружение, живёт в вашем пакете, а не в публичном ядре.
 - **Обновление**: `elemctl self-update` обновляет пакет распаковкой колеса.
   Это работает и тогда, когда `elemctl.exe` занят работающим MCP-сервером:
-  штатные pipx и pip в таком случае ломают установку.
+  штатные pipx и pip в таком случае ломают установку. `--stop-holders` снимает
+  MCP-серверы, которые держат пакет, а идущие команды других сессий не трогает.
 - **В VS Code**: развёртывание и отладка живут в расширении
   [XBSL](https://github.com/keyfire/xbsl). Оно зовёт elemctl: `elemctl deploy`
   по кнопке развёртывания, `elemctl apps debug` за координатами сессии отладки.

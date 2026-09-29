@@ -1158,7 +1158,7 @@ usage: elemctl plugins [-h]
 ## `elemctl self-update`
 
 ```bash
-usage: elemctl self-update [-h] [--version VERSION] [--stop-holders]
+usage: elemctl self-update [-h] [--version VERSION] [--stop-holders [{servers,all}]]
 ```
 
 **Options**
@@ -1167,7 +1167,7 @@ usage: elemctl self-update [-h] [--version VERSION] [--stop-holders]
 |---|---|
 | `-h, --help` | show this help message and exit |
 | `--version VERSION` | target version (default: the latest from PyPI) |
-| `--stop-holders` | stop the processes holding the installation (elemctl MCP sessions) and update; without the flag the command only names them |
+| `--stop-holders [{servers,all}]` | stop the servers holding the installation (elemctl MCP sessions) and update. Running commands of other sessions are named by pid and left alone; with the value all they are stopped too, and such a command ends without a result. Without the flag the holders are only named |
 
 ## `elemctl mcp`
 

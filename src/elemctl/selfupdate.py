@@ -11,11 +11,17 @@ first):
 
 1. **Holders are named before anything is touched.** The package directory is renamed first -
    a rename fails fast while a file inside is open, and nothing has been removed at that
-   point. The processes are then listed by name and pid; `--stop-holders` ends them, otherwise
-   the command stops and says who to close. A process is ours by the name of its executable or
-   by an interpreter running our modules - an editor or an agent that merely mentions elemctl
-   in its arguments is never offered for stopping.
-2. **A failure rolls back.** The previous installation is kept aside until the new one has
+   point. The processes are then listed by pid and command line, and the command stops and
+   says who to close. A process is ours by the name of its executable or by an interpreter
+   running our modules - an editor or an agent that merely mentions elemctl in its arguments
+   is never offered for stopping.
+2. **Only servers are stopped.** `--stop-holders` ends the servers (`elemctl mcp`): they live
+   as long as their client and keep running the old code anyway. A running command of another
+   session is somebody's work in progress - a wait for a pipeline, say - so it is named and
+   left alone, and when it keeps the files busy the update is refused with the advice to wait
+   for it. `--stop-holders=all` stops the commands too, and such a command ends without a
+   result.
+3. **A failure rolls back.** The previous installation is kept aside until the new one has
    been PROVEN to import in a separate process (the current one still runs the old code in
    memory and cannot judge). Anything unexpected puts the old installation back.
 
@@ -28,7 +34,9 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
+import signal
 import subprocess
 import sys
 import urllib.error
@@ -62,11 +70,28 @@ _OWNED_PATTERNS = ("elemctl", "elemctl-*.dist-info")
 _BACKUP_SUFFIX = ".elemctl-selfupdate-backup"
 #: Our own executables - a holder is recognized by the PROCESS NAME first.
 _HOLDER_EXECUTABLES = frozenset({"elemctl"})
-#: ... and a plain interpreter counts only when it RUNS our modules. The command line alone is
-#: not enough: an editor or an agent mentions elemctl in its arguments (a path, a config file)
-#: without holding anything, and such a process must never be offered for stopping.
-_HOLDER_MODULES = ("elemctl.mcp_server", "elemctl mcp", "-m elemctl")
-_INTERPRETERS = ("python", "python3", "pythonw", "py", "pypy", "pypy3")
+#: ... and a plain interpreter counts only when it RUNS our code: `-m elemctl...` or our console
+#: script handed to it as a file. The command line alone is not enough: an editor or an agent
+#: mentions elemctl in its arguments (a path, a config file) without holding anything, and such
+#: a process must never be offered for stopping.
+_PACKAGE = "elemctl"
+#: `python`, `python3.12`, `pythonw`, the `py` launcher and the like.
+_INTERPRETER = re.compile(r"(?:python|pythonw|pypy|pyw|py)(?:\d+(?:\.\d+)*[a-z]?)?")
+#: What makes a holder a server: the subcommand, or the module of the server run directly.
+_SERVER_COMMANDS = frozenset({"mcp"})
+_SERVER_MODULES = frozenset({"elemctl.mcp_server"})
+#: The modules that run the command line itself - their subcommand tells what they are.
+_CLI_MODULES = frozenset({"elemctl", "elemctl.cli", "elemctl.__main__"})
+#: How much of a command line a message quotes: enough to recognize the command.
+_LINE_LIMIT = 200
+
+#: What `--stop-holders` stops: the servers alone, or every holder, the running commands of
+#: other sessions included.
+STOP_SERVERS, STOP_ALL = "servers", "all"
+STOP_MODES = (STOP_SERVERS, STOP_ALL)
+#: The two kinds of a holder. A server lives as long as its client and keeps running the old
+#: code after the update, so ending it belongs to the update; a command is somebody's work.
+SERVER, COMMAND = "server", "command"
 
 
 def _site_packages() -> Path:
@@ -313,18 +338,133 @@ def _latest_wheel(files: list[dict], log) -> tuple[str, list[dict]]:
 
 
 def is_holder(name: str, command_line: str) -> bool:
-    """Is this process one of ours - and therefore worth offering for a stop?
+    """Is this process one of ours - a server or a command that may hold the installation?
 
     The wrong answer here is not a missed holder but an offer to kill someone else's process,
-    so the check is by our own executable name, or by an interpreter running our modules.
+    so the check is by our own executable name, or by an interpreter running our code.
     """
-    stem = Path((name or "").strip()).stem.lower()
-    if stem in _HOLDER_EXECUTABLES:
-        return True
-    if stem not in _INTERPRETERS:
-        return False
-    lowered = (command_line or "").lower()
-    return any(marker in lowered for marker in _HOLDER_MODULES)
+    return bool(holder_kind(name, command_line))
+
+
+def holder_kind(name: str, command_line: str) -> str:
+    """SERVER or COMMAND for a process of ours, "" for anything else.
+
+    A server is what an update has to end: `elemctl mcp` lives as long as its client and keeps
+    running the old code. Anything else of ours is a command, and a command of another session
+    is never ended by default: the wrong answer here kills that work with no verdict. So a
+    server is recognized positively, by its subcommand or its module, and whatever is not
+    certain stays a command.
+    """
+    found = _runs(name, command_line)
+    if found is None:
+        return ""
+    what, args = found
+    if what.startswith("-m "):
+        module = what[3:]
+        if module in _SERVER_MODULES:
+            return SERVER
+        if module not in _CLI_MODULES:
+            return COMMAND
+    return SERVER if _subcommand(args) in _SERVER_COMMANDS else COMMAND
+
+
+def _runs(name: str, command_line: str) -> tuple[str, list[str]] | None:
+    """What of ours a process runs and the arguments after it; None when nothing of ours.
+
+    The first is our console script (`elemctl`) or, for an interpreter, `-m` with the module
+    (`-m elemctl.mcp_server`). An interpreter handed our console script as a file (the launcher
+    of a venv starts `python.exe ...\\Scripts\\elemctl.exe mcp`) runs the script. `-c` code, a
+    script of somebody else's and a module of another package are not ours, whatever their
+    arguments mention.
+    """
+    words = _words(command_line)
+    own = _base(name)
+    if own in _HOLDER_EXECUTABLES:
+        start = next((index + 1 for index, word in enumerate(words) if _base(word) == own), 1)
+        return own, words[start:]
+    if not _INTERPRETER.fullmatch(own):
+        return None
+    # The arguments start after the interpreter's own word. A listing that lost the quotes
+    # (ps, a joined psutil list) splits a path with spaces, and the interpreter ends it.
+    index = next((position + 1 for position, word in enumerate(words)
+                  if _INTERPRETER.fullmatch(_base(word))), 1)
+    while index < len(words):
+        word = words[index]
+        if word == "-" or not word.startswith("-"):
+            break
+        if word.startswith("--"):
+            index += 2 if word == "--check-hash-based-pycs" else 1
+            continue
+        letters = word[1:]  # a cluster of one-letter options: `-P`, `-uB`, `-Xutf8`, `-m module`
+        for position, letter in enumerate(letters):
+            rest = letters[position + 1:]
+            if letter == "c":
+                return None
+            if letter == "m":
+                module = (rest or (words[index + 1] if index + 1 < len(words) else "")).lower()
+                if module != _PACKAGE and not module.startswith(_PACKAGE + "."):
+                    return None
+                return f"-m {module}", words[index + (1 if rest else 2):]
+            if letter in "XW":
+                index += 0 if rest else 1  # the value is the rest of the word or the next one
+                break
+        index += 1
+    if index >= len(words) or words[index] == "-":
+        return None
+    script = _base(words[index])
+    return (script, words[index + 1:]) if script in _HOLDER_EXECUTABLES else None
+
+
+def _subcommand(args: list[str]) -> str:
+    """The subcommand of an elemctl command line: the first word past the global options."""
+    from .cli import _GLOBAL_OPTIONS  # noqa: PLC0415 - the grammar of the command line is the CLI's
+
+    index = 0
+    while index < len(args):
+        word = args[index]
+        if word == "--":
+            return ""
+        if word in _GLOBAL_OPTIONS:
+            index += 2
+        elif word.startswith("-"):
+            index += 1
+        else:
+            return word.lower()
+    return ""
+
+
+def _words(command_line: str) -> list[str]:
+    """The words of a command line, the double quotes around a path taken off.
+
+    Not a shell parser: a process listing is read here, not a command run, and the words only
+    have to show the program, its module and the subcommand.
+    """
+    words: list[str] = []
+    word: list[str] = []
+    quoted = started = False
+    for char in command_line or "":
+        if char == '"':
+            quoted, started = not quoted, True
+        elif char.isspace() and not quoted:
+            if started:
+                words.append("".join(word))
+            word, started = [], False
+        else:
+            word.append(char)
+            started = True
+    if started:
+        words.append("".join(word))
+    return words
+
+
+def _base(path: str) -> str:
+    """The file name a word or a process name points at, lowercased and without `.exe`.
+
+    Both separators count whatever the system: a listing from Windows is read by the tests
+    on any of them.
+    """
+    name = re.split(r"[\\/]", (path or "").strip())[-1].lower()
+    return name[:-4] if name.endswith(".exe") else name
 
 
 def _process_listing() -> list[tuple[int, int, str, str]]:
@@ -396,47 +536,117 @@ def _family_pids(rows: list[tuple[int, int, str, str]]) -> set[int]:
 
 
 def holders() -> list[dict]:
-    """Live processes that look like holders of the installation: {"pid", "name"}.
+    """Live processes of ours that may hold the installation.
 
-    Best effort by design: the answer only makes the message useful ("close these"), it is
-    never a precondition - the gate is the rename below. Our own process tree is excluded:
-    offering the shim that started this very command would end the update midway.
+    Each is {"pid", "ppid", "name", "kind", "command_line"}, the kind being SERVER or COMMAND
+    (`holder_kind`). Best effort by design: the answer only makes the message useful ("close
+    these"), it is never a precondition - the gate is the rename below. Our own process tree is
+    excluded: offering the shim that started this very command would end the update midway.
     """
     rows = _process_listing()
     family = _family_pids(rows)
-    return [
-        {"pid": pid, "name": name}
-        for pid, _ppid, name, line in rows
-        if pid not in family and is_holder(name, line)
-    ]
+    found = []
+    for pid, ppid, name, line in rows:
+        kind = "" if pid in family else holder_kind(name, line)
+        if kind:
+            found.append({"pid": pid, "ppid": ppid, "name": name, "kind": kind,
+                          "command_line": " ".join(line.split())})
+    return found
+
+
+def _launches(processes: list[dict]) -> list[dict]:
+    """One process per launch: those whose parent is not on the list.
+
+    A console script on Windows runs as a chain - the launcher, the interpreter it starts and,
+    in a venv made by uv, the base interpreter under that one - all with nearly the same
+    command line. The head of the chain names the launch; the rest are its parts.
+    """
+    pids = {item["pid"] for item in processes}
+    return [item for item in processes if item.get("ppid") not in pids]
+
+
+def _described(process: dict) -> str:
+    """The pid and the command line of a process, the way a message names it."""
+    line = process.get("command_line") or process.get("name") or i18n.t("selfupdate.process")
+    if len(line) > _LINE_LIMIT:
+        line = line[: _LINE_LIMIT - 3].rstrip() + "..."
+    return f"pid {process['pid']} – {line}"
+
+
+def _listed(processes: list[dict]) -> str:
+    return "; ".join(_described(item) for item in processes)
+
+
+def _end(pid: int) -> str:
+    """Stop one process: "" when it ended or was gone already, the reason when it was not."""
+    try:
+        if sys.platform == "win32":
+            result = subprocess.run(["taskkill", "/PID", str(pid), "/F"], capture_output=True,
+                                    stdin=subprocess.DEVNULL, timeout=30)
+            # 128 is "not found": the launcher stopped a moment ago took its interpreter along.
+            if result.returncode not in (0, 128):
+                return f"taskkill {result.returncode}"
+        else:
+            os.kill(pid, signal.SIGTERM)
+    except ProcessLookupError:
+        return ""
+    except (OSError, subprocess.SubprocessError) as error:
+        return str(error)
+    return ""
 
 
 def stop_holders(processes: list[dict], log) -> list[dict]:
-    """End the listed processes; returns those that survived."""
+    """End the listed processes; returns those that survived.
+
+    A launch gets one line, the one of its head (see `_launches`): the parts of the chain go
+    with it and need no line of their own.
+    """
+    heads = {item["pid"] for item in _launches(processes)}
     alive = []
     for process in processes:
-        pid = int(process["pid"])
-        try:
-            if sys.platform == "win32":
-                subprocess.run(["taskkill", "/PID", str(pid), "/F"], capture_output=True,
-                               stdin=subprocess.DEVNULL, timeout=30)
-            else:
-                os.kill(pid, 15)
-            log(i18n.t("selfupdate.holder-stopped", name=process.get("name") or "", pid=pid))
-        except (OSError, subprocess.SubprocessError) as error:
-            alive.append({**process, "error": str(error)})
+        error = _end(int(process["pid"]))
+        if error:
+            alive.append({**process, "error": error})
+            log(i18n.t("selfupdate.stop-failed", process=_described(process), error=error))
+        elif process["pid"] in heads:
+            stopped = ("selfupdate.command-stopped" if process.get("kind") == COMMAND
+                       else "selfupdate.server-stopped")
+            log(i18n.t(stopped, process=_described(process)))
     return alive
 
 
-def _holders_message(processes: list[dict]) -> str:
-    """Who to close - by name and pid, or an honest "could not tell"."""
-    if not processes:
-        return i18n.t("selfupdate.holders-unknown")
-    listed = ", ".join(
-        f"{item.get('name') or i18n.t('selfupdate.process')} (pid {item['pid']})"
-        for item in processes
-    )
-    return i18n.t("selfupdate.holders", list=listed)
+def _stop_for_update(stop: str, log) -> None:
+    """End what `stop` covers, and name the running commands it leaves alone."""
+    busy = holders()
+    ending = [item for item in busy if stop == STOP_ALL or item.get("kind") == SERVER]
+    if ending:
+        stop_holders(ending, log)
+    for item in _launches([item for item in busy if item not in ending]):
+        log(i18n.t("selfupdate.command-spared", process=_described(item)))
+
+
+def _holders_message(processes: list[dict], stop: str = "") -> str:
+    """Who holds the installation and what to do about it, the servers apart from the commands.
+
+    A server can be closed or stopped with `--stop-holders`. A command is somebody's work, so
+    the advice is to wait for it, and the way to stop it anyway is named with its price. What
+    the mode of this run was meant to stop and is still listed did not go: closing it by hand is
+    the advice left. With nothing listed, the message says so honestly.
+    """
+    servers = _launches([item for item in processes if item.get("kind") != COMMAND])
+    commands = _launches([item for item in processes if item.get("kind") == COMMAND])
+    if not servers and not commands:
+        return f"{i18n.t('selfupdate.holders-unknown')}. {i18n.t('selfupdate.advice-servers')}"
+    parts = []
+    if servers:
+        parts.append(i18n.t("selfupdate.holders", list=_listed(servers)))
+        parts.append(i18n.t("selfupdate.advice-close" if stop else "selfupdate.advice-servers"))
+    if commands:
+        parts.append(i18n.t("selfupdate.holders-commands", list=_listed(commands)))
+        parts.append(i18n.t(
+            "selfupdate.advice-close" if stop == STOP_ALL else "selfupdate.advice-commands"
+        ))
+    return ". ".join(parts)
 
 
 # -- moving aside, restoring, verifying ------------------------------------------------------
@@ -497,8 +707,13 @@ def verify_install(site: Path) -> str:
     return result.stdout.strip() if result.returncode == 0 else ""
 
 
-def self_update(version: str | None = None, log=print, *, stop_busy: bool = False) -> tuple[str, str]:
-    """Update elemctl in site-packages by unpacking the wheel. Return (before, after)."""
+def self_update(version: str | None = None, log=print, *, stop: str = "") -> tuple[str, str]:
+    """Update elemctl in site-packages by unpacking the wheel. Return (before, after).
+
+    `stop` is what `--stop-holders` asked for: STOP_SERVERS ends the servers holding the
+    installation and names the running commands without touching them, STOP_ALL ends the
+    commands as well, and "" ends nothing.
+    """
     url, target = _wheel_url(version, log=log)
     if version is None and target == __version__:
         log(i18n.t("selfupdate.already-current", version=__version__))
@@ -517,16 +732,14 @@ def self_update(version: str | None = None, log=print, *, stop_busy: bool = Fals
     except _NETWORK_FAILURES as error:
         raise ElemctlError(i18n.t("selfupdate.download-failed", error=error)) from error
 
-    if stop_busy:
-        busy = holders()
-        if busy:
-            stop_holders(busy, log)
+    if stop:
+        _stop_for_update(stop, log)
 
     try:
         moved = _move_aside(site)
     except OSError as error:
         raise ElemctlError(
-            i18n.t("selfupdate.busy", error=error, holders=_holders_message(holders()))
+            i18n.t("selfupdate.busy", error=error, holders=_holders_message(holders(), stop))
         ) from error
 
     log(i18n.t("selfupdate.unpacking", path=site))

@@ -5,6 +5,7 @@ from __future__ import annotations
 import io
 import json
 import os
+import subprocess
 import urllib.error
 import zipfile
 from http.client import IncompleteRead
@@ -12,7 +13,7 @@ from http.client import IncompleteRead
 import pytest
 
 import elemctl
-from elemctl import cli, selfupdate
+from elemctl import cli, i18n, selfupdate
 
 
 def _fake_wheel(version: str) -> bytes:
@@ -91,10 +92,41 @@ def test_updates_pipx_metadata(monkeypatch, tmp_path):
 
 
 def test_cli_self_update(monkeypatch, capsys):
-    monkeypatch.setattr(selfupdate, "self_update", lambda version=None, log=print, stop_busy=False: ("0.5.0", "0.6.0"))
+    monkeypatch.setattr(selfupdate, "self_update", lambda version=None, log=print, stop="": ("0.5.0", "0.6.0"))
     rc = cli.main(["self-update"])
     assert rc == 0
     assert json.loads(capsys.readouterr().out) == {"updated": True, "from": "0.5.0", "to": "0.6.0"}
+
+
+@pytest.mark.parametrize(
+    ("argv", "stop"),
+    [
+        ([], ""),
+        (["--stop-holders"], selfupdate.STOP_SERVERS),
+        (["--stop-holders=servers"], selfupdate.STOP_SERVERS),
+        (["--stop-holders=all"], selfupdate.STOP_ALL),
+        (["--stop-holders", "all"], selfupdate.STOP_ALL),
+        (["--stop-holders", "--version", "9.9.9"], selfupdate.STOP_SERVERS),
+    ],
+)
+def test_the_bare_flag_stops_the_servers_and_all_has_to_be_named(monkeypatch, capsys, argv, stop):
+    """A running command of another session is ended only when the call says so by name."""
+    asked = {}
+
+    def update(version=None, log=print, stop=""):
+        asked["stop"] = stop
+        return "0.5.0", "0.5.0"
+
+    monkeypatch.setattr(selfupdate, "self_update", update)
+    assert cli.main(["self-update", *argv]) == 0
+    assert asked["stop"] == stop
+
+
+def test_an_unknown_stop_mode_is_refused_by_the_parser(capsys):
+    with pytest.raises(SystemExit) as refusal:
+        cli.main(["self-update", "--stop-holders=everything"])
+    assert refusal.value.code == 2
+    assert "everything" in capsys.readouterr().err
 
 
 # --- занятая установка: что бы ни случилось, прежняя версия остаётся на месте ---------------
@@ -129,13 +161,16 @@ def test_busy_installation_is_refused_before_anything_is_removed(monkeypatch, tm
         return original(self, target)
 
     monkeypatch.setattr(selfupdate.Path, "rename", refuse)
-    monkeypatch.setattr(selfupdate, "holders", lambda: [{"pid": 4242, "name": "elemctl.exe"}])
+    monkeypatch.setattr(selfupdate, "holders", lambda: [
+        {"pid": 4242, "ppid": 1, "name": "elemctl.exe", "kind": selfupdate.SERVER,
+         "command_line": "elemctl mcp"},
+    ])
 
     with pytest.raises(elemctl.errors.ElemctlError) as error:
         selfupdate.self_update(log=lambda *a: None)
 
     message = str(error.value)
-    assert "elemctl.exe" in message and "4242" in message and "--stop-holders" in message
+    assert "pid 4242 – elemctl mcp" in message and "--stop-holders" in message
     assert '__version__ = "0.0.1"' in (site / "elemctl" / "__init__.py").read_text(encoding="utf-8")
 
 
@@ -210,6 +245,235 @@ def test_family_pids_survives_a_parent_loop(monkeypatch):
         (51, 50, "cmd.exe", "cmd"),  # кольцо 50 <-> 51
     ]
     assert selfupdate._family_pids(rows) == {own, 50, 51}
+
+
+# -- servers and commands --------------------------------------------------------------------
+#
+# `--stop-holders` of one session once ended a command of another one that was waiting for a
+# pipeline, and that command died with exit code 1 and no verdict. The update has to end the
+# servers - they outlive it on the old code anyway - and nothing else unless asked by name.
+
+SERVER, COMMAND = selfupdate.SERVER, selfupdate.COMMAND
+
+
+@pytest.mark.parametrize(
+    ("name", "line", "kind"),
+    [
+        # the launcher an MCP client starts, and the interpreters the venv chain runs under it
+        ("elemctl.exe", "elemctl mcp", SERVER),
+        ("python.exe", r'"C:\venv\Scripts\python.exe"  "C:\bin\elemctl.exe" mcp', SERVER),
+        ("elemctl.exe", "elemctl --env-file demo.env mcp", SERVER),
+        ("elemctl.exe", "elemctl --lang=en mcp", SERVER),
+        ("python3", "/usr/bin/python3 -m elemctl mcp", SERVER),
+        ("python3", "/usr/bin/python3 -m elemctl.mcp_server", SERVER),
+        ("python3.12", "/opt/py/bin/python3.12 -X utf8 -m elemctl --quiet mcp", SERVER),
+        ("elemctl", "/usr/bin/python3 /home/u/.local/bin/elemctl mcp", SERVER),
+        # a path with spaces, its quotes lost by the listing
+        ("python.exe", r"C:\Program Files\Python\python.exe -m elemctl mcp", SERVER),
+        # commands: the same launch shapes with another subcommand
+        ("elemctl.exe", r'"C:\bin\elemctl.exe" mr-create --from-step merge', COMMAND),
+        ("python.exe",
+         r'"C:\venv\Scripts\python.exe"  "C:\bin\elemctl.exe" mr-create --from-step merge', COMMAND),
+        ("elemctl.exe", "elemctl deploy demo-app --env-file mcp.env", COMMAND),
+        # the value of a global option is not the subcommand
+        ("elemctl.exe", "elemctl --env-file mcp apps list", COMMAND),
+        ("python3", "/usr/bin/python3 -m elemctl apps list", COMMAND),
+        ("python.exe", "python.exe -Pm elemctl self-update", COMMAND),
+        ("elemctl", "/home/u/.local/bin/elemctl builds upload app.xasm", COMMAND),
+        # ours, but what it runs cannot be told: a command, never a server
+        ("elemctl.exe", "", COMMAND),
+        # not ours, whatever the arguments mention
+        ("claude.exe", "claude.exe --mcp-server elemctl mcp", ""),
+        ("python.exe", "python.exe -m http.server", ""),
+        ("python.exe", 'python.exe -c "import elemctl; elemctl.run()" mcp', ""),
+        ("python.exe", r"python.exe tools\watch.py --tool C:\bin\elemctl.exe mcp", ""),
+        ("Code.exe", r"Code.exe --folder-uri file:///c:/work/elemctl", ""),
+    ],
+)
+def test_a_server_is_told_from_a_command_by_its_command_line(name, line, kind):
+    assert selfupdate.holder_kind(name, line) == kind
+    assert selfupdate.is_holder(name, line) is bool(kind)
+
+
+def _listing(monkeypatch):
+    """A machine running an MCP session and, in another session, a command waiting for a pipeline.
+
+    Both are console scripts started through the launcher of a venv made by uv: the launcher,
+    the interpreter of the venv and the base interpreter under it.
+    """
+    monkeypatch.setattr(
+        selfupdate, "_process_listing",
+        lambda: [
+            (10, 1, "claude.exe", "claude.exe"),
+            (11, 10, "elemctl.exe", "elemctl mcp"),
+            (12, 11, "python.exe", r'"C:\venv\Scripts\python.exe"  "C:\bin\elemctl.exe" mcp'),
+            (13, 12, "python.exe", r'"C:\venv\Scripts\python.exe"  "C:\bin\elemctl.exe" mcp'),
+            (20, 1, "pwsh.exe", "pwsh.exe"),
+            (21, 20, "elemctl.exe", r'"C:\bin\elemctl.exe" mr-create --from-step merge'),
+            (22, 21, "python.exe",
+             r'"C:\venv\Scripts\python.exe"  "C:\bin\elemctl.exe" mr-create --from-step merge'),
+        ],
+    )
+
+
+def test_holders_carry_the_kind_and_the_command_line(monkeypatch):
+    _listing(monkeypatch)
+    found = {item["pid"]: item for item in selfupdate.holders()}
+    assert {pid: item["kind"] for pid, item in found.items()} == {
+        11: SERVER, 12: SERVER, 13: SERVER, 21: COMMAND, 22: COMMAND,
+    }
+    # the double space the launcher leaves between the words is not repeated in a message
+    assert found[22]["command_line"] == (
+        r'"C:\venv\Scripts\python.exe" "C:\bin\elemctl.exe" mr-create --from-step merge'
+    )
+    assert found[22]["ppid"] == 21
+
+
+def _ended(monkeypatch):
+    """Record the pids the update asks to stop, stopping nothing."""
+    ended: list[int] = []
+    monkeypatch.setattr(selfupdate, "_end", lambda pid: ended.append(pid) or "")
+    return ended
+
+
+def _system_stops(monkeypatch, gone=(), failing=()):
+    """Stand in for taskkill and kill: `gone` answer "not found", `failing` refuse."""
+    ended: list[int] = []
+
+    def fake_run(command, **kwargs):
+        assert command[0] == "taskkill" and command[-1] == "/F"
+        pid = int(command[command.index("/PID") + 1])
+        ended.append(pid)
+        code = 128 if pid in gone else 1 if pid in failing else 0
+        return subprocess.CompletedProcess(command, code)
+
+    def fake_kill(pid, sig):
+        ended.append(pid)
+        if pid in gone:
+            raise ProcessLookupError(pid)
+        if pid in failing:
+            raise PermissionError(1, "Operation not permitted")
+
+    monkeypatch.setattr(selfupdate.subprocess, "run", fake_run)
+    monkeypatch.setattr(selfupdate.os, "kill", fake_kill)
+    return ended
+
+
+def test_stop_holders_ends_the_servers_and_leaves_the_commands_running(monkeypatch, tmp_path):
+    site = _install(monkeypatch, tmp_path)
+    _listing(monkeypatch)
+    ended = _ended(monkeypatch)
+    said: list[str] = []
+
+    old, new = selfupdate.self_update(log=said.append, stop=selfupdate.STOP_SERVERS)
+
+    assert new == "9.9.9" and '__version__ = "9.9.9"' in (
+        site / "elemctl" / "__init__.py").read_text(encoding="utf-8")
+    assert sorted(ended) == [11, 12, 13]
+    text = "\n".join(said)
+    # one line for the stopped session, one for the command left alone - pid and command line
+    assert "остановлен сервер: pid 11 – elemctl mcp" in text
+    assert "pid 12" not in text and "pid 13" not in text
+    assert (r'не трогаю идущую команду: pid 21 – "C:\bin\elemctl.exe" mr-create --from-step merge'
+            in text)
+    assert "pid 22" not in text
+
+
+def test_a_command_holding_the_files_ends_in_a_refusal_that_names_it(monkeypatch, tmp_path):
+    site = _install(monkeypatch, tmp_path)
+    _listing(monkeypatch)
+    ended = _ended(monkeypatch)
+    original = selfupdate.Path.rename
+
+    def refuse(self, target):
+        if self.name == "elemctl":
+            raise PermissionError(13, "The process cannot access the file")
+        return original(self, target)
+
+    monkeypatch.setattr(selfupdate.Path, "rename", refuse)
+
+    with pytest.raises(elemctl.errors.ElemctlError) as error:
+        selfupdate.self_update(log=lambda *a: None, stop=selfupdate.STOP_SERVERS)
+
+    message = str(error.value)
+    assert r'Идут команды: pid 21 – "C:\bin\elemctl.exe" mr-create --from-step merge' in message
+    assert "дождитесь конца команд и повторите" in message and "--stop-holders=all" in message
+    assert "НЕ ТРОНУТА" in message
+    assert 21 not in ended and 22 not in ended  # the command lives on
+    assert '__version__ = "0.0.1"' in (site / "elemctl" / "__init__.py").read_text(encoding="utf-8")
+    assert not list(site.glob("*" + selfupdate._BACKUP_SUFFIX))
+
+
+def test_stop_holders_all_ends_the_commands_too(monkeypatch, tmp_path):
+    _install(monkeypatch, tmp_path)
+    _listing(monkeypatch)
+    ended = _ended(monkeypatch)
+    said: list[str] = []
+
+    selfupdate.self_update(log=said.append, stop=selfupdate.STOP_ALL)
+
+    assert sorted(ended) == [11, 12, 13, 21, 22]
+    text = "\n".join(said)
+    assert r'остановлена команда: pid 21 – "C:\bin\elemctl.exe" mr-create --from-step merge' in text
+    assert "не трогаю" not in text
+
+
+def test_without_the_flag_nothing_is_stopped(monkeypatch, tmp_path):
+    _install(monkeypatch, tmp_path)
+    _listing(monkeypatch)
+    ended = _ended(monkeypatch)
+    selfupdate.self_update(log=lambda *a: None)
+    assert ended == []
+
+
+def test_stop_holders_tells_a_process_it_could_not_end(monkeypatch):
+    """A process that is gone already counts as ended; a refusal is named, not taken for a stop."""
+    ended = _system_stops(monkeypatch, gone={12}, failing={21})
+    said: list[str] = []
+    processes = [
+        {"pid": 11, "ppid": 1, "kind": SERVER, "command_line": "elemctl mcp"},
+        {"pid": 12, "ppid": 11, "kind": SERVER, "command_line": "python elemctl mcp"},
+        {"pid": 21, "ppid": 1, "kind": COMMAND, "command_line": "elemctl deploy"},
+    ]
+    alive = selfupdate.stop_holders(processes, said.append)
+    assert ended == [11, 12, 21]
+    assert [item["pid"] for item in alive] == [21]
+    assert said[0] == "остановлен сервер: pid 11 – elemctl mcp"
+    assert said[1].startswith("не удалось остановить pid 21 – elemctl deploy: ")
+    assert len(said) == 2
+
+
+def test_refusals_advise_by_the_kind_of_holder(monkeypatch):
+    server = {"pid": 11, "ppid": 1, "kind": SERVER, "command_line": "elemctl mcp"}
+    command = {"pid": 21, "ppid": 1, "kind": COMMAND, "command_line": "elemctl deploy demo-app"}
+    both = selfupdate._holders_message([server, command])
+    assert both.index("Держат установку серверы: pid 11 – elemctl mcp") < both.index(
+        "либо запустите с --stop-holders") < both.index("Идут команды: pid 21") < both.index(
+        "дождитесь конца команд")
+    # asked to stop the servers and they are still listed: closing them by hand is what is left
+    assert "Закройте их и повторите. Идут команды" in selfupdate._holders_message(
+        [server, command], selfupdate.STOP_SERVERS)
+    assert selfupdate._holders_message([command], selfupdate.STOP_ALL).endswith(
+        "Закройте их и повторите")
+    assert selfupdate._holders_message([]).startswith("Определить держателей не удалось")
+    long = {**command, "command_line": "elemctl deploy " + "x" * 400}
+    assert selfupdate._holders_message([long]).count("x") < 200
+
+
+def test_messages_of_the_holders_are_in_english_too(monkeypatch, tmp_path):
+    _install(monkeypatch, tmp_path)
+    _listing(monkeypatch)
+    _ended(monkeypatch)
+    i18n.set_lang("en")
+    said: list[str] = []
+    selfupdate.self_update(log=said.append, stop=selfupdate.STOP_SERVERS)
+    message = selfupdate._holders_message(selfupdate.holders())
+    # the lines about processes only: the line naming the site quotes a path of the machine
+    text = "\n".join(line for line in said if "pid" in line) + "\n" + message
+    assert "stopped the server: pid 11" in text
+    assert "leaving a running command alone: pid 21" in text
+    assert "Servers holding the installation" in text and "wait for the commands to finish" in text
+    assert not any("а" <= char <= "я" for char in text.lower())
 
 
 # -- the file list comes from the simple index ---------------------------------------------
