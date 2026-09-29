@@ -141,9 +141,11 @@ MESSAGES = {
     },
     "cli.upload-target-from-env": {
         "ru": "цель загрузки – проект {project_id} из ELEMENT_PROJECT_ID (окружение "
-              "или .env-файл); загрузить новым проектом – флаг --new-project",
+              "или .env-файл); загрузить без ид проекта, в проект по Ид из Проект.yaml "
+              "либо новый, – флаг --new-project",
         "en": "upload target is project {project_id} from ELEMENT_PROJECT_ID (the "
-              "environment or the .env file); pass --new-project to upload as a new project",
+              "environment or the .env file); pass --new-project to upload without a project "
+              "id, into the project of the Ид of Проект.yaml or a new one",
     },
     "cli.upload-name-mismatch": {
         "ru": "сборка называет свой проект '{assembly}', а проект-цель называется "
@@ -152,9 +154,8 @@ MESSAGES = {
               "только загрузка сборки с этим именем. Если так и задумано – повторите с "
               "--force-rename; если сборка чужая – укажите --project-id нужного проекта "
               "либо повторите с --new-project. Флаг --new-project безопасен и для сборки "
-              "СВОЕГО проекта: платформа опознаёт проект по паре поставщик плюс имя из "
-              "манифеста, поэтому такая сборка попадает в существующий проект, а не "
-              "заводит второй",
+              "СВОЕГО проекта: платформа опознает проект по Ид из Проект.yaml, поэтому "
+              "такая сборка попадает в существующий проект, а не заводит второй",
         "en": "the assembly calls its project '{assembly}' while the target project is "
               "called '{project}' ({project_id}): the upload RENAMES the project and its "
               "group in the console, and deleting the assembly does not undo it – only "
@@ -162,8 +163,8 @@ MESSAGES = {
               "intended, repeat with --force-rename; if the assembly belongs elsewhere, "
               "pass the right --project-id or repeat with --new-project. That flag is "
               "safe for an assembly of the SAME project too: the platform recognizes a "
-              "project by the vendor and name of the manifest, so such an assembly lands "
-              "in the existing project instead of starting a second one",
+              "project by the Ид of its Проект.yaml, so such an assembly lands in the "
+              "existing project instead of starting a second one",
     },
     "cli.upload-name-mismatch-forced": {
         "ru": "внимание: по флагу --force-rename имя проекта-цели '{project}' "
@@ -995,6 +996,13 @@ MESSAGES = {
         "en": "the schema check did not run: the application card names no applied build – "
               "there is nothing to compare against",
     },
+    "deploy.schema-skipped-no-applied-extension": {
+        "ru": "сверка схемы не выполнена: среди расширений приложения нет расширения проекта "
+              "{project} – расширение применяется впервые, сравнивать не с чем",
+        "en": "the schema check did not run: the application has no extension of project "
+              "{project} yet – the extension is applied for the first time, there is nothing "
+              "to compare against",
+    },
     "deploy.schema-skipped-applied-build-not-listed": {
         "ru": "сверка схемы не выполнена: применённой сборки {detail} нет в перечне сборок "
               "проекта {project} – похоже, приложение работает на сборке другого проекта; это "
@@ -1246,6 +1254,49 @@ MESSAGES = {
               "похоже, платформа откатила применение",
         "en": "the applied version {applied} does not match the uploaded one {expected} – "
               "the platform seems to have rolled the apply back",
+    },
+    "deploy.extension-mismatch": {
+        "ru": "расширение {extension} работает на сборке {applied}, а не на загруженной "
+              "{expected} – похоже, платформа откатила применение",
+        "en": "the extension {extension} runs the build {applied}, not the uploaded one "
+              "{expected} – the platform seems to have rolled the apply back",
+    },
+    "deploy.extension-missing": {
+        "ru": "сборка {build} принадлежит расширению {extension} (проект {project}), а среди "
+              "расширений приложения его нет – похоже, платформа откатила применение. "
+              "Расширения приложения: {extensions}",
+        "en": "the build {build} belongs to the extension {extension} (project {project}), and "
+              "the application has no such extension – the platform seems to have rolled the "
+              "apply back. Extensions of the application: {extensions}",
+    },
+    "deploy.extension-unverifiable": {
+        "ru": "применение не проверить: сборка {build} принадлежит расширению {extension} "
+              "(проект {project}), карточка приложения называет только сборку самого "
+              "приложения, а перечень расширений есть лишь в Console API 2.1. {reason}",
+        "en": "the apply cannot be verified: the build {build} belongs to the extension "
+              "{extension} (project {project}), the card of the application names the build of "
+              "the application alone, and the list of extensions exists in Console API 2.1 "
+              "only. {reason}",
+    },
+    "deploy.extension-lookup-failed": {
+        "ru": "не удалось узнать, не сборка ли {build} расширения: {error}. Вердикт вынесен по "
+              "карточке приложения, а она называет только сборку самого приложения",
+        "en": "could not find out whether {build} is a build of an extension: {error}. The "
+              "verdict rests on the card of the application, which names the build of the "
+              "application alone",
+    },
+    "deploy.extension-disabled": {
+        "ru": "расширение {extension} применено, но выключено: приложение его не использует",
+        "en": "the extension {extension} is applied but disabled: the application does not "
+              "use it",
+    },
+    "deploy.extension-evidence": {
+        "ru": "сборка принадлежит проекту расширения {project}: карточка приложения называет "
+              "только сборку самого приложения, поэтому применение сверено по перечню его "
+              "расширений (Console API 2.1)",
+        "en": "the build belongs to the extension project {project}: the card of the application "
+              "names the build of the application alone, so the apply was checked against the "
+              "list of its extensions (Console API 2.1)",
     },
     "deploy.verify-passed": {
         "ru": "проверка пройдена: сборка применена",
@@ -1875,10 +1926,12 @@ MESSAGES = {
         "en": "upload an assembly file (.xasm/.xlib)",
     },
     "cli.help.builds-upload-new-project": {
-        "ru": "загрузить сборку новым проектом, игнорируя ELEMENT_PROJECT_ID из "
-              "окружения и .env-файла",
-        "en": "upload the build as a new project, ignoring ELEMENT_PROJECT_ID from "
-              "the environment and the .env file",
+        "ru": "загрузить сборку без ид проекта, игнорируя ELEMENT_PROJECT_ID из "
+              "окружения и .env-файла: сервер положит ее в проект с ее Ид из Проект.yaml "
+              "либо заведет новый",
+        "en": "upload the build without a project id, ignoring ELEMENT_PROJECT_ID from "
+              "the environment and the .env file: the server puts it into the project of "
+              "the Ид of its Проект.yaml or creates a new one",
     },
     "cli.help.builds-upload-force-rename": {
         "ru": "разрешить загрузку сборки с чужим именем: панель переименует "
@@ -1906,10 +1959,13 @@ MESSAGES = {
               "deploys nothing",
     },
     "cli.help.verify-version-id": {
-        "ru": "ид загруженной сборки, которую ждём применённой – надёжная сверка "
-              "(строку версии сборки, загруженной в проект, сервер назначает сам)",
+        "ru": "ид загруженной сборки, которую ждем примененной – надежная сверка "
+              "(строку версии сборки, загруженной в проект, сервер назначает сам); "
+              "сборку расширения команда узнает сама и сверяет с расширениями приложения",
         "en": "id of the uploaded build expected to be applied – the reliable comparison "
-              "(the server assigns the version string of a build uploaded into a project)",
+              "(the server assigns the version string of a build uploaded into a project); "
+              "a build of an extension is recognized and checked against the extensions of "
+              "the application",
     },
     "cli.help.verify-expected-version": {
         "ru": "строка версии вместо ид сборки – запасная сверка",

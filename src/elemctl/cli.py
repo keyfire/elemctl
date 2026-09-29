@@ -1255,8 +1255,8 @@ def cmd_probe(args):
 
     The environment is taken WITHOUT ELEMENT_APP_ID and ELEMENT_PROJECT_ID: the
     probe must not be able to reach the working application, and the target
-    project is chosen by the platform out of the vendor and the name of the
-    manifest. The exit code follows the compilation verdict; leftovers of a
+    project is chosen by the platform out of the Ид of the project descriptor.
+    The exit code follows the compilation verdict; leftovers of a
     failed cleanup go to stderr, they do not change the verdict.
 
     --cleanup APP_ID is the other half of --keep: it removes a probe already left on

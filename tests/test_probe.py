@@ -130,8 +130,8 @@ def test_probe_success_cleans_up_after_itself(project_factory, tmp_path):
     assert report.errors == []
     assert report.status == "Running"
     # The upload goes WITHOUT a project id: the platform routes the build by the
-    # vendor and the name of the manifest, and the probe must not be able to
-    # reach the project of the environment.
+    # Ид of the project descriptor, and the probe must not be able to reach the
+    # project of the environment.
     upload = next(call for call in client.calls if call[0] == "upload_assembly")
     assert upload[1]["project_id"] is None
     # The throwaway application is created out of a specific build and without a

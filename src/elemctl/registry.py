@@ -46,8 +46,10 @@ LIMIT_ENV = "ELEMCTL_REGISTRY_LIMIT"
 DEFAULT_LIMIT = 1000
 #: The route of an upload into a project by its id: the server numbers the build itself.
 ROUTE_PROJECT = "project"
-#: The route of an upload by the vendor and the name of the manifest, POST /projects or
-#: POST /spaces/{space-id}/projects: the build keeps the version of its archive.
+#: The route of an upload without a project id, POST /projects or
+#: POST /spaces/{space-id}/projects, which the pages call the upload by the vendor and the name:
+#: the server finds the project by the Ид of the descriptor, and the build keeps the version of
+#: its archive.
 ROUTE_NAME = "vendor-name"
 
 
