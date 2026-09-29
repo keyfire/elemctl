@@ -119,7 +119,7 @@ def missing_counters(assemblies, version_key="assembly-version"):
 
     The platform hands out the numbers itself, one after another within a base version
     ("1.0.2-1", "1.0.2-2", ...), so the numbers of a base run unbroken while nothing is taken
-    away and nothing comes by the vendor and the name. A hole in them - or a base whose first
+    away and nothing is uploaded without a project id. A hole in them - or a base whose first
     numbers are simply not there - is a build the platform has deleted, or a jump: a number
     nobody had, because the build above it brought its own from the archive. The count cannot
     tell the two apart; `numbering_holes` gives the holes themselves, for a caller that can.
@@ -154,8 +154,8 @@ def numbering_holes(assemblies, version_key="assembly-version"):
     another, or below the lowest build of a base that does not start at 1 - and then there is
     no build below it. What a hole means the numbers cannot say. It is a build the platform
     deleted when the numbers were handed out one by one, and it is a number nobody ever had
-    when the build above it brought its number from the archive: an upload by the vendor and
-    the name keeps the version it is given, and the next upload into the project counts on
+    when the build above it brought its number from the archive: an upload without a project
+    id keeps the version it is given, and the next upload into the project counts on
     from it. The created stamps of the two builds cannot tell the two apart either - the
     server hands numbers out as fast as uploads come, ten a second in a live check. Telling
     them apart is the caller's, by what it knows of the build above.

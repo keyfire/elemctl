@@ -27,7 +27,7 @@ from .errors import (
     TransportError,
     UnknownMethodError,
 )
-from .registry import ROUTE_NAME, remembered_uploads
+from .registry import ROUTE_NO_PROJECT_ID, remembered_uploads, upload_route
 from .transport import UrllibTransport
 from .versions import (
     newest_first,
@@ -512,18 +512,18 @@ def builds_summary(assemblies, shown, remembered=None):
     time when we believed the platform capped the store. It does not: there is no cap, a
     listing of any length can be what survived, and thirty said nothing about either.
 
-    A hole can also be a jump. An upload by the vendor and the name keeps the version of
+    A hole can also be a jump. An upload without a project id keeps the version of
     its archive, a number far above the project's count included, and the next upload into
     the project counts on from it: seen live, `1.0.0-3` was followed by `1.0.0-500` and then
     `1.0.0-501`, and the numbers between had never existed. The numbers cannot tell the two
     apart and neither can the created stamps, so the local registry of uploads does: a hole
-    under a build this machine uploaded by the vendor and the name is a jump. It is named as
+    under a build this machine uploaded without a project id is a jump. It is named as
     one, and it is no evidence of the housekeeping. A build uploaded that way elsewhere is
     not in the registry, and its hole still reads as a deletion. remembered - the registry
     lines by build id, read here when not given.
 
     A hole can be a jump and a deletion at once, and the registry tells that too. Seen live:
-    `1.0.0-8` was followed by `1.0.0-50`, uploaded by the vendor and the name, and by
+    `1.0.0-8` was followed by `1.0.0-50`, uploaded without a project id, and by
     `1.0.0-51`, and after those two were deleted the listing went from `1.0.0-8` straight to
     `1.0.0-52`. The build above that hole was numbered by the server, so the hole read as a
     deletion alone, while most of it was a jump. And the other way round: a jump to
@@ -628,13 +628,15 @@ def _kept_its_number(entry):
     """Whether a registry line is an upload that kept the number of its archive.
 
     A line written before the registry kept the route is judged by its command: a probe
-    always uploads by the vendor and the name, a deploy always into a project by its id.
+    always uploads without a project id, a deploy always into a project by its id. A line
+    written before the route got its present name carries the older value, and
+    `upload_route` reads it as the same route.
     """
     if not isinstance(entry, dict):
         return False
-    route = entry.get("route")
+    route = upload_route(entry)
     if route:
-        return route == ROUTE_NAME
+        return route == ROUTE_NO_PROJECT_ID
     return entry.get("command") == "probe"
 
 
@@ -1886,8 +1888,8 @@ class ElementClient:
         The space of an upload into a project goes as the `space-id` query
         parameter, spelled the way the reference spells it: the server reads that
         one, refusing a malformed id with a 400 and an unknown space with a 404,
-        and ignores the PascalCase `SpaceId` the client used to send. An upload by
-        the vendor and the name documents no space parameter at all, and the server
+        and ignores the PascalCase `SpaceId` the client used to send. An upload
+        without a project id documents no space parameter at all, and the server
         reads neither spelling there, so a space given for such an upload goes into
         the path instead: POST /spaces/{space-id}/projects is the method the
         reference documents for creating a project in a space. Without a space the

@@ -49,7 +49,7 @@ from .client import (
     extract_project_id,
 )
 from .errors import ApiError, ConfigError, ElemctlError
-from .registry import ROUTE_NAME, remember_build, remembered_uploads
+from .registry import ROUTE_NO_PROJECT_ID, remember_build, remembered_uploads
 
 # The prefix of the throwaway application name; the same token goes into the
 # build version, so that leftovers of an interrupted run can be matched up.
@@ -414,7 +414,7 @@ def _remember_probe(client, result, response, report, app_id, log):
         stand=str(getattr(getattr(client, "config", None), "base_url", "") or ""),
         command="probe",
         app_id=app_id or None,
-        route=ROUTE_NAME,
+        route=ROUTE_NO_PROJECT_ID,
     )
     if warning:
         log(warning)

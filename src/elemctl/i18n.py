@@ -337,18 +337,18 @@ MESSAGES = {
               "build the project has on the platform",
     },
     "client.builds-summary-jump": {
-        "ru": ". Скачок {jumps} – не удаление: эту сборку машина загрузила по поставщику и "
-              "имени, номер она принесла из архива, и счёт проекта пошёл от него",
-        "en": ". The jump {jumps} is no deletion: this machine uploaded that build by the vendor "
-              "and the name, it brought its number from the archive, and the count of the "
+        "ru": ". Скачок {jumps} – не удаление: эту сборку машина загрузила без ид проекта, "
+              "номер она принесла из архива, и счет проекта пошел от него",
+        "en": ". The jump {jumps} is no deletion: this machine uploaded that build without a "
+              "project id, it brought its number from the archive, and the count of the "
               "project went on from it",
     },
     "client.builds-summary-jumps": {
-        "ru": ". Скачки {jumps} – не удаления: эти сборки машина загрузила по поставщику и "
-              "имени, номера они принесли из архива, и счёт проекта пошёл от них",
-        "en": ". The jumps {jumps} are no deletions: this machine uploaded those builds by the "
-              "vendor and the name, they brought their numbers from the archive, and the count "
-              "of the project went on from them",
+        "ru": ". Скачки {jumps} – не удаления: эти сборки машина загрузила без ид проекта, "
+              "номера они принесли из архива, и счет проекта пошел от них",
+        "en": ". The jumps {jumps} are no deletions: this machine uploaded those builds without "
+              "a project id, they brought their numbers from the archive, and the count of "
+              "the project went on from them",
     },
     "client.builds-summary-trimmed": {
         "ru": "показано {shown} из {total} – в нумерации сборок есть пропуски: сборки, "
@@ -365,11 +365,11 @@ MESSAGES = {
         "en": "below {above}",
     },
     "client.builds-summary-jump-and-loss": {
-        "ru": ". Пропуск {gap} – и скачок, и удаление: сборку {top} машина загрузила по "
-              "поставщику и имени, и номер она принесла из архива, а из загрузок этой машины "
-              "в проект в перечне уже нет {gone}",
+        "ru": ". Пропуск {gap} – и скачок, и удаление: сборку {top} машина загрузила без ид "
+              "проекта, и номер она принесла из архива, а из загрузок этой машины в проект в "
+              "перечне уже нет {gone}",
         "en": ". The gap {gap} is a jump and a deletion at once: this machine uploaded {top} "
-              "by the vendor and the name, and it brought its number from the archive, while "
+              "without a project id, and it brought its number from the archive, while "
               "the listing no longer has these uploads of this machine into the project: "
               "{gone}",
     },
@@ -1750,6 +1750,42 @@ MESSAGES = {
         "ru": "приложение уже есть, и на нём та самая сборка {requested}",
         "en": "the application already exists and already runs assembly {requested}",
     },
+    "cli.ensure.extension-already": {
+        "ru": "приложение уже есть, и его расширение {extension} работает на той самой сборке "
+              "{requested} (сверено по перечню расширений приложения, Console API 2.1)",
+        "en": "the application already exists, and its extension {extension} already runs the "
+              "build {requested} (checked against the list of its extensions, Console API 2.1)",
+    },
+    "cli.ensure.extension-differs": {
+        "ru": "приложение уже есть, а его расширение {extension} работает на сборке {applied}, "
+              "а не на {requested}: сборка НЕ применена. Примените ее командой elemctl apps "
+              "apply {app_id} {requested} либо повторите ensure с флагом --apply",
+        "en": "the application already exists, and its extension {extension} runs the build "
+              "{applied} rather than {requested}: the build was NOT applied. Apply it with "
+              "elemctl apps apply {app_id} {requested}, or repeat ensure with --apply",
+    },
+    "cli.ensure.extension-missing": {
+        "ru": "приложение уже есть, а расширения {extension} (проект {project}) среди его "
+              "расширений нет: сборка {requested} НЕ применена. Примените ее командой elemctl "
+              "apps apply {app_id} {requested} либо повторите ensure с флагом --apply",
+        "en": "the application already exists, and the extension {extension} (project "
+              "{project}) is not among its extensions: the build {requested} was NOT applied. "
+              "Apply it with elemctl apps apply {app_id} {requested}, or repeat ensure with "
+              "--apply",
+    },
+    "cli.ensure.extension-unverifiable": {
+        "ru": "приложение уже есть, а сборка {requested} принадлежит расширению {extension} "
+              "(проект {project}): карточка приложения называет только сборку самого "
+              "приложения, а перечень расширений есть лишь в Console API 2.1, которого у "
+              "сервера нет. Применена ли сборка, не проверить; применить ее можно командой "
+              "elemctl apps apply {app_id} {requested} либо флагом --apply",
+        "en": "the application already exists, and the build {requested} belongs to the "
+              "extension {extension} (project {project}): the card of the application names "
+              "the build of the application alone, and the list of extensions exists in "
+              "Console API 2.1 only, which the server lacks. Whether the build is applied "
+              "cannot be checked; apply it with elemctl apps apply {app_id} {requested}, or "
+              "with --apply",
+    },
     "cli.help.apps-delete": {
         "ru": "удалить приложение (необратимо, URL меняется при пересоздании)",
         "en": "delete an application (irreversible; the URL changes on re-creation)",
@@ -2172,12 +2208,11 @@ MESSAGES = {
     "cli.help.probe": {
         "ru": "изолированная проверка компиляции: сборка -> одноразовое приложение -> "
               "ошибки с файлом и позицией -> уборка; каталог проекта обязан лежать по "
-              "схеме {{репозиторий}}/{{Поставщик}}/{{Имя}}/Проект.yaml – по паре "
-              "Поставщик+Имя платформа опознаёт проект",
+              "схеме {{репозиторий}}/{{Поставщик}}/{{Имя}}/Проект.yaml, как этого требует "
+              "сборка",
         "en": "isolated compilation check: build -> throwaway application -> errors with "
               "file and position -> cleanup; the project directory must follow the "
-              "{{repository}}/{{Vendor}}/{{Name}}/Project.yaml layout – the Vendor+Name "
-              "pair is how the platform identifies the project",
+              "{{repository}}/{{Vendor}}/{{Name}}/Project.yaml layout a build requires",
     },
     "cli.help.probe-project-dir": {
         "ru": "каталог проекта – вида .../{{Поставщик}}/{{Имя}} с Проект.yaml внутри "

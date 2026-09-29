@@ -120,7 +120,8 @@ PITCH_ITEMS = (
 #: meets the 401 of a missing handler: the pages had it renewing the token first. The tenth is
 #: when the housekeeping runs and what it spares, which every place left to a collector that
 #: would get to a build some day. The eleventh is what identifies a project, which every place
-#: put down to the vendor and the name of the manifest.
+#: put down to the vendor and the name of the manifest. The twelfth is the name of an upload
+#: that names no project, which every place took from that same belief.
 CLAIMS = (
     Claim(
         name="the platform deletes the builds nobody uses, whatever their age",
@@ -268,8 +269,8 @@ CLAIMS = (
             "идёт до конца срока",
         ),
     ),
-    # A hole in the numbering of builds was a deletion, full stop. An upload by the vendor
-    # and the name keeps the number of its archive, and the count of the project goes on
+    # A hole in the numbering of builds was a deletion, full stop. An upload without a
+    # project id keeps the number of its archive, and the count of the project goes on
     # from it, so a hole can be a jump nobody deleted anything in.
     Claim(
         name="a hole in the numbering of builds is a deletion or a jump",
@@ -314,7 +315,7 @@ CLAIMS = (
     ),
     # The pages said everything else goes "when the collector gets to it", which read as a
     # timer. The console deletes at one moment only, when an application of the project
-    # finishes applying a build, and it spares a build uploaded by the vendor and the name:
+    # finishes applying a build, and it spares a build uploaded without a project id:
     # such a build is protected on arrival. Checked against the source of the console and live.
     Claim(
         name="the housekeeping runs when an application of the project finishes applying a "
@@ -364,6 +365,28 @@ CLAIMS = (
             "routes it by the vendor and the name of the manifest",
             "chosen by the platform out of the vendor and the name",
             "выбирает сама платформа по поставщику и",
+            "pair is how the platform identifies the project",
+            "Поставщик+Имя платформа опознаёт проект",
+            "Поставщик+Имя платформа опознает проект",
+        ),
+    ),
+    # The upload that names no project was called the upload by the vendor and the name, after
+    # the belief the claim above corrects. The server finds the project of such an upload by the
+    # Ид of its descriptor, so the name pointed at a key that is not there. The registry of
+    # uploads wrote the same name as the value of the route; a new line carries the new value,
+    # and an old one is read as the route it records.
+    Claim(
+        name="an upload that names no project is an upload without a project id",
+        told_in=(
+            "docs/SPEC.md", "docs/SPEC.ru.md",
+            "docs/platform.md", "docs/platform.ru.md",
+            "docs/mcp.md", "docs/mcp.ru.md",
+            "src/elemctl/client.py", "src/elemctl/registry.py", "src/elemctl/i18n.py",
+        ),
+        wording=("without a project id", "без ид проекта"),
+        retired=(
+            "by the vendor and the name",
+            "по поставщику и имени",
         ),
     ),
 )

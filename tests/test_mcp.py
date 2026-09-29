@@ -622,6 +622,46 @@ def test_ensure_app_verify_checks_the_application_it_found(monkeypatch):
     assert calls[0][0] == "app-7"
 
 
+def test_ensure_app_calls_an_applied_extension_applied(api, monkeypatch):
+    """The tool twin of the CLI: the card names the build of the application alone.
+
+    An extension build it does not name is found among the builds of the extension projects and
+    judged by the extensions of the application; the card alone answered applied: false.
+    """
+    client, transport = api
+    app, app_build = "app-7", "asm-app"
+    ext_project, ext_build = "proj-ext", "asm-ext-2"
+    transport.add("GET", "/console/api/v2/applications", [{
+        "id": app, "name": "crm-dev", "status": "Running",
+        "source": {"project-version-id": app_build, "project-version": "1.0-7"},
+    }])
+    transport.add("GET", "/console/api/v2/projects", [
+        {"id": ext_project, "name": "crm-extras", "project-kind": "Extension"},
+    ])
+    transport.add("GET", f"/console/api/v2/projects/{ext_project}/assemblies", [{
+        "id": ext_build, "assembly-version": "1.0-2", "project-id": ext_project,
+        "project-developer": "acme", "project-name": "crm-extras",
+    }])
+    transport.add("GET", f"/console/api/v2.1/applications/{app}/project", {
+        "extension-projects": [{
+            "id": "ext-1", "project-id": ext_project, "enabled": True,
+            "vendor-name": "acme", "project-name": "crm-extras", "assembly-version": "1.0-2",
+        }],
+    })
+    server = _server_on(monkeypatch, client)
+
+    result = asyncio.run(
+        server.call_tool("ensure_app", {"name": "crm-dev", "version_id": ext_build})
+    )
+    payload = json.loads(call_result_content(result)[0].text)
+
+    assert payload["created"] is False
+    assert payload["applied"] is True
+    assert payload["applied-version-id"] == ext_build
+    assert payload["extension-project-id"] == ext_project
+    assert payload["extension"]["assembly-version"] == "1.0-2"
+
+
 def test_ensure_app_keeps_the_id_when_the_wait_breaks_off(monkeypatch):
     """The tool twin of the CLI answer: the created application is not lost with the wait."""
     from elemctl.errors import TransportError

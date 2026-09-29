@@ -9,9 +9,13 @@ and the check has to say so rather than report a rollback.
 
 from __future__ import annotations
 
+import json
 from datetime import datetime, timedelta, timezone
 
-from elemctl.deploy import deploy_from_sources, verify_deploy
+import pytest
+
+from elemctl import cli
+from elemctl.deploy import deploy_from_sources, running_build, verify_deploy
 
 API = "/console/api/v2"
 API_2_1 = "/console/api/v2.1"
@@ -321,3 +325,105 @@ def test_the_schema_guard_of_a_first_extension_apply_has_nothing_to_compare(
 
     assert report.schema_check == "skipped:no-applied-extension"
     assert report.ok is True
+
+
+# -- apps ensure over an application that already exists -------------------------------
+
+APPS_PATH = f"{API}/applications"
+UPDATE_PATH = f"{API}/applications/{APP}/project/update"
+
+
+@pytest.fixture
+def ensure_cli(api, monkeypatch, tmp_path):
+    """`apps ensure` on the stub transport, away from the variables and the .env of the machine."""
+    for key in (
+        "ELEMENT_BASE_URL", "ELEMENT_CLIENT_ID", "ELEMENT_CLIENT_SECRET",
+        "ELEMENT_APP_ID", "ELEMENT_PROJECT_ID", "ELEMENT_SPACE_ID",
+    ):
+        monkeypatch.delenv(key, raising=False)
+    monkeypatch.chdir(tmp_path)
+    client, transport = api
+    monkeypatch.setattr(cli, "make_client", lambda config: client)
+    transport.add("GET", APPS_PATH, [CARD])
+    return transport
+
+
+def _ensure(capsys, *extra):
+    rc = cli.main(["apps", "ensure", "demo-app", "--version-id", EXT_BUILD_2, *extra])
+    captured = capsys.readouterr()
+    return rc, json.loads(captured.out), captured.err
+
+
+def test_ensure_calls_an_applied_extension_applied(ensure_cli, capsys):
+    """The card names the build of the application, and ensure used to answer applied: false."""
+    _stand(ensure_cli, extensions=_extensions(_extension("1.0-2")))
+
+    rc, answer, err = _ensure(capsys)
+
+    assert rc == 0
+    assert answer["created"] is False
+    assert answer["applied"] is True
+    # The build the extension runs, not the build on the card.
+    assert answer["applied-version-id"] == EXT_BUILD_2
+    assert answer["extension-project-id"] == EXT_PROJECT
+    assert answer["extension"]["assembly-version"] == "1.0-2"
+    assert "расширение acme/crm-extras" in err and "НЕ применена" not in err
+    assert ensure_cli.calls_to("POST", UPDATE_PATH) == []
+
+
+def test_ensure_names_the_build_an_extension_runs_instead(ensure_cli, capsys):
+    _stand(ensure_cli, extensions=_extensions(_extension("1.0-1")))
+
+    rc, answer, err = _ensure(capsys)
+
+    assert rc == 0
+    assert answer["applied"] is False
+    assert answer["applied-version-id"] == EXT_BUILD_1
+    assert "работает на сборке" in err and "НЕ применена" in err
+    assert f"apps apply {APP} {EXT_BUILD_2}" in err
+    # The build of the application is not what the extension is compared with.
+    assert APP_BUILD not in err
+
+
+def test_ensure_says_the_application_has_no_such_extension(ensure_cli, capsys):
+    _stand(ensure_cli, extensions=_extensions())
+
+    rc, answer, err = _ensure(capsys)
+
+    assert rc == 0
+    assert answer["applied"] is False
+    assert answer["extension"] is None
+    assert "среди его расширений нет" in err
+
+
+def test_ensure_apply_leaves_an_extension_that_runs_the_build_alone(ensure_cli, capsys):
+    """--apply over an extension already on the build: nothing to apply, and nothing is."""
+    _stand(ensure_cli, extensions=_extensions(_extension("1.0-2")))
+
+    rc, answer, _ = _ensure(capsys, "--apply")
+
+    assert rc == 0
+    assert answer["applied"] is True
+    assert ensure_cli.calls_to("POST", UPDATE_PATH) == []
+
+
+def test_ensure_cannot_tell_an_extension_without_console_api_2_1(ensure_cli, capsys):
+    """Without the list of extensions the card alone would read as a build not applied."""
+    _stand(ensure_cli, extensions_status=401)
+
+    rc, answer, err = _ensure(capsys)
+
+    assert rc == 0
+    assert answer["applied"] is None
+    assert answer["extension-project-id"] == EXT_PROJECT
+    assert "Console API 2.1" in err and "не проверить" in err
+
+
+def test_the_build_on_the_card_is_answered_without_looking_for_extensions(api):
+    client, transport = api
+
+    state = running_build(client, APP, APP_BUILD, card=CARD)
+
+    assert state.applied is True
+    assert state.fields() == {"applied": True, "applied-version-id": APP_BUILD}
+    assert transport.calls_to("GET", PROJECTS_PATH) == []
