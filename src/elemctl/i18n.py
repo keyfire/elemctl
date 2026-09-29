@@ -791,15 +791,13 @@ MESSAGES = {
         "en": "the argument {argument} of the command '{name}' of the plugin '{where}' is "
               "boolean, and such an argument can only be an option (a name starting with dashes)",
     },
-    "plugins.multiple-needs-option": {
+    "plugins.multiple-flag": {
         "ru": "аргумент {argument} команды '{name}' плагина '{where}' объявлен повторяемым "
-              "(multiple), а повторяемой может быть только опция со значением: у позиционного "
-              "аргумента нет ключа, который можно повторить, а флаг, указанный дважды, значит "
-              "то же, что указанный один раз",
+              "(multiple), а это флаг: флаг, указанный дважды, значит то же, что указанный "
+              "один раз. Повторяемой может быть опция со значением или позиционный аргумент",
         "en": "the argument {argument} of the command '{name}' of the plugin '{where}' is "
-              "declared multiple, and only an option with a value can be one: a positional "
-              "argument has no key to repeat, and a flag given twice means what it means "
-              "given once",
+              "declared multiple, and it is a flag: a flag given twice means what it means "
+              "given once. An option with a value or a positional argument can be multiple",
     },
     "plugins.multiple-default": {
         "ru": "у повторяемого аргумента {argument} команды '{name}' плагина '{where}' "
@@ -887,6 +885,10 @@ MESSAGES = {
     "cli.help.plugin-multiple": {
         "ru": "(ключ можно повторить, по значению на каждый)",
         "en": "(the key may be repeated, one value each)",
+    },
+    "cli.help.plugin-multiple-positional": {
+        "ru": "(можно назвать несколько значений через пробел)",
+        "en": "(several values may be given, separated by spaces)",
     },
     "cli.help.selfupdate-stop": {
         "ru": "снять серверы, держащие установку (MCP-сессии elemctl), и обновиться. Идущие "

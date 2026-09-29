@@ -68,6 +68,13 @@ ADAPTER_MAIN_CLASS = "com.e1c.g5rt.debugger.adapter.App"
 SURFACE_CLI = "cli"
 SURFACE_MCP = "mcp"
 
+# A positional argument may be multiple (Argument.multiple): it takes several values, and its
+# cli_alias key may be repeated. An older core refuses such a declaration with a PluginError and
+# leaves the whole plugin out, and hasattr(Argument, "multiple") cannot tell that core from this
+# one: the field is there already, for options alone. A plugin that also runs on an older core
+# reads getattr(plugins, "POSITIONAL_MULTIPLE", False) before declaring one.
+POSITIONAL_MULTIPLE = True
+
 _FALSY = {"", "0", "false", "no"}
 
 
@@ -160,8 +167,8 @@ class Argument:
     the inner ones turned into underscores (argparse does exactly that for dest).
     type - one of ARGUMENT_TYPES; bool means a flag (store_true in the CLI, a
     boolean with a default of False in MCP), so a positional argument cannot be
-    one. required works for options; a positional argument is required unless it
-    has required=False, which makes it optional (nargs="?").
+    one. required works for both kinds: a positional argument is optional
+    (nargs="?") unless it has required=True.
 
     cli_alias - a key synonym of a positional argument, CLI only: "--page" lets
     "wiki-get --page 123" reach the same value as "wiki-get 123". The
@@ -175,19 +182,25 @@ class Argument:
     option, one that does not start with a dash, or one that collides with
     another argument's own flag.
 
-    multiple - the option may be given more than once, and the command gets the
-    list of what was given, in the order of the command line: "wiki-attach --file
-    a.png --file b.png" hands over ["a.png", "b.png"]. An absent option hands over
-    the declared default as a list, or [] without one. The CLI builds it with
-    action="append", and the MCP tool gets an array of the declared type. An option
-    without it keeps the last of its repetitions and drops the rest without a word,
-    which is how a command asked to upload seven files uploaded one. Only an option
-    with a value may be multiple: a positional argument has no key to repeat, and a
-    flag given twice says no more than a flag given once. The default is None, a
-    list or a tuple, never a bare value, and the command line replaces it rather
-    than adding to it. A plugin that also runs on an older core checks
-    hasattr(Argument, "multiple") before declaring one: the dataclass there
-    refuses the keyword, and the whole plugin is left out.
+    multiple - the argument takes several values, and the command gets the list of
+    what was given, in the order of the command line. An option may be given more
+    than once: "wiki-attach --file a.png --file b.png" hands over ["a.png",
+    "b.png"], and the CLI builds it with action="append". A positional argument
+    takes its values one after another: "wiki-get 123 456" hands over both, one
+    value or more (nargs="+") when it is required and any number (nargs="*")
+    otherwise. Its cli_alias key may be repeated the way an option is, "wiki-get
+    --page 123 --page 456", and the two forms stay mutually exclusive. An absent
+    argument hands over the declared default as a list, or [] without one, and the
+    MCP tool gets an array of the declared type. An argument without it takes one
+    value: an option keeps the last of its repetitions and drops the rest without a
+    word, which is how a command asked to upload seven files uploaded one. A flag
+    may not be multiple, since a flag given twice says no more than a flag given
+    once. The default is None, a list or a tuple, never a bare value, and the
+    command line replaces it rather than adding to it. A plugin that also runs on
+    an older core checks hasattr(Argument, "multiple") before declaring a multiple
+    option: the dataclass there refuses the keyword, and the whole plugin is left
+    out. A multiple positional argument needs POSITIONAL_MULTIPLE as well, since a
+    core that knows the field for options refuses it on a positional one.
     """
 
     name: str
@@ -210,7 +223,7 @@ class Argument:
 
     @property
     def value_default(self):
-        """The default of the value: False for a flag, a new list for a multiple option,
+        """The default of the value: False for a flag, a new list for a multiple argument,
         otherwise the declared one.
 
         The list is built on every call, so a handler that appends to what it got
@@ -332,9 +345,9 @@ class Command:
                     "plugins.flag-must-be-option",
                     where=where, name=self.name, argument=argument.name,
                 ))
-            if argument.multiple and (argument.type is bool or not argument.is_option):
+            if argument.multiple and argument.type is bool:
                 raise PluginError(i18n.t(
-                    "plugins.multiple-needs-option",
+                    "plugins.multiple-flag",
                     where=where, name=self.name, argument=argument.name,
                 ))
             if argument.multiple and not isinstance(argument.default, (list, tuple, type(None))):

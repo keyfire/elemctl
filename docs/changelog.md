@@ -29,6 +29,9 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
   value as a list, in the order of the command line, and its MCP tool takes an array. An option
   without the field keeps only the last value, which is how a command given seven files uploaded
   one.
+- **A positional plugin argument can take several values too: `multiple=True`.** They follow one
+  another or come through its `cli_alias` key given several times, which kept only the last one,
+  and the MCP tool takes an array. Older cores refuse it: check `plugins.POSITIONAL_MULTIPLE`.
 
 ### Fixed
 

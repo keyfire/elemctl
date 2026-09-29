@@ -1660,13 +1660,33 @@ def _plugin_handler(command):
 def _plugin_value(args, argument):
     """The value of a plugin argument in the parse, or its declared default.
 
-    A multiple option that was never given is None in the parse rather than its default
-    (see _argument_kwargs), so the default comes from the declaration, as a list of its own.
+    A multiple option that was never given is None in the parse rather than its default, and
+    a multiple positional one is not in the parse at all (see _argument_kwargs), so the default
+    comes from the declaration, as a list of its own.
     """
     value = getattr(args, argument.dest, argument.value_default)
     if argument.multiple and value is None:
         return argument.value_default
     return value
+
+
+def _with_note(text, key):
+    """A help text followed by a note of the core, or the note alone when the text is empty."""
+    return " ".join(part for part in (text, i18n.t(key)) if part)
+
+
+class _PositionalChoices(tuple):
+    """The choices of a multiple positional argument, which also admit its absence.
+
+    Before Python 3.14 argparse checks the default of a nargs="*" positional against the
+    choices when the command line gave it no value. That default is argparse.SUPPRESS, which no
+    plugin lists, so an optional argument with choices refused its own absence with "invalid
+    choice: '==SUPPRESS=='". Every value of the command line is still checked, and the help and
+    the refusals list the declared choices alone: iterating the tuple yields nothing else.
+    """
+
+    def __contains__(self, value):
+        return value is argparse.SUPPRESS or super().__contains__(value)
 
 
 def _argument_kwargs(argument):
@@ -1679,14 +1699,23 @@ def _argument_kwargs(argument):
     kwargs["default"] = argument.default
     if argument.choices:
         kwargs["choices"] = list(argument.choices)
+    if argument.multiple and not argument.is_option:
+        # The values follow one another, and a required argument needs one at least. An absent
+        # one stays out of the parse: argparse neither converts the SUPPRESS default of such a
+        # positional nor calls its action with it, and _plugin_value falls back to the
+        # declared default. (A "?" positional needs _MISSING instead, see below.)
+        kwargs["nargs"] = "+" if argument.required else "*"
+        kwargs["default"] = argparse.SUPPRESS
+        if argument.choices:
+            kwargs["choices"] = _PositionalChoices(argument.choices)
+        kwargs["help"] = _with_note(argument.help, "cli.help.plugin-multiple-positional")
+        return kwargs
     if argument.multiple:
         # Every occurrence is kept. The default stays out of the parser: argparse appends the
         # values of the command line to a default list instead of replacing it.
         kwargs["action"] = "append"
         kwargs["default"] = None
-        kwargs["help"] = " ".join(
-            part for part in (argument.help, i18n.t("cli.help.plugin-multiple")) if part
-        )
+        kwargs["help"] = _with_note(argument.help, "cli.help.plugin-multiple")
     if argument.is_option:
         if argument.required:
             kwargs["required"] = True
@@ -1735,17 +1764,30 @@ def _add_aliased_positional(parser, argument):
     dest stays out of the namespace whenever neither form is given, and _plugin_handler
     already falls back to Argument.value_default for exactly that case, the same way it
     does for every other argument.
+
+    A multiple argument keeps the pair and the dest. The positional half takes any number
+    of values (nargs="*", whether one is needed is the group's to say), and the key may be
+    repeated (action="append"), so "--page 1 --page 2" hands over both values rather than
+    the last one. Both halves stay quiet through argparse.SUPPRESS here (see
+    _argument_kwargs). The _MISSING of a single argument would not do: argparse puts a
+    default into the namespace before it parses, and the append would then start from the
+    marker instead of an empty list and fail on it.
     """
     group = parser.add_mutually_exclusive_group(required=argument.required)
     kwargs = _argument_kwargs(argument)
     kwargs.pop("required", None)
-    kwargs.update(nargs="?", default=_MISSING, action=_AliasedPositional)
+    alias = {
+        "dest": argument.dest, "type": argument.type, "default": argparse.SUPPRESS,
+        "choices": list(argument.choices) or None,
+        "help": i18n.t("cli.help.plugin-alias", name=argument.name),
+    }
+    if argument.multiple:
+        kwargs["nargs"] = "*"
+        alias.update(action="append", help=_with_note(alias["help"], "cli.help.plugin-multiple"))
+    else:
+        kwargs.update(nargs="?", default=_MISSING, action=_AliasedPositional)
     group.add_argument(argument.name, **kwargs)
-    group.add_argument(
-        argument.cli_alias, dest=argument.dest, type=argument.type, default=argparse.SUPPRESS,
-        choices=list(argument.choices) or None,
-        help=i18n.t("cli.help.plugin-alias", name=argument.name),
-    )
+    group.add_argument(argument.cli_alias, **alias)
 
 
 def add_plugin_commands(sub, discover=None):
