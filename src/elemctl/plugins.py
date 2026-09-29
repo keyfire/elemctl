@@ -214,6 +214,17 @@ def _global_options() -> dict:
     return {Argument(option).dest: option for option in _GLOBAL_OPTIONS + _GLOBAL_FLAGS}
 
 
+def _cli_namespace():
+    """What the CLI itself keeps in the parse of a plugin command: (value names, options).
+
+    Read off the parser of cli (cli.plugin_namespace) rather than listed here, for the
+    reason _global_options gives. Imported on the call for the same reason as well.
+    """
+    from .cli import plugin_namespace
+
+    return plugin_namespace()
+
+
 @dataclass
 class Command:
     """A command of a plugin: a CLI subcommand and an MCP tool from one declaration.
@@ -263,6 +274,12 @@ class Command:
         positional argument named `timeout` handed its value to the core instead,
         and an `--env-file` of its own gave the MCP tool a second `env_file`, which
         stopped the server from starting.
+
+        Nor may it take a value name the CLI keeps beside the command (`handler`,
+        `command`, `plugin_command` and the rest, cli.plugin_namespace) or an option the
+        subparser answers itself (-h, --help). A positional `handler` replaced the
+        function main calls with a string, and the call ended in a TypeError; an option
+        `--help` stopped the parser of the whole CLI from being built.
         """
         if not self.name or not isinstance(self.name, str):
             raise PluginError(i18n.t("plugins.command-name-required", where=where))
@@ -271,6 +288,10 @@ class Command:
                 i18n.t("plugins.command-handler-required", where=where, name=self.name)
             )
         reserved = _global_options()
+        taken_names, taken_options = _cli_namespace()
+        # A global option has a refusal of its own, the one that names the option, so the
+        # list of taken names this refusal offers leaves the global options out.
+        kept_names = ", ".join(sorted(taken_names - set(reserved)))
         seen = set()
         for argument in self.arguments:
             if not isinstance(argument, Argument):
@@ -317,6 +338,21 @@ class Command:
                     where=where, name=self.name, argument=label, option=clash,
                     options=", ".join(reserved.values()),
                 ))
+            if argument.dest in taken_names:
+                raise PluginError(i18n.t(
+                    "plugins.value-name-taken",
+                    where=where, name=self.name, argument=argument.name,
+                    dest=argument.dest, names=kept_names,
+                ))
+            flags = [argument.name] if argument.is_option else []
+            flags += [argument.cli_alias] if argument.cli_alias else []
+            for flag in flags:
+                if flag in taken_options:
+                    raise PluginError(i18n.t(
+                        "plugins.option-taken",
+                        where=where, name=self.name, argument=argument.name, option=flag,
+                        options=", ".join(taken_options),
+                    ))
         # Collected in a second pass rather than checked against "seen" above: a plugin
         # is free to declare the alias before the option it happens to collide with, and
         # the order must not decide whether the mistake is caught. Left uncaught, it would

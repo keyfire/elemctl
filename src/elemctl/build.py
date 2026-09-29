@@ -35,6 +35,30 @@ SUBSYSTEM_FILES = (SUBSYSTEM_FILE, SUBSYSTEM_FILE_EN)
 # the library in - both spellings, like everything else in a descriptor.
 GLOBAL_SCOPES = ("Глобально", "Global")
 
+# The ВидПроекта/ProjectKind values of a descriptor, both spellings, and the kind the
+# manifest names for each. A descriptor without the key describes an application.
+PROJECT_KINDS = {
+    "приложение": "Application",
+    "application": "Application",
+    "библиотека": "Library",
+    "library": "Library",
+    "расширение": "Extension",
+    "extension": "Extension",
+}
+
+# The version of the manifest format per project kind. The server picks the reader of
+# Assembly.yaml by ManifestVersion, and the reader of 1.0 knows Application and Library
+# alone: an Extension under 1.0 is refused on apply with "Unknown project kind". The
+# console writes 1.1 for an extension and keeps 1.0 for the other kinds, and so does
+# the build: an application or a library stays readable by a server that has no 1.1.
+MANIFEST_VERSIONS = {"Extension": "1.1"}
+DEFAULT_MANIFEST_VERSION = "1.0"
+
+# The kinds whose archive carries the sources of the local libraries they use. The
+# console treats an extension like an application here: both declare Библиотеки and
+# both get the libraries packed beside the project. A library carries itself alone.
+KINDS_WITH_LIBRARIES = ("Application", "Extension")
+
 # Extensions that go into the archive outside the resource directories: sources,
 # images, web resources.
 ALLOWED_EXTENSIONS = {
@@ -83,7 +107,7 @@ class ProjectMeta:
     name: str
     vendor: str
     base_version: str
-    kind: str  # "Application" or "Library"
+    kind: str  # "Application", "Library" or "Extension"
     project_dir: Path
     repo_root: Path
     project_file: Path = None  # the descriptor the metadata was read from
@@ -319,7 +343,7 @@ def read_project_meta(project_dir):
     base_version = descriptor_value(values, "Версия", "Version") or "1.0"
     compatibility = descriptor_value(values, "РежимСовместимости", "CompatibilityMode")
     kind_value = descriptor_value(values, "ВидПроекта", "ProjectKind").lower()
-    kind = "Library" if kind_value in ("библиотека", "library") else "Application"
+    kind = PROJECT_KINDS.get(kind_value, "Application")
     return ProjectMeta(
         name=name,
         vendor=vendor,
@@ -481,10 +505,15 @@ def git_dirty_files(project_dir):
     return [line[3:] for line in completed.stdout.splitlines() if line.strip()]
 
 
+def manifest_version(kind):
+    """The ManifestVersion an archive of this project kind is written with."""
+    return MANIFEST_VERSIONS.get(kind, DEFAULT_MANIFEST_VERSION)
+
+
 def build_manifest(*, kind, vendor, name, version, created, branch="", commit=""):
     """Compose the text of the Assembly.yaml manifest."""
     lines = [
-        "ManifestVersion: 1.0",
+        f"ManifestVersion: {manifest_version(kind)}",
         f"ProjectKind: {kind}",
         f"Vendor: {vendor}",
         f"Name: {name}",
@@ -515,7 +544,7 @@ def build_assembly(
     last_build_version, otherwise a suffix taken from the CI run number (the
     CI_BUILD_NUMBER_VARS variables), and with none of that - "{base version}-1".
     branch and commit override the git metadata (None - take it from git). kind
-    overrides the project kind ("application"/"library").
+    overrides the project kind ("application"/"library"/"extension").
     """
     directory = find_project_dir(project_dir) if project_dir else find_project_dir()
     meta = read_project_meta(directory)
@@ -558,7 +587,9 @@ def build_assembly(
     target_dir.mkdir(parents=True, exist_ok=True)
     archive_path = target_dir / f"{meta.name} {build_version}{extension}"
 
-    projects = local_project_dependencies(meta) if project_kind == "Application" else [meta]
+    projects = (
+        local_project_dependencies(meta) if project_kind in KINDS_WITH_LIBRARIES else [meta]
+    )
     archive_names = []
     skipped_names = []
     clients_without_description = []
@@ -804,10 +835,8 @@ def _normalize_kind(kind):
     value = (kind or "").strip().lower()
     if not value:
         return ""
-    if value in ("library", "библиотека"):
-        return "Library"
-    if value in ("application", "приложение"):
-        return "Application"
+    if value in PROJECT_KINDS:
+        return PROJECT_KINDS[value]
     raise BuildError(i18n.t("build.unknown-kind", kind=kind))
 
 

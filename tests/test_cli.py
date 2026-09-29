@@ -87,6 +87,16 @@ def test_build_command(project_factory, tmp_path, capsys):
     assert archive.name == "crm 1.0-1.xasm"
 
 
+def test_build_command_takes_the_extension_kind(project_factory, tmp_path, capsys):
+    rc = cli.main(
+        ["build", "--project-dir", str(project_factory()), "--output", str(tmp_path / "dist"),
+         "--kind", "extension", "--branch", "", "--commit", ""]
+    )
+
+    assert rc == 0
+    assert json.loads(capsys.readouterr().out)["kind"] == "Extension"
+
+
 def test_deploy_dry_run_builds_only(project_factory, tmp_path, capsys):
     project_dir = project_factory()
     rc = cli.main(

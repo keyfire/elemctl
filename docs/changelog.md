@@ -42,6 +42,12 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
   refusal names the extensions the application has. A server older than the method answers 401
   "Handler of HTTP request ... not found", and elemctl says the server does not know the method
   rather than reading it as a failed sign-in. ([#48](https://github.com/keyfire/elemctl/pull/48))
+- **`apps export` saves the build an application runs.** `elemctl apps export [APP_ID]
+  [--output FILE]` and the MCP tool `export_app` write it to `{Name} {Version}.xasm` after the
+  manifest of the archive, through `POST /applications/{id}/project/export` of Console API 2.0.
+  The console takes the archive from the application server, so a build uploaded into a project
+  comes back with the number the server gave it. The extensions applied to the application are
+  not in it; `apps export-extension` saves them. ([#49](https://github.com/keyfire/elemctl/pull/49))
 
 ### Changed
 - **A wait gives `UNKNOWN` a minute, not the whole timeout.** `deploy` on an application whose
@@ -70,10 +76,44 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
   this machine got. A build uploaded from elsewhere and deleted since is still out of sight, and
   the line after the upload then says, without a warning, that the number is the server's.
   ([#48](https://github.com/keyfire/elemctl/pull/48))
+- **`build` packs an extension as an extension.** A project with `ВидПроекта: Расширение` got
+  `ProjectKind: Application` and `ManifestVersion: 1.0`, and an archive corrected to `Extension` by
+  hand was refused on apply with "Unknown project kind": the server reads a 1.0 manifest with a
+  reader that knows applications and libraries alone. An extension now gets `ManifestVersion: 1.1`
+  and `ProjectKind: Extension`, the pair the console writes; `build --kind` accepts `extension`.
+  ([#49](https://github.com/keyfire/elemctl/pull/49))
+- **A path an old server does not know no longer costs a new token.** The 401 "Handler of HTTP
+  request ... not found" was taken for a refused token: the client signed in again and repeated
+  the request before naming the method as unknown. The text is now read first.
+  ([#49](https://github.com/keyfire/elemctl/pull/49))
+- **`builds list` no longer calls the numbering of an empty listing unbroken.** A project without
+  a single build now hears that it has no builds on the platform, and a listing whose builds carry
+  no number that there is no numbering to judge by.
+  ([#49](https://github.com/keyfire/elemctl/pull/49))
+- **A gap in the build numbering that is a jump and a deletion at once is named as both.** A gap
+  that holds an upload of this machine into the project names the build that brought its number
+  from the archive and the uploads the listing no longer has, and counts as a deletion.
+  ([#49](https://github.com/keyfire/elemctl/pull/49))
+- **The TLS warning names what switched the check off.** `UrllibTransport` takes
+  `tls_off_reason`: the client of a configuration names `ELEMENT_TLS_VERIFY=false`, and a
+  transport built without a reason names no setting at all.
+  ([#49](https://github.com/keyfire/elemctl/pull/49))
+- **A plugin argument may not take a name the CLI keeps beside a command.** A positional
+  `handler` ended the call in `TypeError`, and `--help` or `-h` stopped the whole CLI with a bare
+  `argparse.ArgumentError`. Both are refused at discovery, with the names read off the parser the
+  CLI builds. ([#49](https://github.com/keyfire/elemctl/pull/49))
+- **The wait for a created application stops after a minute of `UNKNOWN`,** like the other
+  waits, instead of running out the ten minutes of its timeout.
+  ([#49](https://github.com/keyfire/elemctl/pull/49))
 
 ### Documentation
 - The specification counted `--version` among the flags accepted after a subcommand and left
   `--lang` out; it is the other way round. ([#48](https://github.com/keyfire/elemctl/pull/48))
+- **When the platform deletes the builds nobody uses:** when an application of the project
+  finishes applying a build. It then looks at the builds of the same base, ten at most, and spares
+  the builds live applications run, the highest-numbered build, release and protected builds; a
+  build uploaded by the vendor and the name is protected on arrival. Checked against the source of
+  the console and live. ([#49](https://github.com/keyfire/elemctl/pull/49))
 
 ## 2026-09-27 – 0.46.0
 

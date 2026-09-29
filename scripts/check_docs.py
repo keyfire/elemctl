@@ -116,7 +116,10 @@ PITCH_ITEMS = (
 #: alone. The sixth is the space of an upload, which the pages and the client spelled the way
 #: the server does not read. The seventh is the list of application statuses, which lacked two
 #: that live checks kept meeting. The eighth is what a hole in the numbering of builds means,
-#: which every place put down to the housekeeping.
+#: which every place put down to the housekeeping. The ninth is the order in which the client
+#: meets the 401 of a missing handler: the pages had it renewing the token first. The tenth is
+#: when the housekeeping runs and what it spares, which every place left to a collector that
+#: would get to a build some day.
 CLAIMS = (
     Claim(
         name="the platform deletes the builds nobody uses, whatever their age",
@@ -282,6 +285,51 @@ CLAIMS = (
             "уже снятая уборкой.\n",
             "которую уборка уже сняла.\n",
             "is a build the platform has deleted, and that is a FACT OF THE ANSWER",
+        ),
+    ),
+    # The 401 of a missing handler was named only after a renewed token had got the same
+    # answer, and the pages said the client renews the token first. The text is read before
+    # the token is renewed now, and a place still telling the older order would describe a
+    # sign-in and a second request that never happen.
+    Claim(
+        name="the 401 of a missing handler is recognized by its text before the token is renewed",
+        told_in=(
+            "docs/SPEC.md", "docs/SPEC.ru.md",
+            "docs/platform.md", "docs/platform.ru.md",
+            "src/elemctl/client.py",
+        ),
+        wording=(
+            "before the token is renewed",
+            "before a new token is asked for",
+            "до обновления токена",
+        ),
+        retired=(
+            "renews the token on a 401 and asks once more",
+            "На 401 клиент обновляет токен",
+            "A renewed token does not change that answer",
+            "Новый токен этот ответ не меняет",
+            "the token was renewed and the request repeated before that answer came back",
+        ),
+    ),
+    # The pages said everything else goes "when the collector gets to it", which read as a
+    # timer. The console deletes at one moment only, when an application of the project
+    # finishes applying a build, and it spares a build uploaded by the vendor and the name:
+    # such a build is protected on arrival. Checked against the source of the console and live.
+    Claim(
+        name="the housekeeping runs when an application of the project finishes applying a "
+             "build",
+        told_in=(
+            "docs/SPEC.md", "docs/SPEC.ru.md",
+            "docs/platform.md", "docs/platform.ru.md",
+            "docs/mcp.md", "docs/mcp.ru.md",
+            "src/elemctl/client.py", "src/elemctl/cli.py",
+            "src/elemctl/mcp_server.py", "src/elemctl/i18n.py",
+        ),
+        wording=("finishes applying", "заканчивает применение"),
+        retired=(
+            "goes when the collector gets to it",
+            "когда до него дойдёт очередь",
+            "когда до него дойдет очередь",
         ),
     ),
 )

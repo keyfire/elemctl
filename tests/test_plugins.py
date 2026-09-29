@@ -305,6 +305,100 @@ def test_names_near_a_global_option_stay_free(monkeypatch, capsys):
     }
 
 
+# --- A plugin argument and the names the CLI keeps beside a command ---------------------
+
+# Read off the parser, the same place the check reads them from. The global options have
+# a check and a message of their own above.
+CLI_NAMES = sorted(cli.plugin_namespace()[0] - {plugins.Argument(o).dest for o in GLOBAL_OPTIONS})
+
+
+def test_the_cli_keeps_the_names_a_plugin_broke_the_call_with():
+    assert {"handler", "command", "plugin_command"} <= set(CLI_NAMES)
+    assert cli.plugin_namespace()[1] == ("-h", "--help")
+
+
+@pytest.mark.parametrize("name", CLI_NAMES)
+def test_a_plugin_argument_may_not_take_a_value_name_the_cli_keeps(monkeypatch, name):
+    """A plugin command is parsed into the namespace of the whole CLI.
+
+    A positional `handler` replaced the function main calls with the string the user typed,
+    and the call ended in `TypeError: 'str' object is not callable`.
+    """
+    _with_commands(monkeypatch, _command(arguments=[plugins.Argument(name)]))
+
+    with pytest.raises(PluginError) as refusal:
+        plugins.plugin_commands()
+
+    message = str(refusal.value)
+    assert f"хранит значение под именем {name}," in message
+    assert "warm-up" in message and "плагин" in message
+
+
+def test_an_option_is_refused_by_its_value_name_as_well(monkeypatch):
+    _with_commands(monkeypatch, _command(arguments=[plugins.Argument("--plugin-command")]))
+
+    with pytest.raises(PluginError, match="под именем plugin_command,"):
+        plugins.plugin_commands()
+
+
+@pytest.mark.parametrize("argument", [
+    plugins.Argument("--help"),
+    plugins.Argument("-h", type=bool),
+    plugins.Argument("stand", required=False, cli_alias="--help"),
+], ids=["option-help", "flag-h", "alias-help"])
+def test_a_plugin_may_not_declare_the_help_of_its_subcommand(monkeypatch, argument):
+    """The subparser answers -h and --help itself, and argparse refused the second one with a
+    bare ArgumentError while the parser of the whole CLI was being built."""
+    _with_commands(monkeypatch, _command(arguments=[argument]))
+
+    with pytest.raises(PluginError) as refusal:
+        plugins.plugin_commands()
+
+    assert "объявляет ключ " in str(refusal.value)
+    assert "-h, --help" in str(refusal.value)
+
+
+def test_a_plugin_that_declares_help_is_named_and_the_core_keeps_working(monkeypatch, capsys):
+    monkeypatch.setattr(plugins, "debug_adapter_paths", lambda: [])
+    _with_commands(monkeypatch, _command(arguments=[plugins.Argument("--help")]))
+
+    assert cli.main(["plugins"]) == 0
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["commands"] == []
+    assert "--help" in payload["failures"][0]["error"]
+
+
+def test_a_positional_handler_no_longer_ends_the_call_in_a_type_error(monkeypatch, capsys):
+    _with_commands(monkeypatch, _command(
+        arguments=[plugins.Argument("handler")], handler=lambda context, **values: values
+    ))
+
+    assert cli.main(["warm-up", "demo-app"]) == 1
+
+    refusal = json.loads(capsys.readouterr().err)
+    assert "warm-up" in refusal["error"] and "handler" in refusal["plugin-failures"][0]["error"]
+
+
+def test_the_names_are_read_off_the_parser(monkeypatch):
+    """A value the core starts to keep beside a command is refused to a plugin at once."""
+    build_parser = cli.build_parser
+
+    def with_region(discover=None):
+        parser = build_parser(discover)
+        parser.set_defaults(region="eu")
+        return parser
+
+    monkeypatch.setattr(cli, "build_parser", with_region)
+    cli.plugin_namespace.cache_clear()
+    try:
+        _with_commands(monkeypatch, _command(arguments=[plugins.Argument("--region")]))
+        with pytest.raises(PluginError, match="под именем region,"):
+            plugins.plugin_commands()
+    finally:
+        cli.plugin_namespace.cache_clear()
+
+
 def test_a_plugin_that_takes_a_global_option_is_named_and_the_core_keeps_working(
     monkeypatch, capsys
 ):

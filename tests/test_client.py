@@ -70,6 +70,43 @@ def test_retry_once_on_401(api):
     assert len(transport.calls_to("GET", f"{API}/applications")) == 2
 
 
+def test_the_401_of_a_missing_handler_does_not_renew_the_token(api):
+    """A console without a handler for the path answers 401, and a new token changes nothing.
+
+    The text is what tells it from a refused token, and it is read before the token is
+    renewed: an old server used to cost a sign-in and a repeated request on every such path.
+    """
+    client, transport = api
+    no_handler = {"error": {
+        "code": 16,
+        "status": "UNAUTHENTICATED",
+        "message": 'Handler of HTTP request "[GET] /v2/applications" in application '
+                   '"console" not found.',
+    }}
+    transport.add("GET", f"{API}/applications", no_handler, status=401)
+
+    with pytest.raises(ApiError) as refusal:
+        client.list_apps()
+
+    assert refusal.value.status == 401
+    assert len(transport.calls_to("GET", f"{API}/applications")) == 1
+    assert len(transport.calls_to("POST", "/console/sys/token")) == 1
+
+
+def test_the_same_text_as_plain_text_is_recognized_too(api):
+    """The console may send the refusal as text rather than JSON; the words decide."""
+    client, transport = api
+    transport.add(
+        "GET", f"{API}/applications", status=401,
+        body='Handler of HTTP request "[GET] /v2/applications" not found.'.encode("utf-8"),
+    )
+
+    with pytest.raises(ApiError):
+        client.list_apps()
+
+    assert len(transport.calls_to("POST", "/console/sys/token")) == 1
+
+
 def test_get_debug_info_posts_to_actions_debug(api):
     client, transport = api
     transport.add(
@@ -830,6 +867,46 @@ def test_the_minute_of_unknown_counts_in_a_row(api):
 
     assert card["status"] == "Stopped"
     assert clock.now == 110  # 50 + 50 s of UNKNOWN, neither spell reaching the minute
+
+
+def test_a_new_application_stuck_in_unknown_stops_after_a_minute(api):
+    """The wait for a created application kept the whole READY_TIMEOUT, ten minutes, on
+    UNKNOWN - create --wait and the probe wait there, and the minute rule had passed it by."""
+    client, transport = api
+    clock = _Clock()
+    client._clock = clock
+    client._sleep = clock.sleep
+    for _ in range(7):
+        transport.add("GET", f"{API}/applications/app-1", {"id": "app-1", "status": "UNKNOWN"})
+    transport.add(
+        "GET", f"{API}/applications/app-1", error=AssertionError("ожидание пережило минуту")
+    )
+
+    with pytest.raises(ApiError) as excinfo:
+        client.wait_app_ready("app-1")
+
+    message = str(excinfo.value)
+    assert "60 с подряд в статусе UNKNOWN, статуса Running/Stopped дальше не ждем" in message
+    assert clock.now == client_module.UNKNOWN_TIMEOUT < client_module.READY_TIMEOUT
+    assert len(transport.calls_to("GET", f"{API}/applications/app-1")) == 7
+
+
+def test_unknown_that_moves_on_lets_a_new_application_become_ready(api):
+    client, transport = api
+    clock = _Clock()
+    client._clock = clock
+    client._sleep = clock.sleep
+    for status in ["Initializing"] * 3 + ["UNKNOWN"] * 5 + ["Initializing", "UNKNOWN"]:
+        transport.add("GET", f"{API}/applications/app-1", {"id": "app-1", "status": status})
+    transport.add(
+        "GET", f"{API}/applications/app-1",
+        {"id": "app-1", "status": "Running", "uri": "https://stand.test/applications/demo-app"},
+    )
+
+    card = client.wait_app_ready("app-1")
+
+    assert card["status"] == "Running"
+    assert clock.now == 100
 
 
 def test_a_zero_minute_refuses_unknown_on_the_first_read(api):

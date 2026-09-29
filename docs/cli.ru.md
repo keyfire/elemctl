@@ -96,6 +96,7 @@ usage: elemctl apps [-h] действие ...
 | `debug` | данные для сессии отладки (debug-token, debug-address) |
 | `users` | пользователи, подключённые к приложению: список, ид, представление, администратор ли и есть ли доступ по токену (логина платформа здесь не отдаёт) |
 | `token-access` | доступ пользователя к HTTP-сервисам приложения по токену: показать или переключить (без него вызов сервиса токеном получает 500 "Token access is denied") |
+| `export` | выгрузить в файл сборку, на которой работает приложение (расширения в нее не входят; их выгружает export-extension) |
 | `export-extension` | выгрузить в файл сборку расширения, примененного в приложении (метод Console API 2.1; сервер без него получает понятный отказ) |
 
 **Параметры**
@@ -357,6 +358,26 @@ usage: elemctl apps token-access [-h] [--app-id APP_ID] [--user USER] [--enable]
 | `--enable` | разрешить доступ по токену и перечитать признак |
 | `--disable` | запретить доступ по токену и перечитать признак |
 
+### `elemctl apps export`
+
+```bash
+usage: elemctl apps export [-h] [--app-id APP_ID] [--output OUTPUT] [APP_ID]
+```
+
+**Аргументы**
+
+| Параметр | Описание |
+|---|---|
+| `APP_ID` | ид (UUID) либо точное имя приложения (по умолчанию ELEMENT_APP_ID) |
+
+**Параметры**
+
+| Параметр | Описание |
+|---|---|
+| `-h, --help` | показать эту справку и выйти |
+| `--app-id APP_ID` | то же приложение ключом: deploy и apps ensure принимают только эту форму |
+| `--output OUTPUT` | файл или каталог для сборки; по умолчанию текущий каталог и имя из манифеста архива, "&lt;Имя&gt; &lt;Версия&gt;.xasm" |
+
 ### `elemctl apps export-extension`
 
 ```bash
@@ -581,7 +602,7 @@ usage: elemctl builds delete [-h] [--project-id PROJECT_ID] VERSION
 ```bash
 usage: elemctl build [-h] [--project-dir PROJECT_DIR] [--output OUTPUT]
                      [--build-version BUILD_VERSION] [--last-build LAST_BUILD] [--commit COMMIT]
-                     [--branch BRANCH] [--kind {application,library}] [--require-clean]
+                     [--branch BRANCH] [--kind {application,library,extension}] [--require-clean]
 ```
 
 **Параметры**
@@ -595,7 +616,7 @@ usage: elemctl build [-h] [--project-dir PROJECT_DIR] [--output OUTPUT]
 | `--last-build LAST_BUILD` | версия последней сборки проекта – для автоинкремента |
 | `--commit COMMIT` | хэш коммита в манифест (по умолчанию из git) |
 | `--branch BRANCH` | имя ветки в манифест (по умолчанию из git) |
-| `--kind {application,library}` | вид проекта (по умолчанию из Проект.yaml/Project.yaml) |
+| `--kind {application,library,extension}` | вид проекта (по умолчанию из Проект.yaml/Project.yaml) |
 | `--require-clean` | прервать сборку, если в каталоге проекта есть незакоммиченные изменения |
 
 ## `elemctl inspect`

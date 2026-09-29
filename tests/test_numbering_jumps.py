@@ -130,6 +130,99 @@ def test_the_cli_prints_the_jump_after_the_answer(monkeypatch, capsys):
     assert "Скачок 1.0-3 -> 1.0-500" in captured.err
 
 
+# --- a jump and a deletion in one hole ------------------------------------------------------
+
+def _listed(*versions, project="proj-1"):
+    return [{**_card(version), "project-id": project} for version in versions]
+
+
+def test_a_jump_that_lost_its_top_is_named_and_the_hole_stays_a_loss():
+    """Seen live: after `1.0-50` (by the vendor and the name) and `1.0-51` were deleted, the
+    listing went from `1.0-8` straight to `1.0-52`, and the hole read as a deletion alone."""
+    _remember("asm-1.0-50", route=ROUTE_NAME, version="1.0-50")
+    _remember("asm-1.0-51", route=ROUTE_PROJECT, version="1.0-51")
+    _remember("asm-1.0-52", route=ROUTE_PROJECT, version="1.0-52")
+
+    line = builds_summary(_listed(*[f"1.0-{n}" for n in range(1, 9)], "1.0-52"), 9)
+
+    assert "есть пропуски" in line and "НЕ вся история" in line
+    assert ("Пропуск 1.0-8 -> 1.0-52 – и скачок, и удаление: сборку 1.0-50 машина загрузила "
+            "по поставщику и имени") in line
+    assert line.endswith("в перечне уже нет 1.0-50, 1.0-51")
+
+
+def test_a_jump_over_a_deleted_upload_of_this_machine_is_no_longer_called_whole():
+    """Also live: the housekeeping deleted `1.0-4` under a jump to `1.0-10`, and the line said
+    the listing had lost nothing and the hole was no deletion."""
+    _remember("asm-1.0-4", route=ROUTE_PROJECT, version="1.0-4")
+    _remember("asm-1.0-10", route=ROUTE_NAME, version="1.0-10")
+
+    line = builds_summary(_listed("1.0-1", "1.0-2", "1.0-3", "1.0-10"), 4)
+
+    assert "есть пропуски" in line and "не удаление" not in line
+    assert "Пропуск 1.0-3 -> 1.0-10 – и скачок, и удаление: сборку 1.0-10" in line
+    assert line.endswith("в перечне уже нет 1.0-4")
+
+
+def test_uploads_into_another_project_do_not_touch_the_hole():
+    _remember("asm-1.0-10", route=ROUTE_NAME, version="1.0-10")
+    assert remember_upload(
+        assembly_id="asm-other", project_id="proj-2", version="1.0-4", branch="", commit="",
+        dirty=None, project_dir=None, file=None, stand="https://stand.test",
+        command="builds upload", route=ROUTE_PROJECT,
+    ) == ""
+
+    line = builds_summary(_listed("1.0-1", "1.0-2", "1.0-3", "1.0-10"), 4)
+
+    assert "пропавших по нумерации сборок не видно" in line
+    assert "Скачок 1.0-3 -> 1.0-10 – не удаление" in line
+
+
+def test_a_long_list_of_lost_uploads_is_cut_short():
+    _remember("asm-1.0-10", route=ROUTE_NAME, version="1.0-10")
+    for number in range(4, 10):
+        _remember(f"asm-1.0-{number}", route=ROUTE_PROJECT, version=f"1.0-{number}")
+
+    line = builds_summary(_listed("1.0-1", "1.0-2", "1.0-3", "1.0-10"), 4)
+
+    assert line.endswith("в перечне уже нет 1.0-4, 1.0-5, 1.0-6 и еще 3")
+
+
+def test_a_gap_under_the_first_build_names_the_build_above_it():
+    _remember("asm-1.0-50", route=ROUTE_NAME, version="1.0-50")
+
+    line = builds_summary(_listed("1.0-52"), 1)
+
+    assert "Пропуск под 1.0-52 – и скачок, и удаление: сборку 1.0-50" in line
+
+
+# --- nothing to judge by --------------------------------------------------------------------
+
+def test_an_empty_listing_does_not_call_its_numbering_unbroken():
+    line = builds_summary([], 0)
+
+    assert line == "показано 0 из 0 – у проекта на платформе нет ни одной сборки"
+
+
+def test_a_listing_without_a_single_number_does_not_judge_it_either():
+    line = builds_summary([_card("1.0-probe-ab12cd34"), _card("1.0")], 2)
+
+    assert "номера нет ни у одной сборки" in line and "сплошная" not in line
+
+
+def test_the_cli_says_so_for_an_empty_project(monkeypatch, capsys):
+    class Listing:
+        def list_assemblies(self, project_id):
+            return []
+
+    monkeypatch.setattr(cli, "make_client", lambda config: Listing())
+
+    assert cli.main(["builds", "list", "--project-id", "proj-1"]) == 0
+    captured = capsys.readouterr()
+    assert json.loads(captured.out) == []
+    assert "нет ни одной сборки" in captured.err and "сплошная" not in captured.err
+
+
 # --- the route every upload writes down -----------------------------------------------------
 
 def test_builds_upload_writes_down_the_way_the_build_went(monkeypatch, project_factory, tmp_path,
