@@ -15,16 +15,7 @@ entry either – say what the behaviour was, not which id or response field was 
 The link is written by `python scripts/changelog-link.py <number>`, which rebuilds the generated
 pages of the site in the same run – writing it by hand is how the mirrors get left behind.
 
-## Unreleased
-
-### Fixed
-
-- **`self-update --stop-holders` no longer ends the commands of other sessions.** A command
-  waiting for a pipeline got cut off with exit code 1 and no verdict. Now the flag stops the MCP
-  servers and names each running command by pid and command line. If one of them holds the files,
-  the update refuses and asks you to wait; `--stop-holders=all` ends the commands as before. ([#53](https://github.com/keyfire/elemctl/pull/53))
-
-## 2026-09-29 – 0.47.0, 0.48.0
+## 2026-09-29 – 0.47.0, 0.48.0, 0.49.0
 
 ### Added
 
@@ -60,6 +51,10 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
 
 ### Fixed
 
+- **`self-update --stop-holders` no longer ends the commands of other sessions.** A command
+  waiting for a pipeline got cut off with exit code 1 and no verdict. Now the flag stops the MCP
+  servers and names each running command by pid and command line. If one of them holds the files,
+  the update refuses and asks you to wait; `--stop-holders=all` ends the commands as before. ([#53](https://github.com/keyfire/elemctl/pull/53))
 - **An upload without a project id no longer renames a project silently.** When the server puts
   the build into the project with the same `Ид` and another name, `builds upload` and `probe` warn
   about it and give the former name in the answer. The name comes from the presentation in
