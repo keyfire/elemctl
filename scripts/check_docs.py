@@ -424,6 +424,24 @@ CLAIMS = (
             "предупредить тут не о",
         ),
     ),
+    # `self-update --stop-holders` ended every process of elemctl it found, and a command of
+    # another session that was waiting for a pipeline died with it, leaving no verdict. The flag
+    # ends the servers now and names the commands; ending them too takes `--stop-holders=all`.
+    # A place still telling the old help would promise the reader that every holder goes.
+    Claim(
+        name="--stop-holders ends the servers and leaves the running commands alone",
+        told_in=(
+            "docs/SPEC.md", "docs/SPEC.ru.md",
+            "docs/index.md", "docs/index.ru.md",
+            "src/elemctl/selfupdate.py", "src/elemctl/i18n.py",
+        ),
+        wording=("--stop-holders=all", "leaves the running commands", "идущие команды"),
+        retired=(
+            "stop the processes holding the installation",
+            "снять процессы, держащие установку",
+            "`--stop-holders` ends them",
+        ),
+    ),
 )
 
 

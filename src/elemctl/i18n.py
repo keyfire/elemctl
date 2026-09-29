@@ -867,10 +867,14 @@ MESSAGES = {
         "en": "the same as the positional argument {name}",
     },
     "cli.help.selfupdate-stop": {
-        "ru": "снять процессы, держащие установку (MCP-сессии elemctl), и обновиться; "
-              "без флага команда только назовёт их",
-        "en": "stop the processes holding the installation (elemctl MCP sessions) and update; "
-              "without the flag the command only names them",
+        "ru": "снять серверы, держащие установку (MCP-сессии elemctl), и обновиться. Идущие "
+              "команды других сессий называются по pid и не трогаются; со значением all "
+              "снимаются и они, и такая команда обрывается без результата. Без флага "
+              "держатели только называются",
+        "en": "stop the servers holding the installation (elemctl MCP sessions) and update. "
+              "Running commands of other sessions are named by pid and left alone; with the "
+              "value all they are stopped too, and such a command ends without a result. "
+              "Without the flag the holders are only named",
     },
     # -- selfupdate.py ------------------------------------------------------------
     "selfupdate.version-not-found": {
@@ -938,24 +942,54 @@ MESSAGES = {
     },
     "selfupdate.busy": {
         "ru": "установку сейчас не заменить – файлы заняты ({error}). {holders}. "
-              "Закройте их и повторите, либо запустите с --stop-holders. "
               "Прежняя установка НЕ ТРОНУТА и работает",
         "en": "the installation cannot be replaced right now – files are held ({error}). "
-              "{holders}. Close them and repeat, or run with --stop-holders. The previous "
-              "installation is UNTOUCHED and working",
+              "{holders}. The previous installation is UNTOUCHED and working",
     },
     "selfupdate.holders": {
-        "ru": "держат установку: {list}",
-        "en": "holding the installation: {list}",
+        "ru": "Держат установку серверы: {list}",
+        "en": "Servers holding the installation: {list}",
+    },
+    "selfupdate.holders-commands": {
+        "ru": "Идут команды: {list}",
+        "en": "Commands are running: {list}",
     },
     "selfupdate.holders-unknown": {
-        "ru": "определить держателей не удалось; обычно это MCP-сессии агента (elemctl mcp)",
-        "en": "could not tell which processes hold it; usually the agent's MCP sessions "
+        "ru": "Определить держателей не удалось; обычно это MCP-сессии агента (elemctl mcp)",
+        "en": "Could not tell which processes hold it; usually the agent's MCP sessions "
               "(elemctl mcp)",
     },
-    "selfupdate.holder-stopped": {
-        "ru": "снят держатель {name} (pid {pid})",
-        "en": "stopped the holder {name} (pid {pid})",
+    "selfupdate.advice-servers": {
+        "ru": "Закройте их и повторите, либо запустите с --stop-holders",
+        "en": "Close them and repeat, or run with --stop-holders",
+    },
+    "selfupdate.advice-close": {
+        "ru": "Закройте их и повторите",
+        "en": "Close them and repeat",
+    },
+    "selfupdate.advice-commands": {
+        "ru": "Это чужая работа, и --stop-holders ее не трогает: дождитесь конца команд и "
+              "повторите. Ключ --stop-holders=all снимет и их, но такая команда оборвется без "
+              "результата",
+        "en": "That is someone else's work, and --stop-holders leaves it alone: wait for the "
+              "commands to finish and repeat. --stop-holders=all stops them as well, and such "
+              "a command ends without a result",
+    },
+    "selfupdate.server-stopped": {
+        "ru": "остановлен сервер: {process}",
+        "en": "stopped the server: {process}",
+    },
+    "selfupdate.command-stopped": {
+        "ru": "остановлена команда: {process}",
+        "en": "stopped the command: {process}",
+    },
+    "selfupdate.stop-failed": {
+        "ru": "не удалось остановить {process}: {error}",
+        "en": "could not stop {process}: {error}",
+    },
+    "selfupdate.command-spared": {
+        "ru": "не трогаю идущую команду: {process}",
+        "en": "leaving a running command alone: {process}",
     },
     "selfupdate.process": {"ru": "процесс", "en": "process"},
     "selfupdate.unpack-failed": {

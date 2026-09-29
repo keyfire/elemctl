@@ -21,6 +21,15 @@ entry either – say what the behaviour was, not which id or response field was 
 The link is written by `python scripts/changelog-link.py <number>`, which rebuilds the generated
 pages of the site in the same run – writing it by hand is how the mirrors get left behind.
 
+## Unreleased
+
+### Fixed
+
+- **`self-update --stop-holders` no longer ends the commands of other sessions.** A command
+  waiting for a pipeline got cut off with exit code 1 and no verdict. Now the flag stops the MCP
+  servers and names each running command by pid and command line. If one of them holds the files,
+  the update refuses and asks you to wait; `--stop-holders=all` ends the commands as before. ([#53](https://github.com/keyfire/elemctl/pull/53))
+
 ## 2026-09-29 – 0.47.0, 0.48.0
 
 ### Added

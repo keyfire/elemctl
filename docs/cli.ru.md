@@ -1158,7 +1158,7 @@ usage: elemctl plugins [-h]
 ## `elemctl self-update`
 
 ```bash
-usage: elemctl self-update [-h] [--version VERSION] [--stop-holders]
+usage: elemctl self-update [-h] [--version VERSION] [--stop-holders [{servers,all}]]
 ```
 
 **Параметры**
@@ -1167,7 +1167,7 @@ usage: elemctl self-update [-h] [--version VERSION] [--stop-holders]
 |---|---|
 | `-h, --help` | показать эту справку и выйти |
 | `--version VERSION` | целевая версия (по умолчанию – последняя с PyPI) |
-| `--stop-holders` | снять процессы, держащие установку (MCP-сессии elemctl), и обновиться; без флага команда только назовёт их |
+| `--stop-holders [{servers,all}]` | снять серверы, держащие установку (MCP-сессии elemctl), и обновиться. Идущие команды других сессий называются по pid и не трогаются; со значением all снимаются и они, и такая команда обрывается без результата. Без флага держатели только называются |
 
 ## `elemctl mcp`
 

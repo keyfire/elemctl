@@ -29,7 +29,7 @@ Development notes and updates (in Russian): the [1C × AI: engineering workshop]
 - **Dumps**: create and check readiness.
 - **MCP server**: the same operations, exposed as tools for AI agents – Claude Code and other MCP clients.
 - **Plugins**: `importlib.metadata` entry points. An external package supplies the platform debug adapter (`elemctl debug-adapter`) and commands of its own, and the core stays small. One `Command` declaration becomes both a CLI subcommand and an MCP tool, so a command that knows your own environment lives in your package instead of a public core.
-- **Self-update**: `elemctl self-update` updates the package by unpacking the wheel. It works even while a running MCP server holds `elemctl.exe`, which is exactly where plain pipx or pip breaks the install.
+- **Self-update**: `elemctl self-update` updates the package by unpacking the wheel. It works even while a running MCP server holds `elemctl.exe`, which is exactly where plain pipx or pip breaks the install. `--stop-holders` ends the MCP servers that hold the package and leaves the running commands of other sessions alone.
 - **In VS Code**: deploy and debugging live in the [XBSL](https://github.com/keyfire/xbsl) extension, which calls elemctl. The deploy button runs `elemctl deploy`, and the debug-session coordinates come from `elemctl apps debug`.
 
 ### Checking that the build was applied

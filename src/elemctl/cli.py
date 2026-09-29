@@ -1582,7 +1582,7 @@ def cmd_self_update(args):
     from . import selfupdate
 
     old, new = selfupdate.self_update(
-        version=args.version, log=_progress, stop_busy=getattr(args, "stop_holders", False)
+        version=args.version, log=_progress, stop=getattr(args, "stop_holders", None) or ""
     )
     _emit({"updated": old != new, "from": old, "to": new})
     return 0
@@ -2349,9 +2349,13 @@ def build_parser(discover=None):
     p.set_defaults(handler=cmd_plugins)
 
     # self-update ---------------------------------------------------------
+    # The bare flag stops the servers alone; the running commands of other sessions are ended
+    # only when asked for by name, `--stop-holders=all`.
+    from .selfupdate import STOP_MODES, STOP_SERVERS
+
     p = sub.add_parser("self-update", help=i18n.t("cli.help.self-update"))
     p.add_argument("--version", help=i18n.t("cli.help.self-update-version"))
-    p.add_argument("--stop-holders", action="store_true",
+    p.add_argument("--stop-holders", nargs="?", const=STOP_SERVERS, choices=STOP_MODES,
                    help=i18n.t("cli.help.selfupdate-stop"))
     p.set_defaults(handler=cmd_self_update)
 
