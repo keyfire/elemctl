@@ -574,7 +574,7 @@ usage: elemctl builds upload [-h] [--project-id PROJECT_ID] [--new-project] [--f
 |---|---|
 | `-h, --help` | show this help message and exit |
 | `--project-id PROJECT_ID` | project; without it the platform creates a new project, which is the only way to create a project through the Console API |
-| `--new-project` | upload the build as a new project, ignoring ELEMENT_PROJECT_ID from the environment and the .env file |
+| `--new-project` | upload the build without a project id, ignoring ELEMENT_PROJECT_ID from the environment and the .env file: the server puts it into the project of the Ид of its Проект.yaml or creates a new one |
 | `--force-rename` | allow uploading an assembly whose name differs: the console renames the target project and its group after the assembly |
 | `--space-id SPACE_ID` | the space to create the project in when `--project-id` is omitted (default: ELEMENT_SPACE_ID) |
 
@@ -832,7 +832,7 @@ usage: elemctl verify-deploy [-h] [--app-id APP_ID] [--version-id VERSION_ID]
 |---|---|
 | `-h, --help` | show this help message and exit |
 | `--app-id APP_ID` | the same application as an option: deploy and apps ensure take this form only |
-| `--version-id VERSION_ID` | id of the uploaded build expected to be applied – the reliable comparison (the server assigns the version string of a build uploaded into a project) |
+| `--version-id VERSION_ID` | id of the uploaded build expected to be applied – the reliable comparison (the server assigns the version string of a build uploaded into a project); a build of an extension is recognized and checked against the extensions of the application |
 | `--expected-version EXPECTED_VERSION` | the version string instead of the build id – the fallback comparison |
 | `--since-minutes SINCE_MINUTES` | how many last minutes of task failures count as ours (default 30) |
 

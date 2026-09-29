@@ -42,7 +42,7 @@ The server reads connection credentials from the same `ELEMENT_*` variables / `.
 | `probe` | check the compilation with the server compiler without touching the working application; errors with file, line and column, cleans up after itself; with `keep` the report names the command that removes what was left |
 | `probe_cleanup` | remove a probe left on the stand, by `keep` or by a cleanup that broke off, starting from its application: the application, the probe build in the probe's own project and the project when nothing is left in it; a probe given its own name and version is known by the local registry of uploads, which also names the builds deployed into it; an application that is not a probe's is refused |
 | `apply_build` | apply an uploaded build to the application by its id |
-| `verify_deploy` | verify the apply actually took effect: failed tasks, the applied build, the availability of the uri |
+| `verify_deploy` | verify the apply actually took effect: failed tasks, the applied build (an extension build by the extensions of the application), the availability of the uri |
 | `list_user_lists` | user lists; `name` filters by a substring of the presentation |
 | `configure_user_list` | self-registration and password sign-in; without the flags it only reports the current state |
 | `list_app_users` | who is connected to an application: the user list, the id, the presentation, whether an administrator and whether token access is on, with a count line; the platform gives no login here |

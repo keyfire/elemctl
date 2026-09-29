@@ -18,96 +18,63 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
 ## Unreleased
 
 ### Added
-- **A plugin command knows where it is called from.** `CommandContext.surface` is `"cli"` in a
-  subcommand and `"mcp"` in a tool (`SURFACE_CLI`, `SURFACE_MCP`), `None` in a context built by
-  hand. A plugin used to tell them apart by the shape of `context.log` alone.
-  ([#47](https://github.com/keyfire/elemctl/pull/47))
-- **`--quiet` is accepted anywhere in a command.** A plugin command with `--quiet` after it was
-  refused as an unrecognized argument before it did any work. The flag is hoisted like `--json`
-  and silences the progress stream: progress lines and warnings on stderr, a plugin's
-  `context.log` among them. The answer, a failure and the exit code stay, and the form of the
-  answer does not change. ([#47](https://github.com/keyfire/elemctl/pull/47))
-- **`apps export-extension` saves the build of an extension applied to an application.**
-  `elemctl apps export-extension [APP_ID] EXTENSION [--output FILE]` and the MCP tool
-  `export_extension` write it to `{Name} {Version}.xasm` after the manifest of the archive. The
-  method lives in Console API 2.1 alone, and the rest of the client stays on 2.0. The extension is
-  named by its id, the id of its project, its name or its presentation, and it is looked up among
-  the extensions of the application first: the export answers a miss with a bare 500, so the
-  refusal names the extensions the application has. A server older than the method answers 401
-  "Handler of HTTP request ... not found", and elemctl says the server does not know the method
-  rather than reading it as a failed sign-in. ([#48](https://github.com/keyfire/elemctl/pull/48))
-- **`apps export` saves the build an application runs.** `elemctl apps export [APP_ID]
-  [--output FILE]` and the MCP tool `export_app` write it to `{Name} {Version}.xasm` after the
-  manifest of the archive, through `POST /applications/{id}/project/export` of Console API 2.0.
-  The console takes the archive from the application server, so a build uploaded into a project
-  comes back with the number the server gave it. The extensions applied to the application are
-  not in it; `apps export-extension` saves them. ([#49](https://github.com/keyfire/elemctl/pull/49))
+- **`CommandContext.surface` shows where a plugin command was called from.** It is `SURFACE_CLI` in
+  a subcommand, `SURFACE_MCP` in an MCP tool and `None` in a context built by hand. Plugins used to
+  guess from `context.log`. ([#47](https://github.com/keyfire/elemctl/pull/47))
+- **`--quiet` works anywhere in a command.** After a plugin command it was refused as an
+  unrecognized argument. It silences progress and warnings on stderr, a plugin's `context.log` too,
+  but not the answer, errors or exit code. ([#47](https://github.com/keyfire/elemctl/pull/47))
+- **`apps export-extension` saves the build of an extension applied to an application.** The MCP
+  tool `export_extension` does the same. If the application has no such extension, the error lists
+  the ones it has. It needs Console API 2.1. ([#48](https://github.com/keyfire/elemctl/pull/48))
+- **`apps export` saves the build an application runs.** The MCP tool `export_app` does the same. A
+  build uploaded to a project comes back with the server's number. `apps export-extension` saves
+  applied extensions. ([#49](https://github.com/keyfire/elemctl/pull/49))
 
 ### Changed
-- **A wait gives `UNKNOWN` a minute, not the whole timeout.** `deploy` on an application whose
-  database was gone waited the whole five minutes of the start timeout before it named
-  `UNKNOWN`. The console gives that status to a server state it has no name for, passing steps
-  included, so it is not refused on sight: a wait puts up with `UNKNOWN` for a minute in a row
-  (`UNKNOWN_TIMEOUT`), then stops with an error that says what the status means.
-  ([#47](https://github.com/keyfire/elemctl/pull/47))
+- **A wait stops after a minute of the `UNKNOWN` status.** It used to run out the whole timeout,
+  five minutes for `deploy` and ten for a new application. The console also reports `UNKNOWN` for
+  passing states, so the wait gives it a minute and then stops with an error that explains it.
+  ([#47](https://github.com/keyfire/elemctl/pull/47), [#49](https://github.com/keyfire/elemctl/pull/49))
 
 ### Fixed
-- **A plugin can no longer declare a global option of the core.** The core parses `--base-url`,
-  `--client-id`, `--client-secret`, `--env-file`, `--timeout`, `--lang`, `--json` and `--quiet`
-  itself, wherever they stand, so a plugin command with a `--timeout` of its own never saw the
-  value: the core took it, and the default of the plugin's option overwrote the core's copy. A
-  positional argument named `timeout` handed its value to the core instead, and a plugin's own
-  `--env-file` gave its MCP tool a second `env_file`, which kept the MCP server from starting.
-  Such a declaration is now refused at discovery like any other flaw: the plugin is left out and
-  named, and the core keeps working. The list is read from the CLI, so an option the core adds
-  is closed to plugins at once. ([#48](https://github.com/keyfire/elemctl/pull/48))
-- **`deploy` keeps up with the server's count after the top build is deleted.** The server
-  gives a build uploaded into a project the highest number it has ever given in the base plus
-  one, deleted builds included, while the build list shows only what is left. With the top
-  build deleted, `deploy` built `1.0.0-53` from a list that ended at `1.0.0-52`, the server
-  recorded `1.0.0-54`, and the warning explained it by a rule that was not the server's. The
-  count now also reads the local registry of uploads, which keeps the numbers the uploads of
-  this machine got. A build uploaded from elsewhere and deleted since is still out of sight, and
-  the line after the upload then says, without a warning, that the number is the server's.
-  ([#48](https://github.com/keyfire/elemctl/pull/48))
-- **`build` packs an extension as an extension.** A project with `ВидПроекта: Расширение` got
-  `ProjectKind: Application` and `ManifestVersion: 1.0`, and an archive corrected to `Extension` by
-  hand was refused on apply with "Unknown project kind": the server reads a 1.0 manifest with a
-  reader that knows applications and libraries alone. An extension now gets `ManifestVersion: 1.1`
-  and `ProjectKind: Extension`, the pair the console writes; `build --kind` accepts `extension`.
-  ([#49](https://github.com/keyfire/elemctl/pull/49))
-- **A path an old server does not know no longer costs a new token.** The 401 "Handler of HTTP
-  request ... not found" was taken for a refused token: the client signed in again and repeated
-  the request before naming the method as unknown. The text is now read first.
-  ([#49](https://github.com/keyfire/elemctl/pull/49))
-- **`builds list` no longer calls the numbering of an empty listing unbroken.** A project without
-  a single build now hears that it has no builds on the platform, and a listing whose builds carry
-  no number that there is no numbering to judge by.
-  ([#49](https://github.com/keyfire/elemctl/pull/49))
-- **A gap in the build numbering that is a jump and a deletion at once is named as both.** A gap
-  that holds an upload of this machine into the project names the build that brought its number
-  from the archive and the uploads the listing no longer has, and counts as a deletion.
-  ([#49](https://github.com/keyfire/elemctl/pull/49))
-- **The TLS warning names what switched the check off.** `UrllibTransport` takes
-  `tls_off_reason`: the client of a configuration names `ELEMENT_TLS_VERIFY=false`, and a
-  transport built without a reason names no setting at all.
-  ([#49](https://github.com/keyfire/elemctl/pull/49))
-- **A plugin argument may not take a name the CLI keeps beside a command.** A positional
-  `handler` ended the call in `TypeError`, and `--help` or `-h` stopped the whole CLI with a bare
-  `argparse.ArgumentError`. Both are refused at discovery, with the names read off the parser the
-  CLI builds. ([#49](https://github.com/keyfire/elemctl/pull/49))
-- **The wait for a created application stops after a minute of `UNKNOWN`,** like the other
-  waits, instead of running out the ten minutes of its timeout.
-  ([#49](https://github.com/keyfire/elemctl/pull/49))
+- **A plugin can no longer take a name the core uses.** A plugin's own `--timeout` never got its
+  value, its `--env-file` kept the MCP server from starting, and an argument named `handler`,
+  `--help` or `-h` broke the call or the whole CLI. Such a plugin is now left out and named.
+  ([#48](https://github.com/keyfire/elemctl/pull/48), [#49](https://github.com/keyfire/elemctl/pull/49))
+- **`deploy` keeps up with the server's numbering after the newest build is deleted.** The server
+  counts deleted builds, which the build list does not show, so `deploy` now also reads the local
+  registry of uploads. A deleted upload from another machine stays unseen, and then `deploy` just
+  reports the server's number. ([#48](https://github.com/keyfire/elemctl/pull/48))
+- **`build` packs an extension project as an extension.** Its manifest now has
+  `ProjectKind: Extension` and `ManifestVersion: 1.1`, as the console writes it, and `build --kind`
+  takes `extension`. Before, the server refused even a hand-corrected archive with
+  "Unknown project kind". ([#49](https://github.com/keyfire/elemctl/pull/49))
+- **A path an old server does not know no longer causes a second sign-in.** The client took the 401
+  "Handler of HTTP request ... not found" for a rejected token and signed in again. Now it reads the
+  text first and reports the method as unknown. ([#49](https://github.com/keyfire/elemctl/pull/49))
+- **`builds list` describes numbering more accurately.** For an empty list it says the project has
+  no builds, and for builds without numbers that there is nothing to judge by. A gap that is both a
+  jump and a deletion is named as both. ([#49](https://github.com/keyfire/elemctl/pull/49))
+- **The warning about a disabled certificate check no longer names a setting nobody set.** It named
+  `ELEMENT_TLS_VERIFY=false` even when the check was turned off in code. `UrllibTransport` now takes
+  the reason in `tls_off_reason`. ([#49](https://github.com/keyfire/elemctl/pull/49))
+- **An applied extension no longer looks like a rollback.** The card of the application keeps
+  naming the application's build, so `apps apply`, `deploy` and `verify-deploy` reported every
+  extension apply as rolled back. Now an extension build is checked against the extensions of the
+  application, and a server without Console API 2.1 gets "cannot verify" instead. ([#50](https://github.com/keyfire/elemctl/pull/50))
 
 ### Documentation
-- The specification counted `--version` among the flags accepted after a subcommand and left
-  `--lang` out; it is the other way round. ([#48](https://github.com/keyfire/elemctl/pull/48))
-- **When the platform deletes the builds nobody uses:** when an application of the project
-  finishes applying a build. It then looks at the builds of the same base, ten at most, and spares
-  the builds live applications run, the highest-numbered build, release and protected builds; a
-  build uploaded by the vendor and the name is protected on arrival. Checked against the source of
-  the console and live. ([#49](https://github.com/keyfire/elemctl/pull/49))
+- **The specification lists the right flags accepted after a subcommand.** It had `--version`, which
+  is not accepted there, and lacked `--lang`, which is.
+  ([#48](https://github.com/keyfire/elemctl/pull/48))
+- **The documentation explains when the platform deletes unused builds.** It happens after a
+  project's application applies a build. The platform then checks up to ten builds of that base and
+  keeps the builds in use, the highest-numbered one, and release and protected ones. Uploads by
+  vendor and name are protected at once. ([#49](https://github.com/keyfire/elemctl/pull/49))
+- **A project is found by the `Ид` of its description, not by the vendor and the name.** An
+  upload with the same `Ид` and another name goes into the old project and renames it, and a new
+  `Ид` with a pair that is already taken gets a 409. ([#50](https://github.com/keyfire/elemctl/pull/50))
 
 ## 2026-09-27 – 0.46.0
 

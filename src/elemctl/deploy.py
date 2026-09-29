@@ -19,12 +19,22 @@ from . import i18n
 from .build import PROJECT_FILES, build_assembly, find_project_dir, read_project_meta
 from .client import (
     ASSEMBLY_ID_KEYS,
+    EXTENSION_KIND,
     FAILED_TASK_STATUSES,
     SERVER_START_TIMEOUT,
     assembly_label,
+    extension_entry,
+    extension_label,
     extract_assembly_id,
+    is_extension_kind,
 )
-from .errors import ApiError, ElemctlError, ServerStartingError
+from .errors import (
+    ApiError,
+    ElemctlError,
+    ServerStartingError,
+    TransportError,
+    UnknownMethodError,
+)
 from .probe import server_log_hint
 from .registry import ROUTE_PROJECT, remember_build, remembered_uploads, remembered_versions
 from .schema import review_tree
@@ -99,6 +109,15 @@ class DeployReport:
     # Where to look when a task was refused without a compilation error in its text: the
     # log of the server (probe.server_log_hint). "" when the report itself names the cause.
     hint: str = ""
+    # The build of an extension: the card of the application names the build of the
+    # application alone and keeps naming it after an extension is applied, so the verdict rests
+    # on the extensions of the application (Console API 2.1). extension_project_id is the
+    # project of the verified build when that project is an extension ("" otherwise), and
+    # extension is the entry of `extension-projects` the verdict rests on (None - the
+    # application has no such extension, or the server could not list them). applied_version and
+    # applied_version_id then name the build the extension runs.
+    extension_project_id: str = ""
+    extension: dict | None = None
 
     def to_dict(self):
         """Render the report as a dict with kebab-case keys (for JSON output)."""
@@ -128,6 +147,8 @@ class DeployReport:
             "schema-commit": self.schema_commit or None,
             "schema-commit-source": self.schema_commit_source or None,
             "hint": self.hint or None,
+            "extension-project-id": self.extension_project_id or None,
+            "extension": dict(self.extension) if self.extension is not None else None,
         }
 
 
@@ -346,6 +367,8 @@ def _deploy_from_sources(
         raise
     log(i18n.t("deploy.running-verifying"))
 
+    # The kind of the build goes along: an extension is applied beside the build of the
+    # application, and the card goes on naming that one.
     report = _verify(
         client,
         app_id,
@@ -354,6 +377,10 @@ def _deploy_from_sources(
         expected_assembly_id=assembly_id,
         since=started_at,
         uploaded_version=assembly_version,
+        build=_BuiltBuild(
+            kind=result.kind, project_id=str(project_id or ""),
+            vendor=result.vendor, name=result.name,
+        ),
     )
     report.assembly_id = assembly_id
     report.assembly_version = assembly_version
@@ -433,7 +460,7 @@ class _AppliedCommit:
     dirty: bool | None = None
 
 
-def _applied_commit(client, app_id, project_id):
+def _applied_commit(client, app_id, project_id, extension=None):
     """The commit the applied build was made from, or why it is not known.
 
     Returns an _AppliedCommit. The Console API does NOT hand out the contents of an
@@ -445,9 +472,26 @@ def _applied_commit(client, app_id, project_id):
     way of not having a commit is a reason of its own: a card that could not be read used to
     be reported as a build without a commit, and the report then explained a cause that was
     not there.
+
+    extension - the (vendor, name) of an extension project, None for any other kind. The card
+    of the application names the build of the application alone, so the build an extension
+    runs is read off the extensions of the application (Console API 2.1) and found in the
+    build list of the project by its version.
     """
     try:
-        card = client.get_app(app_id) or {}
+        if extension is None:
+            card = client.get_app(app_id) or {}
+            applied_id = str((card.get("source") or {}).get("project-version-id") or "")
+            applied_version = ""
+        else:
+            entry = extension_entry(
+                client.list_app_extensions(app_id), project_id=project_id,
+                vendor=extension[0], name=extension[1],
+            )
+            if entry is None:
+                return _AppliedCommit(reason="no-applied-extension", detail=str(project_id))
+            applied_id = ""
+            applied_version = str(entry.get("assembly-version") or "")
     except ServerStartingError:
         # Not a failure of the guard: the server refuses everything for now, and the deploy
         # waits it out or stops on it - swallowed here, it read as a build without a commit.
@@ -455,8 +499,7 @@ def _applied_commit(client, app_id, project_id):
     except Exception as error:
         # The guard is auxiliary: no failure of it may get in the way of a deploy.
         return _AppliedCommit(reason="read-failed", detail=str(error))
-    applied_id = str((card.get("source") or {}).get("project-version-id") or "")
-    if not applied_id:
+    if not (applied_id or applied_version):
         return _AppliedCommit(reason="no-applied-build")
     try:
         assemblies = client.list_assemblies(project_id)
@@ -467,8 +510,17 @@ def _applied_commit(client, app_id, project_id):
     for assembly in assemblies:
         if not isinstance(assembly, dict):
             continue
-        if applied_id not in {str(assembly.get(key) or "") for key in ASSEMBLY_ID_KEYS}:
+        if applied_id:
+            if applied_id not in {str(assembly.get(key) or "") for key in ASSEMBLY_ID_KEYS}:
+                continue
+        elif applied_version not in (
+            assembly.get("assembly-version"), assembly.get("project-version")
+        ):
             continue
+        else:
+            applied_id = str(extract_assembly_id(assembly) or "")
+            if not applied_id:
+                continue
         version = assembly.get("assembly-version") or assembly.get("project-version")
         build = assembly_label(applied_id, version)
         commit = str(assembly.get("commit-id") or "")
@@ -483,7 +535,9 @@ def _applied_commit(client, app_id, project_id):
                 dirty=None if dirty is None else bool(dirty),
             )
         return _AppliedCommit(reason="no-commit-id", detail=build, build=build)
-    return _AppliedCommit(reason="applied-build-not-listed", detail=applied_id)
+    return _AppliedCommit(
+        reason="applied-build-not-listed", detail=applied_id or applied_version
+    )
 
 
 def _git_show(project_dir, commit, relative_path):
@@ -536,21 +590,28 @@ def review_schema(client, app_id, project_id, project_dir):
     why, and that must NOT block a deploy: the guard says it cannot judge and steps
     aside, because being unable to compare is not evidence of danger. The reasons:
     "no-project-dir" - no project directory to read; "read-failed" - the application
-    card or the build list did not come; "no-applied-build" - the card names no build;
-    "applied-build-not-listed" - the applied build is not among the project's builds;
-    "no-commit-id" - neither the card of the applied build nor the local registry of
-    uploads knows its commit; "commit-unavailable" - the local repository does not have
-    that commit.
+    card, the extensions of the application or the build list did not come;
+    "no-applied-build" - the card names no build; "no-applied-extension" - the sources are
+    an extension the application does not have yet; "applied-build-not-listed" - the
+    applied build is not among the project's builds; "no-commit-id" - neither the card of
+    the applied build nor the local registry of uploads knows its commit;
+    "commit-unavailable" - the local repository does not have that commit.
 
     The project directory is found the way the build finds it: a deploy without an
     explicit one used to skip the guard as "no-project-dir" and then build that very
-    directory.
+    directory. An extension is compared with the build the extension runs rather than with
+    the build on the card of the application.
     """
     try:
         directory = find_project_dir(project_dir) if project_dir else find_project_dir()
     except ElemctlError:
         return SchemaVerdict(skipped="no-project-dir")
-    applied = _applied_commit(client, app_id, project_id)
+    try:
+        meta = read_project_meta(directory)
+    except ElemctlError:
+        meta = None
+    extension = (meta.vendor, meta.name) if meta and is_extension_kind(meta.kind) else None
+    applied = _applied_commit(client, app_id, project_id, extension)
     if applied.reason:
         return SchemaVerdict(skipped=applied.reason, detail=applied.detail)
     commit = applied.commit
@@ -634,14 +695,136 @@ def _shorten_list(items, limit=5):
     return shown
 
 
+@dataclass
+class _BuiltBuild:
+    """What the caller knows about the verified build: its kind, project, vendor and name.
+
+    A deploy knows all of it from the archive it built. A standalone check knows the id of the
+    build alone, and then the kind is looked up only when the card of the application names
+    another build: an extension is applied beside the build of the application.
+    """
+
+    kind: str = ""
+    project_id: str = ""
+    vendor: str = ""
+    name: str = ""
+    # The version the server gave the build, "" when not known.
+    version: str = ""
+
+    def label(self):
+        """The extension the way a reader tells it apart: vendor/name, or its project."""
+        if self.vendor and self.name:
+            return f"{self.vendor}/{self.name}"
+        return self.name or self.project_id
+
+
+@dataclass
+class _ExtensionVerdict:
+    """What the extensions of the application say about an extension build.
+
+    applied - True: the extension runs the build, False: it runs another one or the
+    application has no such extension, None: the server could not list the extensions.
+    version and version_id name the build the extension runs, entry is its row of
+    `extension-projects`.
+    """
+
+    applied: bool | None = None
+    version: str = ""
+    version_id: str = ""
+    entry: dict | None = None
+    problems: list = field(default_factory=list)
+
+
+def _extension_build(client, assembly_id):
+    """The build as an extension build, when an extension project lists it; None otherwise."""
+    found = client.find_extension_build(assembly_id)
+    if found is None:
+        return None
+    project, assembly = found
+    return _BuiltBuild(
+        kind=EXTENSION_KIND,
+        project_id=str(project.get("id") or ""),
+        vendor=str(assembly.get("project-developer") or ""),
+        name=str(assembly.get("project-name") or ""),
+        version=str(assembly.get("assembly-version") or assembly.get("project-version") or ""),
+    )
+
+
+def _extension_verdict(client, app_id, build, assembly_id):
+    """Whether the extension runs the build: `extension-projects` of Console API 2.1.
+
+    The card of the application names the build of the application alone, before an extension
+    is applied and after. What the application server runs is listed by
+    GET /v2.1/applications/{id}/project, so the extension of the project is found there and its
+    `assembly-version` is compared with the version of the build - by the id of the build of
+    that version when the build list of the project has it. A disabled extension is applied and
+    does not run, and that is a problem of its own. A server without 2.1 cannot say, and the
+    apply is named unverifiable: the card alone would read as a rollback.
+    """
+    uploaded = assembly_label(assembly_id, build.version) if assembly_id else build.version
+    try:
+        extensions = client.list_app_extensions(app_id)
+    except UnknownMethodError as error:
+        return _ExtensionVerdict(problems=[i18n.t(
+            "deploy.extension-unverifiable",
+            build=uploaded, extension=build.label(), project=build.project_id or "?",
+            reason=str(error),
+        )])
+    entry = extension_entry(
+        extensions, project_id=build.project_id, vendor=build.vendor, name=build.name
+    )
+    if entry is None:
+        return _ExtensionVerdict(applied=False, problems=[i18n.t(
+            "deploy.extension-missing",
+            build=uploaded, extension=build.label(), project=build.project_id or "?",
+            extensions="; ".join(extension_label(item) for item in extensions)
+            or i18n.t("client.extensions-none"),
+        )])
+    running = str(entry.get("assembly-version") or "")
+    running_id = ""
+    if running and build.project_id:
+        for assembly in client.list_assemblies(build.project_id):
+            if isinstance(assembly, dict) and running in (
+                assembly.get("assembly-version"), assembly.get("project-version")
+            ):
+                running_id = str(extract_assembly_id(assembly) or "")
+                break
+    if assembly_id and running_id:
+        applied = running_id == assembly_id
+    elif build.version and running:
+        applied = running == build.version
+    else:
+        applied = None
+    problems = []
+    if applied is False:
+        problems.append(i18n.t(
+            "deploy.extension-mismatch",
+            extension=extension_label(entry),
+            applied=assembly_label(running_id, running) if running_id else running,
+            expected=uploaded,
+        ))
+    if applied and entry.get("enabled") is False:
+        problems.append(i18n.t("deploy.extension-disabled", extension=extension_label(entry)))
+    return _ExtensionVerdict(
+        applied=applied, version=running, version_id=running_id, entry=entry, problems=problems
+    )
+
+
 def _verify(
-    client, app_id, *, card, expected_version, since, expected_assembly_id="", uploaded_version=""
+    client, app_id, *, card, expected_version, since, expected_assembly_id="", uploaded_version="",
+    build=None,
 ):
     """The verdict on an apply; uploaded_version - the version the server gave the build.
 
     expected_version is what the report calls the build by. The fallback comparison by the
     version string takes uploaded_version when it is known: the server numbers a build
     uploaded into a project itself, and the version of the archive may be on no card at all.
+
+    build - what the caller knows about the build (_BuiltBuild). An extension build is judged
+    by the extensions of the application, since the card goes on naming the build of the
+    application. Without a kind, an id the card does not name is looked up among the builds
+    of the extension projects, which is how a standalone check tells an applied extension
+    from a rollback.
     """
     problems = []
     refusals = []
@@ -669,14 +852,44 @@ def _verify(
     # uploaded into a project itself (archive 1.0-1139 is listed as 1.0-3) and
     # comparing the strings used to report a false rollback. The version string
     # stays as a fallback check for when the build id is unknown, and it is the
-    # server's version of the build whenever the upload said which.
+    # server's version of the build whenever the upload said which. An extension
+    # leaves the card naming the build of the application, so an extension build
+    # is judged by the extensions of the application instead (_extension_verdict).
     if card is None:
         card = client.get_app(app_id) or {}
     source = card.get("source") or {}
     applied_version = str(source.get("project-version") or "")
     applied_version_id = str(source.get("project-version-id") or "")
     applied = None
-    if expected_assembly_id and applied_version_id:
+    extension_build = None
+    lookup_failed = ""
+    if build is not None and is_extension_kind(build.kind):
+        extension_build = _BuiltBuild(
+            kind=build.kind, project_id=build.project_id, vendor=build.vendor, name=build.name,
+            version=uploaded_version or expected_version,
+        )
+    elif (
+        not (build and build.kind)
+        and expected_assembly_id
+        and applied_version_id != expected_assembly_id
+    ):
+        try:
+            extension_build = _extension_build(client, expected_assembly_id)
+        except ServerStartingError:
+            raise
+        except (ApiError, TransportError) as error:
+            # The lookup only explains a mismatch; the card still gives its verdict, and the
+            # report says that the kind of the build was not found out.
+            lookup_failed = str(error)
+    extension = None
+    if extension_build is not None:
+        verdict = _extension_verdict(client, app_id, extension_build, expected_assembly_id)
+        applied = verdict.applied
+        applied_version = verdict.version
+        applied_version_id = verdict.version_id
+        extension = verdict.entry
+        problems.extend(verdict.problems)
+    elif expected_assembly_id and applied_version_id:
         applied = applied_version_id == expected_assembly_id
         if not applied:
             problems.append(i18n.t(
@@ -692,6 +905,10 @@ def _verify(
                 applied=applied_version,
                 expected=uploaded_version or expected_version,
             ))
+    if lookup_failed:
+        problems.append(i18n.t(
+            "deploy.extension-lookup-failed", build=expected_assembly_id, error=lookup_failed
+        ))
 
     # 3. An informational GET to the application uri (401/403 are fine).
     uri = str(card.get("uri") or "")
@@ -711,6 +928,8 @@ def _verify(
         # A refused task that names no file leaves the report with nothing to act on:
         # the cause is in the log of the server, and the hint says where.
         hint=server_log_hint(refusals),
+        extension_project_id=extension_build.project_id if extension_build else "",
+        extension=extension,
     )
     report.ok = not problems and applied is not False
     return report
@@ -733,6 +952,10 @@ def problem_lines(problems):
 
 
 def _log_outcome(report, log):
+    if report.extension_project_id:
+        # Said first: the verdict of an extension build rests on another list than the card,
+        # and a reader who compares the card with the build would take the result for a mistake.
+        log(i18n.t("deploy.extension-evidence", project=report.extension_project_id))
     if report.ok:
         log(i18n.t("deploy.verify-passed"))
         # The last lines are the ones read. A passed verification says the build is in

@@ -681,6 +681,39 @@ def sign_in_hint(app):
 #: extension, the id of its project, the name and the presentation of the project.
 EXTENSION_NAME_KEYS = ("id", "project-id", "project-name", "project-presentation")
 
+#: The kind of an extension project, as the `ProjectKind` of a manifest and the `project-kind`
+#: of a project card spell it.
+EXTENSION_KIND = "Extension"
+
+
+def is_extension_kind(kind):
+    """Whether a project kind names an extension, in either spelling a descriptor may use."""
+    return str(kind or "").strip().lower() in {"extension", "расширение"}
+
+
+def extension_entry(extensions, *, project_id="", vendor="", name=""):
+    """The entry of `extension-projects` for the extension of a project, or None.
+
+    The id of the project is the key. The console fills `project-id` by looking up the build of
+    the version the application server runs, and a build it cannot find leaves the field empty,
+    so the vendor and the name of the extension stand in for it then.
+    """
+    project_id = str(project_id or "")
+    if project_id:
+        for item in extensions:
+            if str(item.get("project-id") or "") == project_id:
+                return item
+    pair = (str(vendor or "").strip().lower(), str(name or "").strip().lower())
+    if all(pair):
+        for item in extensions:
+            names = (
+                str(item.get("vendor-name") or "").strip().lower(),
+                str(item.get("project-name") or "").strip().lower(),
+            )
+            if names == pair:
+                return item
+    return None
+
 
 def _extension_names(extension):
     return {
@@ -1484,6 +1517,31 @@ class ElementClient:
         items = payload.get("extension-projects") if isinstance(payload, dict) else None
         return [item for item in _as_list(items) if isinstance(item, dict)]
 
+    def find_extension_build(self, assembly_id):
+        """The extension project a build belongs to and the card of the build, or None.
+
+        A build id leads to its project through the build lists alone, and the card of a
+        project names its kind in `project-kind`. A stand keeps few extension projects, so the
+        search is the listing of the projects and one build listing per extension project;
+        deleted projects do not count. Returns `(project, assembly)`, None when no extension
+        project lists the build - it is then the build of an application or of a library.
+        """
+        target = str(assembly_id or "")
+        if not target:
+            return None
+        for project in self.list_projects():
+            if not isinstance(project, dict) or not is_extension_kind(project.get("project-kind")):
+                continue
+            project_id = str(project.get("id") or "")
+            if not project_id:
+                continue
+            for assembly in self.list_assemblies(project_id):
+                if isinstance(assembly, dict) and target in {
+                    str(assembly.get(key) or "") for key in ASSEMBLY_ID_KEYS
+                }:
+                    return project, assembly
+        return None
+
     def find_app_extension(self, app_id, reference):
         """An extension applied to the application, by any name a caller may hold.
 
@@ -1820,8 +1878,10 @@ class ElementClient:
         """Upload an assembly file (.xasm/.xlib) to the platform.
 
         With project_id the assembly is added to an existing project, without
-        it the platform finds the project by the vendor and the name of the
-        manifest and creates one when there is none.
+        it the platform finds the project by the Ид of the project descriptor
+        and creates one when there is none. The vendor and the name of the
+        manifest are no key there, only a constraint: a fresh Ид with a pair
+        another project of the space holds is refused with a 409.
 
         The space of an upload into a project goes as the `space-id` query
         parameter, spelled the way the reference spells it: the server reads that

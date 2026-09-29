@@ -9,10 +9,9 @@ its task.
 What the probe is NOT allowed to do: touch the working application. The
 `ELEMENT_APP_ID` and `ELEMENT_PROJECT_ID` of the environment are deliberately
 ignored - the build goes to the platform without a project id at all, and the
-platform routes it by the vendor and the name of the manifest (a project is
-identified by that pair, see the platform page). So the sources land in the
-project that owns them and nowhere else; a project that is not there yet is
-created by the upload.
+platform routes it by the Ид of the project descriptor (a project is identified
+by its Ид, see the platform page). So the sources land in the project that owns
+them and nowhere else; a project that is not there yet is created by the upload.
 
 Cleanup is part of the operation: the throwaway application is deleted, then the
 probe build, and - if the probe created it - the project. The order matters: the

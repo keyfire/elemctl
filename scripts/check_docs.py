@@ -119,7 +119,8 @@ PITCH_ITEMS = (
 #: which every place put down to the housekeeping. The ninth is the order in which the client
 #: meets the 401 of a missing handler: the pages had it renewing the token first. The tenth is
 #: when the housekeeping runs and what it spares, which every place left to a collector that
-#: would get to a build some day.
+#: would get to a build some day. The eleventh is what identifies a project, which every place
+#: put down to the vendor and the name of the manifest.
 CLAIMS = (
     Claim(
         name="the platform deletes the builds nobody uses, whatever their age",
@@ -330,6 +331,39 @@ CLAIMS = (
             "goes when the collector gets to it",
             "когда до него дойдёт очередь",
             "когда до него дойдет очередь",
+        ),
+    ),
+    # A project was said to be identified by the vendor and the name of the manifest, not by
+    # the Ид of its descriptor. The checks behind that had the two agree. The console looks an
+    # upload without a project id up by the Ид, and the pair is only a constraint of the space:
+    # a live check with the two taken apart put three pairs into one project and refused a
+    # fresh Ид with a pair already held.
+    Claim(
+        name="a project is identified by the Ид of its descriptor, and the vendor and the name "
+             "only have to be free",
+        told_in=(
+            "docs/SPEC.md", "docs/SPEC.ru.md",
+            "docs/platform.md", "docs/platform.ru.md",
+            "docs/index.md", "docs/index.ru.md",
+            "README.md", "README.ru.md",
+            "src/elemctl/client.py", "src/elemctl/probe.py", "src/elemctl/mcp_server.py",
+        ),
+        wording=("identified by the `Ид`", "опознается по `Ид`", "by the Ид of the", "по Ид из"),
+        retired=(
+            "identified by the pair `Vendor` + `Name`",
+            "identified by the `Vendor` + `Name` pair",
+            "identified by vendor and name",
+            "опознаётся парой `Vendor` + `Name`",
+            "опознается парой `Vendor` + `Name`",
+            "опознаётся поставщиком и именем",
+            "опознается поставщиком и именем",
+            "определяется поставщиком и именем",
+            "recognizes a project by the vendor and name",
+            "опознаёт проект по паре поставщик плюс имя",
+            "опознает проект по паре поставщик плюс имя",
+            "routes it by the vendor and the name of the manifest",
+            "chosen by the platform out of the vendor and the name",
+            "выбирает сама платформа по поставщику и",
         ),
     ),
 )

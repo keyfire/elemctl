@@ -65,6 +65,10 @@ class FakeDeployClient:
     def check_uri(self, uri):
         return self._uri_status
 
+    def find_extension_build(self, assembly_id):
+        # No extension project on this stand: a build the card does not name is a rollback.
+        return None
+
     def _card(self):
         card = {"id": "app-1", "name": "demo-app", "status": self._status, "uri": self._uri}
         source = {}
@@ -350,6 +354,8 @@ def test_report_to_dict_kebab_case(project_factory, tmp_path):
         "schema-commit",
         "schema-commit-source",
         "hint",
+        "extension-project-id",
+        "extension",
     }
     assert payload["ok"] is True
 
