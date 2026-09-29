@@ -791,6 +791,24 @@ MESSAGES = {
         "en": "the argument {argument} of the command '{name}' of the plugin '{where}' is "
               "boolean, and such an argument can only be an option (a name starting with dashes)",
     },
+    "plugins.multiple-needs-option": {
+        "ru": "аргумент {argument} команды '{name}' плагина '{where}' объявлен повторяемым "
+              "(multiple), а повторяемой может быть только опция со значением: у позиционного "
+              "аргумента нет ключа, который можно повторить, а флаг, указанный дважды, значит "
+              "то же, что указанный один раз",
+        "en": "the argument {argument} of the command '{name}' of the plugin '{where}' is "
+              "declared multiple, and only an option with a value can be one: a positional "
+              "argument has no key to repeat, and a flag given twice means what it means "
+              "given once",
+    },
+    "plugins.multiple-default": {
+        "ru": "у повторяемого аргумента {argument} команды '{name}' плагина '{where}' "
+              "умолчание {default}, а оно обязано быть списком значений (list или tuple) либо "
+              "None",
+        "en": "the multiple argument {argument} of the command '{name}' of the plugin '{where}' "
+              "has the default {default}, and it has to be a list of values (a list or a "
+              "tuple) or None",
+    },
     "plugins.argument-duplicate": {
         "ru": "у команды '{name}' плагина '{where}' два аргумента дают одно имя значения: {argument}",
         "en": "two arguments of the command '{name}' of the plugin '{where}' give the same "
@@ -865,6 +883,10 @@ MESSAGES = {
     "cli.help.plugin-alias": {
         "ru": "то же, что позиционный аргумент {name}",
         "en": "the same as the positional argument {name}",
+    },
+    "cli.help.plugin-multiple": {
+        "ru": "(ключ можно повторить, по значению на каждый)",
+        "en": "(the key may be repeated, one value each)",
     },
     "cli.help.selfupdate-stop": {
         "ru": "снять серверы, держащие установку (MCP-сессии elemctl), и обновиться. Идущие "
@@ -1807,9 +1829,9 @@ MESSAGES = {
     },
     "cli.help.apps-list-status": {
         "ru": "отбор по статусу (Running, Stopped, Error, Deleted); "
-              "несколько – через запятую",
+              "несколько – через запятую или повтором ключа",
         "en": "filter by status (Running, Stopped, Error, Deleted); "
-              "several of them separated by commas",
+              "several of them separated by commas or by repeating the key",
     },
     "cli.help.apps-list-include-deleted": {
         "ru": "показывать и удалённые приложения (по умолчанию скрыты)",

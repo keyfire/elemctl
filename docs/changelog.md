@@ -21,6 +21,20 @@ entry either – say what the behaviour was, not which id or response field was 
 The link is written by `python scripts/changelog-link.py <number>`, which rebuilds the generated
 pages of the site in the same run – writing it by hand is how the mirrors get left behind.
 
+## Unreleased
+
+### Added
+
+- **A plugin option can be repeated: `Argument(..., multiple=True)`.** The command gets every
+  value as a list, in the order of the command line, and its MCP tool takes an array. An option
+  without the field keeps only the last value, which is how a command given seven files uploaded
+  one.
+
+### Fixed
+
+- **`apps list --status running --status stopped` shows both statuses.** The help promised several
+  statuses, but a second key replaced the first without a word. Commas work as before.
+
 ## 2026-09-29 – 0.47.0, 0.48.0, 0.49.0
 
 ### Added

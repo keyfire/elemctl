@@ -1715,6 +1715,27 @@ def test_apps_list_hides_the_deleted_ones_and_counts_them_out_loud(monkeypatch, 
     assert captured.err.strip() == "живых 1 из 324"
 
 
+@pytest.mark.parametrize("argv, expected", [
+    (["--status", "running"], "running"),
+    (["--status", "running,stopped"], "running,stopped"),
+    # the help offers several statuses, and a second key used to replace the first
+    (["--status", "running", "--status", "stopped"], "running,stopped"),
+    (["--status", "error", "--status", "running,stopped"], "error,running,stopped"),
+    ([], ""),
+])
+def test_apps_list_takes_the_status_key_more_than_once(monkeypatch, capsys, argv, expected):
+    seen = []
+
+    class FakeClient:
+        def list_apps_counted(self, name="", status="", include_deleted=False):
+            seen.append(status)
+            return {"items": [], "total": 0, "live": 0, "shown": 0}
+
+    monkeypatch.setattr(cli, "make_client", lambda config: FakeClient())
+    assert cli.main(["apps", "list", *argv]) == 0
+    assert seen == [expected]
+
+
 def test_apps_list_include_deleted_reaches_the_client(monkeypatch, capsys):
     class FakeClient:
         def list_apps_counted(self, name="", status="", include_deleted=False):

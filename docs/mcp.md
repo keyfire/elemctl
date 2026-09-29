@@ -114,6 +114,8 @@ The result of a handler has to be JSON-serializable: the CLI prints it, the MCP 
 
 A positional argument may add a CLI-only key synonym: `Argument("page", cli_alias="--page")` accepts both `elemctl wiki-get 123` and `elemctl wiki-get --page 123`. The MCP tool schema keeps the one `page` parameter it always had – `cli_alias` only changes what the CLI parser accepts, nothing about the declared arguments themselves. The two forms are mutually exclusive: the parser refuses both at once, and refuses neither when the argument is required. A plugin that declares no `cli_alias` behaves exactly as before.
 
+An option may take several values: `Argument("--file", multiple=True)` accepts `elemctl wiki-attach --file a.png --file b.png`, and the handler gets `["a.png", "b.png"]` in the order of the command line. Without the key it gets the declared default as a list, or `[]`. The MCP tool gets an array parameter of the declared type. An option without `multiple` keeps the last of its repetitions and drops the rest without a word, so declare it wherever a user would repeat the key. Only an option with a value can be multiple, and its default is a list or `None`. On an older core the field is missing and the whole plugin is left out, so a plugin that has to run on both checks `hasattr(Argument, "multiple")` first.
+
 ```bash
 # the adapter path from the installed plugin (for the VS Code extension):
 # {"path": "...", "found": true} or {"path": null, "found": false}
