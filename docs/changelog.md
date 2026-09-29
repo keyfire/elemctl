@@ -34,6 +34,9 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
 
 - **`apps list --status running --status stopped` shows both statuses.** The help promised several
   statuses, but a second key replaced the first without a word. Commas work as before.
+- **`apps token-access --user` and `probe --cleanup` take the key several times.** A second key
+  replaced the first without a word. Now every user and every probe gets an entry of its own, a
+  failure of one does not stop the rest, and the MCP tools take a list as well.
 
 ## 2026-09-29 – 0.47.0, 0.48.0, 0.49.0
 

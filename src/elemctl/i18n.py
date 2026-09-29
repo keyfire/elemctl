@@ -1631,6 +1631,10 @@ MESSAGES = {
         "ru": "уборка: {problem}",
         "en": "cleanup: {problem}",
     },
+    "probe.cleanup-refused": {
+        "ru": "пробник {app} не убран: {error}",
+        "en": "the probe {app} was not removed: {error}",
+    },
     "probe.manifest-incomplete": {
         "ru": "{file}: сервер не примет этот пробник, поэтому он остановлен до сборки. {problems}",
         "en": "{file}: the server will not take this probe, so it stopped before the build. "
@@ -1963,9 +1967,11 @@ MESSAGES = {
     },
     "cli.help.apps-token-access-user": {
         "ru": "логин, представление или ид пользователя (по умолчанию – учётная запись, под "
-              "которой работает elemctl)",
+              "которой работает elemctl); ключ можно повторить: у каждого пользователя тогда своя "
+              "запись в ответе, а сбой одного не останавливает остальных",
         "en": "the login, the presentation or the id of the user (default: the account elemctl "
-              "signs in with)",
+              "signs in with); the key may be repeated: each user then gets an entry of its own "
+              "in the answer, and a failure of one does not stop the rest",
     },
     "cli.help.apps-token-access-enable": {
         "ru": "разрешить доступ по токену и перечитать признак",
@@ -2389,11 +2395,14 @@ MESSAGES = {
         "ru": "убрать оставленный пробник по его приложению (ид или имя): приложение, сборку "
               "пробника в его проекте и проект, если в нём больше ничего нет; пробник со "
               "своими именем и версией узнаётся по локальному реестру загрузок; чужое "
-              "приложение команда не тронет",
+              "приложение команда не тронет. Ключ можно повторить: пробники убираются по "
+              "очереди, у каждого свой отчет, и отказ одного не останавливает остальных",
         "en": "remove a probe left behind, starting from its application (id or name): the "
               "application, the probe build in its project and the project when nothing else "
               "is left in it; a probe with a name and a version of its own is known by the "
-              "local registry of uploads; an application that is not a probe's is refused",
+              "local registry of uploads; an application that is not a probe's is refused. "
+              "The key may be repeated: the probes are removed in turn, each with a report of "
+              "its own, and a refusal of one does not stop the rest",
     },
     "cli.help.probe-require-clean": {
         "ru": "прервать проверку, если в каталоге проекта есть незакоммиченные изменения",

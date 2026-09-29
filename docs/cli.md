@@ -354,7 +354,7 @@ usage: elemctl apps token-access [-h] [--app-id APP_ID] [--user USER] [--enable]
 |---|---|
 | `-h, --help` | show this help message and exit |
 | `--app-id APP_ID` | the same application as an option: deploy and apps ensure take this form only |
-| `--user USER` | the login, the presentation or the id of the user (default: the account elemctl signs in with) |
+| `--user USER` | the login, the presentation or the id of the user (default: the account elemctl signs in with); the key may be repeated: each user then gets an entry of its own in the answer, and a failure of one does not stop the rest |
 | `--enable` | allow the access by a token and read the flag back |
 | `--disable` | forbid the access by a token and read the flag back |
 
@@ -810,7 +810,7 @@ usage: elemctl probe [-h] [--project-dir PROJECT_DIR] [--output OUTPUT]
 | `--space-id SPACE_ID` | the space for the project and the application (ELEMENT_SPACE_ID) |
 | `--keep` | skip the cleanup: leave the application and the build for a hands-on look; the report names the command that removes them |
 | `--require-clean` | abort the check if the project directory has uncommitted changes |
-| `--cleanup APP_ID` | remove a probe left behind, starting from its application (id or name): the application, the probe build in its project and the project when nothing else is left in it; a probe with a name and a version of its own is known by the local registry of uploads; an application that is not a probe's is refused |
+| `--cleanup APP_ID` | remove a probe left behind, starting from its application (id or name): the application, the probe build in its project and the project when nothing else is left in it; a probe with a name and a version of its own is known by the local registry of uploads; an application that is not a probe's is refused. The key may be repeated: the probes are removed in turn, each with a report of its own, and a refusal of one does not stop the rest |
 
 ## `elemctl verify-deploy`
 
