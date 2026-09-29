@@ -665,8 +665,9 @@ def uploaded_version(response):
     """The version the server gave an uploaded build, "" when its answer does not say.
 
     An upload into a project answers with the card of the build, and its assembly-version is
-    the number the server handed out. An upload that creates or finds its project by the
-    vendor and the name answers without one: that upload keeps the version of the archive.
+    the number the server handed out. An upload without a project id, which finds its
+    project by the Ид of the descriptor or creates one, answers without one: that upload
+    keeps the version of the archive.
     """
     answer = response if isinstance(response, dict) else {}
     return str(answer.get("assembly-version") or answer.get("project-version") or "")
@@ -807,6 +808,84 @@ def _extension_verdict(client, app_id, build, assembly_id):
         problems.append(i18n.t("deploy.extension-disabled", extension=extension_label(entry)))
     return _ExtensionVerdict(
         applied=applied, version=running, version_id=running_id, entry=entry, problems=problems
+    )
+
+
+@dataclass
+class RunningBuild:
+    """Whether an application runs a build, told without applying or waiting for anything.
+
+    applied - True: the build runs, False: another one does, None: the server cannot tell (an
+    extension build on a server without Console API 2.1). version_id and version name the build
+    that runs: the build on the card, or the build the extension runs when the requested build
+    belongs to an extension. extension_project_id is the project of such a build ("" for any
+    other), extension its row of `extension-projects` (None - the application has no such
+    extension, or the server could not list them), extension_name its vendor/name, disabled
+    whether that extension is switched off. lookup_error says why the kind of the build was not
+    found out; the card then gives the verdict alone.
+    """
+
+    applied: bool | None = None
+    version_id: str = ""
+    version: str = ""
+    extension_project_id: str = ""
+    extension: dict | None = None
+    extension_name: str = ""
+    disabled: bool = False
+    lookup_error: str = ""
+
+    def fields(self):
+        """The fields an answer carries: applied, applied-version-id and the extension ones."""
+        answer = {"applied": self.applied, "applied-version-id": self.version_id}
+        if self.extension_project_id:
+            answer["extension-project-id"] = self.extension_project_id
+            answer["extension"] = dict(self.extension) if self.extension is not None else None
+        return answer
+
+
+def running_build(client, app_id, assembly_id, *, card=None):
+    """Whether the application runs the build, by the same evidence `verify-deploy` rests on.
+
+    The card names the build of the application, and when it names the build asked about no
+    request is made. Any other id is looked up among the builds of the extension projects: an
+    extension is applied beside the build of the application, the card goes on naming the
+    latter, and comparing with the card called an applied extension a build that was not
+    there. The build an extension runs is read off the extensions of the application (Console
+    API 2.1). Returns a RunningBuild; card - the card when the caller has it already.
+    """
+    requested = str(assembly_id or "")
+    if card is None:
+        card = client.get_app(app_id) or {}
+    source = card.get("source") or {}
+    on_card = str(source.get("project-version-id") or "")
+    state = RunningBuild(
+        applied=bool(requested) and on_card == requested,
+        version_id=on_card,
+        version=str(source.get("project-version") or ""),
+    )
+    if not requested or state.applied:
+        return state
+    try:
+        build = _extension_build(client, requested)
+    except ServerStartingError:
+        raise
+    except (ApiError, TransportError) as error:
+        # The lookup only explains a mismatch; the card keeps its verdict, and the caller says
+        # that the kind of the build was not found out.
+        state.lookup_error = str(error)
+        return state
+    if build is None:
+        return state
+    verdict = _extension_verdict(client, app_id, build, requested)
+    entry = verdict.entry
+    return RunningBuild(
+        applied=verdict.applied,
+        version_id=verdict.version_id,
+        version=verdict.version,
+        extension_project_id=build.project_id,
+        extension=entry,
+        extension_name=extension_label(entry) if entry is not None else build.label(),
+        disabled=bool(verdict.applied) and entry is not None and entry.get("enabled") is False,
     )
 
 

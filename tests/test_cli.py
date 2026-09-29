@@ -228,6 +228,9 @@ def test_apps_ensure_existing_returns_created_false_without_creating(monkeypatch
         def create_app(self, *args, **kwargs):
             raise AssertionError("создание не должно вызываться для существующего приложения")
 
+        def find_extension_build(self, assembly_id):
+            return None  # no extension project lists the build
+
     monkeypatch.setattr(cli, "make_client", lambda config: FakeClient())
 
     rc = cli.main(["apps", "ensure", "demo-app", "--version-id", "asm-1"])
@@ -267,6 +270,11 @@ class FakeApplyClient:
 
     def ensure_running(self, app_id, log=None):
         return {"id": app_id, "status": "Running", "uri": "https://host/apps/demo-app"}
+
+    def find_extension_build(self, assembly_id):
+        # A build the card does not name is looked up among the builds of the extension
+        # projects; here none lists it, so it is a build of the application.
+        return None
 
 
 def _stub_verify(monkeypatch, ok=True):

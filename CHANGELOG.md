@@ -63,6 +63,9 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
   naming the application's build, so `apps apply`, `deploy` and `verify-deploy` reported every
   extension apply as rolled back. Now an extension build is checked against the extensions of the
   application, and a server without Console API 2.1 gets "cannot verify" instead. ([#50](https://github.com/keyfire/elemctl/pull/50))
+- **`apps ensure` recognizes an extension that already runs the build.** It compared the
+  build with the card of the application and answered `applied: false`. Now it checks the
+  extensions of the application, like `apps apply` and `verify-deploy`, and so does `ensure_app`. ([#51](https://github.com/keyfire/elemctl/pull/51))
 
 ### Documentation
 - **The specification lists the right flags accepted after a subcommand.** It had `--version`, which
@@ -75,6 +78,11 @@ pages of the site in the same run – writing it by hand is how the mirrors get 
 - **A project is found by the `Ид` of its description, not by the vendor and the name.** An
   upload with the same `Ид` and another name goes into the old project and renames it, and a new
   `Ид` with a pair that is already taken gets a 409. ([#50](https://github.com/keyfire/elemctl/pull/50))
+- **Housekeeping never touches the builds of an extension project.** It starts from the
+  application's build, so an extension project keeps every build until someone deletes it. ([#51](https://github.com/keyfire/elemctl/pull/51))
+- **An upload that names no project is called an upload without a project id.** The server finds
+  the project by the `Ид`, not by the vendor and the name. The registry writes the route as
+  `no-project-id` and still reads `vendor-name` in older lines. ([#51](https://github.com/keyfire/elemctl/pull/51))
 
 ## 2026-09-27 – 0.46.0
 

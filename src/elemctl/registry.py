@@ -47,10 +47,21 @@ DEFAULT_LIMIT = 1000
 #: The route of an upload into a project by its id: the server numbers the build itself.
 ROUTE_PROJECT = "project"
 #: The route of an upload without a project id, POST /projects or
-#: POST /spaces/{space-id}/projects, which the pages call the upload by the vendor and the name:
-#: the server finds the project by the Ид of the descriptor, and the build keeps the version of
-#: its archive.
-ROUTE_NAME = "vendor-name"
+#: POST /spaces/{space-id}/projects: the server finds the project by the Ид of the descriptor,
+#: or creates one when no live project carries it, and the build keeps the version of its
+#: archive.
+ROUTE_NO_PROJECT_ID = "no-project-id"
+#: The values older lines carry for today's routes. The route without a project id used to be
+#: written as "vendor-name", after the vendor and the name of the manifest, which is not what
+#: the server finds the project by. A registry keeps a thousand uploads, so such lines stay for
+#: a long time, and they are read as the route they record.
+LEGACY_ROUTES = {"vendor-name": ROUTE_NO_PROJECT_ID}
+
+
+def upload_route(entry):
+    """The route of a registry line, a value written by an older elemctl read as today's."""
+    route = str(entry.get("route") or "") if isinstance(entry, dict) else ""
+    return LEGACY_ROUTES.get(route, route)
 
 
 def data_dir(environ=None, *, platform=None):
@@ -106,7 +117,7 @@ def remember_upload(
     application stays the one the probe created - and the cleanup recognizes it by this.
 
     route is the way the build went to the platform: ROUTE_PROJECT into a project by its id,
-    where the server numbers the build itself, or ROUTE_NAME by the vendor and the name,
+    where the server numbers the build itself, or ROUTE_NO_PROJECT_ID without a project id,
     where the build keeps the number of its archive and the count of the project goes on
     from it. That is what tells a jump in the numbering from the builds the platform
     deleted (`builds_summary`).

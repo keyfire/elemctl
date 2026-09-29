@@ -47,10 +47,16 @@ from .client import (
     sign_in_hint,
 )
 from .config import Config, ensure_env_file_exists
-from .deploy import deploy_from_sources, server_wait, uploaded_version, verify_deploy
+from .deploy import (
+    deploy_from_sources,
+    running_build,
+    server_wait,
+    uploaded_version,
+    verify_deploy,
+)
 from .errors import ApiError, ConfigError, ElemctlError, PluginError
 from .probe import cleanup_probe, probe_project
-from .registry import ROUTE_NAME, ROUTE_PROJECT, remember_upload
+from .registry import ROUTE_NO_PROJECT_ID, ROUTE_PROJECT, remember_upload
 from .versions import newest_first
 
 
@@ -473,11 +479,6 @@ def cmd_apps_create(args):
     return 0 if report is None or report.ok else 1
 
 
-def _applied_assembly_id(card):
-    """The assembly the application currently runs, out of its card ("" when unknown)."""
-    return str(((card or {}).get("source") or {}).get("project-version-id") or "")
-
-
 def _apply_and_verify(client, app_id, version_id):
     """Apply the assembly, wait for the application and check that it really landed.
 
@@ -622,37 +623,70 @@ def _ensure_build_state(client, existing, args, *, since=None):
     """What ensure has to say about the ASSEMBLY of an application it did not create.
 
     Nothing when no assembly was asked for - ensure was then about existence alone.
-    The card of the application already answers the main question - which assembly
-    it runs - so the comparison costs no requests; --verify adds the rest of the
-    check (the application tasks and the uri) to it.
+    The card of the application answers the main question - which assembly it runs -
+    and when it names the requested one the comparison costs no requests; --verify
+    adds the rest of the check (the application tasks and the uri) to it.
+
+    The card names the build of the application alone, so a build it does not name is
+    looked up among the builds of the extension projects, the way `verify-deploy` does
+    it: an applied extension used to be answered with applied: false. The extension of
+    such a build is then judged by the extensions of the application (Console API 2.1).
     """
     requested = str(args.version_id or "")
     if not requested:
         return {}
     app_id = str(existing.get("id") or "")
-    applied = _applied_assembly_id(existing)
-    if applied and applied == requested:
-        _progress(i18n.t("cli.ensure.build-already", requested=requested))
+    state = running_build(client, app_id, requested, card=existing)
+    if state.lookup_error:
+        _progress(i18n.t(
+            "deploy.extension-lookup-failed", build=requested, error=state.lookup_error
+        ))
+    if state.applied:
+        if state.extension_project_id:
+            _progress(i18n.t(
+                "cli.ensure.extension-already", requested=requested,
+                extension=state.extension_name,
+            ))
+        else:
+            _progress(i18n.t("cli.ensure.build-already", requested=requested))
+        if state.disabled:
+            _progress(i18n.t("deploy.extension-disabled", extension=state.extension_name))
         if not getattr(args, "verify", False):
-            return {"applied": True, "applied-version-id": applied}
+            return state.fields()
         report = verify_deploy(
             client, app_id, expected_assembly_id=requested, since=since, log=_progress
         )
-        return {
-            "applied": bool(report.ok),
-            "applied-version-id": applied,
-            "verify": report.to_dict(),
-        }
+        return {**state.fields(), "applied": bool(report.ok), "verify": report.to_dict()}
     if args.apply:
         report = _apply_and_verify(client, app_id, requested)
         return {"applied": bool(report.ok), "verify": report.to_dict()}
-    _progress(i18n.t(
-        "cli.ensure.build-differs",
-        applied=applied or i18n.t("deploy.unknown"),
-        requested=requested,
-        app_id=app_id,
-    ))
-    return {"applied": False, "applied-version-id": applied}
+    _progress(_ensure_differs_line(state, requested, app_id))
+    return state.fields()
+
+
+def _ensure_differs_line(state, requested, app_id):
+    """The progress line of ensure over an application that does not run the build asked for."""
+    if not state.extension_project_id:
+        return i18n.t(
+            "cli.ensure.build-differs",
+            applied=state.version_id or i18n.t("deploy.unknown"),
+            requested=requested,
+            app_id=app_id,
+        )
+    if state.applied is None:
+        key = "cli.ensure.extension-unverifiable"
+    elif state.extension is None:
+        key = "cli.ensure.extension-missing"
+    else:
+        key = "cli.ensure.extension-differs"
+    applied = (
+        assembly_label(state.version_id, state.version) if state.version_id
+        else state.version or i18n.t("deploy.unknown")
+    )
+    return i18n.t(
+        key, extension=state.extension_name, project=state.extension_project_id,
+        applied=applied, requested=requested, app_id=app_id,
+    )
 
 
 def cmd_apps_delete(args):
@@ -949,9 +983,9 @@ def cmd_builds_upload(args):
         file=file_path.resolve(),
         stand=config.base_url,
         command="builds upload",
-        # Without a project the upload goes by the vendor and the name and keeps the
-        # number of its archive - the jump `builds list` tells from a deletion.
-        route=ROUTE_PROJECT if project_id else ROUTE_NAME,
+        # An upload without a project id keeps the number of its archive - the jump
+        # `builds list` tells from a deletion.
+        route=ROUTE_PROJECT if project_id else ROUTE_NO_PROJECT_ID,
     )
     if warning:
         _progress(warning)
