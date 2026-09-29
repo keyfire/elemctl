@@ -18,7 +18,7 @@ import pytest
 
 from elemctl import cli
 from elemctl.errors import ApiError, ElemctlError
-from elemctl.probe import cleanup_probe
+from elemctl.probe import cleanup_probe, cleanup_probes
 
 APP = "app-probe"
 PROJECT = "proj-9"
@@ -386,3 +386,118 @@ def test_mcp_probe_cleanup(monkeypatch):
     payload = json.loads(mcp_server.call_result_content(result)[0].text)
 
     assert payload["ok"] is True and payload["log"]
+
+
+# --- a repeated --cleanup ----------------------------------------------------------------
+#
+# The key was a single one, and a second --cleanup replaced the first without a word: of two
+# probes kept for a look, one was removed and the other stayed on the stand.
+
+SECOND = "app-probe-2"
+SECOND_VERSION = "1.0-probe-ffff0000"
+
+
+def _two_probes(*cards):
+    """Two probes of the same sources: they share the project, as probes of one tree do."""
+    second = _card(app_id=SECOND, name="elemctl-probe-ffff0000", version=SECOND_VERSION,
+                   build="asm-probe-2")
+    return _stand(
+        cards=[_card(), second, *cards],
+        builds={PROJECT: [("asm-probe", PROBE_VERSION), ("asm-probe-2", SECOND_VERSION)]},
+    )
+
+
+def test_every_probe_is_removed_and_the_shared_project_goes_with_the_last_one():
+    client = _two_probes()
+
+    answer = cleanup_probes(client, [APP, SECOND])
+
+    assert answer["ok"] is True
+    first, last = answer["cleanups"]
+    assert (first["app-id"], last["app-id"]) == (APP, SECOND)
+    # The first cleanup leaves the project to the probe still running in it.
+    assert first["project-deleted"] is None and first["project-kept"]
+    assert last["project-deleted"] is True
+    assert [call[1] for call in client.calls if call[0] == "delete_app"] == [APP, SECOND]
+    assert client.calls[-1] == ("delete_project", PROJECT)
+
+
+def test_a_refused_application_among_several_stops_nobody():
+    other = _card(name="crm-dev", app_id="app-crm", version="1.0-7", build="asm-7")
+    client = _two_probes(other)
+    lines = []
+
+    answer = cleanup_probes(client, [APP, "app-crm", SECOND], log=lines.append)
+
+    assert answer["ok"] is False
+    assert [entry["ok"] for entry in answer["cleanups"]] == [True, False, True]
+    refused = answer["cleanups"][1]
+    assert refused["app-id"] == "app-crm" and "elemctl-probe-" in refused["error"]
+    assert [call[1] for call in client.calls if call[0] == "delete_app"] == [APP, SECOND]
+    assert any("app-crm" in line and "не убран" in line for line in lines)
+
+
+def test_cli_takes_the_cleanup_key_several_times():
+    args = cli.build_parser().parse_args(["probe", "--cleanup", APP, "--cleanup", SECOND])
+    assert args.cleanup == [APP, SECOND]
+
+
+def test_cli_repeated_cleanup_prints_a_report_for_each_probe(monkeypatch, capsys):
+    client = _two_probes()
+    monkeypatch.setattr(cli, "make_client", lambda config: client)
+
+    rc = cli.main(["probe", "--cleanup", APP, "--cleanup", SECOND])
+
+    assert rc == 0
+    answer = json.loads(capsys.readouterr().out)
+    assert answer["ok"] is True
+    assert [entry["app-id"] for entry in answer["cleanups"]] == [APP, SECOND]
+
+
+def test_cli_repeated_cleanup_with_a_refusal_ends_with_one_and_says_why(monkeypatch, capsys):
+    other = _card(name="crm-dev", app_id="app-crm", version="1.0-7", build="asm-7")
+    client = _stand(cards=[_card(), other])
+    monkeypatch.setattr(cli, "make_client", lambda config: client)
+
+    rc = cli.main(["probe", "--cleanup", "app-crm", "--cleanup", APP])
+
+    assert rc == 1
+    printed = capsys.readouterr()
+    answer = json.loads(printed.out)
+    assert [entry["ok"] for entry in answer["cleanups"]] == [False, True]
+    assert "не убран" in printed.err
+
+
+def test_cli_the_same_probe_given_twice_is_removed_once(monkeypatch, capsys):
+    client = _stand()
+    monkeypatch.setattr(cli, "make_client", lambda config: client)
+
+    assert cli.main(["probe", "--cleanup", APP, "--cleanup", APP]) == 0
+
+    answer = json.loads(capsys.readouterr().out)
+    assert answer["app-id"] == APP and "cleanups" not in answer
+    assert client.names().count("delete_app") == 1
+
+
+def test_cli_help_says_the_cleanup_key_repeats(capsys):
+    with pytest.raises(SystemExit):
+        cli.main(["probe", "--help"])
+    assert "Ключ можно повторить" in " ".join(capsys.readouterr().out.split())
+
+
+def test_mcp_probe_cleanup_takes_an_array_of_applications(monkeypatch):
+    pytest.importorskip("mcp.server", reason="extra elemctl[mcp] не установлен")
+    from elemctl import mcp_server
+    from elemctl.config import Config
+
+    client = _two_probes()
+    monkeypatch.setattr(mcp_server, "ElementClient", lambda config: client)
+    server = mcp_server.create_server(
+        Config(base_url="https://api.test", client_id="cid", client_secret="secret")
+    )
+
+    result = asyncio.run(server.call_tool("probe_cleanup", {"app_id": [APP, SECOND]}))
+    payload = json.loads(mcp_server.call_result_content(result)[0].text)
+
+    assert payload["ok"] is True and payload["log"]
+    assert [entry["app-id"] for entry in payload["cleanups"]] == [APP, SECOND]

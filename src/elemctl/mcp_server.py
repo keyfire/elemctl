@@ -59,7 +59,9 @@ from .client import (
     extract_assembly_id,
     is_extension_project,
     project_label,
+    repeated_values,
     sign_in_hint,
+    token_access_each,
 )
 from .config import Config
 from .deploy import (
@@ -68,7 +70,7 @@ from .deploy import (
     verify_deploy as _verify_deploy,
 )
 from .errors import ApiError, ElemctlError, PluginError
-from .probe import cleanup_probe, probe_project
+from .probe import cleanup_probe, cleanup_probes, probe_project
 from .versions import newest_first
 
 INSTRUCTIONS = (
@@ -817,7 +819,7 @@ def create_server(config=None, *, overrides=None, env_file=None):
         return payload
 
     @server.tool()
-    def probe_cleanup(app_id: str, env_file: str = "") -> dict:
+    def probe_cleanup(app_id: str | list[str], env_file: str = "") -> dict:
         """Убрать оставленный пробник (probe с keep=true или с оборвавшейся уборкой) по его приложению.
 
         app_id - ид либо имя одноразового приложения пробника. Карточка приложения
@@ -831,10 +833,18 @@ def create_server(config=None, *, overrides=None, env_file=None):
         реестр не помнит пробника) и рабочее приложение окружения инструмент не трогает и
         называет причину. Повторный вызов доделывает то, что не
         удалось в прошлый раз. Итог - поле ok, по шагам - app-deleted, builds,
-        project-deleted и project-kept.
+        project-deleted и project-kept. app_id может быть и списком: пробники убираются
+        по очереди, ответ - {ok, cleanups, log}, в cleanups отчет на каждое приложение в
+        порядке списка, отказ одного (не пробник, рабочее приложение, не найдено) - запись
+        с error, которая не останавливает остальных, а ok - только если убраны все.
         """
         lines: list[str] = []
-        payload = cleanup_probe(client(env_file), app_id, log=lines.append).to_dict()
+        target = client(env_file)
+        apps = repeated_values(app_id) or [""]
+        if len(apps) == 1:
+            payload = cleanup_probe(target, apps[0], log=lines.append).to_dict()
+        else:
+            payload = cleanup_probes(target, apps, log=lines.append)
         payload["log"] = lines
         return payload
 
@@ -958,7 +968,7 @@ def create_server(config=None, *, overrides=None, env_file=None):
     @server.tool()
     def token_access(
         app_id: str,
-        user: str = "",
+        user: str | list[str] = "",
         enabled: bool | None = None,
         env_file: str = "",
     ) -> dict:
@@ -972,10 +982,17 @@ def create_server(config=None, *, overrides=None, env_file=None):
         переключает его и перечитывает подключение, так что token-access-enabled в ответе -
         то, что хранит платформа после изменения, а changed говорит, менял ли вызов что-то.
         Пользователя, не подключённого к приложению, инструмент называет сам, а не
-        отправляет на изменение.
+        отправляет на изменение. user может быть и списком: пользователи читаются или
+        переключаются по очереди, ответ - {ok, app-id, users} с записью на каждого в порядке
+        списка, пользователь, которого не удалось найти или переключить, - запись с error,
+        которая не останавливает остальных, а ok - только если удались все.
         """
         target = client(env_file)
-        return target.token_access(target.resolve_app_id(app_id), user=user, enabled=enabled)
+        resolved = target.resolve_app_id(app_id)
+        users = repeated_values(user)
+        if len(users) < 2:
+            return target.token_access(resolved, user=users[0] if users else "", enabled=enabled)
+        return token_access_each(target, resolved, users, enabled=enabled)
 
     @server.tool()
     def export_app(app_id: str, output: str = "", env_file: str = "") -> dict:

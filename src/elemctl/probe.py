@@ -47,6 +47,7 @@ from .client import (
     assembly_id_of,
     extract_assembly_id,
     extract_project_id,
+    failure_fields,
     landed_project,
     project_names,
 )
@@ -897,3 +898,24 @@ def _finish(report, log):
         log(i18n.t("probe.cleanup-problem", problem=problem))
     report.ok = not report.problems
     return report
+
+
+def cleanup_probes(client, apps, *, log=None):
+    """cleanup_probe over several applications, one report each: a repeated --cleanup.
+
+    The key used to keep only its last application and drop the rest without a word. Now the
+    applications are taken in turn, and the refusal of one - not a probe's, the working one, not
+    found - does not stop the next: it becomes an entry with the error and a line in the log.
+    The runs go one after another on purpose: two probes of the same sources share a project,
+    and the project can go only after the last of their builds. The entries follow the order of
+    the applications, and ok is true only when every cleanup finished.
+    """
+    log = log or (lambda message: None)
+    entries = []
+    for app in apps:
+        try:
+            entries.append(cleanup_probe(client, app, log=log).to_dict())
+        except ElemctlError as error:
+            log(i18n.t("probe.cleanup-refused", app=app, error=error))
+            entries.append({"ok": False, "app-id": app, **failure_fields(error)})
+    return {"ok": all(entry["ok"] for entry in entries), "cleanups": entries}

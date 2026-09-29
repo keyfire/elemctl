@@ -500,6 +500,49 @@ def app_users_summary(users):
     )
 
 
+def repeated_values(values):
+    """The values of a repeatable key, in the order given, each of them once.
+
+    The CLI hands over the list argparse collected for a key given several times, or None for
+    a key never given; an MCP tool gets either a string or a list. A value given twice means
+    what it means given once, so the second one is dropped. An empty value stays: for some keys
+    it means something, and an empty user is the account elemctl signs in with.
+    """
+    items = [values] if isinstance(values, str) else list(values or ())
+    distinct = []
+    for item in items:
+        text = "" if item is None else str(item).strip()
+        if text not in distinct:
+            distinct.append(text)
+    return distinct
+
+
+def failure_fields(error):
+    """An error as the fields of an entry in a report: the details of an api error kept.
+
+    This is the shape the CLI prints for a failed command, so an entry that failed inside a
+    repeated key reads the way the refusal of the single key would.
+    """
+    return error.to_dict() if isinstance(error, ApiError) else {"error": str(error)}
+
+
+def token_access_each(client, app_id, users, enabled=None):
+    """ElementClient.token_access for several users of one application, one entry each.
+
+    This is the answer to a repeated --user. The key used to keep only its last value and drop
+    the others without a word. Now every user is tried in turn. A user that is not connected,
+    or whose flag did not move, gets an entry with the error, and the next user is still taken.
+    The entries follow the order of the users, and ok is true only when every entry is.
+    """
+    entries = []
+    for user in users:
+        try:
+            entries.append({"ok": True, **client.token_access(app_id, user=user, enabled=enabled)})
+        except ElemctlError as error:
+            entries.append({"ok": False, "user": user, **failure_fields(error)})
+    return {"ok": all(entry["ok"] for entry in entries), "app-id": app_id, "users": entries}
+
+
 def brief_assembly(assembly, remembered=None):
     """A brief assembly card: what a build is recognized and picked by.
 

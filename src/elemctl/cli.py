@@ -48,7 +48,9 @@ from .client import (
     landed_project,
     project_label,
     project_names,
+    repeated_values,
     sign_in_hint,
+    token_access_each,
     uploaded_project,
 )
 from .config import Config, ensure_env_file_exists
@@ -60,7 +62,7 @@ from .deploy import (
     verify_deploy,
 )
 from .errors import ApiError, ConfigError, ElemctlError, PluginError
-from .probe import cleanup_probe, probe_project
+from .probe import cleanup_probe, cleanup_probes, probe_project
 from .registry import ROUTE_NO_PROJECT_ID, ROUTE_PROJECT, remember_upload
 from .versions import newest_first
 
@@ -780,6 +782,10 @@ def cmd_apps_token_access(args):
     default. --user is a login, a presentation or a user id; without it the command speaks
     about the account elemctl signs in with. Without --enable or --disable it only reads, and
     after a switch the flag in the answer is the one read back from the platform.
+
+    --user may be repeated. Then every user is read or switched in turn and gets an entry of
+    its own (token_access_each), a user that fails does not stop the rest, and the exit code
+    is 1 when any of them failed. One --user, or none, answers the way it always did.
     """
     reference = _app_ref(args)
     if not reference:
@@ -788,10 +794,14 @@ def cmd_apps_token_access(args):
         raise ElemctlError(i18n.t("cli.enable-disable-conflict"))
     client = make_client(_config(args))
     enabled = True if args.enable else False if args.disable else None
-    _emit(client.token_access(
-        client.resolve_app_id(reference), user=args.user or "", enabled=enabled
-    ))
-    return 0
+    app_id = client.resolve_app_id(reference)
+    users = repeated_values(args.user)
+    if len(users) < 2:
+        _emit(client.token_access(app_id, user=users[0] if users else "", enabled=enabled))
+        return 0
+    answer = token_access_each(client, app_id, users, enabled=enabled)
+    _emit(answer)
+    return 0 if answer["ok"] else 1
 
 
 def cmd_apps_export(args):
@@ -1403,7 +1413,9 @@ def cmd_probe(args):
 
     --cleanup APP_ID is the other half of --keep: it removes a probe already left on
     the stand, starting from its application, and builds nothing. The flags of a run
-    make no sense beside it and are refused rather than ignored.
+    make no sense beside it and are refused rather than ignored. The key may be
+    repeated: the probes are removed in turn (cleanup_probes), each with a report of its
+    own, and a refusal of one does not stop the rest. One key answers the way it always did.
     """
     if args.cleanup:
         given = [
@@ -1412,9 +1424,15 @@ def cmd_probe(args):
         ]
         if given:
             raise ElemctlError(i18n.t("probe.cleanup-flags", flags=", ".join(given)))
-        cleanup = cleanup_probe(make_client(_config(args)), args.cleanup, log=_progress)
-        _emit(cleanup.to_dict())
-        return 0 if cleanup.ok else 1
+        client = make_client(_config(args))
+        apps = repeated_values(args.cleanup)
+        if len(apps) == 1:
+            cleanup = cleanup_probe(client, apps[0], log=_progress)
+            _emit(cleanup.to_dict())
+            return 0 if cleanup.ok else 1
+        answer = cleanup_probes(client, apps, log=_progress)
+        _emit(answer)
+        return 0 if answer["ok"] else 1
     if args.require_clean:
         _ensure_clean_tree(args.project_dir)
     config = _config(args)
@@ -2073,7 +2091,8 @@ def build_parser(discover=None):
 
     p = apps_sub.add_parser("token-access", help=i18n.t("cli.help.apps-token-access"))
     _add_app_ref(p, required=True)
-    p.add_argument("--user", help=i18n.t("cli.help.apps-token-access-user"))
+    # Repeatable: a second --user used to replace the first without a word.
+    p.add_argument("--user", action="append", help=i18n.t("cli.help.apps-token-access-user"))
     p.add_argument("--enable", action="store_true", help=i18n.t("cli.help.apps-token-access-enable"))
     p.add_argument("--disable", action="store_true", help=i18n.t("cli.help.apps-token-access-disable"))
     p.set_defaults(handler=cmd_apps_token_access)
@@ -2272,7 +2291,10 @@ def build_parser(discover=None):
         action="store_true",
         help=i18n.t("cli.help.probe-require-clean"),
     )
-    p.add_argument("--cleanup", metavar="APP_ID", help=i18n.t("cli.help.probe-cleanup"))
+    # Repeatable: a second --cleanup used to replace the first without a word.
+    p.add_argument(
+        "--cleanup", metavar="APP_ID", action="append", help=i18n.t("cli.help.probe-cleanup")
+    )
     p.set_defaults(handler=cmd_probe)
 
     # verify-deploy -------------------------------------------------------
