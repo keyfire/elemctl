@@ -972,19 +972,92 @@ def test_cli_plugin_multiple_positional_says_so_in_its_help(monkeypatch, capsys)
 
 
 def test_cli_plugin_positional_without_multiple_still_takes_one_value(monkeypatch, capsys):
-    """Nothing changes for an argument that does not declare the field: the positional form
-    takes one value, and a repeated key keeps the last one, like any single option."""
+    """An argument that does not declare the field takes one value in either form: the
+    positional form refuses a second one, and a repeated key refuses a different one, like
+    any key of one value. It used to keep the last of them."""
     _with_commands(monkeypatch, _pages_command(
         plugins.Argument("page", type=int, required=True, cli_alias="--page"),
     ))
 
     assert cli.main(["wiki-get", "123"]) == 0
     assert json.loads(capsys.readouterr().out) == {"page": 123}
-    assert cli.main(["wiki-get", "--page", "123", "--page", "456"]) == 0
-    assert json.loads(capsys.readouterr().out) == {"page": 456}
+    assert cli.main(["wiki-get", "--page", "123", "--page", "123"]) == 0
+    assert json.loads(capsys.readouterr().out) == {"page": 123}
+    with pytest.raises(SystemExit) as refusal:
+        cli.main(["wiki-get", "--page", "123", "--page", "456"])
+    assert refusal.value.code == 2
+    assert ('ключ --page принимает одно значение, а повторен с разными: "123" и "456"'
+            in capsys.readouterr().err)
     with pytest.raises(SystemExit):
         cli.main(["wiki-get", "123", "456"])
     assert "unrecognized arguments: 456" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("argv", [["7", "--page", "7"], ["--page", "7", "7"]])
+def test_cli_plugin_alias_and_positional_stay_exclusive_with_the_same_value(
+    monkeypatch, capsys, argv
+):
+    """The two forms of one argument are refused together, whatever the values: the rule of
+    a repeated key compares the occurrences of one key and does not reach across the pair."""
+    _with_commands(monkeypatch, _pages_command(
+        plugins.Argument("page", type=int, required=True, cli_alias="--page"),
+    ))
+
+    with pytest.raises(SystemExit) as refusal:
+        cli.main(["wiki-get", *argv])
+
+    assert refusal.value.code == 2
+    assert "not allowed with argument" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("argv, key, first, second", [
+    (["--stand", "dev", "--stand", "prod"], "--stand", "dev", "prod"),
+    (["--stand=dev", "--stand", "prod"], "--stand", "dev", "prod"),
+    (["--retries", "3", "--retries=4"], "--retries", "3", "4"),
+])
+def test_cli_plugin_option_refuses_a_repetition_with_another_value(
+    monkeypatch, capsys, argv, key, first, second
+):
+    """A plugin command is parsed by the parser of the core, so its keys of one value fall
+    under the same rule as the keys of the core, and the command is not called."""
+    called = []
+    _with_commands(monkeypatch, _command(handler=lambda context, **values: called.append(values)))
+
+    with pytest.raises(SystemExit) as refusal:
+        cli.main(["warm-up", *argv])
+
+    assert refusal.value.code == 2
+    assert (f'ключ {key} принимает одно значение, а повторен с разными: "{first}" и "{second}"'
+            in capsys.readouterr().err)
+    assert called == []
+
+
+def test_cli_plugin_option_repeated_with_the_same_value_and_a_repeated_flag_pass(
+    monkeypatch, capsys
+):
+    _with_commands(monkeypatch, _command())
+
+    assert cli.main([
+        "--base-url", "https://api.test",
+        "warm-up", "--stand", "dev", "--stand=dev", "--retries", "3", "--retries", "03",
+        "--force", "--force",
+    ]) == 0
+    assert json.loads(capsys.readouterr().out) == {
+        "stand": "dev", "retries": 3, "force": True, "base": "https://api.test",
+    }
+
+
+def test_cli_plugin_option_with_choices_takes_one_value(monkeypatch, capsys):
+    _with_commands(monkeypatch, _command(
+        arguments=[plugins.Argument("--step", choices=("build", "check"))],
+        handler=lambda context, step=None: {"step": step},
+    ))
+
+    assert cli.main(["warm-up", "--step", "check", "--step", "check"]) == 0
+    assert json.loads(capsys.readouterr().out) == {"step": "check"}
+    with pytest.raises(SystemExit):
+        cli.main(["warm-up", "--step", "build", "--step", "check"])
+    assert '"build" и "check"' in capsys.readouterr().err
 
 
 def test_cli_plugin_cannot_take_over_a_core_command(monkeypatch, capsys):

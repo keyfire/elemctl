@@ -12,6 +12,8 @@ This reference is generated from the tool itself – the same text `elemctl --he
 
 Common flags are accepted in any position – before the command and after it: `elemctl --timeout 120 apps list` and `elemctl apps list --timeout 120` are the same run. The output language follows `--lang`, the `ELEMCTL_LANG` variable, or the system locale.
 
+A key whose help says it may be repeated collects every value. Any other key takes one value: the CLI refuses a repetition with a different value before the command runs and lets a repetition with the same value through.
+
 ## Common flags
 
 Manage 1C:Enterprise.Element platform applications (Console API v2)

@@ -1727,6 +1727,12 @@ MESSAGES = {
         "en": "the application is given twice and differently: positionally \"{positional}\" and "
               "with --app-id \"{option}\" - keep one form",
     },
+    "cli.key-repeated": {
+        "ru": "ключ {key} принимает одно значение, а повторен с разными: \"{first}\" и "
+              "\"{second}\" – оставьте одно",
+        "en": "the key {key} takes one value, but it is repeated with different ones: "
+              "\"{first}\" and \"{second}\" – keep one",
+    },
     "cli.help.arg.project-id": {
         "ru": "ид проекта (по умолчанию ELEMENT_PROJECT_ID)",
         "en": "the project id (default: ELEMENT_PROJECT_ID)",

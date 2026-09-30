@@ -2033,8 +2033,72 @@ def _action_first_hint(parser, argv):
     return ""
 
 
+#: Where a parse keeps the values its keys of one value have got so far. No key can fill a
+#: name with a colon in it, so the record never meets a value of a command, and _Parser takes
+#: it out of the namespace before the parse is handed over.
+_GIVEN = "elemctl:given"
+
+
+def _shown(value):
+    """A value as a refusal names it: the values of a key with nargs are joined by spaces."""
+    if isinstance(value, (list, tuple)):
+        return " ".join(str(item) for item in value)
+    return str(value)
+
+
+class _OneValue(argparse._StoreAction):
+    """The store action of a key of one value: a repetition with a different value is refused.
+
+    argparse keeps the last value of a key given twice and drops the earlier one without a
+    word. `--output a --output b` wrote to b, and nothing said that a had been ignored. Here
+    the value of a repetition is compared with the one the key already got in this parse. The
+    same value passes, since a script that assembles a command line out of parts may well
+    repeat a key. A different one is a refusal of the parser with exit code 2, like any other,
+    and it names the key and both values before the command runs.
+
+    The values compared are the converted ones, which the command would get, so `--limit 5`
+    and `--limit 05` agree. A positional argument is left alone: argparse hands it its values
+    once. The keys that collect several values (action="append") and the flags (store_true,
+    store_false, count) have actions of their own and never get here.
+    """
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        if self.option_strings:
+            given = vars(namespace).setdefault(_GIVEN, {})
+            if self in given and given[self] != values:
+                raise argparse.ArgumentError(None, i18n.t(
+                    "cli.key-repeated", key="/".join(self.option_strings),
+                    first=_shown(given[self]), second=_shown(values),
+                ))
+            given[self] = values
+        super().__call__(parser, namespace, values, option_string)
+
+
+class _Parser(i18n.ArgumentParser):
+    """The parser of the CLI and of every command in it, the commands of the plugins included.
+
+    A key declared without an action of its own is built as _OneValue, which the class
+    registers in place of the plain store action. The commands are parsers of this class as
+    well: add_subparsers builds them with the class of their parent, and a plugin command
+    declares its keys through the same add_argument. So the common flags, the keys of the core
+    and the keys of the plugins fall under one rule, stated in one place.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.register("action", None, _OneValue)
+        self.register("action", "store", _OneValue)
+
+    def parse_known_args(self, args=None, namespace=None):
+        # A command is parsed into a namespace of its own and then copied into the one of
+        # the root, so its record is taken out here, before the copy.
+        namespace, extras = super().parse_known_args(args, namespace)
+        vars(namespace).pop(_GIVEN, None)
+        return namespace, extras
+
+
 def build_parser(discover=None):
-    parser = i18n.ArgumentParser(
+    parser = _Parser(
         prog="elemctl",
         description=i18n.t("cli.help.description"),
     )

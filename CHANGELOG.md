@@ -15,6 +15,14 @@ entry either – say what the behaviour was, not which id or response field was 
 The link is written by `python scripts/changelog-link.py <number>`, which rebuilds the generated
 pages of the site in the same run – writing it by hand is how the mirrors get left behind.
 
+## Unreleased
+
+### Changed
+
+- **A key repeated with a different value is refused.** `--output a --output b` used to write to
+  `b` and drop `a` without a word; now the call stops with exit code 2 and names the key and both
+  values, in plugin commands too. The same value twice passes, as do repeatable keys and flags.
+
 ## 2026-09-30 – 0.50.0
 
 ### Added

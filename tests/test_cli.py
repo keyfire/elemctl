@@ -2129,6 +2129,158 @@ def test_the_hint_keeps_quiet_where_it_would_be_noise(capsys):
     assert "elemctl apps list" in cli._action_first_hint(parser, ["apps", "--brief"])
 
 
+# -- a key of one value given twice ---------------------------------------------
+
+
+def _refused(argv, capsys):
+    """The exit code of a call the parser refuses and the line that says why."""
+    with pytest.raises(SystemExit) as refusal:
+        cli.main(argv)
+    return refusal.value.code, capsys.readouterr().err.strip().splitlines()[-1]
+
+
+def _repeated(key, first, second):
+    return (f'ключ {key} принимает одно значение, а повторен с разными: "{first}" и '
+            f'"{second}" – оставьте одно')
+
+
+@pytest.mark.parametrize("argv, key, first, second", [
+    (["apps", "export", "--output", "a.xasm", "--output", "b.xasm"], "--output", "a.xasm", "b.xasm"),
+    # the two spellings of a key with its value are the same key
+    (["apps", "export", "--output=a.xasm", "--output", "b.xasm"], "--output", "a.xasm", "b.xasm"),
+    (["builds", "list", "--limit", "5", "--limit=7"], "--limit", "5", "7"),
+    # a key with choices and a key whose value may be left out take one value just the same
+    (["build", "--kind", "library", "--kind", "extension"], "--kind", "library", "extension"),
+    (["self-update", "--stop-holders", "--stop-holders=all"], "--stop-holders", "servers", "all"),
+    # a repetition with the same value in between changes nothing
+    (["apps", "export", "--output", "a", "--output", "a", "--output", "b"], "--output", "a", "b"),
+])
+def test_a_key_of_one_value_repeated_with_another_value_is_refused(
+    capsys, argv, key, first, second
+):
+    """argparse kept the last value and dropped the first without a word: `--output a
+    --output b` wrote to b, and nothing said that a had been ignored."""
+    code, line = _refused(argv, capsys)
+
+    assert code == 2  # a refusal of the parser, like any other
+    assert line.endswith(_repeated(key, first, second))
+
+
+def test_the_refusal_of_a_repeated_key_is_in_the_language_of_the_call(capsys):
+    from elemctl import i18n
+
+    try:
+        code, line = _refused(
+            ["--lang", "en", "apps", "export", "--output", "a", "--output", "b"], capsys
+        )
+    finally:
+        i18n.set_lang("ru")
+
+    assert code == 2
+    assert line == ('elemctl apps export: error: the key --output takes one value, but it is '
+                    'repeated with different ones: "a" and "b" – keep one')
+
+
+@pytest.mark.parametrize("argv, dest, expected", [
+    (["builds", "list", "--limit", "5", "--limit", "5"], "limit", 5),
+    (["builds", "list", "--limit=5", "--limit", "5"], "limit", 5),
+    # the values the command gets are compared, not their spelling
+    (["builds", "list", "--limit", "5", "--limit", "05"], "limit", 5),
+    (["self-update", "--stop-holders", "--stop-holders=servers"], "stop_holders", "servers"),
+    (["--timeout", "30", "--timeout", "30.0", "apps", "list"], "timeout", 30.0),
+])
+def test_a_key_repeated_with_the_same_value_takes_it(argv, dest, expected):
+    """A script that assembles a command line out of parts may well repeat a key."""
+    args = cli.build_parser().parse_args(argv)
+
+    assert getattr(args, dest) == expected
+    # the record of the parse does not reach the namespace a command is handed
+    assert cli._GIVEN not in vars(args)
+
+
+def test_a_repeated_key_with_the_same_value_runs_the_command(monkeypatch, capsys):
+    seen = []
+
+    class FakeClient:
+        def list_apps_counted(self, name="", status="", include_deleted=False):
+            seen.append(name)
+            return {"items": [], "total": 0, "live": 0, "shown": 0}
+
+    monkeypatch.setattr(cli, "make_client", lambda config: FakeClient())
+
+    assert cli.main(["apps", "list", "--name", "crm", "--name=crm"]) == 0
+    assert seen == ["crm"]
+
+
+def test_the_repeatable_keys_and_the_flags_are_left_as_they_were(monkeypatch, capsys):
+    """A key that collects values keeps each of them, and a flag given twice says what it says
+    once: neither of them is a key of one value."""
+    seen = []
+
+    class FakeClient:
+        def list_apps_counted(self, name="", status="", include_deleted=False):
+            seen.append((status, include_deleted))
+            return {"items": [], "total": 0, "live": 0, "shown": 0}
+
+    monkeypatch.setattr(cli, "make_client", lambda config: FakeClient())
+
+    assert cli.main([
+        "apps", "list", "--status", "running", "--status", "stopped", "--brief", "--brief",
+        "--include-deleted", "--include-deleted", "--json", "--quiet", "--json", "--quiet",
+    ]) == 0
+    assert seen == [("running,stopped", True)]
+
+    parser = cli.build_parser()
+    token_access = parser.parse_args(["apps", "token-access", "a", "--user", "u1", "--user", "u2"])
+    assert token_access.user == ["u1", "u2"]
+    probe = parser.parse_args(["probe", "--cleanup", "app-1", "--cleanup", "app-2"])
+    assert probe.cleanup == ["app-1", "app-2"]
+
+
+def test_a_common_key_is_under_the_rule_on_either_side_of_the_command(
+    monkeypatch, tmp_path, capsys
+):
+    """The CLI moves a common key written after the command in front of it, and the root
+    parser meets both occurrences there: the file named second used to win without a word."""
+    first, second = tmp_path / "a.env", tmp_path / "b.env"
+    for path, host in ((first, "a.test"), (second, "b.test")):
+        path.write_text(
+            f"ELEMENT_BASE_URL=https://{host}\nELEMENT_CLIENT_ID=id\nELEMENT_CLIENT_SECRET=s\n",
+            encoding="utf-8",
+        )
+
+    for argv in (
+        ["--env-file", str(first), "apps", "list", "--env-file", str(second)],
+        ["apps", "list", f"--env-file={first}", "--env-file", str(second)],
+    ):
+        code, line = _refused(argv, capsys)
+        assert code == 2
+        assert line.endswith(_repeated("--env-file", first, second))
+
+    configs = []
+
+    class FakeClient:
+        def list_apps_counted(self, name="", status="", include_deleted=False):
+            return {"items": [], "total": 0, "live": 0, "shown": 0}
+
+    monkeypatch.setattr(cli, "make_client", lambda config: configs.append(config) or FakeClient())
+
+    assert cli.main(["--env-file", str(first), "apps", "list", "--env-file", str(first)]) == 0
+    assert [config.base_url for config in configs] == ["https://a.test"]
+
+
+def test_the_positional_and_the_key_of_an_application_keep_their_own_rule(capsys):
+    """`APP_ID` and `--app-id` are two arguments, and the command compares them itself; the key
+    repeated with another value is a refusal of the parser now, before the command runs."""
+    code, line = _refused(["apps", "get", "--app-id", "crm-x", "--app-id", "crm-y"], capsys)
+    assert code == 2
+    assert line.endswith(_repeated("--app-id", "crm-x", "crm-y"))
+
+    assert cli.main(["apps", "get", "crm-x", "--app-id", "crm-y"]) == 1
+    error = json.loads(capsys.readouterr().err)["error"]
+    assert "crm-x" in error and "crm-y" in error
+
+
 # -- verify-deploy --------------------------------------------------------------
 
 
