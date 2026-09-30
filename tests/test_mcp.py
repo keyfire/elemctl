@@ -835,6 +835,34 @@ def test_plugin_multiple_option_becomes_an_array_parameter(monkeypatch):
     assert payload == {"file": ["a.png", "b.png"], "line": [1], "log": []}
 
 
+def test_plugin_multiple_positional_becomes_one_array_parameter(monkeypatch):
+    """The CLI takes the values positionally or by a repeated key (test_plugins.py); the tool
+    has neither form, only the one parameter of the declaration, and takes the list at once."""
+    from elemctl import plugins
+
+    server = _server_with(monkeypatch, _plugin_command(
+        name="wiki-get",
+        arguments=[
+            plugins.Argument("page", type=int, required=True, multiple=True, cli_alias="--page"),
+            plugins.Argument("tag", multiple=True, default=("draft",)),
+        ],
+        handler=lambda context, **values: values,
+    ))
+    tool = next(t for t in asyncio.run(server.list_tools()) if t.name == "wiki_get")
+
+    properties = tool_input_schema(tool).get("properties") or {}
+    assert set(properties) == {"page", "tag", "env_file"}  # no second, alias-shaped parameter
+    assert properties["page"] == {
+        "default": [], "items": {"type": "integer"}, "title": "Page", "type": "array",
+    }
+    assert properties["tag"]["items"] == {"type": "string"}
+    assert properties["tag"]["default"] == ["draft"]
+
+    result = asyncio.run(server.call_tool("wiki_get", {"page": [123, 456]}))
+    payload = json.loads(call_result_content(result)[0].text)
+    assert payload == {"page": [123, 456], "tag": ["draft"], "log": []}
+
+
 def test_plugin_multiple_option_hands_every_tool_call_a_list_of_its_own(monkeypatch):
     """A handler that appends to the list it got must not pass the items on to the next call.
 

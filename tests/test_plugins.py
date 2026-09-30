@@ -774,38 +774,217 @@ def test_cli_plugin_multiple_option_says_so_in_its_help(monkeypatch, capsys):
     assert "--mask MASK (ключ можно повторить" in text
 
 
-@pytest.mark.parametrize("argument", [
-    plugins.Argument("files", multiple=True),
-    plugins.Argument("files", multiple=True, required=False),
-    plugins.Argument("--force", type=bool, multiple=True),
-], ids=["positional", "optional-positional", "flag"])
-def test_only_an_option_with_a_value_may_be_multiple(monkeypatch, argument):
-    _with_commands(monkeypatch, _command(arguments=[argument]))
-
-    with pytest.raises(PluginError) as refusal:
-        plugins.plugin_commands()
-
-    message = str(refusal.value)
-    assert argument.name in message and "повторяемым (multiple)" in message
-
-
-@pytest.mark.parametrize("default", ["a.png", 3, {"a.png"}])
-def test_a_multiple_option_takes_a_list_for_its_default(monkeypatch, default):
-    """list("a.png") would hand the command five one-letter files."""
+def test_a_flag_may_not_be_multiple(monkeypatch):
+    """A flag given twice says no more than a flag given once."""
     _with_commands(monkeypatch, _command(
-        arguments=[plugins.Argument("--file", multiple=True, default=default)],
+        arguments=[plugins.Argument("--force", type=bool, multiple=True)],
     ))
 
     with pytest.raises(PluginError) as refusal:
         plugins.plugin_commands()
 
-    assert "--file" in str(refusal.value) and repr(default) in str(refusal.value)
+    message = str(refusal.value)
+    assert "--force" in message and "повторяемым (multiple), а это флаг" in message
+
+
+@pytest.mark.parametrize("argument", [
+    plugins.Argument("files", multiple=True),
+    plugins.Argument("files", multiple=True, required=True),
+    plugins.Argument("files", multiple=True, cli_alias="--file"),
+], ids=["optional", "required", "aliased"])
+def test_a_positional_argument_may_be_multiple(monkeypatch, argument):
+    """A positional argument used to be refused: it had no key to repeat. It takes its values
+    one after another now, and a cli_alias key is repeated the way an option is."""
+    _with_commands(monkeypatch, _command(arguments=[argument]))
+
+    assert plugins.plugin_commands()[0].arguments == [argument]
+
+
+@pytest.mark.parametrize("default", ["a.png", 3, {"a.png"}])
+@pytest.mark.parametrize("name", ["--file", "file"])
+def test_a_multiple_argument_takes_a_list_for_its_default(monkeypatch, name, default):
+    """list("a.png") would hand the command five one-letter files."""
+    _with_commands(monkeypatch, _command(
+        arguments=[plugins.Argument(name, multiple=True, default=default)],
+    ))
+
+    with pytest.raises(PluginError) as refusal:
+        plugins.plugin_commands()
+
+    assert name in str(refusal.value) and repr(default) in str(refusal.value)
 
 
 def test_a_plugin_on_an_older_core_can_tell_multiple_is_there():
     # the check the documentation tells a plugin to make before declaring a multiple option
     assert hasattr(plugins.Argument, "multiple")
     assert plugins.Argument("--file").multiple is False
+
+
+def test_a_plugin_on_an_older_core_can_tell_a_positional_may_be_multiple():
+    # hasattr(Argument, "multiple") also holds on a core that refuses a multiple positional
+    # argument, so the documentation points a plugin at this name instead
+    assert plugins.POSITIONAL_MULTIPLE is True
+
+
+# --- A multiple positional argument --------------------------------------------------
+
+def _pages_command(*arguments, handler=None):
+    """A command that takes pages: it reports the values it was given."""
+    return _command(
+        name="wiki-get",
+        arguments=list(arguments) or [
+            plugins.Argument("page", type=int, required=True, multiple=True, cli_alias="--page"),
+            plugins.Argument("--stand", default=""),
+        ],
+        handler=handler or (lambda context, **values: values),
+    )
+
+
+@pytest.mark.parametrize("argv", [
+    ["123", "456", "123"],
+    ["--page", "123", "--page", "456", "--page", "123"],
+    ["--stand", "dev", "123", "456", "123"],
+    ["123", "456", "123", "--stand", "dev"],
+    ["--page", "123", "--stand", "dev", "--page", "456", "--page", "123"],
+])
+def test_cli_plugin_multiple_positional_takes_every_value_in_either_form(
+    monkeypatch, capsys, argv
+):
+    """A positional argument with a key synonym took one value, and a repeated key kept the
+    last of them: "--page 123 --page 456" asked for two pages and got the second one."""
+    _with_commands(monkeypatch, _pages_command())
+
+    assert cli.main(["wiki-get", *argv]) == 0
+
+    # in the order of the command line and with the repeats kept, the way an option keeps them
+    result = json.loads(capsys.readouterr().out)
+    assert result["page"] == [123, 456, 123]
+    assert result["stand"] == ("dev" if "--stand" in argv else "")
+
+
+def test_cli_plugin_multiple_positional_hands_one_value_as_a_list(monkeypatch, capsys):
+    _with_commands(monkeypatch, _pages_command())
+
+    for argv in (["7"], ["--page", "7"]):
+        assert cli.main(["wiki-get", *argv]) == 0
+        assert json.loads(capsys.readouterr().out) == {"page": [7], "stand": ""}
+
+
+@pytest.mark.parametrize("argv", [["123", "--page", "456"], ["--page", "456", "123"]])
+def test_cli_plugin_multiple_positional_refuses_both_forms_at_once(monkeypatch, capsys, argv):
+    """One list, one place to put it: the values of the two forms are not merged."""
+    _with_commands(monkeypatch, _pages_command())
+
+    with pytest.raises(SystemExit):
+        cli.main(["wiki-get", *argv])
+
+    assert "not allowed with argument" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("argument", [
+    plugins.Argument("page", required=True, multiple=True, cli_alias="--page"),
+    plugins.Argument("page", required=True, multiple=True),
+], ids=["aliased", "positional-only"])
+def test_cli_plugin_multiple_positional_needs_a_value_when_required(
+    monkeypatch, capsys, argument
+):
+    _with_commands(monkeypatch, _pages_command(argument))
+
+    with pytest.raises(SystemExit):
+        cli.main(["wiki-get"])
+
+    assert "required" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("cli_alias", ["", "--page"], ids=["positional-only", "aliased"])
+def test_cli_plugin_multiple_positional_falls_back_to_its_default(
+    monkeypatch, capsys, cli_alias
+):
+    """An optional argument given no value hands over its default as a list of its own, so a
+    handler that changes the list it got cannot hand the change over to the next call."""
+
+    def handler(context, page, stand):
+        page.append(0)
+        return {"page": page}
+
+    _with_commands(monkeypatch, _pages_command(
+        plugins.Argument("page", type=int, multiple=True, default=(1,), cli_alias=cli_alias),
+        plugins.Argument("--stand", default=""),
+        handler=handler,
+    ))
+
+    for _ in range(2):
+        assert cli.main(["wiki-get"]) == 0
+        assert json.loads(capsys.readouterr().out) == {"page": [1, 0]}
+    # the command line replaces the default rather than adding to it
+    assert cli.main(["wiki-get", "5", "6"]) == 0
+    assert json.loads(capsys.readouterr().out) == {"page": [5, 6, 0]}
+
+
+@pytest.mark.parametrize("cli_alias", ["", "--status"], ids=["positional-only", "aliased"])
+def test_cli_plugin_multiple_positional_checks_every_value(monkeypatch, capsys, cli_alias):
+    """The type and the choices apply to each value of either form.
+
+    Before Python 3.14 argparse also checks the absence marker of an optional "*" positional
+    against the choices, and an argument given no value was refused: "invalid choice:
+    '==SUPPRESS=='". CI runs the suite on 3.10 and 3.12, where that happens.
+    """
+    _with_commands(monkeypatch, _pages_command(
+        plugins.Argument("status", multiple=True, choices=("done", "open"), cli_alias=cli_alias),
+        plugins.Argument("--line", type=int, multiple=True),
+    ))
+
+    assert cli.main(["wiki-get"]) == 0
+    assert json.loads(capsys.readouterr().out) == {"status": [], "line": []}
+    assert cli.main(["wiki-get", "open", "done", "--line", "3"]) == 0
+    assert json.loads(capsys.readouterr().out) == {"status": ["open", "done"], "line": [3]}
+
+    refused = [["done", "lost"]]
+    if cli_alias:
+        refused.append(["--status", "done", "--status", "lost"])
+    for argv in refused:
+        with pytest.raises(SystemExit):
+            cli.main(["wiki-get", *argv])
+        assert "'lost'" in capsys.readouterr().err
+
+    _with_commands(monkeypatch, _pages_command(
+        plugins.Argument("page", type=int, multiple=True, cli_alias=cli_alias and "--page"),
+    ))
+    with pytest.raises(SystemExit):
+        cli.main(["wiki-get", "3", "x"])
+    assert "invalid int value: 'x'" in capsys.readouterr().err
+
+
+def test_cli_plugin_multiple_positional_says_so_in_its_help(monkeypatch, capsys):
+    _with_commands(monkeypatch, _pages_command(
+        plugins.Argument("page", help="страница", required=True, multiple=True, cli_alias="--page"),
+        plugins.Argument("tag", multiple=True),
+    ))
+
+    with pytest.raises(SystemExit):
+        cli.main(["wiki-get", "--help"])
+
+    text = " ".join(capsys.readouterr().out.split())
+    assert "страница (можно назвать несколько значений через пробел)" in text
+    assert "tag (можно назвать несколько значений через пробел)" in text
+    assert ("то же, что позиционный аргумент page (ключ можно повторить, по значению на каждый)"
+            in text)
+
+
+def test_cli_plugin_positional_without_multiple_still_takes_one_value(monkeypatch, capsys):
+    """Nothing changes for an argument that does not declare the field: the positional form
+    takes one value, and a repeated key keeps the last one, like any single option."""
+    _with_commands(monkeypatch, _pages_command(
+        plugins.Argument("page", type=int, required=True, cli_alias="--page"),
+    ))
+
+    assert cli.main(["wiki-get", "123"]) == 0
+    assert json.loads(capsys.readouterr().out) == {"page": 123}
+    assert cli.main(["wiki-get", "--page", "123", "--page", "456"]) == 0
+    assert json.loads(capsys.readouterr().out) == {"page": 456}
+    with pytest.raises(SystemExit):
+        cli.main(["wiki-get", "123", "456"])
+    assert "unrecognized arguments: 456" in capsys.readouterr().err
 
 
 def test_cli_plugin_cannot_take_over_a_core_command(monkeypatch, capsys):

@@ -1094,7 +1094,8 @@ def _plugin_tool(command, client_for_env):
     version: the schema comes out with the types and the defaults in place).
     env_file is added by the core to every such tool, exactly like the tools of
     the core have it. A multiple argument is an array of its declared type, the
-    same list the CLI hands over for a key given several times.
+    same list the CLI hands over for a key given several times or for several
+    positional values.
     """
     parameters = [
         inspect.Parameter(
