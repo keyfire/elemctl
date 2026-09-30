@@ -39,6 +39,9 @@ TEXT = {
             "`elemctl --timeout 120 apps list` и `elemctl apps list --timeout 120` "
             "равнозначны. Язык вывода переключается флагом `--lang`, переменной "
             "`ELEMCTL_LANG` или берётся из локали системы."
+            "\n\nКлюч, в справке которого сказано, что его можно повторить, собирает все "
+            "значения. Остальные ключи принимают одно значение: повтор с другим значением "
+            "CLI отвергает до запуска команды, а повтор с тем же значением пропускает."
         ),
         "common": "Общие флаги",
         "col_opt": "Параметр",
@@ -57,6 +60,9 @@ TEXT = {
             "after it: `elemctl --timeout 120 apps list` and `elemctl apps list "
             "--timeout 120` are the same run. The output language follows `--lang`, "
             "the `ELEMCTL_LANG` variable, or the system locale."
+            "\n\nA key whose help says it may be repeated collects every value. Any other "
+            "key takes one value: the CLI refuses a repetition with a different value "
+            "before the command runs and lets a repetition with the same value through."
         ),
         "common": "Common flags",
         "col_opt": "Option",

@@ -192,15 +192,17 @@ class Argument:
     --page 123 --page 456", and the two forms stay mutually exclusive. An absent
     argument hands over the declared default as a list, or [] without one, and the
     MCP tool gets an array of the declared type. An argument without it takes one
-    value: an option keeps the last of its repetitions and drops the rest without a
-    word, which is how a command asked to upload seven files uploaded one. A flag
-    may not be multiple, since a flag given twice says no more than a flag given
-    once. The default is None, a list or a tuple, never a bare value, and the
-    command line replaces it rather than adding to it. A plugin that also runs on
-    an older core checks hasattr(Argument, "multiple") before declaring a multiple
-    option: the dataclass there refuses the keyword, and the whole plugin is left
-    out. A multiple positional argument needs POSITIONAL_MULTIPLE as well, since a
-    core that knows the field for options refuses it on a positional one.
+    value: its option given again with a different value is a refusal of the
+    parser, and the same value given again passes (cli._OneValue). The option used
+    to keep the last value it got, which is how a command asked to upload seven
+    files uploaded one. A flag may not be multiple, since a flag given twice says no
+    more than a flag given once. The default is None, a list or a tuple, never a
+    bare value, and the command line replaces it rather than adding to it. A plugin
+    that also runs on an older core checks hasattr(Argument, "multiple") before
+    declaring a multiple option: the dataclass there refuses the keyword, and the
+    whole plugin is left out. A multiple positional argument needs
+    POSITIONAL_MULTIPLE as well, since a core that knows the field for options
+    refuses it on a positional one.
     """
 
     name: str

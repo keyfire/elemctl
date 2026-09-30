@@ -442,6 +442,24 @@ CLAIMS = (
             "`--stop-holders` ends them",
         ),
     ),
+    # A key of one value given twice kept the last value and dropped the first without a word,
+    # and the pages gave that as the rule of a plugin option without `multiple`. The parser
+    # refuses a repetition with a different value now, the keys of the core and the common
+    # flags included, and a place still telling the old rule would promise that the last one wins.
+    Claim(
+        name="a key of one value given again with a different value is refused by the parser",
+        told_in=(
+            "docs/SPEC.md", "docs/SPEC.ru.md",
+            "docs/mcp.md", "docs/mcp.ru.md",
+            "README.md", "README.ru.md",
+            "src/elemctl/cli.py", "src/elemctl/plugins.py",
+        ),
+        wording=("with a different value", "с другим значением"),
+        retired=(
+            "keeps the last of its repetitions",
+            "оставляет последнее из повторенных значений",
+        ),
+    ),
 )
 
 
