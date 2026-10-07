@@ -1263,3 +1263,50 @@ def test_deploy_counts_the_version_within_the_project_base(project_factory, tmp_
     )
     assert client.latest_base == "1.0"
     assert report.version == "1.0-1"
+
+
+
+@pytest.mark.parametrize("expected", [
+    {"expected_app_name": "other-app"},
+    {"expected_app_uri": "https://app.test/other"},
+    {"expected_app_name": "demo-app", "expected_app_uri": "https://app.test/other"},
+    {"expected_app_name": " "},
+])
+def test_deploy_refuses_an_unexpected_target_before_building(tmp_path, expected):
+    client = FakeDeployClient()
+    output = tmp_path / "dist"
+    with pytest.raises(ElemctlError, match="name|uri"):
+        deploy_from_sources(
+            client, "app-1", "proj-1", project_dir=tmp_path / "missing-project",
+            output_dir=output, **expected,
+        )
+    assert not output.exists()
+    assert client.upload_kwargs is None and client.apply_calls == []
+
+
+@pytest.mark.parametrize("expected", [
+    {"expected_app_name": "demo-app"},
+    {"expected_app_uri": "https://app.test/x"},
+    {"expected_app_name": "demo-app", "expected_app_uri": "https://app.test/x"},
+])
+def test_deploy_continues_when_the_target_matches(project_factory, tmp_path, expected):
+    client = FakeDeployClient()
+    lines = []
+    report = deploy_from_sources(
+        client, "app-1", "proj-1", project_dir=project_factory(),
+        output_dir=tmp_path / "dist", version="1.0-5", log=lines.append, **expected,
+    )
+    assert report.ok is True
+    assert len(client.apply_calls) == 1
+    assert any("demo-app" in line and "https://app.test/x" in line for line in lines)
+
+
+def test_a_target_card_without_the_expected_field_is_refused(tmp_path):
+    client = FakeDeployClient()
+    client._uri = None
+    with pytest.raises(ElemctlError, match="uri"):
+        deploy_from_sources(
+            client, "app-1", "proj-1", project_dir=tmp_path,
+            expected_app_uri="https://app.test/x",
+        )
+    assert client.upload_kwargs is None and client.apply_calls == []

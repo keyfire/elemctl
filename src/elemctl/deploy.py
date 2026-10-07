@@ -164,6 +164,8 @@ def deploy_from_sources(
     commit=None,
     app_id_source="",
     project_id_source="",
+    expected_app_name="",
+    expected_app_uri="",
     allow_data_loss=False,
     server_start_timeout=SERVER_START_TIMEOUT,
     log=None,
@@ -174,11 +176,25 @@ def deploy_from_sources(
     prints nothing. app_id_source / project_id_source are carried through to the
     report and named in the very first progress line: the target is announced
     BEFORE the build, while there is still time to interrupt a deploy aimed at the
-    wrong application. server_start_timeout - how many seconds a server whose console
+    wrong application. expected_app_name / expected_app_uri compare the live card exactly
+    before the build or upload; a mismatch refuses the deploy.
+    server_start_timeout - how many seconds a server whose console
     is still starting is waited out, at any step of the cycle; 0 fails at once.
     """
     log = log or (lambda message: None)
     with server_wait(client, server_start_timeout, log):
+        if expected_app_name or expected_app_uri:
+            card = client.get_app(app_id)
+            for field, expected in (("name", expected_app_name), ("uri", expected_app_uri)):
+                if expected and card.get(field) != expected:
+                    raise ElemctlError(i18n.t(
+                        "deploy.target-mismatch", app_id=app_id, field=field,
+                        expected=expected, actual=card.get(field) or "",
+                    ))
+            log(i18n.t(
+                "deploy.target-verified", app_id=app_id,
+                name=card.get("name") or "", uri=card.get("uri") or "",
+            ))
         return _deploy_from_sources(
             client,
             app_id,
