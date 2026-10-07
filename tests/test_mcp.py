@@ -1782,9 +1782,11 @@ def test_mcp_deploy_checks_the_expected_target_before_building(monkeypatch, tmp_
     from tests.test_deploy import FakeDeployClient
     target = FakeDeployClient()
     server = _server_on(monkeypatch, target)
-    with pytest.raises(Exception, match=r"uri.*https://app.test/other"):
+    with pytest.raises(Exception) as excinfo:
         asyncio.run(server.call_tool("deploy", {
             "app_id": "app-1", "project_id": "proj-1", "project_dir": str(tmp_path / "missing"),
             "expected_app_name": "demo-app", "expected_app_uri": "https://app.test/other",
         }))
+    message = _root_elemctl_error_message(excinfo.value)
+    assert "uri" in message and "https://app.test/other" in message
     assert target.upload_kwargs is None and target.apply_calls == []
