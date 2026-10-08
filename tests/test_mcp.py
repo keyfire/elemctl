@@ -981,7 +981,7 @@ EXPECTED_TOOL_PARAMETERS = {
     "debug_info": ("app_id env_file", "app_id"),
     "delete_app": ("app_id env_file", "app_id"),
     "deploy": (
-        "allow_data_loss app_id branch env_file project_dir project_id server_start_timeout "
+        "allow_data_loss app_id branch env_file expected_app_name expected_app_uri project_dir project_id server_start_timeout "
         "version",
         "app_id project_id",
     ),
@@ -1775,3 +1775,18 @@ def test_concurrent_calls_for_the_same_stand_build_one_client(monkeypatch, tmp_p
 
     assert len(created) == 1
     assert {row["instance-id"] for row in results} == {created[0].id}
+
+
+
+def test_mcp_deploy_checks_the_expected_target_before_building(monkeypatch, tmp_path):
+    from tests.test_deploy import FakeDeployClient
+    target = FakeDeployClient()
+    server = _server_on(monkeypatch, target)
+    with pytest.raises(Exception) as excinfo:
+        asyncio.run(server.call_tool("deploy", {
+            "app_id": "app-1", "project_id": "proj-1", "project_dir": str(tmp_path / "missing"),
+            "expected_app_name": "demo-app", "expected_app_uri": "https://app.test/other",
+        }))
+    message = _root_elemctl_error_message(excinfo.value)
+    assert "uri" in message and "https://app.test/other" in message
+    assert target.upload_kwargs is None and target.apply_calls == []

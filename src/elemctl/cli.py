@@ -1244,6 +1244,8 @@ def cmd_deploy(args):
             app_id_source=app_id_source,
             project_id_source=project_id_source,
             allow_data_loss=args.allow_data_loss,
+            expected_app_name=args.expected_app_name or "",
+            expected_app_uri=args.expected_app_uri or "",
             server_start_timeout=args.server_start_timeout,
             log=_progress,
         )
@@ -2310,6 +2312,8 @@ def build_parser(discover=None):
 
     # deploy ----------------------------------------------------------------
     p = sub.add_parser("deploy", help=i18n.t("cli.help.deploy"))
+    p.add_argument("--expected-app-name", help=i18n.t("cli.help.deploy-expected-app-name"))
+    p.add_argument("--expected-app-uri", help=i18n.t("cli.help.deploy-expected-app-uri"))
     p.add_argument("--app-id", help=i18n.t("cli.help.arg.app-id"))
     p.add_argument("--project-id", help=i18n.t("cli.help.arg.project-id"))
     p.add_argument("--project-dir", help=i18n.t("cli.help.deploy-project-dir"))

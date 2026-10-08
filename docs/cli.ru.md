@@ -642,9 +642,11 @@ usage: elemctl inspect [-h] FILE
 ## `elemctl deploy`
 
 ```bash
-usage: elemctl deploy [-h] [--app-id APP_ID] [--project-id PROJECT_ID] [--project-dir PROJECT_DIR]
-                      [--output OUTPUT] [--build-version BUILD_VERSION] [--branch BRANCH]
-                      [--commit COMMIT] [--dry-run] [--require-clean] [--allow-data-loss]
+usage: elemctl deploy [-h] [--expected-app-name EXPECTED_APP_NAME]
+                      [--expected-app-uri EXPECTED_APP_URI] [--app-id APP_ID]
+                      [--project-id PROJECT_ID] [--project-dir PROJECT_DIR] [--output OUTPUT]
+                      [--build-version BUILD_VERSION] [--branch BRANCH] [--commit COMMIT]
+                      [--dry-run] [--require-clean] [--allow-data-loss]
                       [--server-start-timeout SERVER_START_TIMEOUT]
 ```
 
@@ -653,6 +655,8 @@ usage: elemctl deploy [-h] [--app-id APP_ID] [--project-id PROJECT_ID] [--projec
 | Параметр | Описание |
 |---|---|
 | `-h, --help` | показать эту справку и выйти |
+| `--expected-app-name EXPECTED_APP_NAME` | ожидаемое точное имя приложения; несовпадение останавливает деплой до сборки |
+| `--expected-app-uri EXPECTED_APP_URI` | ожидаемый точный URI приложения; несовпадение останавливает деплой до сборки |
 | `--app-id APP_ID` | ид приложения (по умолчанию ELEMENT_APP_ID) |
 | `--project-id PROJECT_ID` | ид проекта (по умолчанию ELEMENT_PROJECT_ID) |
 | `--project-dir PROJECT_DIR` | каталог проекта (по умолчанию ищется вглубь от текущего) |

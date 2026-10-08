@@ -1302,6 +1302,14 @@ MESSAGES = {
               "\"<Name>.Wsdl.1\" file has to lie next to the element; without it the apply "
               "fails and the application is silently rolled back",
     },
+    "deploy.target-mismatch": {
+        "ru": "приложение {app_id}: {field} не совпадает; ожидалось \"{expected}\", получено \"{actual}\". Деплой остановлен до сборки",
+        "en": "application {app_id}: {field} does not match; expected \"{expected}\", got \"{actual}\". Deploy stopped before the build",
+    },
+    "deploy.target-verified": {
+        "ru": "цель проверена: приложение {app_id}, имя {name}, URI {uri}",
+        "en": "target verified: application {app_id}, name {name}, URI {uri}",
+    },
     "deploy.target": {
         "ru": "цель: приложение {app_id} ({app_source}), проект {project_id} ({project_source})",
         "en": "target: application {app_id} ({app_source}), project {project_id} ({project_source})",
@@ -2258,6 +2266,14 @@ MESSAGES = {
               "removed whole, described anew under a new Id included); without the flag such a "
               "deploy is refused before the build. A "
               "removed attribute or tabular part needs no flag: the deploy names it and goes on",
+    },
+    "cli.help.deploy-expected-app-name": {
+        "ru": "ожидаемое точное имя приложения; несовпадение останавливает деплой до сборки",
+        "en": "expected exact application name; a mismatch stops the deploy before the build",
+    },
+    "cli.help.deploy-expected-app-uri": {
+        "ru": "ожидаемый точный URI приложения; несовпадение останавливает деплой до сборки",
+        "en": "expected exact application URI; a mismatch stops the deploy before the build",
     },
     "cli.help.deploy-server-start-timeout": {
         "ru": "сколько секунд ждать сервер 1С:Элемент, пока он стартует и его консоль отвечает "

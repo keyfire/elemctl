@@ -642,9 +642,11 @@ usage: elemctl inspect [-h] FILE
 ## `elemctl deploy`
 
 ```bash
-usage: elemctl deploy [-h] [--app-id APP_ID] [--project-id PROJECT_ID] [--project-dir PROJECT_DIR]
-                      [--output OUTPUT] [--build-version BUILD_VERSION] [--branch BRANCH]
-                      [--commit COMMIT] [--dry-run] [--require-clean] [--allow-data-loss]
+usage: elemctl deploy [-h] [--expected-app-name EXPECTED_APP_NAME]
+                      [--expected-app-uri EXPECTED_APP_URI] [--app-id APP_ID]
+                      [--project-id PROJECT_ID] [--project-dir PROJECT_DIR] [--output OUTPUT]
+                      [--build-version BUILD_VERSION] [--branch BRANCH] [--commit COMMIT]
+                      [--dry-run] [--require-clean] [--allow-data-loss]
                       [--server-start-timeout SERVER_START_TIMEOUT]
 ```
 
@@ -653,6 +655,8 @@ usage: elemctl deploy [-h] [--app-id APP_ID] [--project-id PROJECT_ID] [--projec
 | Option | Description |
 |---|---|
 | `-h, --help` | show this help message and exit |
+| `--expected-app-name EXPECTED_APP_NAME` | expected exact application name; a mismatch stops the deploy before the build |
+| `--expected-app-uri EXPECTED_APP_URI` | expected exact application URI; a mismatch stops the deploy before the build |
 | `--app-id APP_ID` | the application id (default: ELEMENT_APP_ID) |
 | `--project-id PROJECT_ID` | the project id (default: ELEMENT_PROJECT_ID) |
 | `--project-dir PROJECT_DIR` | the project directory (by default searched downward from the current one) |

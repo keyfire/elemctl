@@ -1029,7 +1029,7 @@ stdout перенаправляется в stderr, и в настоящий stdo
   обращается, флаги подключения отвергает так же.
 - `deploy [--app-id --project-id --project-dir --output --build-version
   --branch --commit --dry-run --require-clean --allow-data-loss
-  --server-start-timeout]` -
+  --server-start-timeout --expected-app-name --expected-app-uri]` -
   полный цикл: сборка -> загрузка -> применение -> перезапуск -> проверка
   фактического применения (п. 6.1). Вывод - JSON-отчёт с полями: `app-id`,
   `uri`, `status`, `version`, `assembly-id`, `assembly-version` (версия, которую
@@ -1263,6 +1263,8 @@ stdout перенаправляется в stderr, и в настоящий stdo
 Позиционные APP_ID и PROJECT_ID, помеченные выше как необязательные, при
 отсутствии берутся из конфигурации: `ELEMENT_APP_ID` и `ELEMENT_PROJECT_ID`.
 Если и там пусто, будет ошибка.
+
+Необязательные `--expected-app-name` и `--expected-app-uri` (`expected_app_name` и `expected_app_uri` в библиотеке и MCP) точно сверяют значения живой карточки приложения до проверки схемы, сборки и загрузки. Несовпадение или отсутствие ожидаемого поля останавливает деплой. Без этих аргументов дополнительного запроса карточки нет. Локальный `--dry-run` живую цель не сверяет.
 
 ## 8. Требования к MCP-серверу
 

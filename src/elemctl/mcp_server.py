@@ -736,8 +736,13 @@ def create_server(config=None, *, overrides=None, env_file=None):
         allow_data_loss: bool = False,
         server_start_timeout: int = int(SERVER_START_TIMEOUT),
         env_file: str = "",
+        expected_app_name: str = "",
+        expected_app_uri: str = "",
     ) -> dict:
         """Полный цикл деплоя из исходников с честной проверкой применения; итог - поле ok, детали - problems и log.
+
+        expected_app_name и expected_app_uri сверяют точные имя и URI живого приложения
+        до сборки и загрузки. Несовпадение останавливает деплой.
 
         До сборки сторож схемы сверяет исходники с коммитом применённой сборки. Сужение
         длины или смену типа реквизита, измерения или ресурса, снятое измерение и снятый
@@ -776,6 +781,8 @@ def create_server(config=None, *, overrides=None, env_file=None):
             app_id_source="flag",
             project_id_source="flag",
             allow_data_loss=allow_data_loss,
+            expected_app_name=expected_app_name,
+            expected_app_uri=expected_app_uri,
             server_start_timeout=server_start_timeout,
             log=lines.append,
         )

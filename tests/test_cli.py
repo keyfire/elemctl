@@ -2326,3 +2326,19 @@ def test_verify_deploy_fails_when_the_build_did_not_land(monkeypatch, capsys):
 
     assert cli.main(["verify-deploy", "app-7", "--version-id", "asm-1"]) == 1
     assert "ошибка компиляции" in capsys.readouterr().out
+
+
+
+def test_deploy_cli_refuses_the_wrong_target_before_building(monkeypatch, tmp_path, capsys):
+    from tests.test_deploy import FakeDeployClient
+    target = FakeDeployClient()
+    monkeypatch.setattr(cli, "make_client", lambda config: target)
+    code = cli.main([
+        "--base-url", "https://stand.test", "--client-id", "id", "--client-secret", "secret",
+        "deploy", "--app-id", "app-1", "--project-id", "proj-1",
+        "--project-dir", str(tmp_path / "missing"), "--expected-app-name", "other-app",
+    ])
+    assert code == 1
+    output = capsys.readouterr()
+    assert "demo-app" in output.err and "other-app" in output.err
+    assert target.upload_kwargs is None and target.apply_calls == []

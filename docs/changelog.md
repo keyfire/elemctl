@@ -21,6 +21,15 @@ entry either – say what the behaviour was, not which id or response field was 
 The link is written by `python scripts/changelog-link.py <number>`, which rebuilds the generated
 pages of the site in the same run – writing it by hand is how the mirrors get left behind.
 
+## 2026-10-08 – 0.52.0
+
+### Added
+
+- **Deploy can verify the intended application before building.** The optional
+  `--expected-app-name` and `--expected-app-uri` compare the live target exactly and refuse
+  a mismatch before building or uploading. The library and MCP expose the same check.
+  ([#58](https://github.com/keyfire/elemctl/pull/58))
+
 ## 2026-09-30 – 0.50.0, 0.51.0
 
 ### Added
