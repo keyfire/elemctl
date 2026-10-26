@@ -63,6 +63,8 @@
 }
 
 :root {
+  /* Match the text column width of the XBSL documentation. */
+  --blume-content-width: 60rem;
   --blume-font-body: "Inter Cyrillic",
     var(--blume-ff-inter, ui-sans-serif, system-ui, sans-serif);
   --blume-font-display: "Inter Tight Cyrillic",
