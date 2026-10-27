@@ -6,41 +6,77 @@ sidebar:
   order: 1
 ---
 
-A command-line tool, MCP server and Python library for managing applications on the **1C:Enterprise.Element** cloud platform (1cmycloud.com) through Console API v2.
+A command-line tool, MCP server and Python library for managing **1C:Element** applications on the cloud service (1cmycloud.com) through Console API v2.
 
-elemctl runs an application's whole life on the platform, and you never have to open the web console. It creates the application, builds a `.xasm`/`.xlib` archive from project sources, uploads that build and applies it. Then it checks that the apply really happened, because the platform can roll back without saying so. A probe checks compilation and leaves the working application alone. Other commands handle development-environment branches, dumps and the technology version.
+elemctl manages applications throughout their lifecycle. It creates applications,
+builds `.xasm`/`.xlib` archives from project sources, uploads builds and applies
+them. After deployment, `deploy` verifies the result: the server can roll back to the
+previous build without reporting the failure. The `probe` command checks
+compilation without changing the working application. Other commands manage
+development-environment branches, dumps and the technology version.
 
-One engine, three ways to reach it. The `elemctl` command works in a terminal and in CI. The MCP server serves AI agents: Claude Code and other MCP clients. The `elemctl` Python module goes into scripts of your own.
+The tool is available from the command line and CI, over MCP for AI agents, and
+as the `elemctl` Python module for scripts.
 
 Development notes and updates (in Russian): the [1C × AI: engineering workshop](https://t.me/ceh_1c_ai) Telegram channel.
 
-![The CLI, the MCP server and the Python library share one engine that talks to the platform over Console API v2. The deploy cycle goes sources, build, upload, apply, verify. The platform rolls a failed apply back without saying so, so only the verification step shows what happened. The probe puts the same archive through a throwaway application](https://raw.githubusercontent.com/keyfire/elemctl/main/docs/architecture.svg)
+![The CLI, the MCP server and the Python library share one engine that talks to the server over Console API v2. The deploy cycle goes sources, build, upload, apply, verify. The server rolls back a failed apply without reporting the rollback. A separate check confirms the result. The probe checks the same archive in a temporary application](https://raw.githubusercontent.com/keyfire/elemctl/main/docs/architecture.svg)
 
 ## Features
 
 
-- **Applications**: list, details, create, start, stop, delete, technology version, debug-session data (`apps debug`), the build the application runs and the build of an applied extension saved to a file (`apps export`, and `apps export-extension` from Console API 2.1). The list filters by name on the client side and prints short cards with `--brief`. Commands that address one application take its id or its exact name.
-- **Projects and builds**: upload `.xasm`/`.xlib`, list builds, delete.
-- **Build from sources**: elemctl packs a project directory into a build archive with a manifest and git metadata. That directory holds `Проект.yaml` and the modules. The version comes from the flag, from the last build's counter or from the CI run number in the environment: `CI_PIPELINE_IID`, `GITHUB_RUN_NUMBER`, `BUILD_NUMBER`. The output carries it as a field. Descriptors written with English key spellings `Name`/`Vendor`/`Version` are read as well as Russian ones. An application, a library and an extension are built alike, and an extension gets the manifest version the server reads extensions by.
-- **One-command deploy**: build -> upload -> apply -> restart -> **verification that the apply actually took effect**. Uncommitted changes in the project directory show up in the report as `dirty`. Pass `--require-clean` to stop on a dirty tree.
-- **Compilation check without risking the application** (`elemctl probe`): the server compiles the sources, and it does so inside a throwaway application. Errors come back with file, line and column, and the probe deletes what it created. The working application stays out of reach on purpose: the probe never reads `ELEMENT_APP_ID` or `ELEMENT_PROJECT_ID`.
-- **User lists** (`elemctl user-lists`): the sign-in settings you would normally open the control panel for, namely self-registration and signing in with a login and a password. Address a list by id, by presentation or by the application that owns it.
-- **Development-environment branches**: list, create, bind to an application, merge.
+- **Applications**: list, view details, create, start, stop and delete. Read the
+  technology version and debug-session data (`apps debug`). Save the application
+  build with `apps export` or an applied extension build with `apps export-extension`.
+  Extension export requires Console API 2.1. Name filtering runs on the client;
+  `--brief` selects short cards. Address an application by its id or exact name.
+- **Projects and builds**: upload `.xasm`/`.xlib` archives, list and delete builds.
+- **Build from sources**: package a directory containing `Проект.yaml` and modules
+  into an archive with a manifest and git metadata. The version is taken from an
+  explicit flag, the latest build counter or a CI run number: `CI_PIPELINE_IID`,
+  `GITHUB_RUN_NUMBER`, `BUILD_NUMBER`. It is also included in the command result.
+  Both Russian descriptor keys and English `Name`/`Vendor`/`Version` are supported.
+  Applications, libraries and extensions use the same build process. An extension
+  uses the manifest version required by the server to process it.
+- **One-command deploy**: build -> upload -> apply -> restart -> **verify the apply**.
+  Uncommitted project changes are reported in `dirty`. With `--require-clean`, the
+  command stops if the working tree contains such changes.
+- **Compilation check** (`elemctl probe`): compile sources on the server in a temporary
+  application. Errors include the file, line and column. Objects created for the
+  check are deleted afterwards. The working application is unchanged:
+  `ELEMENT_APP_ID` and `ELEMENT_PROJECT_ID` are not used for this check.
+- **User lists** (`elemctl user-lists`): configure self-registration and password sign-in.
+  Address a list by its id, presentation or associated application.
+- **Development-environment branches**: list, create, bind to an application and merge.
 - **Dumps**: create and check readiness.
-- **MCP server**: the same operations, exposed as tools for AI agents – Claude Code and other MCP clients.
-- **Plugins**: `importlib.metadata` entry points. An external package supplies the platform debug adapter (`elemctl debug-adapter`) and commands of its own, and the core stays small. One `Command` declaration becomes both a CLI subcommand and an MCP tool, so a command that knows your own environment lives in your package instead of a public core.
-- **Self-update**: `elemctl self-update` updates the package by unpacking the wheel. It works even while a running MCP server holds `elemctl.exe`, which is exactly where plain pipx or pip breaks the install. `--stop-holders` ends the MCP servers that hold the package and leaves the running commands of other sessions alone.
-- **In VS Code**: deploy and debugging live in the [XBSL](https://github.com/keyfire/xbsl) extension, which calls elemctl. The deploy button runs `elemctl deploy`, and the debug-session coordinates come from `elemctl apps debug`.
+- **MCP server**: elemctl operations are available as tools for AI agents, including
+  Claude Code and other MCP clients.
+- **Plugins**: external packages are discovered through `importlib.metadata` entry
+  points. They can provide the 1C:Element debug adapter (`elemctl debug-adapter`)
+  and additional commands. Each `Command` declaration produces a CLI subcommand
+  and an MCP tool. Environment-specific commands can be kept in a separate package.
+- **Self-update**: `elemctl self-update` unpacks the wheel to update the package,
+  including when `elemctl.exe` is in use. Updating with pipx or pip in that case
+  can damage the installation. `--stop-holders` stops MCP servers using the package;
+  commands running in other sessions continue.
+- **In VS Code**: use the [XBSL](https://github.com/keyfire/xbsl) extension for deployment
+  and debugging. The deploy button calls `elemctl deploy`; debug-session data is
+  requested with `elemctl apps debug`.
 
 ### Checking that the build was applied
 
-A platform quirk: when a project apply fails, the platform **silently rolls back** the application to the previous build. The `Running` status then says nothing about whether the deploy worked. So `elemctl deploy` does not trust the status, and once the work is done it checks three things:
+When applying a project fails, the 1C:Element server rolls the application back to
+the previous build without reporting the rollback. The resulting status can be
+`Running`, so the status alone cannot confirm deployment. `elemctl deploy` checks:
 
-1. Application tasks with an `Error` or `Failed` status that started after the deploy began. Older errors from the history are ignored.
-2. The application's actual project version, the `source.project-version` field. It has to match the build that was just uploaded.
-3. Whether the application uri answers a health-check HTTP request. The result lands in the report's `uri-status` field and changes nothing: 401 and 403 are normal for closed applications.
+1. Application tasks with an `Error` or `Failed` status started after deployment
+   began. Earlier errors are ignored.
+2. The actual project version in `source.project-version`. It must match the uploaded build.
+3. The application uri with an HTTP health request. The result is recorded in
+   `uri-status` and does not affect deployment success. Responses 401 and 403 are
+   valid for applications that require authentication.
 
-The `deploy` exit code is zero only when the build really was applied.
+The `deploy` exit code is zero only after the build apply has been confirmed.
 
 ## Installation
 
@@ -94,11 +130,18 @@ elemctl branches merge <branch-id>
 
 Every command writes JSON to stdout, and progress of long-running operations goes to stderr. An error comes back as a JSON object with an `error` field and exit code 1.
 
-The `--json` flag turns that convention into a guarantee a script can lean on, and it is accepted in any position. While the command runs, stdout is swapped for stderr, so the real stdout receives nothing but the JSON answer. No stray line from a plugin or a library can slip in. Parse the stream whole with `json.load` instead of hunting for the first brace. With `--json` a failure also goes to stderr and stdout stays empty, because a pipeline would read anything in the machine channel as the answer.
+The `--json` flag guarantees machine-readable output and can be used in any
+position. While the command runs, its stdout is redirected to stderr. The real
+stdout therefore contains only the JSON result; plugin and library output goes
+to stderr. Parse the complete stream with `json.load`. With `--json`, error
+messages go to stderr and stdout is empty on failure.
 
-`--quiet`, also accepted in any position, silences the progress stream instead: neither progress lines nor warnings reach stderr, and the answer and a failure stay where they were. The form of the answer does not change with it. A caller who merges the two streams into one gets the answer alone.
+The `--quiet` flag disables progress messages and warnings on stderr. It can be
+used in any position. Result and error formats and their destination streams
+remain unchanged. When the two streams are combined, only the result is printed.
 
-`apps list` and `builds list` print their count and truncation notes after the answer. Other stderr output can still come first, so only stdout read on its own is safe to parse whole.
+`apps list` and `builds list` print count and truncation notes after the result.
+Other stderr messages have no guaranteed order. Parse stdout separately from stderr.
 
 For the full list of commands run `elemctl --help`, and for one group `elemctl apps --help`, `elemctl deploy --help` and so on.
 
@@ -107,19 +150,49 @@ For the full list of commands run `elemctl --help`, and for one group `elemctl a
 - **[XBSL](https://docs.keyfire.ru/xbsl/)** – everything that happens to the sources before the
   deploy: a linter with autofixes, an LSP server, metadata scaffolding and a VS Code
   extension. Its editor-title button runs `elemctl deploy`.
-- **[EDT-Bridge](https://docs.keyfire.ru/edt-bridge/)** – the neighbouring platform: an MCP bridge into 1C:EDT
+- **[EDT-Bridge](https://docs.keyfire.ru/edt-bridge/)** – an MCP bridge into 1C:EDT
   for 1C:Enterprise configurations.
 
 ## Limitations and status
 
 
-- The tool is **unofficial** and not affiliated with 1C Company. The Console API may change without notice.
-- elemctl uses only the documented Console API v2. It neither calls nor describes the platform console's internal APIs.
-- On some platform configurations an application created from `--project-id` alone comes out as an empty skeleton with no project data. Create it from a build instead: `elemctl apps create <name> --project-id <id> --latest-build`. The `create_app` MCP tool substitutes the latest build for you. Run `elemctl deploy` once the application exists.
-- The platform describes an application created with an `Error` status only as "Неизвестная ошибка. Обратитесь к администратору". The details live in the application's task: the files, lines and columns of the compilation errors. `apps create --wait` and `apps ensure` print them after the generic text, the way `deploy` and `verify` have long done, so you do not have to dig through the server log. Not every failure ends in `Error`, though. A failed apply is rolled back to the previous build and the application comes up `Running`, so `--wait` also verifies which build the application really runs and answers with exit code 1 when it is not the one you asked for. Use `--no-verify` for the plain wait.
-- You cannot compile the sources without creating something on the platform: compilation belongs to the server and happens when a build is applied. That is what `probe` is for, and it takes the hit on a throwaway application instead of the working one. One probe costs as much time as creating an application does, so minutes. Its place is before a deploy or in CI, not in a per-keystroke loop.
-- A platform project is identified by the `Ид` in `Проект.yaml`. A build uploaded without a project id lands in the project that carries its `Ид`, whatever the `Vendor` + `Name` pair of the manifest, and renames that project after itself. `builds upload` names that project in its answer and warns when the upload renamed it. The pair only has to be free: a fresh `Ид` with a pair another project already holds is refused with a 409.
-- You sign in to a freshly created application with a control-panel account. The application gets its own empty user list, password sign-in is off and no account service is attached, so the accounts that work in other applications do not work here. Connecting another application's user list does not change that, and neither does enabling the local sign-in. `apps create` and `apps ensure` say so themselves: the `sign-in` field of the answer, and the same text on stderr.
-- Deleted applications stay in the platform's list with a `Deleted` status and their former `id`. On that id `apps get` and `deploy` return 404. `apps find` and `apps ensure` skip them; `apps find --include-deleted` brings the previous search behaviour back.
-- The platform refuses to delete an application that has unpublished changes in the development environment and answers HTTP 400 `FAILED_PRECONDITION`. The Console API has no forced deletion, so the control panel is the only way out. elemctl points this out in the error message.
+- The tool is **unofficial** and is not affiliated with 1C Company. The Console API
+  may change without notice.
+- elemctl uses the documented Console API v2. Internal management-console APIs are
+  neither used nor described.
+- With some server configurations, an application created from `--project-id`
+  alone contains no project data. To create it from a build, run
+  `elemctl apps create <name> --project-id <id> --latest-build`. The `create_app`
+  MCP tool selects the latest build automatically. Run `elemctl deploy` after creation.
+- When creation results in `Error`, the server returns the general message
+  "Неизвестная ошибка. Обратитесь к администратору". Compilation error files,
+  lines and columns are recorded in the application task. `apps create --wait`
+  and `apps ensure` print those details after the general message, as `deploy`
+  and `verify` do. After a failed apply, rollback can leave the application
+  `Running`. Therefore `--wait` also verifies the applied build and returns exit
+  code 1 if it differs from the requested build. `--no-verify` disables that
+  check and only waits for the application.
+- Compilation runs on the server when a build is applied, so it requires an
+  application. `probe` creates a temporary application without changing the
+  working one. A check takes several minutes, comparable to creating an
+  application. Run it before deployment or in CI.
+- A 1C:Element project is identified by `Ид` in `Проект.yaml`. A build uploaded
+  without a project id is assigned to the project with that `Ид`, regardless of
+  the manifest's `Vendor` + `Name` pair. The project is renamed using the build
+  metadata. `builds upload` reports the selected project and warns about a rename.
+  If a new `Ид` uses a pair already assigned to another project, the server returns 409.
+- Sign in to a new application with a control-panel account. The application has
+  its own empty user list, password sign-in is disabled and no account service
+  is connected. Accounts from other applications are unavailable even after
+  connecting their user list and enabling local sign-in. `apps create` and
+  `apps ensure` describe the sign-in method in `sign-in` and in stderr.
+- Deleted applications remain in the server list with status `Deleted` and
+  their former `id`. `apps get` and `deploy` return 404 for that id. `apps find`
+  and `apps ensure` skip deleted applications. Use `apps find --include-deleted`
+  to include them in a search.
+- If the development environment contains unpublished changes, deleting the
+  application through the API returns HTTP 400 `FAILED_PRECONDITION`. The Console
+  API has no forced deletion. Use the control panel; elemctl also describes this
+  condition in the error message.
+
 - Recreating an application, meaning delete and then create, changes its URL. External settings tied to that address, an OIDC redirect for instance, will need updating. The Console API has no "soft" wipe of application data; that is done in the management console.

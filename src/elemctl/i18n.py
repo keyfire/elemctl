@@ -1676,12 +1676,12 @@ MESSAGES = {
     # CLI help strings. Key: cli.help.<command> or cli.help.<command>-<flag>.
     # Metavars that already read as English (NAME/APP_ID/FILE) are left untranslated.
     "cli.help.description": {
-        "ru": "Управление приложениями платформы 1С:Предприятие.Элемент (Console API v2)",
-        "en": "Manage 1C:Enterprise.Element platform applications (Console API v2)",
+        "ru": "Управление приложениями технологии 1С:Элемент через Console API v2",
+        "en": "Manage 1C:Element applications through Console API v2",
     },
     "cli.help.base-url": {
-        "ru": "базовый URL платформы (ELEMENT_BASE_URL)",
-        "en": "platform base URL (ELEMENT_BASE_URL)",
+        "ru": "базовый URL сервера (ELEMENT_BASE_URL)",
+        "en": "server base URL (ELEMENT_BASE_URL)",
     },
     "cli.help.client-id": {
         "ru": "Client-Id для получения токена (ELEMENT_CLIENT_ID)",
@@ -1808,16 +1808,16 @@ MESSAGES = {
         "en": "output language (default: env ELEMCTL_LANG / system locale / ru)",
     },
     "cli.help.json": {
-        "ru": "машиночитаемый вывод: в stdout только JSON ответа, всё остальное "
-              "(ход работы, предупреждения, ошибки) – в stderr",
-        "en": "machine-readable output: stdout carries the JSON answer alone, "
-              "everything else (progress, warnings, errors) goes to stderr",
+        "ru": "машиночитаемый вывод: stdout содержит только JSON ответа; ход работы, предупреждения и "
+              "ошибки выводятся в stderr",
+        "en": "machine-readable output: stdout contains only the JSON response; progress, warnings and "
+              "errors use stderr",
     },
     "cli.help.quiet": {
-        "ru": "не печатать ход работы: в stderr не идут ни строки прогресса, ни "
-              "предупреждения, остаются ответ и отказ; форма ответа та же",
-        "en": "print no progress: neither progress lines nor warnings go to stderr, the "
-              "answer and a failure stay; the form of the answer is the same",
+        "ru": "отключить сообщения о ходе работы и предупреждения в stderr; вывод результата и ошибки "
+              "сохраняется в прежнем формате",
+        "en": "disable progress messages and warnings on stderr; result and error output retain their "
+              "format",
     },
     "cli.help.command-metavar": {
         "ru": "команда",
@@ -1966,12 +1966,10 @@ MESSAGES = {
         "en": "data for a debug session (debug-token, debug-address)",
     },
     "cli.help.apps-users": {
-        "ru": "пользователи, подключённые к приложению: список, ид, представление, "
-              "администратор ли и есть ли доступ по токену (логина платформа здесь не "
-              "отдаёт)",
-        "en": "the users connected to the application: the user list, the id, the "
-              "presentation, whether an administrator and whether token access is on (the "
-              "platform gives no login here)",
+        "ru": "пользователи приложения: список, ид, представление, признак администратора и доступ по "
+              "токену; Console API не возвращает логин",
+        "en": "application users: user list, id, presentation, administrator and token-access flags; the "
+              "Console API does not return a login",
     },
     "cli.help.apps-token-access": {
         "ru": "доступ пользователя к HTTP-сервисам приложения по токену: показать или "
@@ -2027,16 +2025,16 @@ MESSAGES = {
               "the name after the manifest of the archive, \"<Name> <Version>.xasm\"",
     },
     "cli.help.create-project-id": {
-        "ru": "проект-источник; с --version-id по перечню его сборок команда проверяет, "
-              "что платформа ещё не удалила сборку-источник (по умолчанию ELEMENT_PROJECT_ID)",
-        "en": "source project; with --version-id its build list is checked for the source "
-              "assembly, which the platform may have deleted (default: ELEMENT_PROJECT_ID)",
+        "ru": "проект-источник; с --version-id наличие сборки проверяется по списку сборок проекта, "
+              "поскольку сервер мог ее удалить (по умолчанию ELEMENT_PROJECT_ID)",
+        "en": "source project; with --version-id, check its build list because the server may have deleted "
+              "the build (default: ELEMENT_PROJECT_ID)",
     },
     "cli.help.create-version-id": {
-        "ru": "id сборки-источника; нового проекта ещё нет – заведите его "
-              "'builds upload <файл>.xasm --space-id <id>' без --project-id",
-        "en": "id of the source assembly; if the project does not exist yet, create it with "
-              "'builds upload <file>.xasm --space-id <id>' without --project-id",
+        "ru": "ид сборки-источника; для нового проекта сначала выполнить 'builds upload <файл>.xasm "
+              "--space-id <id>' без --project-id",
+        "en": "source build id; for a new project, first run 'builds upload <file>.xasm --space-id <id>' "
+              "without --project-id",
     },
     "cli.help.create-latest-build": {
         "ru": "источник – последняя сборка проекта",
@@ -2101,22 +2099,22 @@ MESSAGES = {
         "en": "delete a project",
     },
     "cli.help.builds": {
-        "ru": "сборки проекта на платформе",
-        "en": "project assemblies on the platform",
+        "ru": "сборки проекта на сервере",
+        "en": "project builds on the server",
     },
     "cli.help.builds-list": {
-        "ru": "список сборок проекта (свежие первыми)",
-        "en": "list project assemblies (newest first)",
+        "ru": "список сборок проекта, сначала новые",
+        "en": "list project builds, newest first",
     },
     "cli.help.builds-list-limit": {
         "ru": "сколько сборок показать (по умолчанию 10; 0 – все)",
         "en": "how many assemblies to show (default 10; 0 – all)",
     },
     "cli.help.builds-list-brief": {
-        "ru": "краткие карточки: ид, версии, дата, ветка, коммит; чего нет в карточке, берётся "
-              "из локального реестра загрузок, и источник назван",
-        "en": "brief cards: id, versions, date, branch, commit; what the card lacks comes from "
-              "the local registry of uploads, and the source is named",
+        "ru": "краткие карточки: ид, версии, дата, ветка, коммит; отсутствующие ветка и коммит дополняются "
+              "из локального реестра загрузок с указанием источника",
+        "en": "brief cards: id, versions, date, branch and commit; missing branch and commit values are "
+              "filled from the local upload registry, with their source reported",
     },
     "cli.help.builds-get": {
         "ru": "карточка сборки по версии либо ид",
@@ -2127,12 +2125,10 @@ MESSAGES = {
         "en": "upload an assembly file (.xasm/.xlib)",
     },
     "cli.help.builds-upload-new-project": {
-        "ru": "загрузить сборку без ид проекта, игнорируя ELEMENT_PROJECT_ID из "
-              "окружения и .env-файла: сервер положит ее в проект с ее Ид из Проект.yaml "
-              "либо заведет новый",
-        "en": "upload the build without a project id, ignoring ELEMENT_PROJECT_ID from "
-              "the environment and the .env file: the server puts it into the project of "
-              "the Ид of its Проект.yaml or creates a new one",
+        "ru": "загрузить сборку без ид проекта, игнорируя ELEMENT_PROJECT_ID из окружения и .env; сервер "
+              "выбирает проект по Ид из Проект.yaml или создает новый",
+        "en": "upload without a project id, ignoring ELEMENT_PROJECT_ID from the environment and .env; the "
+              "server selects a project by Ид in Проект.yaml or creates one",
     },
     "cli.help.builds-upload-force-rename": {
         "ru": "разрешить загрузку сборки с чужим именем: панель переименует "
@@ -2141,32 +2137,26 @@ MESSAGES = {
               "the target project and its group after the assembly",
     },
     "cli.help.builds-upload-project-id": {
-        "ru": "проект; без него платформа заводит новый проект, и это единственный "
-              "способ создать проект через Console API",
-        "en": "project; without it the platform creates a new project, which is the "
-              "only way to create a project through the Console API",
+        "ru": "проект назначения; если ид не задан и отсутствует в настройках, сервер выбирает проект по Ид "
+              "из Проект.yaml или создает новый через Console API",
+        "en": "target project; if no id is supplied or configured, the server selects a project by Ид in "
+              "Проект.yaml or creates one through the Console API",
     },
     "cli.help.builds-delete": {
         "ru": "удалить сборку по версии либо ид",
         "en": "delete an assembly by version or id",
     },
     "cli.help.verify-deploy": {
-        "ru": "проверить, что сборка действительно применилась к приложению: задачи с "
-              "ошибками (в них файл и позиция ошибки компиляции), сверка применённой "
-              "сборки, доступность адреса; сама ничего не разворачивает",
-        "en": "check that a build really landed on an application: tasks in an error "
-              "status (they carry the file and position of a compilation error), the "
-              "applied build compared with the expected one, the address answering; "
-              "deploys nothing",
+        "ru": "проверить применение сборки: ошибки задач с файлом и позицией, соответствие примененной "
+              "сборки и доступность адреса; развертывание не выполняется",
+        "en": "verify the applied build: task errors with file and position, build match and address "
+              "availability; does not deploy",
     },
     "cli.help.verify-version-id": {
-        "ru": "ид загруженной сборки, которую ждем примененной – надежная сверка "
-              "(строку версии сборки, загруженной в проект, сервер назначает сам); "
-              "сборку расширения команда узнает сама и сверяет с расширениями приложения",
-        "en": "id of the uploaded build expected to be applied – the reliable comparison "
-              "(the server assigns the version string of a build uploaded into a project); "
-              "a build of an extension is recognized and checked against the extensions of "
-              "the application",
+        "ru": "ид сборки, ожидаемой после применения; используется вместо строки версии, которую сервер "
+              "назначает при загрузке в проект; для расширения проверяется список расширений приложения",
+        "en": "build id expected after apply; used instead of the version string assigned by the server on "
+              "project upload; extension builds are checked against application extensions",
     },
     "cli.help.verify-expected-version": {
         "ru": "строка версии вместо ид сборки – запасная сверка",
@@ -2177,12 +2167,10 @@ MESSAGES = {
         "en": "how many last minutes of task failures count as ours (default 30)",
     },
     "cli.help.build": {
-        "ru": "локально собрать архив сборки из исходников (к платформе не обращается: "
-              "ключи подключения, включая --env-file, команда отвергает, номер версии на "
-              "сервере не занимается)",
-        "en": "build an assembly archive locally from sources (does not call the platform: "
-              "the connection options, --env-file among them, are refused, and no version "
-              "number is reserved on the server)",
+        "ru": "собрать архив из исходников локально; обращения к серверу нет, параметры подключения, "
+              "включая --env-file, отклоняются; номер версии на сервере не резервируется",
+        "en": "build an archive locally from sources; no server requests are made, connection options "
+              "including --env-file are rejected, and no server version number is reserved",
     },
     "cli.help.build-project-dir": {
         "ru": "каталог проекта (по умолчанию ищется вглубь от текущего)",
@@ -2217,10 +2205,10 @@ MESSAGES = {
         "en": "abort the build if the project directory has uncommitted changes",
     },
     "cli.help.inspect": {
-        "ru": "разобрать готовый архив сборки (.xasm/.xlib); к платформе не обращается – "
-              "ключи подключения, включая --env-file, команда отвергает",
-        "en": "inspect a prebuilt assembly archive (.xasm/.xlib); does not call the platform "
-              "– the connection options, --env-file among them, are refused",
+        "ru": "прочитать архив сборки (.xasm/.xlib) локально; параметры подключения, включая --env-file, "
+              "отклоняются",
+        "en": "read a build archive (.xasm/.xlib) locally; connection options including --env-file are "
+              "rejected",
     },
     "cli.help.inspect-file": {
         "ru": "файл архива сборки",
@@ -2255,17 +2243,14 @@ MESSAGES = {
         "en": "abort the deploy if the project directory has uncommitted changes",
     },
     "cli.help.deploy-allow-data-loss": {
-        "ru": "разрешить применение, которое пересоздаёт или удаляет данные (сужение длины, "
-              "смена типа реквизита, в том числе в табличной части, снятие целиком справочника, "
-              "документа или регистра, в том числе описанного заново с новым Ид); без флага "
-              "такое развёртывание отклоняется до сборки. "
-              "Снятие реквизита или табличной части флага не требует: деплой называет его и "
-              "идёт дальше",
-        "en": "allow an apply that recreates or deletes data (a narrowed length, a changed "
-              "attribute type, a tabular part included, a catalog, a document or a register "
-              "removed whole, described anew under a new Id included); without the flag such a "
-              "deploy is refused before the build. A "
-              "removed attribute or tabular part needs no flag: the deploy names it and goes on",
+        "ru": "разрешить пересоздание или удаление данных: сужение длины, смену типа реквизита объекта или "
+              "табличной части, удаление справочника, документа или регистра, включая пересоздание с новым "
+              "Ид; без флага выполнение останавливается до сборки. Удаление реквизита или табличной части "
+              "не требует флага: перед сборкой выводится предупреждение, затем выполнение продолжается",
+        "en": "allow data recreation or deletion: length narrowing, an object or tabular-part attribute "
+              "type change, removal of a catalog, document or register, including recreation with a new Id; "
+              "without the flag, stop before building. Removing an attribute or tabular part needs no flag: "
+              "a warning is printed before building, then execution continues",
     },
     "cli.help.deploy-expected-app-name": {
         "ru": "ожидаемое точное имя приложения; несовпадение останавливает деплой до сборки",
@@ -2410,23 +2395,19 @@ MESSAGES = {
         "en": "the space for the project and the application (ELEMENT_SPACE_ID)",
     },
     "cli.help.probe-keep": {
-        "ru": "не убирать за собой: оставить приложение и сборку для разбора руками; отчёт "
-              "называет команду уборки",
-        "en": "skip the cleanup: leave the application and the build for a hands-on look; the "
-              "report names the command that removes them",
+        "ru": "сохранить приложение и сборку для анализа; отчет содержит команду удаления",
+        "en": "retain the application and build for inspection; the report includes a cleanup command",
     },
     "cli.help.probe-cleanup": {
-        "ru": "убрать оставленный пробник по его приложению (ид или имя): приложение, сборку "
-              "пробника в его проекте и проект, если в нём больше ничего нет; пробник со "
-              "своими именем и версией узнаётся по локальному реестру загрузок; чужое "
-              "приложение команда не тронет. Ключ можно повторить: пробники убираются по "
-              "очереди, у каждого свой отчет, и отказ одного не останавливает остальных",
-        "en": "remove a probe left behind, starting from its application (id or name): the "
-              "application, the probe build in its project and the project when nothing else "
-              "is left in it; a probe with a name and a version of its own is known by the "
-              "local registry of uploads; an application that is not a probe's is refused. "
-              "The key may be repeated: the probes are removed in turn, each with a report of "
-              "its own, and a refusal of one does not stop the rest",
+        "ru": "удалить временное приложение проверки по ид или имени, его сборку в собственном проекте и "
+              "пустой проект; принадлежность приложения, включая собственные имя и версию проверки, "
+              "определяется по локальному реестру загрузок. Другие приложения отклоняются. Ключ можно "
+              "повторить: для каждого приложения возвращается отчет; ошибка одного не останавливает "
+              "остальные",
+        "en": "delete a probe application by id or name, its build in its own project and the project if "
+              "empty; the local upload registry identifies the probe, including custom names and versions. "
+              "Other applications are rejected. Repeat the option for multiple applications: each has a "
+              "report, and an error for one does not stop the others",
     },
     "cli.help.probe-require-clean": {
         "ru": "прервать проверку, если в каталоге проекта есть незакоммиченные изменения",
@@ -2523,8 +2504,8 @@ MESSAGES = {
         "en": "update the technology version (group task)",
     },
     "cli.help.debug-adapter": {
-        "ru": "путь к debug-адаптеру платформы из плагина (для расширения VS Code)",
-        "en": "path to the platform debug adapter from the plugin (for the VS Code extension)",
+        "ru": "путь к адаптеру отладки 1С:Элемента из плагина для расширения VS Code",
+        "en": "path to the 1C:Element debug adapter supplied by a plugin for the VS Code extension",
     },
     "cli.help.plugins": {
         "ru": "диагностика плагинов elemctl (точки расширения)",

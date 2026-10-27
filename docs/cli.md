@@ -16,7 +16,7 @@ A key whose help says it may be repeated collects every value. Any other key tak
 
 ## Common flags
 
-Manage 1C:Enterprise.Element platform applications (Console API v2)
+Manage 1C:Element applications through Console API v2
 
 ```bash
 usage: elemctl [-h] [--base-url BASE_URL] [--client-id CLIENT_ID] [--client-secret CLIENT_SECRET]
@@ -30,14 +30,14 @@ usage: elemctl [-h] [--base-url BASE_URL] [--client-id CLIENT_ID] [--client-secr
 | Option | Description |
 |---|---|
 | `-h, --help` | show this help message and exit |
-| `--base-url BASE_URL` | platform base URL (ELEMENT_BASE_URL) |
+| `--base-url BASE_URL` | server base URL (ELEMENT_BASE_URL) |
 | `--client-id CLIENT_ID` | Client-Id for obtaining a token (ELEMENT_CLIENT_ID) |
 | `--client-secret CLIENT_SECRET` | the Client-Secret for that Client-Id (ELEMENT_CLIENT_SECRET) |
 | `--env-file ENV_FILE` | path to the .env file (default: .env in the current directory) |
 | `--timeout TIMEOUT` | request timeout in seconds (default 60) |
 | `--lang {ru,en}` | output language (default: env ELEMCTL_LANG / system locale / ru) |
-| `--json` | machine-readable output: stdout carries the JSON answer alone, everything else (progress, warnings, errors) goes to stderr |
-| `--quiet` | print no progress: neither progress lines nor warnings go to stderr, the answer and a failure stay; the form of the answer is the same |
+| `--json` | machine-readable output: stdout contains only the JSON response; progress, warnings and errors use stderr |
+| `--quiet` | disable progress messages and warnings on stderr; result and error output retain their format |
 | `--version` | show the version and exit |
 
 **Commands**
@@ -48,18 +48,18 @@ usage: elemctl [-h] [--base-url BASE_URL] [--client-id CLIENT_ID] [--client-secr
 | `apps` | applications |
 | `spaces` | spaces |
 | `projects` | projects |
-| `builds` | project assemblies on the platform |
-| `build` | build an assembly archive locally from sources (does not call the platform: the connection options, `--env-file` among them, are refused, and no version number is reserved on the server) |
-| `inspect` | inspect a prebuilt assembly archive (.xasm/.xlib); does not call the platform – the connection options, `--env-file` among them, are refused |
+| `builds` | project builds on the server |
+| `build` | build an archive locally from sources; no server requests are made, connection options including `--env-file` are rejected, and no server version number is reserved |
+| `inspect` | read a build archive (.xasm/.xlib) locally; connection options including `--env-file` are rejected |
 | `deploy` | full cycle: build -&gt; upload -&gt; apply -&gt; restart -&gt; verify the apply |
 | `user-lists` | user lists and their sign-in settings |
 | `probe` | isolated compilation check: build -&gt; throwaway application -&gt; errors with file and position -&gt; cleanup; the project directory must follow the {repository}/{Vendor}/{Name}/Project.yaml layout a build requires |
-| `verify-deploy` | check that a build really landed on an application: tasks in an error status (they carry the file and position of a compilation error), the applied build compared with the expected one, the address answering; deploys nothing |
+| `verify-deploy` | verify the applied build: task errors with file and position, build match and address availability; does not deploy |
 | `branches` | development-environment branches |
 | `dumps` | application dumps |
 | `tasks` | application tasks (the listing – tasks list [`--app-id` ID]) |
 | `tech` | technology version |
-| `debug-adapter` | path to the platform debug adapter from the plugin (for the VS Code extension) |
+| `debug-adapter` | path to the 1C:Element debug adapter supplied by a plugin for the VS Code extension |
 | `plugins` | elemctl plugin diagnostics (extension points) |
 | `self-update` | update elemctl by unpacking the wheel (safe when the exe is held by the MCP server) |
 | `mcp` | start the MCP server (stdio transport) |
@@ -96,7 +96,7 @@ usage: elemctl apps [-h] action ...
 | `start` | start an application |
 | `stop` | stop an application |
 | `debug` | data for a debug session (debug-token, debug-address) |
-| `users` | the users connected to the application: the user list, the id, the presentation, whether an administrator and whether token access is on (the platform gives no login here) |
+| `users` | application users: user list, id, presentation, administrator and token-access flags; the Console API does not return a login |
 | `token-access` | a user's access to the HTTP services of the application by a token: show or switch it (without it a call of a service with a token gets a 500 "Token access is denied") |
 | `export` | save the build the application runs to a file (the extensions are not in it; export-extension saves them) |
 | `export-extension` | save the build of an extension applied to the application to a file (a method of Console API 2.1; a server without it gets a plain refusal) |
@@ -181,8 +181,8 @@ usage: elemctl apps create [-h] [--project-id PROJECT_ID] [--version-id VERSION_
 | Option | Description |
 |---|---|
 | `-h, --help` | show this help message and exit |
-| `--project-id PROJECT_ID` | source project; with `--version-id` its build list is checked for the source assembly, which the platform may have deleted (default: ELEMENT_PROJECT_ID) |
-| `--version-id VERSION_ID` | id of the source assembly; if the project does not exist yet, create it with 'builds upload &lt;file&gt;.xasm `--space-id` &lt;id&gt;' without `--project-id` |
+| `--project-id PROJECT_ID` | source project; with `--version-id`, check its build list because the server may have deleted the build (default: ELEMENT_PROJECT_ID) |
+| `--version-id VERSION_ID` | source build id; for a new project, first run 'builds upload &lt;file&gt;.xasm `--space-id` &lt;id&gt;' without `--project-id` |
 | `--latest-build` | source: the project's latest assembly |
 | `--space-id SPACE_ID` | space |
 | `--tech-version TECH_VERSION` | technology version |
@@ -211,8 +211,8 @@ usage: elemctl apps ensure [-h] [--project-id PROJECT_ID] [--version-id VERSION_
 | Option | Description |
 |---|---|
 | `-h, --help` | show this help message and exit |
-| `--project-id PROJECT_ID` | source project; with `--version-id` its build list is checked for the source assembly, which the platform may have deleted (default: ELEMENT_PROJECT_ID) |
-| `--version-id VERSION_ID` | id of the source assembly; if the project does not exist yet, create it with 'builds upload &lt;file&gt;.xasm `--space-id` &lt;id&gt;' without `--project-id` |
+| `--project-id PROJECT_ID` | source project; with `--version-id`, check its build list because the server may have deleted the build (default: ELEMENT_PROJECT_ID) |
+| `--version-id VERSION_ID` | source build id; for a new project, first run 'builds upload &lt;file&gt;.xasm `--space-id` &lt;id&gt;' without `--project-id` |
 | `--latest-build` | source: the project's latest assembly |
 | `--space-id SPACE_ID` | space |
 | `--tech-version TECH_VERSION` | technology version |
@@ -511,7 +511,7 @@ usage: elemctl builds [-h] action ...
 
 | Option | Description |
 |---|---|
-| `list` | list project assemblies (newest first) |
+| `list` | list project builds, newest first |
 | `get` | assembly details by version or id |
 | `upload` | upload an assembly file (.xasm/.xlib) |
 | `delete` | delete an assembly by version or id |
@@ -535,7 +535,7 @@ usage: elemctl builds list [-h] [--project-id PROJECT_ID] [--limit LIMIT] [--bri
 | `-h, --help` | show this help message and exit |
 | `--project-id PROJECT_ID` | the project id (default: ELEMENT_PROJECT_ID) |
 | `--limit LIMIT` | how many assemblies to show (default 10; 0 – all) |
-| `--brief` | brief cards: id, versions, date, branch, commit; what the card lacks comes from the local registry of uploads, and the source is named |
+| `--brief` | brief cards: id, versions, date, branch and commit; missing branch and commit values are filled from the local upload registry, with their source reported |
 
 ### `elemctl builds get`
 
@@ -575,8 +575,8 @@ usage: elemctl builds upload [-h] [--project-id PROJECT_ID] [--new-project] [--f
 | Option | Description |
 |---|---|
 | `-h, --help` | show this help message and exit |
-| `--project-id PROJECT_ID` | project; without it the platform creates a new project, which is the only way to create a project through the Console API |
-| `--new-project` | upload the build without a project id, ignoring ELEMENT_PROJECT_ID from the environment and the .env file: the server puts it into the project of the Ид of its Проект.yaml or creates a new one |
+| `--project-id PROJECT_ID` | target project; if no id is supplied or configured, the server selects a project by Ид in Проект.yaml or creates one through the Console API |
+| `--new-project` | upload without a project id, ignoring ELEMENT_PROJECT_ID from the environment and .env; the server selects a project by Ид in Проект.yaml or creates one |
 | `--force-rename` | allow uploading an assembly whose name differs: the console renames the target project and its group after the assembly |
 | `--space-id SPACE_ID` | the space to create the project in when `--project-id` is omitted (default: ELEMENT_SPACE_ID) |
 
@@ -666,7 +666,7 @@ usage: elemctl deploy [-h] [--expected-app-name EXPECTED_APP_NAME]
 | `--commit COMMIT` | commit hash for the metadata (default: from git) |
 | `--dry-run` | build only, no upload |
 | `--require-clean` | abort the deploy if the project directory has uncommitted changes |
-| `--allow-data-loss` | allow an apply that recreates or deletes data (a narrowed length, a changed attribute type, a tabular part included, a catalog, a document or a register removed whole, described anew under a new Id included); without the flag such a deploy is refused before the build. A removed attribute or tabular part needs no flag: the deploy names it and goes on |
+| `--allow-data-loss` | allow data recreation or deletion: length narrowing, an object or tabular-part attribute type change, removal of a catalog, document or register, including recreation with a new Id; without the flag, stop before building. Removing an attribute or tabular part needs no flag: a warning is printed before building, then execution continues |
 | `--server-start-timeout SERVER_START_TIMEOUT` | how many seconds to wait for the 1C:Element server while it is starting and its console answers 404 "Application "console" not found" (default 900; 0 – do not wait) |
 
 ## `elemctl user-lists`
@@ -814,9 +814,9 @@ usage: elemctl probe [-h] [--project-dir PROJECT_DIR] [--output OUTPUT]
 | `--build-version BUILD_VERSION` | explicit build version (default {base}`-probe-`{token} – it has to be a new one) |
 | `--name NAME` | name of the throwaway application (default elemctl-probe-{token}) |
 | `--space-id SPACE_ID` | the space for the project and the application (ELEMENT_SPACE_ID) |
-| `--keep` | skip the cleanup: leave the application and the build for a hands-on look; the report names the command that removes them |
+| `--keep` | retain the application and build for inspection; the report includes a cleanup command |
 | `--require-clean` | abort the check if the project directory has uncommitted changes |
-| `--cleanup APP_ID` | remove a probe left behind, starting from its application (id or name): the application, the probe build in its project and the project when nothing else is left in it; a probe with a name and a version of its own is known by the local registry of uploads; an application that is not a probe's is refused. The key may be repeated: the probes are removed in turn, each with a report of its own, and a refusal of one does not stop the rest |
+| `--cleanup APP_ID` | delete a probe application by id or name, its build in its own project and the project if empty; the local upload registry identifies the probe, including custom names and versions. Other applications are rejected. Repeat the option for multiple applications: each has a report, and an error for one does not stop the others |
 
 ## `elemctl verify-deploy`
 
@@ -838,7 +838,7 @@ usage: elemctl verify-deploy [-h] [--app-id APP_ID] [--version-id VERSION_ID]
 |---|---|
 | `-h, --help` | show this help message and exit |
 | `--app-id APP_ID` | the same application as an option: deploy and apps ensure take this form only |
-| `--version-id VERSION_ID` | id of the uploaded build expected to be applied – the reliable comparison (the server assigns the version string of a build uploaded into a project); a build of an extension is recognized and checked against the extensions of the application |
+| `--version-id VERSION_ID` | build id expected after apply; used instead of the version string assigned by the server on project upload; extension builds are checked against application extensions |
 | `--expected-version EXPECTED_VERSION` | the version string instead of the build id – the fallback comparison |
 | `--since-minutes SINCE_MINUTES` | how many last minutes of task failures count as ours (default 30) |
 

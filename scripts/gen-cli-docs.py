@@ -29,16 +29,17 @@ SRC = ROOT / "src"
 
 TEXT = {
     "ru": {
+        "without_yo": True,
         "title": "Команды",
-        "desc": "Справочник команд и параметров elemctl: общие флаги, приложения, сборки, развёртывание и всё остальное.",
+        "desc": "Справочник команд и параметров elemctl: общие флаги, приложения, сборки, развертывание и все остальное.",
         "label": "Команды",
         "intro": (
             "Справочник собран из самого инструмента – это то же, что показывает "
             "`elemctl --help`, только на одной странице и целиком.\n\n"
-            "Общие флаги принимаются в любой позиции – и до команды, и после неё: "
+            "Общие флаги принимаются в любой позиции – и до команды, и после нее: "
             "`elemctl --timeout 120 apps list` и `elemctl apps list --timeout 120` "
             "равнозначны. Язык вывода переключается флагом `--lang`, переменной "
-            "`ELEMCTL_LANG` или берётся из локали системы."
+            "`ELEMCTL_LANG` или берется из локали системы."
             "\n\nКлюч, в справке которого сказано, что его можно повторить, собирает все "
             "значения. Остальные ключи принимают одно значение: повтор с другим значением "
             "CLI отвергает до запуска команды, а повтор с тем же значением пропускает."
@@ -179,13 +180,19 @@ def esc(s: str) -> str:
     return s.replace("|", "\\|")
 
 
-def esc_text(s: str) -> str:
+def esc_text(s: str, *, without_yo: bool = False) -> str:
     """Plain text: Markdown takes angle brackets for a tag and swallows them together with
     the contents (`elemctl <command>` turns into `elemctl`), while the theme typography glues
     a double hyphen into a dash - the flag `--select` mentioned in a description becomes a
     broken `-select`. Inside backticks neither of the two happens."""
     s = s.replace("|", "\\|").replace("<", "&lt;").replace(">", "&gt;")
-    return FLAG_RE.sub(r"`\1`", s)
+    s = FLAG_RE.sub(r"`\1`", s)
+    if not without_yo:
+        return s
+    # The Russian reference uses е in prose; keep code, URLs and quoted values intact.
+    pieces = re.split(r"(`[^`]*`|https?://[^\s]+|\"[^\"]*\"|'[^']*')", s)
+    return "".join(part if i % 2 else part.replace("ё", "е").replace("Ё", "Е")
+                   for i, part in enumerate(pieces))
 
 
 def children(entries: list, i: int) -> list[int]:
@@ -224,7 +231,7 @@ def render(help_text: str, t: dict) -> str:
     p = parse(help_text)
     out = io.StringIO()
     if p["description"]:
-        out.write(esc_text(p["description"]) + "\n\n")
+        out.write(esc_text(p["description"], without_yo=t.get("without_yo", False)) + "\n\n")
     out.write("```bash\n" + p["usage"] + "\n```\n\n")
     for title, entries in p["sections"]:
         if not entries:
@@ -238,11 +245,11 @@ def render(help_text: str, t: dict) -> str:
         for k, (opt, desc, _) in enumerate(entries):
             if k in skip:
                 continue
-            out.write(f"| `{esc(opt)}` | {esc_text(desc)} |\n")
+            out.write(f"| `{esc(opt)}` | {esc_text(desc, without_yo=t.get('without_yo', False))} |\n")
         out.write("\n")
     for paragraph in p["epilog"]:
         if paragraph:
-            out.write(esc_text(paragraph) + "\n\n")
+            out.write(esc_text(paragraph, without_yo=t.get("without_yo", False)) + "\n\n")
     return out.getvalue()
 
 
