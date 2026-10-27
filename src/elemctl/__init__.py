@@ -1,5 +1,5 @@
-"""elemctl - a CLI, an MCP server and a library for Console API v2 of the
-1C:Enterprise.Element platform (1cmycloud).
+"""elemctl - a CLI, an MCP server and a library for managing applications built
+with the 1C:Element technology through Console API v2.
 
 Public API of the library:
 

@@ -52,7 +52,7 @@ def test_help_text_follows_lang_flag(capsys):
         with pytest.raises(SystemExit) as info:
             cli.main(["--lang", "en", "--help"])
         assert info.value.code == 0
-        assert "Manage 1C:Enterprise.Element" in capsys.readouterr().out
+        assert "Manage 1C:Element applications" in capsys.readouterr().out
 
         with pytest.raises(SystemExit):
             cli.main(["--lang", "ru", "--help"])
