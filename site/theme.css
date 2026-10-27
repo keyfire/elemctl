@@ -72,3 +72,8 @@
   --blume-font-mono: "Geist Mono Cyrillic",
     var(--blume-ff-geist-mono, ui-monospace, "Cascadia Code", Consolas, monospace);
 }
+
+/* Wrap long API paths in prose without changing preformatted examples. */
+article :not(pre) > code {
+  overflow-wrap: anywhere;
+}

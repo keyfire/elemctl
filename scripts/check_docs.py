@@ -88,9 +88,9 @@ PITCH_ITEMS = (
     # carries "builds from source", the row below.
     PitchItem("Projects and builds", "Проекты и сборки", None, None),
     PitchItem("Build from sources", "Сборка из исходников", "from source", "из исходников"),
-    PitchItem("One-command deploy", "Развёртывание одной командой", "deploy", "развёрт"),
-    PitchItem("Compilation check without risking the application",
-              "Проверка компиляции без риска для приложения", "probe", "пробник"),
+    PitchItem("One-command deploy", "Развертывание одной командой", "deploy", "разверт"),
+    PitchItem("Compilation check",
+              "Проверка компиляции", "probe", "пробник"),
     # The rest are reasons to keep elemctl, not reasons to pick it up: they belong on the page
     # and in the README, which carries the whole block right under the lede, not in one line.
     PitchItem("User lists", "Списки пользователей", None, None),
@@ -265,7 +265,7 @@ CLAIMS = (
             "docs/platform.md", "docs/platform.ru.md",
             "src/elemctl/client.py",
         ),
-        wording=("a minute in a row", "минуту подряд", "UNKNOWN_TIMEOUT"),
+        wording=("a minute in a row", "one minute", "минуту подряд", "UNKNOWN_TIMEOUT"),
         retired=(
             "runs out its timeout on such an application",
             "идёт до конца срока",
@@ -305,6 +305,7 @@ CLAIMS = (
         wording=(
             "before the token is renewed",
             "before a new token is asked for",
+            "before renewing a token",
             "до обновления токена",
         ),
         retired=(
@@ -351,7 +352,8 @@ CLAIMS = (
             "README.md", "README.ru.md",
             "src/elemctl/client.py", "src/elemctl/probe.py", "src/elemctl/mcp_server.py",
         ),
-        wording=("identified by the `Ид`", "опознается по `Ид`", "by the Ид of the", "по Ид из"),
+        wording=("identified by the `Ид`", "identified by `Ид`", "опознается по `Ид`",
+                 "определяется по `Ид`", "by the Ид of the", "по Ид из"),
         retired=(
             "identified by the pair `Vendor` + `Name`",
             "identified by the `Vendor` + `Name` pair",
@@ -400,7 +402,7 @@ CLAIMS = (
             "docs/SPEC.md", "docs/SPEC.ru.md",
             "docs/platform.md", "docs/platform.ru.md",
         ),
-        wording=("presentation of the build uploaded last", "под представлением"),
+        wording=("presentation of the build uploaded last", "using `Представление` from the most recently", "под представлением", "под `Представление` последней загруженной сборки"),
         retired=(
             "meaning the manifest `Name`",
             "то есть под `Name` из манифеста",
@@ -416,7 +418,7 @@ CLAIMS = (
             "docs/SPEC.md", "docs/SPEC.ru.md",
             "docs/platform.md", "docs/platform.ru.md",
         ),
-        wording=("project list before the upload", "перечень проектов до загрузки"),
+        wording=("project list before the upload", "project list before uploading", "перечень проектов до загрузки", "список проектов до загрузки"),
         retired=(
             "there the client has nothing to compare",
             "there is nothing to warn about beforehand",
@@ -435,7 +437,9 @@ CLAIMS = (
             "docs/index.md", "docs/index.ru.md",
             "src/elemctl/selfupdate.py", "src/elemctl/i18n.py",
         ),
-        wording=("--stop-holders=all", "leaves the running commands", "идущие команды"),
+        wording=("--stop-holders=all", "leaves the running commands", "идущие команды",
+                 "commands running in other sessions continue",
+                 "Выполняемые команды других сессий продолжают работу"),
         retired=(
             "stop the processes holding the installation",
             "снять процессы, держащие установку",
@@ -454,7 +458,8 @@ CLAIMS = (
             "README.md", "README.ru.md",
             "src/elemctl/cli.py", "src/elemctl/plugins.py",
         ),
-        wording=("with a different value", "с другим значением"),
+        wording=("with a different value", "with different values",
+                 "с другим значением", "с разными значениями"),
         retired=(
             "keeps the last of its repetitions",
             "оставляет последнее из повторенных значений",

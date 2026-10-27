@@ -142,3 +142,19 @@ def test_a_word_wrapped_on_its_hyphen_is_joined_back(generated):
     assert mod.join_wrapped(["первая строка", "вторая строка"]) == "первая строка вторая строка"
     for text in generated.values():
         assert "get- group" not in text
+
+
+def test_russian_reference_preserves_identifiers_while_normalizing_prose():
+    spec = importlib.util.spec_from_file_location("gen_cli_docs", ROOT / "scripts" / "gen-cli-docs.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    help_text = "usage: tool --test Ёлка\n\nКоманда берёт `Ёлка`.\n\noptions:\n  --test  Ищёт `Ёлка`\n"
+    ru = mod.render(help_text, {**mod.TEXT["ru"], "without_yo": True})
+    en = mod.render(help_text, {**mod.TEXT["en"], "without_yo": False})
+    assert "Команда берет `Ёлка`." in ru
+    assert "Ищет `Ёлка`" in ru
+    assert "usage: tool --test Ёлка" in ru
+    assert "Команда берёт `Ёлка`." in en
+    assert mod.esc_text("Берёт 'Ёлка' и \"Ёлка\" с https://example.test/Ёлка", without_yo=True) == (
+        "Берет 'Ёлка' и \"Ёлка\" с https://example.test/Ёлка"
+    )

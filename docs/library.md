@@ -26,11 +26,11 @@ report = deploy_from_sources(
 assert report.ok, report.problems
 ```
 
-`list_apps()` answers with the live applications. Deleted ones stay in the
-platform list under the `Deleted` status, and a stand a few months old carries
-hundreds of them; pass `include_deleted=True` for the full list.
-`list_apps_counted()` returns the same list under `items` and adds the counters
-the CLI and the MCP tool report: `total`, `live` and `shown`.
+`list_apps()` returns applications that are not marked as deleted. Deleted
+applications remain in the server list with status `Deleted`; a long-running
+installation can contain hundreds of these entries. Pass `include_deleted=True`
+for the complete list. `list_apps_counted()` returns the same list in `items`
+and the `total`, `live` and `shown` counters used by the CLI and MCP tool.
 
 To check compilation without touching the working application, run the same
 cycle the `probe` command does:
@@ -54,4 +54,4 @@ Assembly.yaml            # manifest: ProjectKind, Vendor, Name, Version, ...
 {vendor}/{name}/...      # project files: .yaml, .xbsl, resources
 ```
 
-The project directory must follow the `{repo}/{vendor}/{name}/Проект.yaml` layout, because paths inside the archive are built relative to the repository root. The `ВидПроекта` field in `Проект.yaml` says whether the project is an application or a library. When an application references libraries whose source projects sit under the same repository root, their files go into the application archive on their own, transitive local dependencies included. A referenced library that is not present locally remains an external platform dependency.
+The project directory must follow the `{repo}/{vendor}/{name}/Проект.yaml` layout, because paths inside the archive are built relative to the repository root. The `ВидПроекта` field in `Проект.yaml` specifies whether the project is an application or a library. When an application references libraries whose source projects sit under the same repository root, their files and transitive local dependencies are included in the application archive. A referenced library whose sources are not present locally remains an external dependency of the 1C:Element application.

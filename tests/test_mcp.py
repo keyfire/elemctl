@@ -130,7 +130,7 @@ def test_list_apps_docstring_states_that_the_deleted_ones_are_hidden():
     list_tool = next(tool for tool in tools if tool.name == "list_apps")
     description = list_tool.description or ""
     assert "Deleted" in description
-    assert "СКРЫТЫ" in description
+    assert "по умолчанию исключены" in description
     assert "include_deleted" in description
 
 

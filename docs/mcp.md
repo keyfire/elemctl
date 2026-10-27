@@ -9,7 +9,8 @@ sidebar:
 ## MCP server
 
 
-The server exposes platform operations as MCP tools (stdio transport):
+The MCP server exposes tools for managing 1C:Element applications through the
+Console API. It uses the stdio transport:
 
 ```bash
 pip install "elemctl[mcp]"
@@ -22,63 +23,156 @@ The server reads connection credentials from the same `ELEMENT_*` variables / `.
 
 | Tool | What it does |
 |---|---|
-| `list_apps` | list of applications; the deleted ones are hidden unless `include_deleted` asks for them, `name` filters by a substring of the name on the client and `status` by the status word; the answer carries the counters and a `summary` line next to `applications`, `brief` (the default) keeps id, name, status, uri and the applied version |
-| `find_app` | find an application by its exact name: the id and a `found` flag; deleted ones are skipped unless `include_deleted` is set |
-| `get_app` | application card: status, uri, the actual project version; `applied-build` carries the branch and the commit of the build it runs, from the build card or from the local registry of uploads |
-| `create_app` | create an application; with only a `project_id` the source is the project's latest build. The answer carries `sign-in` – the way in; `verify` waits for the application and checks the build it really runs |
-| `ensure_app` | create an application by name only if it does not exist yet; an existing one is not recreated (`created: false`); `verify` checks the build the application really runs |
-| `start_app` | start the application |
-| `stop_app` | stop the application |
-| `delete_app` | delete the application. This cannot be undone: the data is lost, and a recreated application gets a different URL |
-| `list_app_tasks` | tasks of the applications; `app_id` is an optional filter |
-| `debug_info` | debug-session data: `debug-token` and `debug-address` (debugging must be enabled on the server) |
-| `list_spaces` | list of spaces |
-| `list_projects` | list of projects; `name` filters by a substring of the name on the client, the deleted ones are hidden unless `include_deleted` is set; `brief` (the default) – id, name, project kind, space, application count, deletion flag |
-| `list_builds` | a project's builds, newest first; the answer is an object `{total, shown, summary, builds}`; `limit` (default 10, 0 – all), `brief` (the default) keeps id, versions, date, branch and commit, and names where the branch and the commit came from: the card or the local registry of uploads |
-| `get_build` | the whole card of one build; `version` is the build's version (`1.0-42`), an id is accepted too and resolved through the listing |
-| `build_assembly` | build a `.xasm`/`.xlib` archive from the sources locally (does not talk to the platform) |
-| `inspect_assembly` | parse a built archive: manifest, project properties, subsystems and global types with qualified names (local) |
-| `deploy` | the whole cycle from sources, with a check that the build was applied; the verdict is `ok`, the details are `problems` and `log`; `allow_data_loss` lets through what the schema guard refuses (a narrowing, a type change, a catalog removed whole), like `--allow-data-loss`; a server that is still starting is waited out for up to `server_start_timeout` seconds (900 by default); optional `expected_app_name` / `expected_app_uri` refuse an unexpected target before building |
-| `probe` | check the compilation with the server compiler without touching the working application; errors with file, line and column, cleans up after itself; with `keep` the report names the command that removes what was left |
-| `probe_cleanup` | remove a probe left on the stand, by `keep` or by a cleanup that broke off, starting from its application: the application, the probe build in the probe's own project and the project when nothing is left in it; a probe given its own name and version is known by the local registry of uploads, which also names the builds deployed into it; an application that is not a probe's is refused; `app_id` may be a list, and each probe is removed in turn with a report of its own, a refusal of one stopping none of the others |
-| `apply_build` | apply an uploaded build to the application by its id |
-| `verify_deploy` | verify the apply actually took effect: failed tasks, the applied build (an extension build by the extensions of the application), the availability of the uri |
-| `list_user_lists` | user lists; `name` filters by a substring of the presentation |
-| `configure_user_list` | self-registration and password sign-in; without the flags it only reports the current state |
-| `list_app_users` | who is connected to an application: the user list, the id, the presentation, whether an administrator and whether token access is on, with a count line; the platform gives no login here |
-| `token_access` | a user's access to the HTTP services of an application by a token, the flag behind a 500 "Token access is denied"; shows it, and with `enabled` switches it and reads it back; an empty `user` means the account elemctl signs in with; `user` may be a list, and each user gets an entry of its own, a failure of one stopping none of the others |
-| `export_app` | save the build an application runs to a file; the extensions applied to it are not in the archive, `export_extension` saves them; an empty `output` is the current directory of the server and the name `{Name} {Version}.xasm`; a server without the method gets a plain refusal |
-| `export_extension` | save the build of an extension applied to an application to a file (Console API 2.1); `extension` is the extension id, the id of its project, the name or the presentation of the project, and a miss names the extensions the application has; an empty `output` is the current directory of the server and the name `{Name} {Version}.xasm`; a server without the method gets a plain refusal |
-| `list_branches` | list of development-environment branches; the `project_id` and `name` filters are optional |
-| `merge_branch` | accept the changes of a development-environment branch |
-| `debug_adapter` | the path to the platform debug adapter from a plugin; a missing plugin is an answer (`found: false`), not an error (local) |
+| `list_apps` | List applications with name and status filters. |
+| `find_app` | Find an application by its exact name. Returns its id and `found`; set `include_deleted` to include deleted entries. |
+| `get_app` | Get the application status, uri and actual project version. `applied-build` contains the branch and commit from the build card or local upload registry. |
+| `create_app` | Create an application. With only `project_id`, the latest build is selected; `sign-in` describes access and `verify` waits and checks the applied build. |
+| `ensure_app` | Create an application by name if it does not exist. Returns `created: false` for an existing application; `verify` checks the applied build. |
+| `start_app` | Start an application. |
+| `stop_app` | Stop an application. |
+| `delete_app` | Permanently delete an application and its data. Recreating it produces a different URL. |
+| `list_app_tasks` | List application tasks, optionally filtered by `app_id`. |
+| `debug_info` | Get `debug-token` and `debug-address` for debugging. Debugging must be enabled on the server. |
+| `list_spaces` | List spaces. |
+| `list_projects` | List projects with an optional name filter. |
+| `list_builds` | List project builds with an optional count limit. |
+| `get_build` | Get a complete build card by `version`, such as `1.0-42`, or an id resolved through the build list. |
+| `build_assembly` | Build a `.xasm`/`.xlib` archive locally from sources without contacting the 1C:Element server. |
+| `inspect_assembly` | Read an archive manifest, project properties, subsystems and global types with qualified names. This is a local operation. |
+| `deploy` | Build, upload and apply sources, then verify the result. `ok` reports success; `problems` and `log` contain details. |
+| `probe` | Check compilation in a temporary application. Errors include the file, line and column; created objects are removed unless `keep` is set. |
+| `probe_cleanup` | Delete a temporary probe application, its build and its project if empty. `app_id` accepts one id or a list; each application has a separate report. |
+| `apply_build` | Apply an uploaded build to an application by the build id. |
+| `verify_deploy` | Check failed tasks, the actual applied build and uri availability. An extension build is checked against the application extensions. |
+| `list_user_lists` | List user lists, optionally filtered by a presentation substring in `name`. |
+| `configure_user_list` | Configure self-registration and password sign-in. Without flags, return the current state. |
+| `list_app_users` | List users with their user list, id, presentation, administrator and token-access flags, plus a total. The Console API does not return a login. |
+| `token_access` | Read a user's token access to HTTP services or change it with `enabled`. `user` also accepts a list. |
+| `export_app` | Save the running application build to a file. Save applied extensions separately with `export_extension`. |
+| `export_extension` | Save an applied extension build to a file. Requires Console API 2.1; `extension` accepts the extension id, or its project id, name or presentation. |
+| `list_branches` | List development-environment branches with optional `project_id` and `name` filters. |
+| `merge_branch` | Merge changes from a development-environment branch. |
+| `debug_adapter` | Get the 1C:Element debug-adapter path from a plugin. This is local; a missing plugin returns `found: false`. |
 
-The tools a plugin brings stand next to these, described below.
+The parameters of `list_apps`, `list_projects` and `list_builds` are described below.
 
-A single environment is not a limit. Every tool that talks to the platform takes an optional `env_file`, a path to another installation's `.env`. One server then serves both the cloud and a local installation, with no restart under different credentials.
+Plugins can add tools of their own. See [Plugins](#plugins) for their
+configuration.
 
-`list_apps` returns brief cards by default: id, name, status, uri, applied version. Full cards of a whole space run to tens of thousands of characters in an agent's response, so ask for them with `brief=false`. The `name` parameter filters by a case-insensitive substring, and it does so on the client because the platform ignores the query parameter. The `status` parameter filters by the whole status word. Deleted applications stay hidden until `include_deleted` asks for them: a stand a few months old answers with hundreds of cards of which a handful are alive. Nothing is cut silently. The answer carries `total` (how many cards the platform gave), `live` (how many of those are not deleted), `shown` and a ready `summary` line such as "7 live of 324", with the cards themselves under `applications`.
+Tools that access the 1C:Element server accept the optional `env_file` parameter with
+the path to another installation's `.env`. One server can access both a cloud
+and a local installation without a restart.
 
-`list_projects` behaves the same way and returns id, name, project kind, space, application count and the deletion flag. Its `name` filters by a substring too, and projects marked deleted stay hidden until `include_deleted` is set: a stand a few months old keeps hundreds of them against a handful of live ones.
+By default, `list_apps` returns brief cards with the id, name, status, URI and
+applied version. Set `brief=false` to receive full cards. For a large number of
+applications, the full response can contain tens of thousands of characters.
 
-`list_builds` answers with brief cards as well, holding id, versions, date, branch and commit, and with the ten newest builds unless `limit` says otherwise; 0 lifts the cut. The cards sit under `builds`, next to the counters `total` (how many builds the platform returned) and `shown`, plus a `summary` line. The platform's listing is not the project's whole history: it deletes the builds nobody uses, whatever their age, whenever an application of the project finishes applying a build. The build an application runs, the build with the highest number of its base, a release build and a build uploaded without a project id stay, the project's first build among the last. The listing has no pages, and `summary` says plainly that what you see is the remainder of the history. It reads that off the answer itself: the platform hands out the numbers of one base version consecutively, so a number missing from the listing is a build already taken away – unless it is a jump. A build uploaded without a project id keeps the number of its archive and the count goes on from it, and a hole under such a build of this machine is named in `summary` as a jump rather than a deletion. A hole that holds an upload of this machine into the project is a jump and a deletion at once, and `summary` names both. An extension project is outside the housekeeping altogether: its builds stay until they are deleted by hand, a hole there is such a deletion, and `summary` says so.
+The `name` parameter filters by a case-insensitive substring on the client,
+because the Console API ignores the query parameter. The `status` parameter
+matches the complete status value. Set `include_deleted` to include deleted
+applications. The response contains the `applications` cards, the `total`,
+`live` and `shown` counters, and a `summary` line such as "7 live of 324".
 
-`get_build` hands back one card whole and is addressed by the build version. An id is accepted as well and looked up in the listing, because the address the method understands is the version, not the id of a card.
+By default, `list_projects` returns brief cards with the id, name, project kind,
+space, application count and deletion flag. Set `brief=false` for full cards. Its `name` parameter filters by a substring. Set
+`include_deleted` to include projects marked as deleted.
 
-`get_app`, `delete_app`, `start_app`, `stop_app` and `debug_info` accept the application id (UUID) or its exact name. A value that is not a UUID is resolved through the list, and several matches are an error rather than a guess.
+By default, `list_builds` returns the ten newest builds. Set `limit` to change
+the count; `0` removes the limit. A brief card contains the id, versions, date,
+branch and commit. Set `brief=false` for full cards. The source of the branch and commit, either the build card on the server
+or the local upload registry, is also reported. The response includes `builds`,
+the `total` and `shown`
+counters, and a `summary` line.
 
-`create_app` and `ensure_app` add a `sign-in` field to the answer: the address and the account that gets into a freshly created application. That account comes from the control panel, the accounts used in other applications do not work there, and an agent sees only the JSON. The `verify` parameter of both waits for the application and checks that it really runs the build that was asked for: the platform rolls a failed apply back without a word, and a created application used to be reported ready on trust. The report lands in the `verify` field of the answer. The waiting costs minutes, so such a call belongs in a background `elemctl` run. A wait that breaks off does not lose the application: the answer keeps its id, and the `wait-error` field says what broke.
+The build list on the server is not a complete project history. When an application finishes applying a build, the server
+removes unused builds regardless of their age. It
+retains builds used by running applications, the build with the highest number
+of its base version, release builds and builds uploaded without a project id.
+The latter include the project's first build. The list is not paginated.
 
-A `version_id` is looked up in the build list of the project before anything is created. The project is `project_id`, or the stand's `ELEMENT_PROJECT_ID` when the parameter is empty. A build that project does not list is looked for in the other projects of the stand: a build uploaded without a project id sits in the project the server chose for it. The stand's project gives way to the project of the build, and an explicit `project_id` is refused with the project the build is in. A build no project lists is refused before anything is created: the platform deletes the builds nobody uses and answers a create from a deleted one with a bare 400. The refusal names that cause and the build a running application of the project runs.
+Build numbers for one base version are assigned consecutively. A missing number
+can indicate a deleted build or a numbering jump. A build uploaded without a
+project id keeps the version of its archive, and numbering continues from it.
+If the local registry contains such an upload above a gap, `summary` identifies
+the gap as a jump. If the gap contains an upload from this machine into the
+project, `summary` reports both a jump and a deletion.
+
+Builds of extension projects are not removed automatically. They can be deleted
+manually, and `summary` identifies a gap in their numbers as a deletion.
+
+`get_build` returns one complete card. The Console API method is addressed by
+build version. When an id is supplied, the version is first resolved through the build list.
+
+`get_app`, `delete_app`, `start_app`, `stop_app` and `debug_info` accept an
+application id (UUID) or exact name. A value that is not UUID-shaped is looked up
+in the list. Multiple matches produce an error.
+
+### Application creation and verification
+
+`create_app` and `ensure_app` return `sign-in` with the application address and
+the account used to sign in. This is a control-panel account; accounts from other
+applications are unavailable in the new application.
+
+`verify` waits for the application and checks the actual applied build. The server
+can roll back a failed apply without reporting the rollback, so application
+readiness alone does not confirm the requested build. The check result is recorded
+in `verify`. Waiting takes several minutes; use a background `elemctl` invocation.
+If waiting is interrupted, the response retains the created application id and
+records the cause in `wait-error`.
+
+Before creation, `version_id` is checked against the builds of `project_id`.
+If `project_id` is omitted, the installation's `ELEMENT_PROJECT_ID` is used.
+If that project has no such build, the other projects are searched: an upload
+without a project id may have been assigned elsewhere. In that case, the project
+from configuration is replaced with the build's project. An explicitly supplied,
+nonmatching `project_id` produces an error naming the build's project.
+
+If no project contains the build, creation is not attempted. The server deletes
+builds nobody uses, and creating from a deleted build returns HTTP 400. The
+elemctl error describes the cause and reports the build used by a running
+application of the project.
+
+### Deployment and temporary applications
+
+For `deploy`, `allow_data_loss` permits changes rejected by the schema check:
+narrowing, a type change or removal of an entire catalog. It corresponds to
+`--allow-data-loss` in the CLI. If the server is starting, the wait is limited
+to `server_start_timeout` seconds, 900 by default. Optional `expected_app_name`
+and `expected_app_uri` check the deployment target before building.
+
+With `keep`, `probe` retains the objects it creates and includes a cleanup command in the report when an application id is available; otherwise `command` is null. `probe_cleanup` also removes objects left after interrupted cleanup.
+The local upload registry identifies probe applications, including those with
+custom names and versions, and records builds deployed into them. Builds are
+removed only from the probe's own project; the project is deleted only when empty. The client checks whether a build is used by another live application only when the local registry has remembered builds for the probe. If none are recorded and the probe is identified by name or version, that check is not performed.
+An application not associated with a probe is rejected. For an `app_id` list,
+an error for one application does not stop processing the others.
+
+### Access and export
+
+Without token access, an HTTP-service request returns 500 "Token access is denied".
+`token_access` reads the flag again after changing it. An empty `user` selects the
+account used by elemctl. With a user list, each user has a separate result; an
+error for one does not stop the others.
+
+For `export_app` and `export_extension`, an empty `output` selects the MCP server's
+current directory and the name `{Name} {Version}.xasm`. A method unavailable on
+the server produces an explicit unsupported-method error. If `extension` matches
+no extension, the error lists the application's extensions.
 
 ## Plugins
 
 
-elemctl discovers external packages through `importlib.metadata` entry points. Its own `pyproject.toml` declares nothing about plugins, and it reads them on demand. Non-publishable vendor artifacts then live in a separate package, and the elemctl core stays clean and public.
+elemctl discovers external packages through `importlib.metadata` entry points.
+Plugins are loaded on demand and do not need to be declared in the core
+`pyproject.toml`. Private components can be distributed in a separate package.
 
-**`elemctl.debug_adapter`**: a plugin package declares the directory of the platform debug adapter. Those are proprietary 1C jars and elemctl does not ship them. The entry-point value is a path, or a zero-argument callable that returns one. The path points to a directory holding a `repo/` subdirectory with the adapter jars.
+**`elemctl.debug_adapter`**: a plugin package declares the directory of the 1C:Element debug adapter. Those are proprietary 1C jars and elemctl does not ship them. The entry-point value is a path, or a zero-argument callable that returns one. The path points to a directory holding a `repo/` subdirectory with the adapter jars.
 
-**`elemctl.commands`**: a plugin package brings commands of its own. The entry-point value is a `Command`, a list of them, or a zero-argument callable returning either. One declaration covers both surfaces: elemctl builds a CLI subcommand and an MCP tool with a proper schema out of it, and knows nothing about what the command does. That is where a command belongs when it is about your own environment: internal circuits, other systems, your stands. A public core is no place for it.
+**`elemctl.commands`**: a plugin package adds commands. The entry-point value
+can be a `Command`, a list of commands or a zero-argument callable returning
+either. Each declaration creates a CLI subcommand and an MCP tool with an
+argument schema. Commands for internal systems and installations can be kept
+in a separate package.
 
 ```toml
 # a plugin package's pyproject.toml
@@ -108,15 +202,63 @@ def commands():
     )]
 ```
 
-The result of a handler has to be JSON-serializable: the CLI prints it, the MCP tool returns it. The exit code of the CLI comes from the result too. An integer from 0 to 255 in the `exit-code` field becomes the exit code as it is, so a command with three outcomes can hand a script "no differences", "differences" and "a step failed" as 0, 1 and 2. Without that field, a dict result with `"ok": false` ends with exit code 1, the same convention the `deploy` and `probe` reports follow. When the field disagrees with `ok`, the field decides. A string, `true` or 300 is not a code, and the CLI goes by `ok` instead. The MCP tool returns the field with the rest of the result. Do not call `sys.exit` in a handler to get a code: the same function runs inside the MCP server, where the call would never be answered and the server would stop. Argument types are `str`, `int`, `float` and `bool` for a flag. elemctl adds `env_file` to the MCP tool itself, so a plugin command reaches other environments exactly like the core tools do. A command may not take over a name the core already occupies: such a command is left out. So is a plugin that fails to load, one written for a newer core for instance. elemctl names them on stderr and in `elemctl plugins` and keeps working with the rest.
+### Plugin command results
 
-`context.surface` says where the call came from: `"cli"` for a subcommand and `"mcp"` for a tool. A command that answers differently on the two, briefly in a tool and in full on a terminal say, reads it there instead of guessing from how `context.log` behaves. On an older core the attribute is missing, so read it with `getattr(context, "surface", None)`.
+A handler result must be JSON-serializable. The CLI writes it to stdout; MCP
+returns it to the caller. An integer from 0 to 255 in `exit-code` sets the CLI
+exit code. For example, a three-outcome command can return 0 (no differences),
+1 (differences) or 2 (step failed).
 
-A positional argument may add a CLI-only key synonym: `Argument("page", cli_alias="--page")` accepts both `elemctl wiki-get 123` and `elemctl wiki-get --page 123`. The MCP tool schema keeps the one `page` parameter it always had – `cli_alias` only changes what the CLI parser accepts, nothing about the declared arguments themselves. The two forms are mutually exclusive: the parser refuses both at once, and refuses neither when the argument is required. A plugin that declares no `cli_alias` behaves exactly as before.
+A valid `exit-code` takes precedence over `ok`. If the field is missing or invalid,
+such as a string, `true` or 300, `ok` is used: a dictionary with `"ok": false`
+produces exit code 1, as `deploy` and `probe` reports do. MCP returns `exit-code`
+with the rest of the result.
 
-An option may take several values: `Argument("--file", multiple=True)` accepts `elemctl wiki-attach --file a.png --file b.png`, and the handler gets `["a.png", "b.png"]` in the order of the command line. Without the key it gets the declared default as a list, or `[]`. The MCP tool gets an array parameter of the declared type. An option without `multiple` takes one value, and the CLI refuses it when it is given again with a different value, as it refuses any key of one value. Declare `multiple` wherever a user would repeat the key. A flag cannot be multiple, and the default of a multiple argument is a list or `None`. On an older core the field is missing and the whole plugin is left out, so a plugin that has to run on both checks `hasattr(Argument, "multiple")` first.
+Do not use `sys.exit` in a handler to set the exit code. The same handler runs
+inside the MCP server, where `sys.exit` would stop the server without answering the request.
 
-A positional argument may take several values as well: `Argument("page", multiple=True, cli_alias="--page")` accepts both `elemctl wiki-get 123 456` and `elemctl wiki-get --page 123 --page 456`, and the handler gets `["123", "456"]` either way. The two forms stay mutually exclusive, so the values of one call come from one of them. With `required=True` the argument needs at least one value; an optional one given none hands over the declared default as a list, or `[]`. The MCP tool gets the same array parameter an option gets, and no second one for the key. An older core that already knows `multiple` accepts it on an option alone: a multiple positional argument is a `PluginError` there, and the whole plugin is left out. `hasattr(Argument, "multiple")` holds on that core too, so a plugin that has to run on both reads `getattr(plugins, "POSITIONAL_MULTIPLE", False)` from `elemctl.plugins` instead: it is true only where a positional argument may be multiple.
+`context.surface` contains `"cli"` or `"mcp"`. Use it to select different output
+detail for the terminal and MCP. For compatibility with a core that lacks the
+field, read `getattr(context, "surface", None)`.
+
+### Plugin command arguments
+
+Supported types are `str`, `int`, `float` and `bool` for flags. `env_file` is added
+to the MCP tool automatically, so plugin commands can address other installations
+in the same way as core tools.
+
+A positional argument can have a CLI option alias:
+`Argument("page", cli_alias="--page")` accepts `elemctl wiki-get 123` or
+`elemctl wiki-get --page 123`. The MCP schema retains one `page` parameter;
+`cli_alias` changes only command-line parsing. Using both forms together is
+rejected. For a required argument, omitting both is also an error. Without
+`cli_alias`, the argument remains positional.
+
+`Argument("--file", multiple=True)` accepts multiple values:
+`elemctl wiki-attach --file a.png --file b.png` passes `["a.png", "b.png"]`
+to the handler in command-line order. If the option is absent, the declared
+default is passed as a list, or `[]`. MCP uses an array of the declared type.
+Without `multiple`, repeating a key with different values is rejected. A `bool`
+flag cannot be repeatable. A repeatable argument's default must be a list, tuple or `None`.
+
+Positional arguments can also accept multiple values:
+`Argument("page", multiple=True, cli_alias="--page")` accepts
+`elemctl wiki-get 123 456` or `elemctl wiki-get --page 123 --page 456`.
+Both pass `["123", "456"]` to the handler. The forms cannot be mixed.
+`required=True` requires at least one value. An optional argument without values
+passes the declared default as a list, or `[]`. MCP retains one array parameter.
+
+### Plugin compatibility
+
+A command that conflicts with a core command name is not registered. A plugin
+that fails to load, including one requiring a newer core, is skipped. These
+plugins are reported on stderr and in `elemctl plugins`; the others remain available.
+
+To support a core without repeatable arguments, check `hasattr(Argument, "multiple")`
+before using them. Without the field, a plugin declaring it cannot load.
+Some core versions provide `multiple` only for options: a repeatable positional
+argument raises `PluginError` and excludes the plugin. Check that capability
+using `getattr(plugins, "POSITIONAL_MULTIPLE", False)` from `elemctl.plugins`.
 
 ```bash
 # the adapter path from the installed plugin (for the VS Code extension):
@@ -127,9 +269,9 @@ elemctl debug-adapter
 elemctl plugins
 ```
 
-The adapter itself, those proprietary 1C jars, is extracted from the platform distribution by `tools/extract_adapter.py`. Point `xbsl.debug.adapterPath` at the resulting directory by hand, or build the plugin package from it. The script is not shipped in the package distribution.
+The adapter itself, those proprietary 1C jars, is extracted from the 1C:Element distribution by `tools/extract_adapter.py`. Point `xbsl.debug.adapterPath` at the resulting directory by hand, or build the plugin package from it. The script is not shipped in the package distribution.
 
-`ELEMCTL_NO_PLUGINS=1` turns plugin discovery off: only the core capabilities are left.
+`ELEMCTL_NO_PLUGINS=1` disables plugin discovery. Only core capabilities are available.
 
 ## VS Code
 
@@ -140,7 +282,7 @@ A companion extension integrates elemctl into the editor:
   [xbsl](https://github.com/keyfire/xbsl) project) – highlighting, linting, the form designer
   and the metadata tree. The *XBSL: deploy the project* button runs `elemctl deploy` as a
   terminal task and verifies the apply. The same extension debugs 1C:Element applications
-  with the platform's DAP adapter, whose session data comes from `elemctl apps debug`.
+  with the 1C:Element DAP adapter, whose session data comes from `elemctl apps debug`.
   Debugging used to be a separate *XBSL Debug* extension living in the elemctl repository.
   Since XBSL 0.57 it is part of the one extension, and the repository keeps only the
   elemctl side of it.
