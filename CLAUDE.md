@@ -5,6 +5,11 @@ elemctl is a public, international project: a CLI, an MCP server and a Python li
 [docs/SPEC.md](docs/SPEC.md), with a Russian edition in `docs/SPEC.ru.md`. This file records how
 the repository itself is written.
 
+## Documentation style
+
+For documentation changes, follow the [Documentation](AGENTS.md#documentation)
+instructions in `AGENTS.md`, including automatic use of `tooling-docs-writing`.
+
 ## Language of the code
 
 - **Code is English.** Comments, docstrings, identifiers, test names – all of them, in `src/`,
