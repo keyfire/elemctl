@@ -32,6 +32,7 @@ from .build import (
 )
 from .client import (
     CALCULATION_RULE_FIELDS,
+    CALCULATION_RULES_KEY,
     OIDC_SERVICE,
     SERVER_START_TIMEOUT,
     ElementClient,
@@ -1300,12 +1301,7 @@ def cmd_user_lists_self_registration(args):
 
 
 def _calculation_rules(args):
-    """The rules from a file and the per-key flags; an unknown key is refused here.
-
-    Refused rather than passed through: the platform answers 400 to a key it does not
-    know (the schema of the same catalog spells one of them differently), and a rejected
-    request says far less than a message naming the four keys that exist.
-    """
+    """Read the rule fields from a file and apply the flags that were supplied."""
     rules = {}
     if getattr(args, "rules_file", ""):
         data = json.loads(Path(args.rules_file).read_text(encoding="utf-8-sig"))
@@ -1331,12 +1327,7 @@ def _calculation_rules(args):
 
 
 def cmd_user_lists_calculation_rules(args):
-    """The rules that build a user from the provider's answer: show the target or write them.
-
-    Without values the command does not pretend to show the rules - the platform does not
-    return them - it names the service they would go to and says why there is nothing to
-    show. Writing reports honestly what was confirmed and what could not be.
-    """
+    """Show the account service's rules or update and verify the supplied fields."""
     client = make_client(_config(args))
     list_id = _user_list_id(client, args)
     service_type = args.service_type or OIDC_SERVICE
@@ -1345,26 +1336,27 @@ def cmd_user_lists_calculation_rules(args):
         service = client.find_account_service(
             list_id, service_id=args.service or "", service_type=service_type
         ) or {}
-        _emit({
+        result = {
             "list-id": list_id,
             "service-id": service.get("account-service-id"),
             "service-type": service.get("account-service-type"),
-            "rules": None,
-            "note": i18n.t("cli.rules-not-returned"),
-        })
+            "rules": service.get(CALCULATION_RULES_KEY),
+        }
+        if CALCULATION_RULES_KEY not in service:
+            result["note"] = i18n.t("cli.rules-not-returned")
+        _emit(result)
         return 0
     report = client.set_calculation_rules(
         list_id, rules, service_id=args.service or "", service_type=service_type
     )
     if not report.get("written"):
         raise ElemctlError(i18n.t("cli.rules-no-service", list=list_id, service=service_type))
-    _emit({
-        "list-id": list_id,
-        **report,
-        "note": i18n.t("cli.rules-not-verified"),
-        "next": i18n.t("cli.rules-next"),
-    })
-    return 0
+    result = {"list-id": list_id, **report}
+    verified = report.get("rules-verified") and report.get("other-fields-changed") == []
+    if not verified:
+        result.update(note=i18n.t("cli.rules-not-verified"), next=i18n.t("cli.rules-next"))
+    _emit(result)
+    return 0 if verified else 1
 
 
 def cmd_user_lists_password_login(args):

@@ -22,6 +22,14 @@ Run `python scripts/changelog-link.py <number>` to add the link and rebuild
 the generated site pages. This updates both language editions and their mirrors
 together.
 
+## Unreleased
+
+### Fixed
+
+- **`user-lists calculation-rules` checks that an update can be verified.** If the Console API
+  omits the current rules, the command stops before writing. When the API returns the rules,
+  the command preserves omitted fields and checks the service after the update.
+
 ## 2026-10-08 – 0.52.0
 
 ### Added

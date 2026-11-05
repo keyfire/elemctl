@@ -282,56 +282,56 @@ def test_cli_without_a_target_is_an_error(monkeypatch, capsys):
 
 # --- the rules that parse the provider's answer -------------------------------------------
 #
-# The platform takes these rules in the body of the account service, but does NOT give them
-# back when the service is read. So the honest report is the point of the whole command:
-# it must say what was accepted and refuse to call it verified.
+# A write requires a readable snapshot of the rules and verification after the PUT.
 
 RULES = {
-    "response-kind": "Jwt",
-    "presentation-rule": "name",
-    "phone-rule": "phone_number",
-    "email-rule": "email",
+    "response-kind": "JSON",
+    "presentation-rule": "$.name",
+    "phone-rule": "$.phone_number",
+    "email-rule": "$.email",
 }
 SERVICES = f"{API}/user-lists/list-site/settings/account-services-settings"
 
 
-def test_calculation_rules_are_sent_under_the_key_the_platform_accepts(api):
+def test_calculation_rules_keep_omitted_rules_and_verify_readback(api):
     client, transport = api
-    transport.add("GET", SERVICES, [LOCAL, OIDC])
-    transport.add("PUT", f"{SERVICES}/svc-oidc", OIDC)
-    transport.add("GET", SERVICES, [LOCAL, OIDC])
+    before = {**OIDC, "calculation-rules": RULES}
+    changes = {"presentation-rule": "$.display_name", "email-rule": ""}
+    expected = {**RULES, **changes}
+    after = {**OIDC, "calculation-rules": expected}
+    transport.add("GET", SERVICES, [LOCAL, before])
+    transport.add("PUT", f"{SERVICES}/svc-oidc", None, status=204)
+    transport.add("GET", SERVICES, [LOCAL, after])
 
-    report = client.set_calculation_rules("list-site", RULES)
+    report = client.set_calculation_rules("list-site", changes)
 
     sent = json.loads(transport.calls_to("PUT", f"{SERVICES}/svc-oidc")[0]["data"])
-    assert sent["userPropertiesCalculationRules"] == RULES
-    # The whole card goes back, not just the rules: the platform replaces the entry.
-    assert sent["account-service-id"] == "svc-oidc" and sent["additional-settings"]
-    assert report["written"] is True
+    assert sent == after
+    assert report["written"] and report["rules-verified"]
+    assert report["returned"] == expected and report["other-fields-changed"] == []
 
 
-def test_calculation_rules_are_never_reported_as_verified(api):
-    """Чтение сервиса правил не возвращает - значит подтвердить их значение нечем."""
+def test_calculation_rules_refuse_a_write_when_the_server_omits_rules(api):
     client, transport = api
     transport.add("GET", SERVICES, [OIDC])
     transport.add("PUT", f"{SERVICES}/svc-oidc", OIDC)
     transport.add("GET", SERVICES, [OIDC])
 
-    report = client.set_calculation_rules("list-site", RULES)
+    with pytest.raises(ConfigError, match="Console API"):
+        client.set_calculation_rules("list-site", RULES)
+    assert transport.calls_to("PUT", f"{SERVICES}/svc-oidc") == []
 
-    assert report["rules-verified"] is False and report["returned"] is None
-    assert report["other-fields-changed"] == []
 
-
-def test_calculation_rules_notice_a_field_lost_by_the_write(api):
-    """PUT несёт карточку целиком - если поле потерялось, это должно быть видно."""
+def test_calculation_rules_report_ignored_write_and_changed_service_field(api):
     client, transport = api
-    transport.add("GET", SERVICES, [OIDC])
+    before = {**OIDC, "calculation-rules": RULES}
+    transport.add("GET", SERVICES, [before])
     transport.add("PUT", f"{SERVICES}/svc-oidc", OIDC)
-    transport.add("GET", SERVICES, [{**OIDC, "additional-settings": {}}])
+    transport.add("GET", SERVICES, [{**before, "additional-settings": {}}])
 
-    report = client.set_calculation_rules("list-site", RULES)
+    report = client.set_calculation_rules("list-site", {"presentation-rule": "$.display_name"})
 
+    assert report["rules-verified"] is False and report["returned"] == RULES
     assert report["other-fields-changed"] == ["additional-settings"]
 
 
@@ -343,17 +343,17 @@ def test_calculation_rules_without_such_a_service(api):
     assert transport.calls_to("PUT", f"{SERVICES}/svc-local") == []
 
 
-def test_cli_calculation_rules_writes_and_says_what_is_unverified(monkeypatch, capsys):
+def test_cli_calculation_rules_unverified_write_exits_nonzero(monkeypatch, capsys):
     client = _install(monkeypatch, FakeListClient())
     code = cli.main([
         "user-lists", "calculation-rules", "--app", "site",
         "--response-kind", "Jwt", "--email-rule", "email",
     ])
-    assert code == 0
+    assert code == 1
     payload = json.loads(capsys.readouterr().out)
     assert payload["sent"] == {"response-kind": "Jwt", "email-rule": "email"}
     assert payload["rules-verified"] is False
-    assert "нельзя" in payload["note"] and payload["next"]
+    assert payload["note"] and payload["next"]
     assert any(call[0] == "set-rules" for call in client.calls)
 
 

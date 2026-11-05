@@ -432,12 +432,14 @@ Two things the panel can do and the API cannot, so both stay manual:
   nor the application's `account-services-settings`; on a stand where the setting is on, nothing appears
   there.
 
-The rules for parsing the response of an account service are accepted in the body of an account
-service under the key `userPropertiesCalculationRules`. Those rules are `presentation-rule`, `email-rule`,
-`phone-rule` and `response-kind`, all of them JsonPath or XPath. There are two traps. The
-schema of the reference calls the same thing `calculation-rules`, and the server returns 400 for
-that spelling. And a GET never returns the rules: the setting is write-only, so an API client
-cannot confirm it applied.
+`user-lists calculation-rules` reads `calculation-rules` from the selected account service.
+When changing rules, it merges the supplied fields (`response-kind`, `presentation-rule`,
+`phone-rule` and `email-rule`) into the existing rules and sends the whole service entry.
+The command reads the service again and exits with code 1 if the rules or the rest of the
+entry differ from what it sent.
+
+The command requires `calculation-rules` to be present in GET before it sends PUT.
+If the API omits the field, edit the rules in the control panel.
 
 ## 5. Build file format (.xasm / .xlib)
 
