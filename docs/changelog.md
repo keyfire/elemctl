@@ -22,6 +22,15 @@ Run `python scripts/changelog-link.py <number>` to add the link and rebuild
 the generated site pages. This updates both language editions and their mirrors
 together.
 
+## 2026-11-06 – 0.52.1
+
+### Fixed
+
+- **`user-lists calculation-rules` verifies that OIDC rules are saved.** The command keeps
+  existing values for fields you omit and reads the service again to check the saved rules.
+  If the Console API omits the current rules, the command stops before writing.
+  ([#62](https://github.com/keyfire/elemctl/pull/62))
+
 ## 2026-10-08 – 0.52.0
 
 ### Added

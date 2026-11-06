@@ -337,11 +337,9 @@ application has a list of its own, named after it, and the application card poin
 
 User-list API limitations:
 
-- the rules for parsing an account service response are accepted under the key `userPropertiesCalculationRules`.
-  Those rules are `presentation-rule`, `email-rule`, `phone-rule` and `response-kind`. The
-  reference's own schema calls the field `calculation-rules`, and that spelling is answered with a
-  400. A GET never returns the rules: the setting is write-only, and an API client cannot
-  confirm it applied;
+- If Console API v2 omits `calculation-rules` when reading an account service, use the control
+  panel to change the rules. PUT with `userPropertiesCalculationRules` can succeed while
+  leaving the rules unset.
 - the composition of an application's authentication forms is not in the API at all, and
   neither is the connection setting "users of the list are connected automatically on sign-in".
   Those stay in the control panel;

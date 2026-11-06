@@ -115,10 +115,8 @@ FAILED_TASK_STATUSES = {"error", "failed"}
 LOCAL_SERVICE = "Local"
 #: The account service that signs in through an external provider.
 OIDC_SERVICE = "Oidc"
-#: The key the platform accepts for the rules that build a user from the provider's
-#: answer. The name differs from the one in the schema of the same catalog
-#: (`calculation-rules`), and the platform rejects that one with 400.
-CALCULATION_RULES_KEY = "userPropertiesCalculationRules"
+#: The key declared for account-service rules in the Console API schema.
+CALCULATION_RULES_KEY = "calculation-rules"
 #: The rules themselves: what kind of answer is parsed and how the fields are taken from it.
 CALCULATION_RULE_FIELDS = ("response-kind", "presentation-rule", "phone-rule", "email-rule")
 
@@ -1933,43 +1931,40 @@ class ElementClient:
         return None
 
     def set_calculation_rules(self, list_id, rules, *, service_id="", service_type=OIDC_SERVICE):
-        """Write the rules that build a user out of the provider's answer.
+        """Update the supplied rules and compare the result with a fresh service card.
 
-        The report is deliberately blunt about what was and was NOT confirmed. The
-        platform does not return these rules in a GET of the service, so "the rules are
-        in place" cannot be asserted through the API by anyone - this method included.
-        What IS checked: the request was accepted, and re-reading the service shows the
-        REST of its card unchanged. A PUT carries the whole entry, so a mistake here
-        would quietly drop a neighbouring field - that is what the comparison catches.
-
-        The rules are applied blind on purpose: recreating the sign-in service resets
-        them, and the only way back is to write them again. Whether they took effect is
-        answered by the control panel or by a live sign-in, and the report says so.
+        PUT replaces the entry. Read the existing rules before merging the supplied
+        fields, and refuse the write if this Console API omits them from GET.
         """
         service = self.find_account_service(
             list_id, service_id=service_id, service_type=service_type
         )
         if service is None:
             return {"service": None, "sent": rules, "written": False, "rules-verified": False}
-        before = dict(service)
-        self.update_account_service(list_id, {**before, CALCULATION_RULES_KEY: dict(rules)})
+        current = service.get(CALCULATION_RULES_KEY)
+        if CALCULATION_RULES_KEY not in service or (
+            current is not None and not isinstance(current, dict)
+        ):
+            raise ConfigError(i18n.t("client.account-service-rules-unavailable"))
+        sent = {**(current or {}), **dict(rules)}
+        self.update_account_service(list_id, {**service, CALCULATION_RULES_KEY: sent})
         after = self.find_account_service(
-            list_id, service_id=before.get("account-service-id"), service_type=service_type
+            list_id, service_id=service.get("account-service-id"), service_type=service_type
         )
-        untouched = None
-        if isinstance(after, dict):
-            keys = (set(before) | set(after)) - {CALCULATION_RULES_KEY}
-            untouched = sorted(k for k in keys if before.get(k) != after.get(k))
+        changed = None
+        if after is not None:
+            keys = (service.keys() | after.keys()) - {CALCULATION_RULES_KEY}
+            missing = object()
+            changed = sorted(k for k in keys if service.get(k, missing) != after.get(k, missing))
+        returned = (after or {}).get(CALCULATION_RULES_KEY)
         return {
-            "service-id": before.get("account-service-id"),
-            "service-type": before.get("account-service-type"),
-            "sent": dict(rules),
+            "service-id": service.get("account-service-id"),
+            "service-type": service.get("account-service-type"),
+            "sent": sent,
             "written": True,
-            # The platform answers a GET without this key - so nothing can confirm the
-            # value itself, and saying "verified" here would be a lie.
-            "rules-verified": False,
-            "returned": (after or {}).get(CALCULATION_RULES_KEY),
-            "other-fields-changed": untouched,
+            "rules-verified": returned == sent,
+            "returned": returned,
+            "other-fields-changed": changed,
         }
 
     def set_password_login(self, list_id, enabled):

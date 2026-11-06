@@ -662,6 +662,12 @@ MESSAGES = {
         "ru": "у сервиса учётных записей не задан account-service-id",
         "en": "the account service has no account-service-id",
     },
+    "client.account-service-rules-unavailable": {
+        "ru": "Console API не возвращает текущие правила разбора ответа. "
+              "Измените правила в панели управления",
+        "en": "the Console API does not expose the current response parsing rules. "
+              "Edit the rules in the control panel",
+    },
     "client.waiting-deleted": {
         "ru": "ждём удаления приложения: статус {status}...",
         "en": "waiting for the application to be deleted: status {status}...",
@@ -2292,12 +2298,12 @@ MESSAGES = {
         "en": "signing in with a login and a password (the Local account service): show or switch",
     },
     "cli.help.user-lists-calculation-rules": {
-        "ru": "правила разбора ответа сервиса учётных записей: показать цель или записать правила",
-        "en": "the rules that parse the account service's answer: show the target or write them",
+        "ru": "показать или изменить правила разбора ответа, доступные через Console API",
+        "en": "show or update response parsing rules exposed by the Console API",
     },
     "cli.help.rules-file": {
-        "ru": "файл JSON с правилами целиком",
-        "en": "a JSON file with the whole set of rules",
+        "ru": "файл JSON с полями правил, которые нужно изменить",
+        "en": "a JSON file with the rule fields to update",
     },
     "cli.help.rule-response-kind": {
         "ru": "вид ответа, который разбирается",
@@ -2322,30 +2328,25 @@ MESSAGES = {
         "en": "the rules file must hold a JSON object like {{\"response-kind\": ...}}",
     },
     "cli.rules-unknown-keys": {
-        "ru": "платформа не примет ключи {keys}: она отвечает 400 на всё, кроме {known}",
-        "en": "the platform will not accept the keys {keys}: it answers 400 to anything but {known}",
+        "ru": "неизвестные ключи правил {keys}. Допустимые ключи: {known}",
+        "en": "unknown rule keys {keys}. Supported keys: {known}",
     },
     "cli.rules-no-service": {
         "ru": "в списке {list} нет сервиса учётных записей {service} – записывать правила некуда",
         "en": "list {list} has no {service} account service – there is nowhere to write the rules",
     },
     "cli.rules-not-returned": {
-        "ru": "платформа не возвращает эти правила чтением сервиса – показать их нечем; "
-              "команда умеет их только записывать",
-        "en": "the platform does not return these rules when the service is read – there is "
-              "nothing to show; the command can only write them",
+        "ru": "Console API не возвращает правила разбора ответа. Они доступны в панели управления",
+        "en": "the Console API does not return the response parsing rules. "
+              "They are available in the control panel",
     },
     "cli.rules-not-verified": {
-        "ru": "правила отправлены и приняты, но подтвердить их значение через API нельзя: "
-              "чтение сервиса их не возвращает. Проверено другое – остальная карточка сервиса "
-              "после записи не изменилась",
-        "en": "the rules were sent and accepted, but their value cannot be confirmed through "
-              "the API: reading the service does not return them. What was checked instead – "
-              "the rest of the service card is unchanged after the write",
+        "ru": "повторное чтение не подтвердило запись правил и сохранение остальных полей сервиса",
+        "en": "reading the service again did not confirm the rules and the rest of the service card",
     },
     "cli.rules-next": {
-        "ru": "убедиться, что правила применились, можно панелью управления или живым входом",
-        "en": "that the rules took effect is answered by the control panel or by a live sign-in",
+        "ru": "проверьте настройки сервиса в панели управления",
+        "en": "check the account service settings in the control panel",
     },
     "cli.help.user-lists-app": {
         "ru": "взять собственный список приложения (ид либо точное имя приложения)",
