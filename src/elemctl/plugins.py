@@ -182,6 +182,10 @@ class Argument:
     option, one that does not start with a dash, or one that collides with
     another argument's own flag.
 
+    cli_prefix_alias is a CLI-only alias for an option that takes a value. It is
+    accepted before or after this subcommand. Both option names fill the same
+    parameter and follow the same rules for repeated values.
+
     multiple - the argument takes several values, and the command gets the list of
     what was given, in the order of the command line. An option may be given more
     than once: "wiki-attach --file a.png --file b.png" hands over ["a.png",
@@ -213,6 +217,7 @@ class Argument:
     choices: tuple = ()
     cli_alias: str = ""
     multiple: bool = False
+    cli_prefix_alias: str = ""
 
     @property
     def is_option(self) -> bool:
@@ -330,6 +335,7 @@ class Command:
         # list of taken names this refusal offers leaves the global options out.
         kept_names = ", ".join(sorted(taken_names - set(reserved)))
         seen = set()
+        flags = []
         for argument in self.arguments:
             if not isinstance(argument, Argument):
                 raise PluginError(i18n.t(
@@ -375,11 +381,23 @@ class Command:
                     where=where, name=self.name, argument=argument.name,
                     alias=argument.cli_alias,
                 ))
+            prefix_alias = argument.cli_prefix_alias
+            if prefix_alias and (
+                not argument.is_option or argument.type is bool
+                or not prefix_alias.startswith("--") or len(prefix_alias) == 2
+                or "=" in prefix_alias or any(char.isspace() for char in prefix_alias)
+            ):
+                raise PluginError(i18n.t(
+                    "plugins.prefix-alias-needs-valued-option",
+                    where=where, name=self.name, argument=argument.name, alias=prefix_alias,
+                ))
             clash = reserved.get(argument.dest)
             label = argument.name
-            if clash is None and argument.cli_alias in reserved.values():
-                clash = argument.cli_alias
-                label = f"{argument.name} (cli_alias {argument.cli_alias})"
+            alias = argument.cli_alias or prefix_alias
+            if clash is None and alias in reserved.values():
+                clash = alias
+                field = "cli_alias" if argument.cli_alias else "cli_prefix_alias"
+                label = f"{argument.name} ({field} {alias})"
             if clash is not None:
                 raise PluginError(i18n.t(
                     "plugins.global-option-taken",
@@ -392,9 +410,11 @@ class Command:
                     where=where, name=self.name, argument=argument.name,
                     dest=argument.dest, names=kept_names,
                 ))
-            flags = [argument.name] if argument.is_option else []
-            flags += [argument.cli_alias] if argument.cli_alias else []
-            for flag in flags:
+            argument_flags = [argument.name] if argument.is_option else []
+            if alias:
+                argument_flags.append(alias)
+            flags.extend(argument_flags)
+            for flag in argument_flags:
                 if flag in taken_options:
                     raise PluginError(i18n.t(
                         "plugins.option-taken",
@@ -407,8 +427,6 @@ class Command:
         # surface as a bare argparse.ArgumentError the moment the CLI parser is built -
         # not a PluginError, and not only for the plugin's own command, since the parser
         # is shared by the whole CLI.
-        flags = [a.name for a in self.arguments if a.is_option]
-        flags += [a.cli_alias for a in self.arguments if a.cli_alias]
         duplicates = {flag for flag in flags if flags.count(flag) > 1}
         if duplicates:
             raise PluginError(i18n.t(

@@ -234,6 +234,12 @@ A positional argument can have a CLI option alias:
 rejected. For a required argument, omitting both is also an error. Without
 `cli_alias`, the argument remains positional.
 
+`Argument("--out", cli_prefix_alias="--report")` accepts `--out` after the
+subcommand and `--report` before or after it. Both options set the same `out`
+parameter. Supplying different values for a single-value option is a parsing
+error. MCP keeps the `out` parameter. Use `hasattr(plugins.Argument,
+"cli_prefix_alias")` when supporting cores without this field.
+
 `Argument("--file", multiple=True)` accepts multiple values:
 `elemctl wiki-attach --file a.png --file b.png` passes `["a.png", "b.png"]`
 to the handler in command-line order. If the option is absent, the declared

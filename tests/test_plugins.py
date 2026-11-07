@@ -207,6 +207,12 @@ def test_command_declaration_is_checked_at_discovery(monkeypatch):
         _command(arguments=["--stand"]),
         _command(arguments=[plugins.Argument("--stand", cli_alias="--s")]),  # alias on an option
         _command(arguments=[plugins.Argument("stand", cli_alias="page")]),  # alias without a dash
+        _command(arguments=[plugins.Argument("report", cli_prefix_alias="--file")]),
+        _command(arguments=[plugins.Argument("--force", type=bool, cli_prefix_alias="--yes")]),
+        _command(arguments=[plugins.Argument("--out", cli_prefix_alias="--json")]),
+        _command(arguments=[
+            plugins.Argument("--out", cli_prefix_alias="--file"), plugins.Argument("--file"),
+        ]),
         _command(arguments=[  # alias collides with another argument's own flag
             plugins.Argument("stand", cli_alias="--force"), plugins.Argument("--force", type=bool),
         ]),
@@ -345,7 +351,8 @@ def test_an_option_is_refused_by_its_value_name_as_well(monkeypatch):
     plugins.Argument("--help"),
     plugins.Argument("-h", type=bool),
     plugins.Argument("stand", required=False, cli_alias="--help"),
-], ids=["option-help", "flag-h", "alias-help"])
+    plugins.Argument("--out", cli_prefix_alias="--help"),
+], ids=["option-help", "flag-h", "alias-help", "prefix-alias-help"])
 def test_a_plugin_may_not_declare_the_help_of_its_subcommand(monkeypatch, argument):
     """The subparser answers -h and --help itself, and argparse refused the second one with a
     bare ArgumentError while the parser of the whole CLI was being built."""
@@ -628,6 +635,76 @@ def test_cli_plugin_command_with_a_cli_alias_takes_either_form(monkeypatch, caps
     assert json.loads(capsys.readouterr().out) == {"page": "123"}
     assert cli.main(["wiki-get", "--page", "123"]) == 0
     assert json.loads(capsys.readouterr().out) == {"page": "123"}
+
+
+@pytest.mark.parametrize("argv", [
+    ["wiki-export", "--out", "report.json"],
+    ["wiki-export", "--report", "report.json"],
+    ["--report", "report.json", "wiki-export", "--lang", "en"],
+    ["--report=report.json", "wiki-export"],
+    ["--report", "report.json", "wiki-export", "--out", "report.json"],
+])
+def test_cli_plugin_option_accepts_its_prefix_alias(monkeypatch, capsys, argv):
+    _with_commands(monkeypatch, _command(
+        name="wiki-export",
+        arguments=[plugins.Argument("--out", cli_prefix_alias="--report")],
+        handler=lambda context, out: {"file": out},
+    ))
+
+    assert cli.main(argv) == 0
+    assert json.loads(capsys.readouterr().out) == {"file": "report.json"}
+
+
+def test_cli_plugin_multiple_option_keeps_prefix_alias_values_in_order(monkeypatch, capsys):
+    _with_commands(monkeypatch, _command(
+        name="wiki-export",
+        arguments=[plugins.Argument("--out", cli_prefix_alias="--report", multiple=True)],
+        handler=lambda context, out: {"files": out},
+    ))
+
+    assert cli.main([
+        "--report=first.json", "--lang=en", "--report", "second.json",
+        "wiki-export", "--out", "third.json", "--report", "fourth.json",
+    ]) == 0
+    assert json.loads(capsys.readouterr().out) == {
+        "files": ["first.json", "second.json", "third.json", "fourth.json"],
+    }
+
+
+def test_cli_plugin_option_prefix_alias_shares_help_and_conflict_checks(monkeypatch, capsys):
+    _with_commands(monkeypatch, _command(
+        name="wiki-export",
+        arguments=[plugins.Argument("--out", cli_prefix_alias="--report")],
+        handler=lambda context, out: pytest.fail("invalid options reached the handler"),
+    ))
+
+    with pytest.raises(SystemExit) as help_exit:
+        cli.main(["wiki-export", "--help"])
+    assert help_exit.value.code == 0
+    help_text = capsys.readouterr().out
+    assert "--out" in help_text and "--report" in help_text
+
+    with pytest.raises(SystemExit) as conflict:
+        cli.main(["--report", "first.json", "wiki-export", "--out", "second.json"])
+    assert conflict.value.code == 2
+    message = capsys.readouterr().err
+    assert "--report" in message and "--out" in message
+    assert "first.json" in message and "second.json" in message
+
+
+def test_cli_plugin_option_prefix_alias_is_local_to_its_command(monkeypatch):
+    _with_commands(
+        monkeypatch,
+        _command(
+            name="wiki-export",
+            arguments=[plugins.Argument("--out", cli_prefix_alias="--report")],
+        ),
+        _command(name="wiki-get"),
+    )
+
+    with pytest.raises(SystemExit) as unrelated:
+        cli.main(["--report", "report.json", "wiki-get"])
+    assert unrelated.value.code == 2
 
 
 def test_cli_plugin_command_refuses_the_alias_given_twice_or_not_at_all(monkeypatch):

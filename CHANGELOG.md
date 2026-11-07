@@ -16,6 +16,13 @@ Run `python scripts/changelog-link.py <number>` to add the link and rebuild
 the generated site pages. This updates both language editions and their mirrors
 together.
 
+## Unreleased
+
+### Added
+
+- Plugins can accept an option alias before or after the subcommand. For example,
+  `--report` can set the same parameter as `--out`.
+
 ## 2026-11-06 – 0.52.1
 
 ### Fixed
