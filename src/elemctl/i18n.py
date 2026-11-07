@@ -842,6 +842,12 @@ MESSAGES = {
               "cli_alias while not being positional itself – a synonym only makes sense for a "
               "positional argument, an option already has a name to call it by",
     },
+    "plugins.prefix-alias-needs-valued-option": {
+        "ru": "аргумент {argument} команды '{name}' плагина '{where}' содержит неверный "
+              "cli_prefix_alias '{alias}': нужен ключ с префиксом -- для опции со значением",
+        "en": "argument {argument} of command '{name}' from plugin '{where}' has an invalid "
+              "cli_prefix_alias '{alias}': expected a --option alias for an option that takes a value",
+    },
     "plugins.alias-not-an-option": {
         "ru": "cli_alias '{alias}' аргумента {argument} команды '{name}' плагина '{where}' "
               "обязан начинаться с дефиса, как имя опции",

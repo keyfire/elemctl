@@ -1811,6 +1811,10 @@ def add_plugin_commands(sub, discover=None):
         for argument in command.arguments:
             if argument.cli_alias:
                 _add_aliased_positional(parser, argument)
+            elif argument.cli_prefix_alias:
+                parser.add_argument(
+                    argument.name, argument.cli_prefix_alias, **_argument_kwargs(argument)
+                )
             else:
                 parser.add_argument(argument.name, **_argument_kwargs(argument))
         parser.set_defaults(handler=_plugin_handler(command), plugin_command=command)
@@ -1947,6 +1951,45 @@ def _hoist_global_options(argv):
         rest.append(arg)
         index += 1
     return hoisted + rest
+
+
+def _move_plugin_prefix_aliases(argv, commands):
+    """Move leading aliases after the command that declares them."""
+    command_aliases = {
+        command.name: {arg.cli_prefix_alias for arg in command.arguments if arg.cli_prefix_alias}
+        for command in commands
+    }
+    known = set().union(*command_aliases.values())
+    if not known:
+        return argv
+
+    # The global options already precede any command-specific arguments.
+    first = 0
+    while first < len(argv):
+        flag, equals, _ = argv[first].partition("=")
+        if flag in _GLOBAL_OPTIONS:
+            first += 1 if equals else 2
+        elif flag in _GLOBAL_FLAGS:
+            first += 1
+        else:
+            break
+
+    index = first
+    aliases = set()
+    while index < len(argv):
+        flag, equals, _ = argv[index].partition("=")
+        if flag not in known:
+            break
+        aliases.add(flag)
+        index += 1
+        if not equals:
+            if index == len(argv) or argv[index] == "--":
+                return argv
+            index += 1
+
+    if aliases and index < len(argv) and aliases <= command_aliases.get(argv[index], set()):
+        return argv[:first] + [argv[index]] + argv[first:index] + argv[index + 1:]
+    return argv
 
 
 def _requested_command(argv):
@@ -2531,6 +2574,7 @@ def main(argv=None):
         parser = build_parser()
     except ElemctlError as error:
         return _fail({"error": str(error)})
+    argv = _move_plugin_prefix_aliases(argv, parser.get_default("plugin_commands") or ())
     # A plugin that did not load is left out of the parser rather than taking it down.
     # A call to a command that is missing while plugins failed gets the usual JSON
     # refusal naming them: the command may well have been theirs.
